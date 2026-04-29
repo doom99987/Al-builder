@@ -1,0 +1,116 @@
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #0d0d0d;
+  color: white;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Top tab bar */
+.tabbar {
+  display: flex;
+  background: #141414;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.tab {
+  padding: 12px 20px;
+  background: none;
+  border: none;
+  color: gray;
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: #1f1f1f;
+  color: white;
+}
+
+.tab.active {
+  background: #2a2a2a;
+  color: white;
+  border-bottom: 2px solid white;
+}
+
+/* Stats */
+.points-box {
+  display: inline-block;
+  background: #1f1f1f;
+  border: 1px solid #333;
+  padding: 8px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: #aaa;
+}
+
+.points-box span {
+  color: white;
+  font-weight: bold;
+}
+
+.stat-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.stat-name {
+  width: 50px;
+  font-size: 13px;
+  color: #aaa;
+  letter-spacing: 1px;
+}
+
+.stat-val {
+  width: 30px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.stat-btn {
+  width: 28px;
+  height: 28px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: white;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.stat-btn:hover {
+  background: #3a3a3a;
+}
+
+.stat-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Content */
+.content {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.panel {
+  display: none;
+}
+
+.panel.active {
+  display: block;
+}
