@@ -35,16 +35,31 @@ racePicker.addEventListener("change", e => {
     const base = raceBase[row.dataset.stat] ?? 0;
     row.querySelector(".stat-base").textContent = base > 0 ? `+${base}` : "";
   });
+  updatePoints();
   updatePecents();
 });
 
 // --- Stat counters ---
-const TOTAL_POINTS = 195;
 const Max_Lvl = 40;
-const Min_Lvl =1;
+const Min_Lvl = 1;
 let spent = 0;
-document.getElementById("points-left").textContent = TOTAL_POINTS;
-document.getElementById("Lvl").textContent = Min_Lvl + Math.floor(spent / 5);
+
+const lvlInput = document.getElementById("Lvl");
+
+function getEffectiveTotal() {
+  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  const base = (lvl - Min_Lvl) * 5;
+  const isDullahan = racePicker.value === "Dullahan (1%)";
+  const bonus = isDullahan ? Math.floor(lvl / 10) * 3 : 0;
+  return base + bonus;
+}
+
+lvlInput.addEventListener("change", () => {
+  lvlInput.value = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  updatePoints();
+});
+
+document.getElementById("points-left").textContent = getEffectiveTotal();
 
 document.querySelectorAll(".stat-row").forEach(row => {
   const plus = row.querySelector(".plus");
@@ -52,11 +67,10 @@ document.querySelectorAll(".stat-row").forEach(row => {
   const val = row.querySelector(".stat-val");
 
   plus.addEventListener("click", () => {
-    if (spent >= TOTAL_POINTS) return;
+    if (spent >= getEffectiveTotal()) return;
     val.value = +val.value + 1;
     spent++;
     updatePoints();
-    updateLvl();
     updatePecents();
   });
 
@@ -65,7 +79,6 @@ document.querySelectorAll(".stat-row").forEach(row => {
     val.value = +val.value - 1;
     spent--;
     updatePoints();
-    updateLvl();
     updatePecents();
   });
 
@@ -74,14 +87,13 @@ document.querySelectorAll(".stat-row").forEach(row => {
     const prev = +val.dataset.prev;
     let newVal = Math.max(0, Math.floor(+val.value || 0));
     const diff = newVal - prev;
-    if (spent + diff > TOTAL_POINTS) {
-      newVal = prev + (TOTAL_POINTS - spent);
+    if (spent + diff > getEffectiveTotal()) {
+      newVal = prev + (getEffectiveTotal() - spent);
     }
     val.value = newVal;
     spent += newVal - prev;
     val.dataset.prev = newVal;
     updatePoints();
-    updateLvl();
     updatePecents();
   });
 });
@@ -103,12 +115,9 @@ function calcPercentage(stat, val){
 }
 
 function updatePoints() {
-  document.getElementById("points-left").textContent = TOTAL_POINTS - spent;
+  document.getElementById("points-left").textContent = getEffectiveTotal() - spent;
 }
 
-function updateLvl(){
-    document.getElementById("Lvl").textContent = Min_Lvl + Math.floor(spent / 5);
-}
 
 function updatePecents() {
   document.querySelectorAll(".percent-item").forEach(item => {
@@ -152,6 +161,37 @@ function enforceUniqueGear() {
 
 gearPickers.forEach(picker => {
   picker.addEventListener("change", enforceUniqueGear);
+});
+
+// --- Weapons ---
+// To add weapon: "Item Name": { str, arc, end, spd, lck }
+const weaponItems = {
+  // example: "Iron Sword": { str: 5, arc: 0, end: 0, spd: 0, lck: 0 },
+};
+
+const weaponPickers = document.querySelectorAll(".weapon-picker");
+
+weaponPickers.forEach(picker => {
+  Object.keys(weaponItems).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    picker.appendChild(opt);
+  });
+});
+
+function enforceUniqueWeapon() {
+  const selected = Array.from(weaponPickers).map(p => p.value).filter(v => v !== "");
+  weaponPickers.forEach(picker => {
+    Array.from(picker.options).forEach(opt => {
+      if (opt.value === "") return;
+      opt.disabled = selected.includes(opt.value) && picker.value !== opt.value;
+    });
+  });
+}
+
+weaponPickers.forEach(picker => {
+  picker.addEventListener("change", enforceUniqueWeapon);
 });
 
 // --- Tabs ---

@@ -32,7 +32,7 @@
           </div>
 
           <div class="box">
-            Current Lvl: <span id="Lvl"></span>
+            Lvl: <input id="Lvl" type="number" value="1" min="1" max="40">
           </div>
 
           <div class="race-row">
@@ -139,6 +139,20 @@
           <div class="gear-slot">
             <label class="gear-label">Gear 4</label>
             <select class="gear-picker" id="gear-4">
+              <option value="">— None —</option>
+            </select>
+          </div>
+
+          <h2 class="gear-sub-header">Weapons</h2>
+          <div class="gear-slot">
+            <label class="gear-label">Weapon</label>
+            <select class="weapon-picker" id="weapon-main">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div class="gear-slot">
+            <label class="gear-label">Off Hand</label>
+            <select class="weapon-picker" id="weapon-offhand">
               <option value="">— None —</option>
             </select>
           </div>

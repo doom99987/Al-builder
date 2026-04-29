@@ -48,8 +48,10 @@ body {
   margin-bottom: 20px;
   font-size: 14px;
   color: #aaa;
-  display: flex;                                                                                                         
+  display: flex;
+  align-items: center;
   justify-content: center;
+  font-size: 16px;
 }
 
 .box span {
@@ -104,7 +106,7 @@ body {
 .stat-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 5px;
 }
 
 .stat-name {
@@ -170,6 +172,35 @@ body {
 .stats-left h2 {
   text-align: center;
   width: 100%;
+}
+
+#Lvl {
+  width: 48px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: bold;
+  background: #111;
+  border: 1px solid #555;
+  border-radius: 6px;
+  color: white;
+  padding: 4px 6px;
+  margin-left: 6px;
+  -moz-appearance: textfield;
+  transition: border-color 0.15s;
+}
+
+#Lvl:hover {
+  border-color: #888;
+}
+
+#Lvl:focus {
+  outline: none;
+  border-color: #aaa;
+}
+
+#Lvl::-webkit-outer-spin-button,
+#Lvl::-webkit-inner-spin-button {
+  -webkit-appearance: none;
 }
 
 .stat-val {
@@ -245,6 +276,12 @@ body {
   text-align: center;
 }
 
+.gear-sub-header {
+  margin: 14px 0 6px 0;
+  border-top: 1px solid #2a2a2a;
+  padding-top: 14px;
+}
+
 .gear-slot {
   display: flex;
   flex-direction: column;
@@ -257,7 +294,8 @@ body {
   letter-spacing: 1px;
 }
 
-.gear-picker {
+.gear-picker,
+.weapon-picker {
   background: #1a1a1a;
   border: 1px solid #444;
   color: white;
@@ -268,7 +306,8 @@ body {
   min-width: 160px;
 }
 
-.gear-picker:focus {
+.gear-picker:focus,
+.weapon-picker:focus {
   outline: none;
   border-color: #666;
 }
