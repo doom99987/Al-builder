@@ -57,6 +57,44 @@ body {
   font-weight: bold;
 }
 
+
+.race-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  width: 100%;
+}
+
+.race-label {
+  font-size: 13px;
+  color: #aaa;
+  letter-spacing: 1px;
+}
+
+#race-picker {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#race-picker:focus {
+  outline: none;
+  border-color: #666;
+}
+
+.stat-base {
+  width: 28px;
+  font-size: 11px;
+  color: #4caf8a;
+  text-align: right;
+}
+
 .stat-list {
   display: flex;
   flex-direction: column;
@@ -74,12 +112,6 @@ body {
   font-size: 13px;
   color: #aaa;
   letter-spacing: 1px;
-}
-
-.stat-val {
-  width: 30px;
-  text-align: center;
-  font-size: 16px;
 }
 
 .stat-btn {
@@ -117,5 +149,67 @@ body {
 }
 
 .panel.active {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+}
+
+#stats h2 {
+  text-align: center;
+  width: 100%;
+}
+
+.stat-val {
+  width: 50px;
+  text-align: center;
+  font-size: 16px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: white;
+  border-radius: 4px;
+  padding: 2px 4px;
+  -moz-appearance: textfield;
+}
+
+.stat-val::-webkit-outer-spin-button,
+.stat-val::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+}
+
+.stat-percent {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.percent-item {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 0 10px;
+  min-width: 52px;
+}
+
+.percent-val {
+  font-size: 9px;
+  font-weight: bold;
+  color: white;
+  line-height: 1;
+}
+
+.percent-label {
+  font-size: 12px;
+  color: #555;
+  letter-spacing: 1px;
+  line-height: 1;
 }
