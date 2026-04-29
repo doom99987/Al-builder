@@ -213,7 +213,7 @@ weaponPickers.forEach(picker => {
 // --- Classes ---
 // To add a class: "ClassName": ["SuperClass1", "SuperClass2", ...]
 const classes = {
-  "Thief": ["Ranger (Or)", "Rouge (N)", "assassin (Ch)"],
+  "Thief": ["Ranger (Or)", "Rouge (N)", "Assassin (Ch)"],
   "Warrior":["Paladin (Or)", "Blade Dancer (N)", "Berserker (Ch)"],
   "Wizard":["Elementalist (Or)", "Hexer (N)", "Necromancer (Ch)"],
   "Martial Artist":["Monk (Or)", "Brawler (N)", "Darkwraith (Ch)"],
@@ -262,10 +262,81 @@ classPicker.addEventListener("change", () => {
 // --- Class Moves ---
 // To add: "ClassName": { innatePassives: [...], learns: [...] }
 const classMoves = {
-  "Thief": { innatePassives: [], learns: [] },
+  "Thief": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 1,
+        type: "Passive",
+        name: "Thievery",
+        quote: "",
+        effect: "Gold gain from all sources is increased."
+      },
+      {
+        slot: "2nd Learn",
+        level: 1,
+        type: "Passive",
+        name: "Agile",
+        quote: "",
+        effect: "Sprint speed is increased."
+      },
+      {
+        slot: "3rd Learn",
+        level: 1,
+        type: "Active",
+        name: "Stab",
+        quote: "Stab deep into the enemy.",
+        cost: 1,
+        cooldown: 2,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 6,
+        scaling: "STR",
+        effect: "Stab deep into the enemy, inflict 2 stacks of Bleed. This has a 40% extra chance to crit.",
+        image: "https://trello.com/1/cards/67b3291ea782e28bbc86acf6/attachments/69788fa838e26d910277122c/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151243.png"
+      },
+      {
+        slot: "4th Learn",
+        level: 1,
+        type: "Active",
+        name: "Pocket Sand",
+        quote: "Grab and throw sand into the enemy's eyes.",
+        cost: 2,
+        cooldown: 3,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 8,
+        scaling: "STR",
+        effect: "Grab and throw sand into the enemy's eyes, inflict 2 stacks of Blind.",
+        image: "https://trello.com/1/cards/67b3291ea782e28bbc86acf6/attachments/69788fa731f165ba13304300/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151225.png"
+      }
+    ]
+  },
   "Ranger (Or)": { innatePassives: [], learns: [] },
   "Rouge (N)": { innatePassives: [], learns: [] },
-  "assassin (Ch)": { innatePassives: [], learns: [] }
+  "assassin (Ch)": { innatePassives: [], learns: [] },
+  "Warrior": { innatePassives: [], learns: [] },
+  "Paladin (Or)": { innatePassives: [], learns: [] },
+  "Blade Dancer (N)": { innatePassives: [], learns: [] },
+  "Berserker (Ch)": { innatePassives: [], learns: [] },
+  "Wizard": { innatePassives: [], learns: [] },
+  "Elementalist (Or)": { innatePassives: [], learns: [] },
+  "Hexer (N)": { innatePassives: [], learns: [] },
+  "Necromancer (Ch)": { innatePassives: [], learns: [] },
+  "Martial Artist": { innatePassives: [], learns: [] },
+  "Monk (Or)": { innatePassives: [], learns: [] },
+  "Brawler (N)": { innatePassives: [], learns: [] },
+  "Darkwraith (Ch)": { innatePassives: [], learns: [] },
+  "Slayer": { innatePassives: [], learns: [] },
+  "Saint (Or)": { innatePassives: [], learns: [] },
+  "Lancer (N)": { innatePassives: [], learns: [] },
+  "Impaler (Ch)": { innatePassives: [], learns: [] },
+  "Marauder": { innatePassives: [], learns: [] },
+  "Lionheart (N)": { innatePassives: [], learns: [] },
+  "Sentry": { innatePassives: [], learns: [] },
+  "Citadel (Or)": { innatePassives: [], learns: [] },
+  "Arbiter (N)": { innatePassives: [], learns: [] }
 };
 
 // --- Race Moves ---
