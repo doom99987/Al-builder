@@ -3,7 +3,7 @@ const TOTAL_POINTS = 200;
 const Max_Lvl = 40;
 let spent = 0;
 document.getElementById("points-left").textContent = TOTAL_POINTS;
-document.getElementById("Lvl").textContent = "lvl " + spent / 5;
+document.getElementById("Lvl").textContent = Math.floor(spent / 5);
 
 document.querySelectorAll(".stat-row").forEach(row => {
   const plus = row.querySelector(".plus");
@@ -32,7 +32,7 @@ function updatePoints() {
 }
 
 function updateLvl(){
-    document.getElementById("Lvl").textContent = "lvl " + spent / 5;
+    document.getElementById("Lvl").textContent = Math.floor(spent / 5);
 }
 
 // --- Tabs ---
