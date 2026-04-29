@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+
+<div class="app">
+
+  <!-- Top tabs -->
+  <div class="tabbar">
+    <button class="tab active" data-tab="stats">Stats</button>
+    <button class="tab" data-tab="gear">Gear</button>
+    <button class="tab" data-tab="talents">Soul Tree</button>
+  </div>
+
+  <!-- Content area -->
+  <div class="content">
+
+    <div class="panel active" id="stats">
+      <h2>Stats</h2>
+
+      <div class="points-box">
+        Points Remaining: <span id="points-left"></span> <span id="Lvl"></span>
+      </div>
+
+      <div class="stat-list">
+        <div class="stat-row" data-stat="dmg">
+          <span class="stat-name">DMG</span>
+          <button class="stat-btn minus">−</button>
+          <span class="stat-val">0</span>
+          <button class="stat-btn plus">+</button>
+        </div>
+        <div class="stat-row" data-stat="arc">
+          <span class="stat-name">ARC</span>
+          <button class="stat-btn minus">−</button>
+          <span class="stat-val">0</span>
+          <button class="stat-btn plus">+</button>
+        </div>
+        <div class="stat-row" data-stat="end">
+          <span class="stat-name">END</span>
+          <button class="stat-btn minus">−</button>
+          <span class="stat-val">0</span>
+          <button class="stat-btn plus">+</button>
+        </div>
+        <div class="stat-row" data-stat="spd">
+          <span class="stat-name">SPD</span>
+          <button class="stat-btn minus">−</button>
+          <span class="stat-val">0</span>
+          <button class="stat-btn plus">+</button>
+        </div>
+        <div class="stat-row" data-stat="luck">
+          <span class="stat-name">LUCK</span>
+          <button class="stat-btn minus">−</button>
+          <span class="stat-val">0</span>
+          <button class="stat-btn plus">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="gear">
+      <h2>Gear</h2>
+      <p>Put gear stuff here</p>
+    </div>
+
+    <div class="panel" id="talents">
+      <h2>Talents</h2>
+      <p>Put talents here</p>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="js/scripts.js"></script>
+</body>
+</html>
