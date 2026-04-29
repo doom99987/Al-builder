@@ -96,6 +96,8 @@ function calcPercentage(stat, val){
     spd:         v => v * 2,
     "crit-chance": () => lck * 0.5,
     "crit-dmg":    () => lck * 1.5,
+    "out-heal":    () => 0,
+    "inc-heal":    () => 0,
   };
   return formulas[stat] ? formulas[stat](val).toFixed(1) : "—";
 }
