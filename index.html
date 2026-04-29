@@ -22,95 +22,128 @@
   <div class="content">
 
     <div class="panel active" id="stats">
-      <h2>Stats</h2>
+      <div class="stats-columns">
 
-      <div class="box">
-        Points Remaining: <span id="points-left"></span> 
-      
-      </div>
+        <div class="stats-left">
+          <h2>Stats</h2>
 
-      <div class="box">
-        Current Lvl: <span id="Lvl"></span>
-      </div>
+          <div class="box">
+            Points Remaining: <span id="points-left"></span>
+          </div>
 
-      <div class="race-row">
-        <label class="race-label">Race</label>
-        <select id="race-picker">
-          <option value="">— Select Race —</option>
-        </select>
-      </div>
+          <div class="box">
+            Current Lvl: <span id="Lvl"></span>
+          </div>
 
-      <div class="stat-list">
-        <div class="stat-row" data-stat="str">
-          <span class="stat-name">STR</span>
-          <span class="stat-base"></span>
-          <button class="stat-btn minus">−</button>
-          <input class="stat-val" type="number" value="0" min="0">
-          <button class="stat-btn plus">+</button>
-        </div>
-        <div class="stat-row" data-stat="arc">
-          <span class="stat-name">ARC</span>
-          <span class="stat-base"></span>
-          <button class="stat-btn minus">−</button>
-          <input class="stat-val" type="number" value="0" min="0">
-          <button class="stat-btn plus">+</button>
-        </div>
-        <div class="stat-row" data-stat="end">
-          <span class="stat-name">END</span>
-          <span class="stat-base"></span>
-          <button class="stat-btn minus">−</button>
-          <input class="stat-val" type="number" value="0" min="0">
-          <button class="stat-btn plus">+</button>
-        </div>
-        <div class="stat-row" data-stat="spd">
-          <span class="stat-name">SPD</span>
-          <span class="stat-base"></span>
-          <button class="stat-btn minus">−</button>
-          <input class="stat-val" type="number" value="0" min="0">
-          <button class="stat-btn plus">+</button>
-        </div>
-        <div class="stat-row" data-stat="lck">
-          <span class="stat-name">LCK</span>
-          <span class="stat-base"></span>
-          <button class="stat-btn minus">−</button>
-          <input class="stat-val" type="number" value="0" min="0">
-          <button class="stat-btn plus">+</button>
-        </div>
-      </div>
+          <div class="race-row">
+            <label class="race-label">Race</label>
+            <select id="race-picker">
+              <option value="">— Select Race —</option>
+            </select>
+          </div>
 
-      <div class="stat-percent">
-        <div class="percent-item" data-stat="str">
-          <span class="percent-val" id="str-pct">—</span>
-          <span class="percent-label">phys%</span>
+          <div class="stat-list">
+            <div class="stat-row" data-stat="str">
+              <span class="stat-name">STR</span>
+              <span class="stat-base"></span>
+              <button class="stat-btn minus">−</button>
+              <input class="stat-val" type="number" value="0" min="0">
+              <button class="stat-btn plus">+</button>
+            </div>
+            <div class="stat-row" data-stat="arc">
+              <span class="stat-name">ARC</span>
+              <span class="stat-base"></span>
+              <button class="stat-btn minus">−</button>
+              <input class="stat-val" type="number" value="0" min="0">
+              <button class="stat-btn plus">+</button>
+            </div>
+            <div class="stat-row" data-stat="end">
+              <span class="stat-name">END</span>
+              <span class="stat-base"></span>
+              <button class="stat-btn minus">−</button>
+              <input class="stat-val" type="number" value="0" min="0">
+              <button class="stat-btn plus">+</button>
+            </div>
+            <div class="stat-row" data-stat="spd">
+              <span class="stat-name">SPD</span>
+              <span class="stat-base"></span>
+              <button class="stat-btn minus">−</button>
+              <input class="stat-val" type="number" value="0" min="0">
+              <button class="stat-btn plus">+</button>
+            </div>
+            <div class="stat-row" data-stat="lck">
+              <span class="stat-name">LCK</span>
+              <span class="stat-base"></span>
+              <button class="stat-btn minus">−</button>
+              <input class="stat-val" type="number" value="0" min="0">
+              <button class="stat-btn plus">+</button>
+            </div>
+          </div>
+
+          <div class="stat-percent">
+            <div class="percent-item" data-stat="str">
+              <span class="percent-val" id="str-pct">—</span>
+              <span class="percent-label">phys%</span>
+            </div>
+            <div class="percent-item" data-stat="arc">
+              <span class="percent-val" id="arc-pct">—</span>
+              <span class="percent-label">arc%</span>
+            </div>
+            <div class="percent-item" data-stat="end">
+              <span class="percent-val" id="end-pct">—</span>
+              <span class="percent-label">hp</span>
+            </div>
+            <div class="percent-item" data-stat="spd">
+              <span class="percent-val" id="spd-pct">—</span>
+              <span class="percent-label">spd%</span>
+            </div>
+            <div class="percent-item" data-stat="crit-chance">
+              <span class="percent-val" id="crit-chance-pct">—</span>
+              <span class="percent-label">crit%</span>
+            </div>
+            <div class="percent-item" data-stat="crit-dmg">
+              <span class="percent-val" id="crit-dmg-pct">—</span>
+              <span class="percent-label">crit dmg%</span>
+            </div>
+            <div class="percent-item" data-stat="out-heal">
+              <span class="percent-val" id="out-heal-pct">—</span>
+              <span class="percent-label">out heal</span>
+            </div>
+            <div class="percent-item" data-stat="inc-heal">
+              <span class="percent-val" id="inc-heal-pct">—</span>
+              <span class="percent-label">in heal</span>
+            </div>
+          </div>
         </div>
-        <div class="percent-item" data-stat="arc">
-          <span class="percent-val" id="arc-pct">—</span>
-          <span class="percent-label">arc%</span>
+
+        <div class="gear-section">
+          <h2>Gears</h2>
+          <div class="gear-slot">
+            <label class="gear-label">Gear 1</label>
+            <select class="gear-picker" id="gear-1">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div class="gear-slot">
+            <label class="gear-label">Gear 2</label>
+            <select class="gear-picker" id="gear-2">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div class="gear-slot">
+            <label class="gear-label">Gear 3</label>
+            <select class="gear-picker" id="gear-3">
+              <option value="">— None —</option>
+            </select>
+          </div>
+          <div class="gear-slot">
+            <label class="gear-label">Gear 4</label>
+            <select class="gear-picker" id="gear-4">
+              <option value="">— None —</option>
+            </select>
+          </div>
         </div>
-        <div class="percent-item" data-stat="end">
-          <span class="percent-val" id="end-pct">—</span>
-          <span class="percent-label">hp</span>
-        </div>
-        <div class="percent-item" data-stat="spd">
-          <span class="percent-val" id="spd-pct">—</span>
-          <span class="percent-label">spd%</span>
-        </div>
-        <div class="percent-item" data-stat="crit-chance">
-          <span class="percent-val" id="crit-chance-pct">—</span>
-          <span class="percent-label">crit%</span>
-        </div>
-        <div class="percent-item" data-stat="crit-dmg">
-          <span class="percent-val" id="crit-dmg-pct">—</span>
-          <span class="percent-label">crit dmg%</span>
-        </div>
-        <div class="percent-item" data-stat="out-heal">
-          <span class="percent-val" id="out-heal-pct">—</span>
-          <span class="percent-label">out heal</span>
-        </div>
-        <div class="percent-item" data-stat="inc-heal">
-          <span class="percent-val" id="inc-heal-pct">—</span>
-          <span class="percent-label">in heal</span>
-        </div>
+
       </div>
     </div>
 

@@ -1,6 +1,6 @@
 // --- Race data ---
+// to add race: "Human": { str:, arc:, end:, spd:, lck: },
 const races = {
-  // example: "Human": { str: 5, arc: 0, end: 3, spd: 2, lck: 1 },
   "Estella (24%)": {str: 2, arc: 2, end: 2, lck: 1, spd: 1},
   "Stultus (20%)": {str: 2, arc: 1, end: 1, lck: 1, spd: 1},
   "Nisse (20%)": {str: 1, arc: 3, end: 1, lck: 2, spd: 1},
@@ -122,6 +122,37 @@ function updatePecents() {
 
 // Init
 updatePecents();
+
+// --- Gear ---
+// To add gear: "Item Name": { str, arc, end, spd, lck }
+const gearItems = {
+  "Iron Sword": { str: 5, arc: 0, end: 0, spd: 0, lck: 0 }
+};
+
+const gearPickers = document.querySelectorAll(".gear-picker");
+
+gearPickers.forEach(picker => {
+  Object.keys(gearItems).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    picker.appendChild(opt);
+  });
+});
+
+function enforceUniqueGear() {
+  const selected = Array.from(gearPickers).map(p => p.value).filter(v => v !== "");
+  gearPickers.forEach(picker => {
+    Array.from(picker.options).forEach(opt => {
+      if (opt.value === "") return;
+      opt.disabled = selected.includes(opt.value) && picker.value !== opt.value;
+    });
+  });
+}
+
+gearPickers.forEach(picker => {
+  picker.addEventListener("change", enforceUniqueGear);
+});
 
 // --- Tabs ---
 const tabs = document.querySelectorAll(".tab");
