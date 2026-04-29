@@ -118,8 +118,8 @@ function calcPercentage(stat, val){
   const lckAllocated = +document.querySelector('.stat-row[data-stat="lck"] .stat-val').value;
   const lck = lckAllocated + (raceBase.lck ?? 0);
   const formulas = {
-    str:         v => v * 2.5,
-    arc:         v => v * 3,
+    str:         v => 100 + v * 2.5,
+    arc:         v => 100 + v * 3,
     end:         v => v * 1.5,
     spd:         v => v * 2,
     "crit-chance": () => lck * 0.5,
