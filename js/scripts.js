@@ -213,7 +213,13 @@ weaponPickers.forEach(picker => {
 // --- Classes ---
 // To add a class: "ClassName": ["SuperClass1", "SuperClass2", ...]
 const classes = {
-  "Thief": ["Ranger (Or)", "Rouge (N)", "assassin (Ch)"]
+  "Thief": ["Ranger (Or)", "Rouge (N)", "assassin (Ch)"],
+  "Warrior":["Paladin (Or)", "Blade Dancer (N)", "Berserker (Ch)"],
+  "Wizard":["Elementalist (Or)", "Hexer (N)", "Necromancer (Ch)"],
+  "Martial Artist":["Monk (Or)", "Brawler (N)", "Darkwraith (Ch)"],
+  "Slayer":["Saint (Or)", "Lancer (N)", "Impaler (Ch)"],
+  "Marauder":["Lionheart (N)"],
+  "Sentry":["Citadel (Or)", "Arbiter (N)"]
 };
 
 const classPicker = document.getElementById("class-picker");
