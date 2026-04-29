@@ -1,5 +1,8 @@
 <!DOCTYPE html>
 <html>
+<title>
+  AL Builder
+</title>
 <head>
   <link rel="stylesheet" href="css/styles.css">
 </head>
@@ -30,36 +33,75 @@
         Current Lvl: <span id="Lvl"></span>
       </div>
 
+      <div class="race-row">
+        <label class="race-label">Race</label>
+        <select id="race-picker">
+          <option value="">— Select Race —</option>
+        </select>
+      </div>
+
       <div class="stat-list">
-        <div class="stat-row" data-stat="dmg">
-          <span class="stat-name">DMG</span>
+        <div class="stat-row" data-stat="str">
+          <span class="stat-name">STR</span>
+          <span class="stat-base"></span>
           <button class="stat-btn minus">−</button>
-          <span class="stat-val">0</span>
+          <input class="stat-val" type="number" value="0" min="0">
           <button class="stat-btn plus">+</button>
         </div>
         <div class="stat-row" data-stat="arc">
           <span class="stat-name">ARC</span>
+          <span class="stat-base"></span>
           <button class="stat-btn minus">−</button>
-          <span class="stat-val">0</span>
+          <input class="stat-val" type="number" value="0" min="0">
           <button class="stat-btn plus">+</button>
         </div>
         <div class="stat-row" data-stat="end">
           <span class="stat-name">END</span>
+          <span class="stat-base"></span>
           <button class="stat-btn minus">−</button>
-          <span class="stat-val">0</span>
+          <input class="stat-val" type="number" value="0" min="0">
           <button class="stat-btn plus">+</button>
         </div>
         <div class="stat-row" data-stat="spd">
           <span class="stat-name">SPD</span>
+          <span class="stat-base"></span>
           <button class="stat-btn minus">−</button>
-          <span class="stat-val">0</span>
+          <input class="stat-val" type="number" value="0" min="0">
           <button class="stat-btn plus">+</button>
         </div>
-        <div class="stat-row" data-stat="luck">
-          <span class="stat-name">LUCK</span>
+        <div class="stat-row" data-stat="lck">
+          <span class="stat-name">LCK</span>
+          <span class="stat-base"></span>
           <button class="stat-btn minus">−</button>
-          <span class="stat-val">0</span>
+          <input class="stat-val" type="number" value="0" min="0">
           <button class="stat-btn plus">+</button>
+        </div>
+      </div>
+
+      <div class="stat-percent">
+        <div class="percent-item" data-stat="str">
+          <span class="percent-val" id="str-pct">—</span>
+          <span class="percent-label">phys%</span>
+        </div>
+        <div class="percent-item" data-stat="arc">
+          <span class="percent-val" id="arc-pct">—</span>
+          <span class="percent-label">arc%</span>
+        </div>
+        <div class="percent-item" data-stat="end">
+          <span class="percent-val" id="end-pct">—</span>
+          <span class="percent-label">end%</span>
+        </div>
+        <div class="percent-item" data-stat="spd">
+          <span class="percent-val" id="spd-pct">—</span>
+          <span class="percent-label">spd%</span>
+        </div>
+        <div class="percent-item" data-stat="crit-chance">
+          <span class="percent-val" id="crit-chance-pct">—</span>
+          <span class="percent-label">crit%</span>
+        </div>
+        <div class="percent-item" data-stat="crit-dmg">
+          <span class="percent-val" id="crit-dmg-pct">—</span>
+          <span class="percent-label">crit dmg%</span>
         </div>
       </div>
     </div>
