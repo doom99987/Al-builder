@@ -90,6 +90,28 @@ body {
   border-color: #666;
 }
 
+#class-picker,
+#super-picker {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+#class-picker:focus,
+#super-picker:focus {
+  outline: none;
+  border-color: #666;
+}
+
+#super-picker:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .stat-base {
   width: 28px;
   font-size: 11px;
@@ -310,4 +332,138 @@ body {
 .weapon-picker:focus {
   outline: none;
   border-color: #666;
+}
+
+/* Moves panel */
+.moves-container {
+  width: 100%;
+  max-width: 640px;
+}
+
+.moves-placeholder {
+  color: #555;
+  text-align: center;
+  margin-top: 40px;
+}
+
+.moves-empty {
+  color: #444;
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+
+.moves-race-title {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.moves-section-title {
+  color: #aaa;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 6px;
+  margin: 24px 0 12px;
+}
+
+.move-learn-header {
+  font-size: 13px;
+  color: #888;
+  margin: 16px 0 6px;
+  letter-spacing: 0.5px;
+}
+
+.move-learn-level {
+  color: #555;
+}
+
+.move-card {
+  background: #1a1a1a;
+  border: 1px solid #2e2e2e;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.move-card.active-move {
+  border-color: #3a3060;
+}
+
+.move-card.passive {
+  border-color: #1e3a2e;
+}
+
+.move-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.move-badge {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.active-badge {
+  background: #2e2455;
+  color: #a99dff;
+}
+
+.passive-badge {
+  background: #1a3328;
+  color: #5ecfa0;
+}
+
+.move-level {
+  font-size: 12px;
+  color: #555;
+}
+
+.move-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: white;
+}
+
+.move-quote {
+  font-size: 13px;
+  color: #888;
+  font-style: italic;
+}
+
+.move-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.move-stat {
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #ccc;
+}
+
+.move-desc {
+  font-size: 13px;
+  color: #bbb;
+  line-height: 1.5;
+}
+
+.move-image {
+  width: 100%;
+  max-width: 320px;
+  border-radius: 6px;
+  margin-top: 4px;
+  border: 1px solid #333;
+  align-self: flex-start;
 }

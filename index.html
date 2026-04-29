@@ -14,6 +14,7 @@
   <!-- Top tabs -->
   <div class="tabbar">
     <button class="tab active" data-tab="stats">Stats</button>
+    <button class="tab" data-tab="Moves">Moves</button>
     <button class="tab" data-tab="sould-tree">Soul Tree</button>
     <button class="tab" data-tab="dmg-calc">Dmg Calc</button>
   </div>
@@ -39,6 +40,20 @@
             <label class="race-label">Race</label>
             <select id="race-picker">
               <option value="">— Select Race —</option>
+            </select>
+          </div>
+
+          <div class="race-row">
+            <label class="race-label">Class</label>
+            <select id="class-picker">
+              <option value="">— Select Class —</option>
+            </select>
+          </div>
+
+          <div class="race-row">
+            <label class="race-label">Super</label>
+            <select id="super-picker" disabled>
+              <option value="">— Select Class First —</option>
             </select>
           </div>
 
@@ -161,6 +176,13 @@
       </div>
     </div>
 
+    <div class="panel" id="Moves">
+      <div class="moves-container">
+        <div id="moves-content">
+          <p class="moves-placeholder">Select a race to view moves.</p>
+        </div>
+      </div>
+    </div>
 
     <div class="panel" id="sould-tree">
       <h2>Soul Tree</h2>
