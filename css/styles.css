@@ -799,6 +799,16 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0;
+  position: relative;
+}
+
+.mastery-lines-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 0;
 }
 
 /* Trunk */
@@ -807,39 +817,8 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0;
+  margin-bottom: 18px;
 }
-
-/* Horizontal split line from trunk to 3 branches */
-.mastery-branch-split {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 340px;
-  height: 18px;
-  position: relative;
-}
-
-.mastery-split-h {
-  position: absolute;
-  top: 50%;
-  left: 14%;
-  right: 14%;
-  height: 2px;
-  background: #444;
-}
-
-.mastery-split-h::before,
-.mastery-split-h::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  width: 2px;
-  height: 9px;
-  background: #444;
-}
-
-.mastery-split-h::before { left: 0; }
-.mastery-split-h::after  { right: 0; }
 
 /* Branches row */
 .mastery-branches {
@@ -866,73 +845,18 @@ body {
   position: relative;
 }
 
-/* Vertical connector line above each row (except first in trunk and first in branch) */
-.mastery-trunk .mastery-row::before,
-.mastery-branch .mastery-row:not(.mastery-row-first)::before {
-  content: "";
-  display: block;
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 10px;
-  background: #444;
-}
-
-/* Connector from trunk bottom to split line */
-.mastery-trunk .mastery-row:last-child::after {
-  content: "";
-  display: block;
-  position: absolute;
-  bottom: -10px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 2px;
-  height: 10px;
-  background: #444;
-}
-
-/* Horizontal connector for pair rows */
-.mastery-branch .mastery-row:has(.mn-wrap + .mn-wrap)::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: calc(50% - 22px);
-  right: calc(50% - 22px);
-  height: 2px;
-  background: #444;
-  pointer-events: none;
-}
-
 .mn-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 5px 0;
+  position: relative;
+  z-index: 1;
 }
 
 /* Give the mastery node's wrap enough room so the rotated diamond doesn't clip */
 .mn-wrap:has(.mn-type-mastery) {
   padding: 6px;
-}
-
-/* Shift the incoming connector to the main-path node when mastery is on one side */
-.mastery-row.mastery-side-left::before {
-  /* Mastery is left, node is right — connector goes to ~75% (right half) */
-  left: 75% !important;
-}
-.mastery-row.mastery-side-right::before {
-  /* Mastery is right, node is left — connector goes to ~25% (left half) */
-  left: 25% !important;
-}
-
-/* Shift the outgoing connector of the row ABOVE a side-mastery row to match */
-.mastery-row.mastery-side-left + .mastery-row::before {
-  left: 75% !important;
-}
-.mastery-row.mastery-side-right + .mastery-row::before {
-  left: 25% !important;
 }
 
 /* Base node styles */

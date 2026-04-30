@@ -145,10 +145,10 @@ function calcPercentage(stat, val){
   const formulas = {
     str:         v => 100 + v * 2.5,
     arc:         v => 100 + v * 3,
-    end:         v => v * 1.5,
+    end:         v => v * 1.3, //finalized
     spd:         v => v * 2,
-    "crit-chance": () => lck * 0.5,
-    "crit-dmg":    () => lck * 1.5,
+    "crit-chance": () => lck * 0.25,
+    "crit-dmg":    () => lck * 0.0025,
     "out-heal":    () => 0,
     "inc-heal":    () => 0,
   };
@@ -180,7 +180,7 @@ function updatePecents() {
     } else {
       display = (parseFloat(base) + pctBonus).toFixed(1);
     }
-    const suffix = stat === "end" ? "" : "%";
+    const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : "%";
     item.querySelector(".percent-val").textContent = display + suffix;
   });
 }
@@ -2099,10 +2099,10 @@ const masteryNodes = [
   //   node → [node | node] → [node | node] → breakthrough → [◆Mastery LEFT | node RIGHT] → 2 nodes → breakthrough → node → ◆Mastery
   { id: "l1",   name: "Node",         type: "node",         branch: "red",   parent: "s4"    },
   { id: "l2",   name: "Node",         type: "node",         branch: "red",   parent: "l1"    },
-  { id: "l3",   name: "Node",         type: "node",         branch: "red",   parent: "l1"    },
+  { id: "l3",   name: "Node",         type: "node",         branch: "red",   parent: "l2"    },
   { id: "l4",   name: "Node",         type: "node",         branch: "red",   parent: "l2"    },
-  { id: "l5",   name: "Node",         type: "node",         branch: "red",   parent: "l3"    },
-  { id: "lbt1", name: "Breakthrough", type: "breakthrough", branch: "red",   parent: "l4",   shardCost: 1 },
+  { id: "l5",   name: "Node",         type: "node",         branch: "red",   parent: ["l3", "l4"]  },
+  { id: "lbt1", name: "Breakthrough", type: "breakthrough", branch: "red",   parent: "l5",   shardCost: 1 },
   { id: "l6",   name: "Node",         type: "node",         branch: "red",   parent: "lbt1"  }, // main path node; Mastery links left
   { id: "lm1",  name: "Mastery",      type: "mastery",      branch: "red",   parent: "l6"    }, // side Mastery to the LEFT of l6
   { id: "l7",   name: "Node",         type: "node",         branch: "red",   parent: "l6"    }, // 1st node below l6
@@ -2114,22 +2114,22 @@ const masteryNodes = [
   { id: "c1",  name: "Node",         type: "node",         branch: "green",  parent: "s4"   },
   { id: "c2a", name: "Node",         type: "node",         branch: "green",  parent: "c1"   },
   { id: "c2b", name: "Node",         type: "node",         branch: "green",  parent: "c1"   },
-  { id: "c3a", name: "Node",         type: "node",         branch: "green",  parent: "c2a"  },
+  { id: "c3a", name: "Node",         type: "node",         branch: "green",  parent: ["c2a", "c2b"]  },
   { id: "cb1", name: "Breakthrough", type: "breakthrough", branch: "green",  parent: "c3a", shardCost: 1 },
   { id: "cm1", name: "Mastery",      type: "mastery",      branch: "green",  parent: "cb1"  },
   { id: "c4",  name: "Node",         type: "node",         branch: "green",  parent: "cm1"  },
   { id: "c5a", name: "Node",         type: "node",         branch: "green",  parent: "c4"   },
   { id: "c5b", name: "Node",         type: "node",         branch: "green",  parent: "c4"   },
-  { id: "cb2", name: "Breakthrough", type: "breakthrough", branch: "green",  parent: "c5a", shardCost: 1 },
+  { id: "cb2", name: "Breakthrough", type: "breakthrough", branch: "green",  parent: ["c5a", "c5b"], shardCost: 1 },
   { id: "cm2", name: "Mastery",      type: "mastery",      branch: "green",  parent: "cb2"  },
   // Blue (right) branch — mirrored structure, Mastery is to the RIGHT of the node
   //   node → [node | node] → [node | node] → breakthrough → [node LEFT | ◆Mastery RIGHT] → 2 nodes → breakthrough → node → ◆Mastery
   { id: "r1",   name: "Node",         type: "node",         branch: "blue",  parent: "s4"    },
   { id: "r2",   name: "Node",         type: "node",         branch: "blue",  parent: "r1"    },
-  { id: "r3",   name: "Node",         type: "node",         branch: "blue",  parent: "r1"    },
+  { id: "r3",   name: "Node",         type: "node",         branch: "blue",  parent: "r2"    },
   { id: "r4",   name: "Node",         type: "node",         branch: "blue",  parent: "r2"    },
-  { id: "r5",   name: "Node",         type: "node",         branch: "blue",  parent: "r3"    },
-  { id: "rbt1", name: "Breakthrough", type: "breakthrough", branch: "blue",  parent: "r4",   shardCost: 1 },
+  { id: "r5",   name: "Node",         type: "node",         branch: "blue",  parent: ["r3", "r4"] },
+  { id: "rbt1", name: "Breakthrough", type: "breakthrough", branch: "blue",  parent: "r5",   shardCost: 1 },
   { id: "r6",   name: "Node",         type: "node",         branch: "blue",  parent: "rbt1"  }, // main path node; Mastery links right
   { id: "rm1",  name: "Mastery",      type: "mastery",      branch: "blue",  parent: "r6"    }, // side Mastery to the RIGHT of r6
   { id: "r7",   name: "Node",         type: "node",         branch: "blue",  parent: "r6"    },
@@ -2148,11 +2148,11 @@ masteryNodes.forEach(n => masteryState[n.id] = false);
 // For mixed [mastery, node] rows, mastery is a side branch; the node is the main path.
 const masteryBranchRows = {
   red: [
-    ["l1"],            // node 1
-    ["l2"],      // node 2
-    ["l3", "l4"],//node 3 and 4 (side by side fork)
-    ["l5"],      // nodes 5 
-    ["lbt1"],          // breakthrough 1
+    ["l1"],            // node 1 — root of red branch
+    ["l2"],      // fork: l2 (left), l3 (right) — both children of l1
+    ["l3", "l4"],      // l4=child of l2 (main path left), l5=child of l3 (dead end right)
+    ["l5"],
+    ["lbt1"],          // breakthrough 1 — child of l4
     ["lm1", "l6"],     // ◆Mastery (left side branch) | node (right, main path)
     ["l7"],            // node below l6
     ["l8"],            // node below l7
@@ -2172,11 +2172,11 @@ const masteryBranchRows = {
     ["cm2"],
   ],
   blue: [
-    ["r1"],            // node 1
-    ["r2"],      // nodes 2 & 3 (side by side fork)
-    ["r3", "r4"],    // nodes 4 & 5 (side by side fork continues)
+    ["r1"],            // node 1 — root of blue branch
+    ["r2"],      // fork: r2 (left), r3 (right) — both children of r1
+    ["r3", "r4"],      // r4=child of r2 (main path left), r5=child of r3 (dead end right)
     ["r5"],
-    ["rbt1"],          // breakthrough 1
+    ["rbt1"],          // breakthrough 1 — child of r4
     ["r6", "rm1"],     // node (left, main path) | ◆Mastery (right side branch)
     ["r7"],            // node below r6
     ["r8"],            // node below r7
@@ -2197,7 +2197,7 @@ function masteryShardsSpent() {
 }
 
 function hasMasteryActiveChild(id) {
-  return masteryNodes.some(n => n.parent === id && masteryState[n.id]);
+  return masteryNodes.some(n => [].concat(n.parent ?? []).includes(id) && masteryState[n.id]);
 }
 
 function toggleMasteryNode(id) {
@@ -2209,8 +2209,8 @@ function toggleMasteryNode(id) {
     if (hasMasteryActiveChild(id)) return;
     masteryState[id] = false;
   } else {
-    // Require parent to be active
-    if (node.parent && !masteryState[node.parent]) return;
+    // Require ALL parents to be active
+    if (node.parent && ![].concat(node.parent).every(p => masteryState[p])) return;
     // Check point budget (breakthroughs cost shards, not points)
     if (node.type !== "breakthrough") {
       const cost = node.type === "mastery" ? 5 : 1;
@@ -2230,7 +2230,7 @@ function resetMastery() {
 function masteryNodeHtml(id) {
   const node = masteryNodeMap[id];
   const active = masteryState[id];
-  const parentOk = !node.parent || masteryState[node.parent];
+  const parentOk = !node.parent || [].concat(node.parent).every(p => masteryState[p]);
   const locked = !parentOk;
   const childLocked = active && hasMasteryActiveChild(id);
 
@@ -2287,8 +2287,6 @@ function renderMastery() {
   });
   html += `</div>`;
 
-  html += `<div class="mastery-branch-split"><div class="mastery-split-h"></div></div>`;
-
   html += `<div class="mastery-branches">`;
   html += masteryBranchHtml("red");
   html += masteryBranchHtml("green");
@@ -2297,6 +2295,7 @@ function renderMastery() {
 
   container.innerHTML = html;
   updateMasteryDisplay();
+  drawMasteryLines();
 }
 
 function updateMasteryDisplay() {
@@ -2304,7 +2303,7 @@ function updateMasteryDisplay() {
     const el = document.getElementById(`mn-${n.id}`);
     if (!el) return;
     const active = masteryState[n.id];
-    const parentOk = !n.parent || masteryState[n.parent];
+    const parentOk = !n.parent || [].concat(n.parent).every(p => masteryState[p]);
     const locked = !parentOk;
     const childLocked = active && hasMasteryActiveChild(n.id);
 
@@ -2322,6 +2321,109 @@ function updateMasteryDisplay() {
 
   // Color pts red if over budget
   if (ptsEl) ptsEl.style.color = masteryPointsSpent() >= MASTERY_TOTAL_POINTS ? "#ff5555" : "white";
+}
+
+function getLineColor(branch) {
+  return branch === "red"    ? "#553333"
+       : branch === "green"  ? "#335533"
+       : branch === "blue"   ? "#334488"
+       : "#444444";
+}
+
+function drawSvgLine(svg, x1, y1, x2, y2, color) {
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", Math.round(x1));
+  line.setAttribute("y1", Math.round(y1));
+  line.setAttribute("x2", Math.round(x2));
+  line.setAttribute("y2", Math.round(y2));
+  line.setAttribute("stroke", color);
+  line.setAttribute("stroke-width", "2");
+  line.setAttribute("stroke-linecap", "round");
+  svg.appendChild(line);
+}
+
+function drawMasteryLines() {
+  const container = document.getElementById("mastery-tree-container");
+  if (!container) return;
+
+  container.querySelectorAll(".mastery-lines-svg").forEach(e => e.remove());
+
+  const cRect = container.getBoundingClientRect();
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.classList.add("mastery-lines-svg");
+  svg.setAttribute("width", cRect.width);
+  svg.setAttribute("height", cRect.height);
+
+  // Separate same-row (side-mastery) connections from vertical connections
+  const verticalChildren = {}; // parentId → [childId]
+  const sameRowPairs = [];     // [{parentId, childId}]
+
+  masteryNodes.forEach(n => {
+    if (!n.parent) return;
+    const parents = [].concat(n.parent);
+    const cEl = document.getElementById(`mn-${n.id}`);
+    if (!cEl) return;
+    const cR = cEl.getBoundingClientRect();
+    const cCY = cR.top + cR.height / 2;
+
+    parents.forEach(pid => {
+      const pEl = document.getElementById(`mn-${pid}`);
+      if (!pEl) return;
+      const pR = pEl.getBoundingClientRect();
+      const pCY = pR.top + pR.height / 2;
+
+      if (Math.abs(pCY - cCY) < 15) {
+        sameRowPairs.push({ parentId: pid, childId: n.id, branch: n.branch });
+      } else {
+        if (!verticalChildren[pid]) verticalChildren[pid] = [];
+        if (!verticalChildren[pid].includes(n.id)) verticalChildren[pid].push(n.id);
+      }
+    });
+  });
+
+  // Draw vertical / elbow connectors
+  Object.entries(verticalChildren).forEach(([parentId, childIds]) => {
+    const pEl = document.getElementById(`mn-${parentId}`);
+    if (!pEl) return;
+    const pR = pEl.getBoundingClientRect();
+    const px = pR.left + pR.width / 2 - cRect.left;
+    const py = pR.bottom - cRect.top;
+    const color = getLineColor(masteryNodeMap[parentId]?.branch);
+
+    const children = childIds.map(id => {
+      const el = document.getElementById(`mn-${id}`);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2 - cRect.left, y: r.top - cRect.top };
+    }).filter(Boolean);
+
+    if (children.length === 1) {
+      drawSvgLine(svg, px, py, children[0].x, children[0].y, color);
+    } else {
+      const minX = Math.min(...children.map(c => c.x));
+      const maxX = Math.max(...children.map(c => c.x));
+      const minY = Math.min(...children.map(c => c.y));
+      const midY = py + (minY - py) / 2;
+      drawSvgLine(svg, px, py, px, midY, color);
+      drawSvgLine(svg, minX, midY, maxX, midY, color);
+      children.forEach(c => drawSvgLine(svg, c.x, midY, c.x, c.y, color));
+    }
+  });
+
+  // Draw horizontal same-row connections (side mastery nodes)
+  sameRowPairs.forEach(({ parentId, childId, branch }) => {
+    const pEl = document.getElementById(`mn-${parentId}`);
+    const cEl = document.getElementById(`mn-${childId}`);
+    if (!pEl || !cEl) return;
+    const pR = pEl.getBoundingClientRect();
+    const cR = cEl.getBoundingClientRect();
+    const y  = (pR.top + pR.bottom) / 2 - cRect.top;
+    const x1 = pR.left + pR.width / 2 - cRect.left;
+    const x2 = cR.left + cR.width / 2 - cRect.left;
+    drawSvgLine(svg, x1, y, x2, y, getLineColor(branch));
+  });
+
+  container.insertBefore(svg, container.firstChild);
 }
 
 // --- Tabs ---
