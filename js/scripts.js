@@ -416,6 +416,9 @@ Object.keys(artifactItems).forEach(name => {
 // --- Shards ---
 // To add: "Shard Name": {}
 const shardItems = {
+  "Striking": {},
+  "Shattering": {},
+  "Regenerative": {}
 };
 
 const shardPickers = document.querySelectorAll(".shard-picker");
@@ -428,16 +431,6 @@ shardPickers.forEach(picker => {
     picker.appendChild(opt);
   });
 });
-
-function enforceUniqueShards() {
-  const selected = Array.from(shardPickers).map(p => p.value).filter(v => v !== "");
-  shardPickers.forEach(picker => {
-    Array.from(picker.options).forEach(opt => {
-      if (opt.value === "") return;
-      opt.disabled = selected.includes(opt.value) && picker.value !== opt.value;
-    });
-  });
-}
 
 shardPickers.forEach(picker => picker.addEventListener("change", enforceUniqueShards));
 
