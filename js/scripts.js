@@ -55,6 +55,25 @@ function getEffectiveTotal() {
   return base + bonus;
 }
 
+function updateClassPickerLock() {
+  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  const locked = lvl < 5;
+  classPicker.disabled = locked;
+  if (locked) {
+    updateGold(prevClassSelection, "");
+    updateGold(prevSuperSelection, "");
+    prevClassSelection = "";
+    prevSuperSelection = "";
+    classPicker.value = "";
+    superPicker.innerHTML = "";
+    superPicker.disabled = true;
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "— Select Class First —";
+    superPicker.appendChild(opt);
+  }
+}
+
 lvlInput.addEventListener("change", () => {
   lvlInput.value = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
   const total = getEffectiveTotal();
@@ -70,6 +89,7 @@ lvlInput.addEventListener("change", () => {
       spent -= reduce;
     }
   }
+  updateClassPickerLock();
   updatePoints();
   updatePecents();
   renderMoves();
@@ -85,6 +105,7 @@ document.querySelectorAll(".stat-row").forEach(row => {
   plus.addEventListener("click", () => {
     if (spent >= getEffectiveTotal()) return;
     val.value = +val.value + 1;
+    val.dataset.prev = val.value;
     spent++;
     updatePoints();
     updatePecents();
@@ -93,6 +114,7 @@ document.querySelectorAll(".stat-row").forEach(row => {
   minus.addEventListener("click", () => {
     if (+val.value <= 0) return;
     val.value = +val.value - 1;
+    val.dataset.prev = val.value;
     spent--;
     updatePoints();
     updatePecents();
@@ -136,17 +158,162 @@ function updatePoints() {
 
 
 function updatePecents() {
+  const armourEl = document.getElementById("armour-main");
+  const armour = armourItems?.[armourEl?.value] || {};
+  const armourPct = armour.pct || {};
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
     const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
     const allocated = row ? +row.value : 0;
-    const val = allocated + (raceBase[stat] ?? 0);
-    item.querySelector(".percent-val").textContent = calcPercentage(stat, val) + "%";
+    const flatBonus = armour[stat] ?? 0;
+    const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
+    const base = calcPercentage(stat, val);
+    const pctBonus = armourPct[stat] ?? 0;
+    const display = base === "—" ? "—" : (parseFloat(base) + pctBonus).toFixed(1);
+    item.querySelector(".percent-val").textContent = display + "%";
   });
 }
 
 // Init
 updatePecents();
+
+// --- Marks ---
+// To add a mark to the picker: "Mark Name": {}
+const markItems = {
+  "Venia": {},
+  "Astra": {},
+  "Petent": {}
+};
+
+// To add mark moves/passives: "Mark Name": { innatePassives: [...], learns: [...] }
+const markMoves = {
+  "Venia": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "Tier 1",
+        level: 1,
+        type: "Passive",
+        name: "Venia",
+        quote: "",
+        effect: "Grants you the item \"Muto\", allowing you to sell various artifacts for Primal Essence and purchase others. The buy:sell ratio for most items is 1:3.5. This essence persists on the slot through wipes.\n\nPrices:\n• Memory Fragment / Soul Dust — 10 Sell | 35 Buy\n• Resplendent Essence / Darksigil — 100 Sell | 350 Buy\n• Shifting Hourglass — 100 Sell | 245 Buy\n• Reality Watch / Narthana's Sigil — 80 Sell | 280 Buy\n• Metrom's Amulet — 180 Sell | 630 Buy\n• Skyward Totem — ??? Sell | 1025 Buy"
+      },
+      {
+        slot: "Tier 3",
+        level: 1,
+        type: "Active",
+        name: "Permuth",
+        quote: "Exchange 5% of your health into a random 40% stat buff for 3 turns, has weighting towards invested stats. Fails if you don't have enough health.",
+        cost: 2,
+        cooldown: 10,
+        moveType: "Magic",
+        category: "Buff",
+        duration: 2,
+        effect: "Consumes 5% of your HP and increases a random stat by 40%. Has a ~50% chance to increase your highest invested stat and a ~50% chance to increase another stat instead. Buffs towards Endurance result in a defense buff.\n\nNote: Stats inside the brackets of your stats are not included in stat buffs.",
+        image: "https://trello.com/1/cards/67c2f3cde91e26bd11540f15/attachments/697898d91022e8aec0bfecbc/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127154927.png"
+      },
+      {
+        slot: "Tier 5",
+        level: 1,
+        type: "Passive",
+        name: "Venian",
+        quote: "",
+        effect: "When finishing a fight, you receive gold equal to 5× your level. Your level is the only factor which affects the gold you receive."
+      }
+    ]
+  },
+  "Astra": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "Tier 1",
+        level: 1,
+        type: "Passive",
+        name: "Starborn",
+        quote: "",
+        effect: "Whenever you crit or apply a status effect you spawn a miniature star. You can have 8 stars in total. Stars are consumed by moves gained at later tiers."
+      },
+      {
+        slot: "Tier 3",
+        level: 1,
+        type: "Active",
+        name: "Edo",
+        quote: "Activate your constellation with at least 5 sparks, granting your team a random positive effect.",
+        cost: 1,
+        cooldown: 8,
+        moveType: "Magic",
+        category: "Buff",
+        duration: 5,
+        effect: "Consumes 5+ stars to give everyone on the team a random positive effect (cleanse, heal, speed, defense, or enchant proc chance).",
+        image: "https://trello.com/1/cards/67c2f3cfa9460f3f089beb7a/attachments/69789bb19879fb04c0f15530/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127160327.png"
+      },
+      {
+        slot: "Tier 5",
+        level: 1,
+        type: "Active",
+        name: "Utor",
+        quote: "Consume 2 sparks of your constellation, instantly restoring some health and energy.",
+        cost: 1,
+        cooldown: 7,
+        moveType: "Magic",
+        category: "Buff",
+        effect: "Use 2–4 stars to restore 20%, 33%, or 40% of your max HP. Grants 2 energy if used at max stars. Affected by both Incoming and Outgoing heal stats.",
+        image: "https://trello.com/1/cards/67c2f3cfa9460f3f089beb7a/attachments/69789bb279be04ca19c84ad2/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127160357.png"
+      }
+    ]
+  },
+  "Petent": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "Tier 1",
+        level: 1,
+        type: "Passive",
+        name: "Rima",
+        quote: "",
+        effect: "Grants you the item \"Rima\", which allows you to teleport to a range of locations. Both you and anyone in your party can go through these portals.\n\nAvailable locations:\nZombie Mushroom, Caldera, Sand Golem, Ruins, Blades, Volcano, Cursed Corpse, Deeproot, Westwood, Cessgrounds"
+      },
+      {
+        slot: "Tier 3",
+        level: 1,
+        type: "Active",
+        name: "Conisura",
+        quote: "Open a rift on an enemy, sucking out all status effects currently applied to them, then exploding dealing damage based on how many status effects were absorbed.",
+        cost: 3,
+        cooldown: 10,
+        moveType: "Magic",
+        category: "Attack",
+        damage: 7,
+        scaling: "STR/ARC",
+        effect: "Removes all negative statuses on the target, increasing base damage by 3 per unique status absorbed, or 6 if the status was hexed.",
+        image: "https://trello.com/1/cards/67c2f3caf633ab0ca6ab3ffd/attachments/6978984d4c3facdd6ccd7db6/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127154847.png"
+      },
+      {
+        slot: "Tier 5",
+        level: 1,
+        type: "Passive",
+        name: "Dominioneer",
+        quote: "",
+        effect: "Decreases all environmental damage by a bit. (Currently bugged and does not work.)"
+      }
+    ]
+  }
+};
+
+const markPickers = document.querySelectorAll(".mark-picker");
+
+const markPicker = document.getElementById("mark-1");
+
+markPickers.forEach(picker => {
+  Object.keys(markItems).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    picker.appendChild(opt);
+  });
+});
+
+markPicker.addEventListener("change", renderMoves);
 
 // --- Gear ---
 // To add gear: "Item Name": { str, arc, end, spd, lck }
@@ -210,6 +377,23 @@ weaponPickers.forEach(picker => {
   picker.addEventListener("change", enforceUniqueWeapon);
 });
 
+// --- Armour ---
+// To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
+// Flat stats add to the stat value before formula. pct adds directly to the output % value.
+const armourItems = {
+};
+
+const armourPicker = document.getElementById("armour-main");
+
+Object.keys(armourItems).forEach(name => {
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  armourPicker.appendChild(opt);
+});
+
+armourPicker.addEventListener("change", updatePecents);
+
 // --- Classes ---
 // To add a class: "ClassName": ["SuperClass1", "SuperClass2", ...]
 const classes = {
@@ -224,6 +408,19 @@ const classes = {
 
 const classPicker = document.getElementById("class-picker");
 const superPicker = document.getElementById("super-picker");
+const goldDisplay = document.getElementById("Gold");
+
+const CLASS_GOLD_COST = { "Warrior": 200, "Thief": 200, "Slayer": 200, "Wizard":120,
+  "Martial Artist":220, "Sentry":500, "Assassin (Ch)":2000 };
+let totalGold = 0;
+let prevClassSelection = "";
+let prevSuperSelection = "";
+
+function updateGold(oldClass, newClass) {
+  if (CLASS_GOLD_COST[oldClass]) totalGold -= CLASS_GOLD_COST[oldClass];
+  if (CLASS_GOLD_COST[newClass]) totalGold += CLASS_GOLD_COST[newClass];
+  goldDisplay.textContent = totalGold;
+}
 
 Object.keys(classes).forEach(name => {
   const opt = document.createElement("option");
@@ -234,6 +431,10 @@ Object.keys(classes).forEach(name => {
 
 classPicker.addEventListener("change", () => {
   const selected = classPicker.value;
+  updateGold(prevClassSelection, selected);
+  updateGold(prevSuperSelection, "");
+  prevClassSelection = selected;
+  prevSuperSelection = "";
   superPicker.innerHTML = "";
 
   if (!selected) {
@@ -267,7 +468,7 @@ const classMoves = {
     learns: [
       {
         slot: "1st Learn",
-        level: 1,
+        level: 5,
         type: "Passive",
         name: "Thievery",
         quote: "",
@@ -275,7 +476,7 @@ const classMoves = {
       },
       {
         slot: "2nd Learn",
-        level: 1,
+        level: 5,
         type: "Passive",
         name: "Agile",
         quote: "",
@@ -283,7 +484,7 @@ const classMoves = {
       },
       {
         slot: "3rd Learn",
-        level: 1,
+        level: 5,
         type: "Active",
         name: "Stab",
         quote: "Stab deep into the enemy.",
@@ -298,7 +499,7 @@ const classMoves = {
       },
       {
         slot: "4th Learn",
-        level: 1,
+        level: 5,
         type: "Active",
         name: "Pocket Sand",
         quote: "Grab and throw sand into the enemy's eyes.",
@@ -315,20 +516,305 @@ const classMoves = {
   },
   "Ranger (Or)": { innatePassives: [], learns: [] },
   "Rouge (N)": { innatePassives: [], learns: [] },
-  "assassin (Ch)": { innatePassives: [], learns: [] },
-  "Warrior": { innatePassives: [], learns: [] },
+  "Assassin (Ch)": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 15,
+        type: "Passive",
+        name: "Shadow",
+        quote: "",
+        effect: "You have a 15%(?) chance to phase through attacks, negating all damage. You still receive any debuffs that were applied."
+      },
+      {
+        slot: "2nd Learn",
+        level: 17,
+        type: "Active",
+        name: "Shadow Form",
+        quote: "",
+        cost: 1,
+        cooldown: 7,
+        moveType: "Dark",
+        category: "Buff",
+        duration: 3,
+        effect: "Applies Invisible to the user for 3 turns. An invisible player cannot be targeted or take damage (excluding DoT and true damage such as Oblivion). Attacking before Invisible times out removes it — that attack deals 20% more damage and has ~20% more critical chance. Immolation counts as an attack.",
+        image: "https://trello.com/1/cards/67b32956205bcc638e52a56b/attachments/69800f93f31d8a2338ef8b73/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202074343.png"
+      },
+      {
+        slot: "3rd Learn",
+        level: 19,
+        type: "Passive",
+        name: "Poisoner",
+        quote: "",
+        effect: "Critical attacks apply 5 Poison on hit."
+      },
+      {
+        slot: "4th Learn",
+        level: 21,
+        type: "Active",
+        name: "Poison Fan",
+        quote: "",
+        cost: 2,
+        cooldown: 5,
+        moveType: "Poison",
+        category: "Attack",
+        damage: "3.5x4",
+        scaling: "STR/200 + ARC/80 + LCK/100",
+        effect: "Applies 5 guaranteed Poison on the last hit.",
+        image: "https://trello.com/1/cards/67b32956205bcc638e52a56b/attachments/69800f929957e45d84b99a74/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202074403.png"
+      },
+      {
+        slot: "5th Learn",
+        level: 23,
+        type: "Active",
+        name: "Stealth Strike",
+        quote: "",
+        cost: 2,
+        cooldown: 6,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 10,
+        scaling: "STR",
+        effect: "Increases damage dealt by 100% if invisible while attacking. Applies 2 Cursed if the target is poisoned.",
+        image: "https://trello.com/1/cards/67b32956205bcc638e52a56b/attachments/69800f95a11c466dc31c150c/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202074318.png"
+      }
+    ]
+  },
+  "Warrior": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 5,
+        type: "Active",
+        name: "Double Slash",
+        quote: "",
+        cost: 2,
+        cooldown: 4,
+        moveType: "Physical",
+        category: "Attack",
+        damage: "5x2",
+        scaling: "STR",
+        effect: "N/A",
+        image: "https://trello.com/1/cards/67b313126e03446ff0cdf04e/attachments/6978910ad0e2fa3f890407d4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151804.png"
+      },
+      {
+        slot: "2nd Learn",
+        level: 5,
+        type: "Active",
+        name: "Pommel Strike",
+        quote: "",
+        cost: 1,
+        cooldown: 3,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 7,
+        scaling: "STR",
+        effect: "Chance to inflict 1 stack of Stun.",
+        image: "https://trello.com/1/cards/67b313126e03446ff0cdf04e/attachments/6978910c094973ea6a4e797e/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151832.png"
+      },
+      {
+        slot: "3rd Learn",
+        level: 5,
+        type: "Passive",
+        name: "Strength Training",
+        quote: "",
+        effect: "Block bar size is increased."
+      },
+      {
+        slot: "4th Learn",
+        level: 5,
+        type: "Passive",
+        name: "Sword Training",
+        quote: "",
+        effect: "Damage dealt with sword weapons is increased by 10%."
+      }
+    ]
+  },
   "Paladin (Or)": { innatePassives: [], learns: [] },
   "Blade Dancer (N)": { innatePassives: [], learns: [] },
   "Berserker (Ch)": { innatePassives: [], learns: [] },
-  "Wizard": { innatePassives: [], learns: [] },
+  "Wizard": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 1,
+        type: "Active",
+        name: "Magic Missile",
+        quote: "This move's color is based off of your Soul color.",
+        cost: 0,
+        cooldown: 0,
+        moveType: "Magic",
+        category: "Attack",
+        damage: 6,
+        scaling: "ARC/75",
+        effect: "This move's color is based off of your Soul color.",
+        image: "https://trello.com/1/cards/67b329148ff39af63b3fbcac/attachments/6978918128d41bbe9c39047a/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127152033.png"
+      },
+      {
+        slot: "2nd Learn",
+        level: 1,
+        type: "Passive",
+        name: "Scholar Training",
+        quote: "",
+        effect: "Damage dealt with Staves is increased by 5%."
+      },
+      {
+        slot: "3rd Learn",
+        level: 1,
+        type: "Passive",
+        name: "Coward",
+        quote: "",
+        effect: "Gives less aggro. Chance for enemies to target you is lesser, and increased chance to escape."
+      }
+    ]
+  },
   "Elementalist (Or)": { innatePassives: [], learns: [] },
   "Hexer (N)": { innatePassives: [], learns: [] },
   "Necromancer (Ch)": { innatePassives: [], learns: [] },
-  "Martial Artist": { innatePassives: [], learns: [] },
+  "Martial Artist": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 1,
+        type: "Passive",
+        name: "Iron Body",
+        quote: "",
+        effect: "Take less chip damage from blocking."
+      },
+      {
+        slot: "2nd Learn",
+        level: 1,
+        type: "Passive",
+        name: "Fighting Prowess",
+        quote: "",
+        effect: "Damage dealt with Cestus weapons is increased by 15%."
+      },
+      {
+        slot: "3rd Learn",
+        level: 1,
+        type: "Active",
+        name: "Endure",
+        quote: "",
+        cost: 1,
+        cooldown: 5,
+        moveType: "Physical",
+        category: "Buff",
+        duration: 2,
+        effect: "Give 25% damage reduction (currently bugged).",
+        image: "https://trello.com/1/cards/67b329231474989834733609/attachments/697890453382b4f5fe403083/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151513.png"
+      },
+      {
+        slot: "4th Learn",
+        level: 1,
+        type: "Active",
+        name: "Barrage",
+        quote: "",
+        cost: 2,
+        cooldown: 5,
+        moveType: "Physical",
+        category: "Attack",
+        damage: "3.3 x 3",
+        scaling: "STR/75",
+        effect: "N/A",
+        image: "https://trello.com/1/cards/67b329231474989834733609/attachments/69789043336bb5e20a8058b5/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151513.png"
+      }
+    ]
+  },
   "Monk (Or)": { innatePassives: [], learns: [] },
   "Brawler (N)": { innatePassives: [], learns: [] },
   "Darkwraith (Ch)": { innatePassives: [], learns: [] },
-  "Slayer": { innatePassives: [], learns: [] },
+  "Slayer": {
+    innatePassives: [
+      {
+        level: 1,
+        name: "Hunker Down",
+        description: "After you GUARD, gain a 15% defense buff for 3 turns."
+      },
+      {
+        level: 1,
+        name: "High Pressure",
+        description: "When combat starts apply 3 Pressure to all enemies."
+      }
+    ],
+    learns: [
+      {
+        slot: "Class Active",
+        level: 5,
+        type: "Active",
+        name: "Prepare",
+        quote: "Loosen your shoulders and get ready to strike.",
+        cost: 1,
+        cooldown: 4,
+        moveType: "Physical",
+        category: "Utility",
+        effect: "On your next hit, apply 3 Pressure and 2 Vulnerable."
+      },
+      {
+        slot: "Class Active",
+        level: 5,
+        type: "Active",
+        name: "Lookout",
+        quote: "Prepare yourself to defend a target of your choice.",
+        cost: 2,
+        cooldown: 5,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 9,
+        scaling: "STR/75",
+        effect: "Single-target melee sure-hit sentry attack."
+      },
+      {
+        slot: "1st Learn",
+        level: 5,
+        type: "Passive",
+        name: "Swift Fighter",
+        quote: "",
+        effect: "Successful dodges grant a 20% Speed buff for 2 turns."
+      },
+      {
+        slot: "2nd Learn",
+        level: 5,
+        type: "Active",
+        name: "Serpent Strike",
+        quote: "",
+        cost: 1,
+        cooldown: 4,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 6,
+        scaling: "STR/75",
+        effect: "Inflict 2 stacks of Bleed.",
+        image: "https://trello.com/1/cards/67b32926303938d1f8384d91/attachments/69788e4fb47bad244ff0165a/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127150624.png"
+      },
+      {
+        slot: "3rd Learn",
+        level: 5,
+        type: "Passive",
+        name: "Spear Training",
+        quote: "",
+        effect: "Damage dealt with spear weapons is increased by 10%."
+      },
+      {
+        slot: "4th Learn",
+        level: 5,
+        type: "Active",
+        name: "Triple Stab",
+        quote: "",
+        cost: 2,
+        cooldown: 4,
+        moveType: "Physical",
+        category: "Attack",
+        damage: "3.33x3",
+        scaling: "STR/75",
+        effect: "N/A",
+        image: "https://trello.com/1/cards/67b32926303938d1f8384d91/attachments/69788e50786ca731099a3d8f/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127150644.png"
+      }
+    ]
+  },
   "Saint (Or)": { innatePassives: [], learns: [] },
   "Lancer (N)": { innatePassives: [], learns: [] },
   "Impaler (Ch)": { innatePassives: [], learns: [] },
@@ -1175,106 +1661,164 @@ const raceMoves = {
   }
 };
 
-function buildEntityHtml(data, title, currentLvl) {
-  const activeLearn = (data.learns || []).filter(m => m.type === "Active" && currentLvl >= m.level);
-  const passiveLearn = (data.learns || []).filter(m => m.type === "Passive" && currentLvl >= m.level);
-  const innate = (data.innatePassives || []).filter(p => currentLvl >= p.level);
+function activeCardHtml(m) {
+  return `
+    <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Lv${m.level})</span></div>
+    <div class="move-card active-move">
+      <div class="move-header"><span class="move-badge active-badge">Active</span></div>
+      <div class="move-name">${m.name}</div>
+      ${m.quote ? `<div class="move-quote">"${m.quote}"</div>` : ""}
+      <div class="move-stats">
+        ${m.cost !== undefined ? `<span class="move-stat">Cost: ${m.cost}</span>` : ""}
+        ${m.cooldown !== undefined ? `<span class="move-stat">CD: ${m.cooldown}</span>` : ""}
+        ${m.moveType ? `<span class="move-stat">Type: ${m.moveType}</span>` : ""}
+        ${m.category ? `<span class="move-stat">Cat: ${m.category}</span>` : ""}
+        ${m.duration !== undefined ? `<span class="move-stat">Dur: ${m.duration}</span>` : ""}
+        ${m.damage !== undefined ? `<span class="move-stat">Dmg: ${m.damage}</span>` : ""}
+        ${m.scaling ? `<span class="move-stat">Scl: ${m.scaling}</span>` : ""}
+      </div>
+      <div class="move-desc">${m.effect}</div>
+      ${m.image ? `<img class="move-image" src="${m.image}" alt="${m.name}">` : ""}
+    </div>`;
+}
 
-  let html = `<h2 class="moves-race-title">${title}</h2>`;
+function innateCardHtml(p) {
+  return `
+    <div class="move-card passive">
+      <div class="move-header">
+        <span class="move-badge passive-badge">Innate</span>
+        <span class="move-level">Lv${p.level}</span>
+      </div>
+      <div class="move-name">${p.name}</div>
+      <div class="move-desc">${p.description}</div>
+    </div>`;
+}
 
-  html += `<h3 class="moves-section-title">Moves</h3>`;
-  if (activeLearn.length === 0) {
-    html += `<p class="moves-empty">No moves unlocked yet.</p>`;
-  } else {
-    for (const m of activeLearn) {
-      html += `
-        <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Level ${m.level})</span></div>
-        <div class="move-card active-move">
-          <div class="move-header">
-            <span class="move-badge active-badge">Active</span>
-          </div>
-          <div class="move-name">${m.name}</div>
-          <div class="move-quote">"${m.quote}"</div>
-          <div class="move-stats">
-            ${m.cost !== undefined ? `<span class="move-stat">Cost: ${m.cost}</span>` : ""}
-            ${m.cooldown !== undefined ? `<span class="move-stat">CD: ${m.cooldown}</span>` : ""}
-            ${m.moveType ? `<span class="move-stat">Type: ${m.moveType}</span>` : ""}
-            ${m.category ? `<span class="move-stat">Cat: ${m.category}</span>` : ""}
-            ${m.duration !== undefined ? `<span class="move-stat">Duration: ${m.duration}</span>` : ""}
-            ${m.damage !== undefined ? `<span class="move-stat">Damage: ${m.damage}</span>` : ""}
-            ${m.scaling ? `<span class="move-stat">Scaling: ${m.scaling}</span>` : ""}
-          </div>
-          <div class="move-desc">${m.effect}</div>
-          ${m.image ? `<img class="move-image" src="${m.image}" alt="${m.name}">` : ""}
-        </div>`;
-    }
-  }
+function passiveCardHtml(m) {
+  return `
+    <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Lv${m.level})</span></div>
+    <div class="move-card passive">
+      <div class="move-header"><span class="move-badge passive-badge">Passive</span></div>
+      <div class="move-name">${m.name}</div>
+      ${m.quote ? `<div class="move-quote">"${m.quote}"</div>` : ""}
+      <div class="move-desc">${m.effect}</div>
+      ${m.image ? `<img class="move-image" src="${m.image}" alt="${m.name}">` : ""}
+    </div>`;
+}
 
-  html += `<h3 class="moves-section-title">Passives</h3>`;
-  if (innate.length === 0 && passiveLearn.length === 0) {
-    html += `<p class="moves-empty">No passives unlocked yet.</p>`;
-  }
-  for (const p of innate) {
-    html += `
-      <div class="move-card passive">
-        <div class="move-header">
-          <span class="move-badge passive-badge">Innate Passive</span>
-          <span class="move-level">Level ${p.level}</span>
-        </div>
-        <div class="move-name">${p.name}</div>
-        <div class="move-desc">${p.description}</div>
-      </div>`;
-  }
-  for (const m of passiveLearn) {
-    html += `
-      <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Level ${m.level})</span></div>
-      <div class="move-card passive">
-        <div class="move-header">
-          <span class="move-badge passive-badge">Passive</span>
-        </div>
-        <div class="move-name">${m.name}</div>
-        <div class="move-quote">"${m.quote}"</div>
-        <div class="move-desc">${m.effect}</div>
-        ${m.image ? `<img class="move-image" src="${m.image}" alt="${m.name}">` : ""}
-      </div>`;
-  }
+function entityMovesHtml(data, lvl) {
+  const actives = (data.learns || []).filter(m => m.type === "Active" && lvl >= m.level);
+  let h = `<h3 class="moves-section-title">Moves</h3>`;
+  if (!actives.length) h += `<p class="moves-empty">No moves unlocked yet.</p>`;
+  else actives.forEach(m => h += activeCardHtml(m));
+  return h;
+}
 
-  return html;
+function entityPassivesHtml(data, lvl) {
+  const innates  = (data.innatePassives || []).filter(p => lvl >= p.level);
+  const passives = (data.learns || []).filter(m => m.type === "Passive" && lvl >= m.level);
+  let h = `<h3 class="moves-section-title">Passives</h3>`;
+  if (!innates.length && !passives.length) h += `<p class="moves-empty">No passives unlocked yet.</p>`;
+  innates.forEach(p => h += innateCardHtml(p));
+  passives.forEach(m => h += passiveCardHtml(m));
+  return h;
 }
 
 function renderMoves() {
   const container = document.getElementById("moves-content");
-  const raceName = racePicker.value;
-  const baseClass = classPicker.value;
+  const raceName   = racePicker.value;
+  const baseClass  = classPicker.value;
   const superClass = superPicker.value;
-  const currentLvl = +lvlInput.value || 1;
+  const markName   = markPicker.value;
+  const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass) {
-    container.innerHTML = `<p class="moves-placeholder">Select a race or class to view moves.</p>`;
+  if (!raceName && !baseClass && !markName) {
+    container.innerHTML = `<p class="moves-placeholder">Select a race, class, or mark to view moves.</p>`;
     return;
   }
 
+  const raceData  = raceName   ? raceMoves[raceName]    : null;
+  const baseData  = baseClass  ? classMoves[baseClass]  : null;
+  const superData = superClass ? classMoves[superClass] : null;
+  const markData  = markName   ? markMoves[markName]    : null;
+
   let html = "";
 
+  // --- Side-by-side: Race | Base Class | Mark ---
+  html += `<div class="moves-columns">`;
+
+  html += `<div class="moves-col">`;
   if (raceName) {
-    const data = raceMoves[raceName];
-    html += data
-      ? buildEntityHtml(data, raceName, currentLvl)
-      : `<h2 class="moves-race-title">${raceName}</h2><p class="moves-empty">No moves for this race.</p>`;
+    html += `<h2 class="moves-race-title">${raceName}</h2>`;
+    if (raceData) {
+      html += entityMovesHtml(raceData, lvl);
+      html += entityPassivesHtml(raceData, lvl);
+    } else {
+      html += `<p class="moves-empty">No moves for this race.</p>`;
+    }
   }
+  html += `</div>`;
 
+  html += `<div class="moves-col">`;
   if (baseClass) {
-    const data = classMoves[baseClass];
-    html += data
-      ? buildEntityHtml(data, baseClass, currentLvl)
-      : `<h2 class="moves-race-title">${baseClass}</h2><p class="moves-empty">No moves for this class.</p>`;
+    html += `<div class="moves-entity-label">Base Class</div>`;
+    html += `<h2 class="moves-race-title">${baseClass}</h2>`;
+    if (baseData) {
+      html += entityMovesHtml(baseData, lvl);
+      html += entityPassivesHtml(baseData, lvl);
+    } else {
+      html += `<p class="moves-empty">No moves for this class.</p>`;
+    }
+  }
+  html += `</div>`;
+
+  html += `<div class="moves-col">`;
+  if (markName) {
+    html += `<div class="moves-entity-label">Mark</div>`;
+    html += `<h2 class="moves-race-title">${markName}</h2>`;
+    if (markData) {
+      html += entityMovesHtml(markData, lvl);
+      html += entityPassivesHtml(markData, lvl);
+    } else {
+      html += `<p class="moves-empty">No moves for this mark.</p>`;
+    }
+  }
+  html += `</div>`;
+
+  html += `</div>`; // end .moves-columns
+
+  // --- Super Class (full width) ---
+  if (superClass) {
+    html += `<div class="moves-super-section">`;
+    html += `<div class="moves-entity-label">Super Class</div>`;
+    html += `<h2 class="moves-race-title">${superClass}</h2>`;
+    if (superData) {
+      html += entityMovesHtml(superData, lvl);
+      html += entityPassivesHtml(superData, lvl);
+    } else {
+      html += `<p class="moves-empty">No moves for this super class.</p>`;
+    }
+    html += `</div>`;
   }
 
-  if (superClass) {
-    const data = classMoves[superClass];
-    html += data
-      ? buildEntityHtml(data, superClass, currentLvl)
-      : `<h2 class="moves-race-title">${superClass}</h2><p class="moves-empty">No moves for this super class.</p>`;
+  // --- Combined sections ---
+  const allData = [raceData, baseData, superData, markData].filter(Boolean);
+  if (allData.length > 1) {
+    const allActives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Active" && lvl >= m.level));
+    html += `<div class="moves-combined-section">`;
+    html += `<h2 class="moves-combined-title">All Moves</h2>`;
+    if (!allActives.length) html += `<p class="moves-empty">No moves unlocked yet.</p>`;
+    else allActives.forEach(m => html += activeCardHtml(m));
+    html += `</div>`;
+
+    const allInnates  = allData.flatMap(d => (d.innatePassives || []).filter(p => lvl >= p.level));
+    const allPassives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Passive" && lvl >= m.level));
+    html += `<div class="moves-combined-section">`;
+    html += `<h2 class="moves-combined-title">All Passives</h2>`;
+    if (!allInnates.length && !allPassives.length) html += `<p class="moves-empty">No passives unlocked yet.</p>`;
+    allInnates.forEach(p => html += innateCardHtml(p));
+    allPassives.forEach(m => html += passiveCardHtml(m));
+    html += `</div>`;
   }
 
   container.innerHTML = html;
@@ -1282,7 +1826,12 @@ function renderMoves() {
 
 racePicker.addEventListener("change", renderMoves);
 classPicker.addEventListener("change", renderMoves);
-superPicker.addEventListener("change", renderMoves);
+superPicker.addEventListener("change", () => {
+  const selected = superPicker.value;
+  updateGold(prevSuperSelection, selected);
+  prevSuperSelection = selected;
+  renderMoves();
+});
 
 // --- Tabs ---
 const tabs = document.querySelectorAll(".tab");

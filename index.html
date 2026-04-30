@@ -25,6 +25,16 @@
     <div class="panel active" id="stats">
       <div class="stats-columns">
 
+        <div class="marks-section">
+          <h2>Marks</h2>
+          <div class="gear-slot">
+            <label class="gear-label">Mark</label>
+            <select class="mark-picker" id="mark-1">
+              <option value="">— None —</option>
+            </select>
+          </div>
+        </div>
+
         <div class="stats-left">
           <h2>Stats</h2>
 
@@ -32,8 +42,13 @@
             Points Remaining: <span id="points-left"></span>
           </div>
 
-          <div class="box">
-            Lvl: <input id="Lvl" type="number" value="1" min="1" max="40">
+          <div class="box-row">
+            <div class="box">
+              Lvl: <input id="Lvl" type="number" value="1" min="1" max="40">
+            </div>
+            <div class="box">
+              Gold: <span id="Gold">0</span>
+            </div>
           </div>
 
           <div class="race-row">
@@ -45,10 +60,11 @@
 
           <div class="race-row">
             <label class="race-label">Class</label>
-            <select id="class-picker">
+            <select id="class-picker" disabled>
               <option value="">— Select Class —</option>
             </select>
           </div>
+          <div class="class-cost-note">Req. Lvl 5</div>
 
           <div class="race-row">
             <label class="race-label">Super</label>
@@ -168,6 +184,14 @@
           <div class="gear-slot">
             <label class="gear-label">Off Hand</label>
             <select class="weapon-picker" id="weapon-offhand">
+              <option value="">— None —</option>
+            </select>
+          </div>
+
+          <h2 class="gear-sub-header">Armour</h2>
+          <div class="gear-slot">
+            <label class="gear-label">Armour</label>
+            <select class="armour-picker" id="armour-main">
               <option value="">— None —</option>
             </select>
           </div>
