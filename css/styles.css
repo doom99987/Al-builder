@@ -373,6 +373,22 @@ body {
   border-color: #666;
 }
 
+#artifact-picker {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+#artifact-picker:focus {
+  outline: none;
+  border-color: #666;
+}
+
 .enchant-desc {
   font-size: 11px;
   color: #888;

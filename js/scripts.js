@@ -399,6 +399,20 @@ Object.keys(enchantItems).forEach(name => {
   enchantPicker.appendChild(opt);
 });
 
+// --- Artifacts ---
+// To add: "Artifact Name": { effect: "" }
+const artifactItems = {
+};
+
+const artifactPicker = document.getElementById("artifact-picker");
+
+Object.keys(artifactItems).forEach(name => {
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  artifactPicker.appendChild(opt);
+});
+
 // --- Shards ---
 // To add: "Shard Name": {}
 const shardItems = {
@@ -525,7 +539,7 @@ const subClasses = ["Bard", "Beastmaster", "Alchemist", "Blacksmith", "Miner"];
 
 // To add a class: "ClassName": ["SuperClass1", "SuperClass2", ...]
 const classes = {
-  "Thief": ["Ranger (Or)", "Rouge (N)", "Assassin (Ch)"],
+  "Thief": ["Ranger (Or)", "Rogue (N)", "Assassin (Ch)"],
   "Warrior":["Paladin (Or)", "Blade Dancer (N)", "Berserker (Ch)"],
   "Wizard":["Elementalist (Or)", "Hexer (N)", "Necromancer (Ch)"],
   "Martial Artist":["Monk (Or)", "Brawler (N)", "Darkwraith (Ch)"],
@@ -544,7 +558,7 @@ const CLASS_GOLD_COST = {
   "Martial Artist": 220, "Sentry": 500,
   "Paladin (Or)": 2400, "Ranger (Or)": 2000, "Elementalist (Or)": 2000,
   "Monk (Or)": 2400, "Saint (Or)": 2000, "Citadel (Or)": 2000,
-  "Rouge (N)": 3750, "Hexer (N)": 3750, "Lancer (N)": 3750,
+  "Rogue (N)": 3750, "Hexer (N)": 3750, "Lancer (N)": 3750,
   "Blade Dancer (N)": 3750, "Brawler (N)": 3750,
   "Lionheart (N)": 6250, "Arbiter (N)": 6250,
   "Assassin (Ch)": 2000, "Berserker (Ch)": 2000, "Necromancer (Ch)": 2000,
@@ -745,7 +759,7 @@ const classMoves = {
       }
     ]
   },
-  "Rouge (N)": {
+  "Rogue (N)": {
     innatePassives: [],
     learns: [
       {
