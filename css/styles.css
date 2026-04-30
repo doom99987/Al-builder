@@ -342,6 +342,186 @@ body {
   border-color: #666;
 }
 
+.enchant-info-section {
+  margin-bottom: 24px;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 16px;
+}
+
+.enchant-info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+#enchant-picker {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+#enchant-picker:focus {
+  outline: none;
+  border-color: #666;
+}
+
+.enchant-desc {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+  max-width: 480px;
+}
+
+.shards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.shard-slot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shard-label {
+  font-size: 10px;
+  color: #666;
+  letter-spacing: 0.5px;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.shard-picker {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: white;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.shard-picker:focus {
+  outline: none;
+  border-color: #666;
+}
+
+/* Soul Tree */
+.soul-tree-columns {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.soul-tree-path {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.soul-path-title {
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #aaa;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 6px;
+  margin: 0 0 6px;
+}
+
+.soul-node {
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.soul-node-active {
+  border-color: #3a3060;
+}
+
+.soul-node-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.soul-node-name {
+  font-size: 12px;
+  font-weight: bold;
+  color: white;
+}
+
+.soul-rank-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.soul-btn {
+  width: 20px;
+  height: 20px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: white;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+
+.soul-btn:hover { background: #3a3a3a; }
+
+.soul-rank-val {
+  font-size: 11px;
+  color: #a99dff;
+  min-width: 36px;
+  text-align: center;
+}
+
+.soul-node-desc {
+  font-size: 11px;
+  color: #aaa;
+  line-height: 1.4;
+}
+
+.soul-node-footer {
+  font-size: 10px;
+  color: #555;
+}
+
+.soul-next-cost { color: #666; }
+
+.soul-maxed {
+  color: #f0c040;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.enchant-level {
+  font-size: 10px;
+  font-weight: bold;
+  color: #f0c040;
+  letter-spacing: 0.5px;
+}
+
 .gear-section {
   display: flex;
   flex-direction: column;
@@ -567,3 +747,261 @@ body {
   border: 1px solid #2a2a2a;
   align-self: flex-start;
 }
+
+/* ===================== MASTERY TREE ===================== */
+
+.mastery-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  width: 100%;
+}
+
+.mastery-stats-bar {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.mastery-tracker-box {
+  background: #1f1f1f;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #aaa;
+}
+
+.mastery-tracker-box b {
+  color: white;
+}
+
+.mastery-reset-btn {
+  background: #2a2a2a;
+  border: 1px solid #555;
+  color: #aaa;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.mastery-reset-btn:hover {
+  background: #3a3a3a;
+  color: white;
+}
+
+.mastery-tree-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* Trunk */
+.mastery-trunk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+/* Horizontal split line from trunk to 3 branches */
+.mastery-branch-split {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 340px;
+  height: 18px;
+  position: relative;
+}
+
+.mastery-split-h {
+  position: absolute;
+  top: 50%;
+  left: 14%;
+  right: 14%;
+  height: 2px;
+  background: #444;
+}
+
+.mastery-split-h::before,
+.mastery-split-h::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 9px;
+  background: #444;
+}
+
+.mastery-split-h::before { left: 0; }
+.mastery-split-h::after  { right: 0; }
+
+/* Branches row */
+.mastery-branches {
+  display: flex;
+  gap: 32px;
+  align-items: flex-start;
+}
+
+/* Individual branch column */
+.mastery-branch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  position: relative;
+}
+
+/* Each row of nodes within a branch */
+.mastery-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+/* Vertical connector line above each row (except first in trunk and first in branch) */
+.mastery-trunk .mastery-row::before,
+.mastery-branch .mastery-row:not(.mastery-row-first)::before {
+  content: "";
+  display: block;
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 10px;
+  background: #444;
+}
+
+/* Connector from trunk bottom to split line */
+.mastery-trunk .mastery-row:last-child::after {
+  content: "";
+  display: block;
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 10px;
+  background: #444;
+}
+
+/* Horizontal connector for pair rows */
+.mastery-branch .mastery-row:has(.mn-wrap + .mn-wrap)::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: calc(50% - 22px);
+  right: calc(50% - 22px);
+  height: 2px;
+  background: #444;
+  pointer-events: none;
+}
+
+.mn-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 0;
+}
+
+/* Give the mastery node's wrap enough room so the rotated diamond doesn't clip */
+.mn-wrap:has(.mn-type-mastery) {
+  padding: 6px;
+}
+
+/* Shift the incoming connector to the main-path node when mastery is on one side */
+.mastery-row.mastery-side-left::before {
+  /* Mastery is left, node is right — connector goes to ~75% (right half) */
+  left: 75% !important;
+}
+.mastery-row.mastery-side-right::before {
+  /* Mastery is right, node is left — connector goes to ~25% (left half) */
+  left: 25% !important;
+}
+
+/* Shift the outgoing connector of the row ABOVE a side-mastery row to match */
+.mastery-row.mastery-side-left + .mastery-row::before {
+  left: 75% !important;
+}
+.mastery-row.mastery-side-right + .mastery-row::before {
+  left: 25% !important;
+}
+
+/* Base node styles */
+.mn-node {
+  border: 2px solid #555;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+
+/* Regular node — oval */
+.mn-type-node {
+  width: 38px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+/* Breakthrough — small square */
+.mn-type-breakthrough {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+  border-width: 2px;
+  border-style: double;
+}
+
+/* Mastery — large rotated diamond */
+.mn-type-mastery {
+  width: 46px;
+  height: 46px;
+  border-radius: 6px;
+  transform: rotate(45deg);
+  border-width: 2px;
+}
+
+/* Locked state */
+.mn-locked {
+  opacity: 0.35;
+}
+
+/* Can't deactivate (has children active) */
+.mn-child-locked.mn-active {
+  opacity: 0.8;
+}
+
+/* === Shared / trunk === */
+.mn-shared                    { border-color: #666; background: #1e1e1e; }
+.mn-shared.mn-active          { border-color: #ccc; background: #383838; box-shadow: 0 0 8px #88888855; }
+.mn-shared:hover:not(.mn-locked) { background: #2a2a2a; }
+
+/* === Red branch === */
+.mn-red                        { border-color: #772222; background: #180808; }
+.mn-red.mn-active              { border-color: #ff4444; background: #3a0d0d; box-shadow: 0 0 8px #ff222255; }
+.mn-red:hover:not(.mn-locked):not(.mn-child-locked)  { background: #220e0e; }
+
+/* === Green branch === */
+.mn-green                      { border-color: #226622; background: #081508; }
+.mn-green.mn-active            { border-color: #44cc44; background: #0d3a0d; box-shadow: 0 0 8px #22cc2255; }
+.mn-green:hover:not(.mn-locked):not(.mn-child-locked) { background: #0e220e; }
+
+/* === Blue branch === */
+.mn-blue                       { border-color: #224488; background: #08081a; }
+.mn-blue.mn-active             { border-color: #4488ff; background: #0d1840; box-shadow: 0 0 8px #2255ff55; }
+.mn-blue:hover:not(.mn-locked):not(.mn-child-locked)  { background: #0e0e2a; }
+
+/* Keep diamond rotation correct for colored variants */
+.mn-type-mastery.mn-red.mn-active    { box-shadow: 0 0 12px #ff222288; }
+.mn-type-mastery.mn-green.mn-active  { box-shadow: 0 0 12px #22cc2288; }
+.mn-type-mastery.mn-blue.mn-active   { box-shadow: 0 0 12px #2255ff88; }
