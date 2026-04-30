@@ -102,7 +102,8 @@ body {
 }
 
 #class-picker,
-#super-picker {
+#super-picker,
+#sub-picker {
   background: #1a1a1a;
   border: 1px solid #444;
   color: white;
@@ -113,13 +114,15 @@ body {
 }
 
 #class-picker:focus,
-#super-picker:focus {
+#super-picker:focus,
+#sub-picker:focus {
   outline: none;
   border-color: #666;
 }
 
 #class-picker:disabled,
-#super-picker:disabled {
+#super-picker:disabled,
+#sub-picker:disabled {
   opacity: 0.4;
   cursor: default;
 }

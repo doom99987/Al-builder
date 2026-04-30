@@ -35,6 +35,14 @@
             </select>
           </div>
 
+          <h2 class="gear-sub-header">Enchants</h2>
+          <div class="gear-slot">
+            <label class="gear-label">Enchant</label>
+            <select id="enchant-picker">
+              <option value="">— None —</option>
+            </select>
+          </div>
+
           <h2 class="gear-sub-header">Shards</h2>
           <div class="shards-grid">
             <div class="shard-slot"><label class="shard-label">S1</label><select class="shard-picker" id="shard-1"><option value="">—</option></select></div>
@@ -71,7 +79,7 @@
           </div>
 
           <div class="race-row">
-            <label class="race-label">Class</label>
+            <label class="race-label">Base</label>
             <select id="class-picker" disabled>
               <option value="">— Select Class —</option>
             </select>
@@ -82,6 +90,14 @@
             <label class="race-label">Super</label>
             <select id="super-picker" disabled>
               <option value="">— Select Class First —</option>
+            </select>
+          </div>
+          <div class="class-cost-note">Req. Lvl 15</div>
+
+          <div class="race-row">
+            <label class="race-label">Sub</label>
+            <select id="sub-picker" disabled>
+              <option value="">— None —</option>
             </select>
           </div>
 
@@ -207,6 +223,7 @@
               <option value="">— None —</option>
             </select>
           </div>
+
         </div>
 
       </div>
@@ -214,14 +231,9 @@
 
     <div class="panel" id="Moves">
       <div class="moves-container">
-        <div class="enchant-info-section">
-          <h3 class="moves-section-title">Enchants</h3>
-          <div class="enchant-info-row">
-            <select id="enchant-picker">
-              <option value="">— None —</option>
-            </select>
-            <div id="enchant-desc" class="enchant-desc"></div>
-          </div>
+        <div id="enchant-desc-section" class="enchant-info-section" style="display:none">
+          <h3 class="moves-section-title">Enchant</h3>
+          <div id="enchant-desc" class="enchant-desc"></div>
         </div>
         <div id="moves-content">
           <p class="moves-placeholder">Select a race or class to view moves.</p>
