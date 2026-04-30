@@ -14,7 +14,8 @@
   <!-- Top tabs -->
   <div class="tabbar">
     <button class="tab active" data-tab="stats">Stats</button>
-    <button class="tab" data-tab="Moves">Moves</button>
+    <button class="tab" data-tab="mastery">Mastery</button>
+    <button class="tab" data-tab="Moves">Info</button>
     <button class="tab" data-tab="sould-tree">Soul Tree</button>
     <button class="tab" data-tab="dmg-calc">Dmg Calc</button>
   </div>
@@ -32,6 +33,17 @@
             <select class="mark-picker" id="mark-1">
               <option value="">— None —</option>
             </select>
+          </div>
+
+          <h2 class="gear-sub-header">Shards</h2>
+          <div class="shards-grid">
+            <div class="shard-slot"><label class="shard-label">S1</label><select class="shard-picker" id="shard-1"><option value="">—</option></select></div>
+            <div class="shard-slot"><label class="shard-label">S2</label><select class="shard-picker" id="shard-2"><option value="">—</option></select></div>
+            <div class="shard-slot"><label class="shard-label">S3</label><select class="shard-picker" id="shard-3"><option value="">—</option></select></div>
+            <div class="shard-slot"><label class="shard-label">S4</label><select class="shard-picker" id="shard-4"><option value="">—</option></select></div>
+            <div class="shard-slot"><label class="shard-label">S5</label><select class="shard-picker" id="shard-5"><option value="">—</option></select></div>
+            <div class="shard-slot"><label class="shard-label">S6</label><select class="shard-picker" id="shard-6"><option value="">—</option></select></div>
+            <div class="shard-slot"><label class="shard-label">S7</label><select class="shard-picker" id="shard-7"><option value="">—</option></select></div>
           </div>
         </div>
 
@@ -202,6 +214,15 @@
 
     <div class="panel" id="Moves">
       <div class="moves-container">
+        <div class="enchant-info-section">
+          <h3 class="moves-section-title">Enchants</h3>
+          <div class="enchant-info-row">
+            <select id="enchant-picker">
+              <option value="">— None —</option>
+            </select>
+            <div id="enchant-desc" class="enchant-desc"></div>
+          </div>
+        </div>
         <div id="moves-content">
           <p class="moves-placeholder">Select a race or class to view moves.</p>
         </div>
@@ -209,8 +230,18 @@
     </div>
 
     <div class="panel" id="sould-tree">
-      <h2>Soul Tree</h2>
-      <p>WIP</p>
+      <div id="soul-tree-content"></div>
+    </div>
+
+    <div class="panel" id="mastery">
+      <div class="mastery-wrap">
+        <div class="mastery-stats-bar">
+          <div class="mastery-tracker-box">Points Used: <b id="mastery-pts-used">0</b> / 35</div>
+          <div class="mastery-tracker-box">Echo Shards Used: <b id="mastery-shards-used">0</b></div>
+          <button class="mastery-reset-btn" onclick="resetMastery()">Reset</button>
+        </div>
+        <div class="mastery-tree-container" id="mastery-tree-container"></div>
+      </div>
     </div>
 
     <div class="panel" id="dmg-calc">

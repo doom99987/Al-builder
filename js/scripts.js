@@ -136,6 +136,9 @@ document.querySelectorAll(".stat-row").forEach(row => {
   });
 });
 
+const armourItems = {};
+const soulTreeBonuses = { "crit-dmg": 0, "crit-chance": 0, endFlat: 0 };
+
 function calcPercentage(stat, val){
   const lckAllocated = +document.querySelector('.stat-row[data-stat="lck"] .stat-val').value;
   const lck = lckAllocated + (raceBase.lck ?? 0);
@@ -168,9 +171,17 @@ function updatePecents() {
     const flatBonus = armour[stat] ?? 0;
     const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
     const base = calcPercentage(stat, val);
-    const pctBonus = armourPct[stat] ?? 0;
-    const display = base === "—" ? "—" : (parseFloat(base) + pctBonus).toFixed(1);
-    item.querySelector(".percent-val").textContent = display + "%";
+    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0);
+    let display;
+    if (base === "—") {
+      display = "—";
+    } else if (stat === "end") {
+      display = (parseFloat(base) + (soulTreeBonuses.endFlat ?? 0)).toFixed(1);
+    } else {
+      display = (parseFloat(base) + pctBonus).toFixed(1);
+    }
+    const suffix = stat === "end" ? "" : "%";
+    item.querySelector(".percent-val").textContent = display + suffix;
   });
 }
 
@@ -315,6 +326,96 @@ markPickers.forEach(picker => {
 
 markPicker.addEventListener("change", renderMoves);
 
+// --- Enchants ---
+// To add: "Enchant Name": { level: N or null, effect: "..." }
+const enchantItems = {
+  "Cursed": {
+    level: 35,
+    effect: "Attacks have a 16.6% chance to apply 3 stacks of one of: Cursed, Poisoned, Blinded, Sundered, Weakened, Vulnerable, or Burning.\n\nGrants immunity to Cess Anomalies in Cessgrounds and removes Cess Horror from encounters in Deeproot Canopy.\n\nIncreases damage by 30% against Cursed enemies or 20% against Sundered enemies. Does not stack — only the highest buff applies."
+  },
+  "Blessed": {
+    level: null,
+    effect: "Attacks build up light within enemies. After 3 stacks it explodes, dealing 2% of max HP and applying 2 Sundered. Cannot trigger twice in one turn."
+  },
+  "Inferno": {
+    level: 25,
+    effect: "Attacks have a 25% chance to apply 3 Burning, even if the enemy dodges.\n\nAll attacks deal 20% more damage when Burn is applied, including the attack that inflicts Burning."
+  },
+  "Midas": {
+    level: null,
+    effect: "Increased drop rates (untested).\n\nGain gold on enemy death.\n\nAttacks have a 16.6% chance to deal 15% extra damage."
+  },
+  "Reaper": {
+    level: 35,
+    effect: "On proc: boosts damage up to 25% based on the enemy's current HP (similar to Striking Shards). Also heals for 10% of damage dealt, excluding the Reaper damage increase.\n\nGrants a regen buff of 1% of max HP per missing life, affected by your Outgoing stat. Bonus lives from Daminos, Sheea, and Dullahan count. Mortal trial players receive no buff."
+  },
+  "Lifesong": {
+    level: null,
+    effect: "On hitting an enemy or healing an ally (Parasitic Leech lifesteal does not count), you have a ?% chance to trigger a 20% Incoming and Outgoing healing buff for 3 turns. Can only proc once per turn from an attack, and up to 3 times total per turn combined with heals."
+  },
+  "Spectral": {
+    level: null,
+    effect: "Gives all your attacks a ?% chance to negate all enemy defence."
+  },
+  "Hiemal": {
+    level: null,
+    effect: "Attacks have a 25% chance to apply 2 Cold and 2 Weakened.\n\nAttacks have a 10% chance to apply 1 Stun.\n\nProc chances are independent and can both trigger simultaneously."
+  },
+  "Frosted": {
+    level: null,
+    effect: "Attacks have a ~16?% chance (needs testing) to apply 2 Cold. Not increased by Icerind weapon, though Icerind itself can apply 2 Cold.\n\nCritical hits on Cold enemies cause a small AOE explosion (cannot execute targets, 10 base damage, pseudo-scales with damage modifiers). Triggers once per attack, then goes on cooldown."
+  },
+  "Ivory": {
+    level: null,
+    effect: "Gaining energy increases all your stats by 4% for 3 turns."
+  }
+};
+
+const enchantPicker = document.getElementById("enchant-picker");
+const enchantDesc   = document.getElementById("enchant-desc");
+
+Object.keys(enchantItems).forEach(name => {
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  enchantPicker.appendChild(opt);
+});
+
+// --- Shards ---
+// To add: "Shard Name": {}
+const shardItems = {
+};
+
+const shardPickers = document.querySelectorAll(".shard-picker");
+
+shardPickers.forEach(picker => {
+  Object.keys(shardItems).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    picker.appendChild(opt);
+  });
+});
+
+function enforceUniqueShards() {
+  const selected = Array.from(shardPickers).map(p => p.value).filter(v => v !== "");
+  shardPickers.forEach(picker => {
+    Array.from(picker.options).forEach(opt => {
+      if (opt.value === "") return;
+      opt.disabled = selected.includes(opt.value) && picker.value !== opt.value;
+    });
+  });
+}
+
+shardPickers.forEach(picker => picker.addEventListener("change", enforceUniqueShards));
+
+enchantPicker.addEventListener("change", () => {
+  const item = enchantItems[enchantPicker.value];
+  if (!item) { enchantDesc.innerHTML = ""; return; }
+  const lvlLine = item.level ? `<span class="enchant-level">Req. Level ${item.level}</span>` : `<span class="enchant-level">No level requirement</span>`;
+  enchantDesc.innerHTML = lvlLine + "<br><br>" + item.effect.replace(/\n/g, "<br>");
+});
+
 // --- Gear ---
 // To add gear: "Item Name": { str, arc, end, spd, lck }
 const gearItems = {
@@ -380,8 +481,6 @@ weaponPickers.forEach(picker => {
 // --- Armour ---
 // To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
 // Flat stats add to the stat value before formula. pct adds directly to the output % value.
-const armourItems = {
-};
 
 const armourPicker = document.getElementById("armour-main");
 
@@ -411,7 +510,7 @@ const superPicker = document.getElementById("super-picker");
 const goldDisplay = document.getElementById("Gold");
 
 const CLASS_GOLD_COST = { "Warrior": 200, "Thief": 200, "Slayer": 200, "Wizard":120,
-  "Martial Artist":220, "Sentry":500, "Assassin (Ch)":2000 };
+  "Martial Artist":220, "Sentry":500, "Assassin (Ch)":2000, "Paladin (Or)":2000 };
 let totalGold = 0;
 let prevClassSelection = "";
 let prevSuperSelection = "";
@@ -632,7 +731,80 @@ const classMoves = {
       }
     ]
   },
-  "Paladin (Or)": { innatePassives: [], learns: [] },
+  "Paladin (Or)": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 15,
+        type: "Active",
+        name: "Sacred Call",
+        quote: "Call upon grace, buffing an ally with rotating swords of light. Grants a mulligan to the target for the duration.",
+        cost: 2,
+        cooldown: 7,
+        moveType: "Holy",
+        category: "Buff",
+        duration: 3,
+        effect: "Increases the target's damage by 10% and defense by 10%, applies 2 Resist and grants 10 Thorns. Grants a mulligan (currently bugged). Damage/defense buff lasts only 2 turns if used on yourself. Thorns currently last permanently.",
+        image: "https://trello.com/1/cards/67b3293ad5daa6959942a4cf/attachments/69803e0aa848e68718ed62dd/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202110206.png"
+      },
+      {
+        slot: "2nd Learn",
+        level: 17,
+        type: "Active",
+        name: "Pure Resonance",
+        quote: "Call upon your faith and empower you and your allies.",
+        cost: 2,
+        cooldown: 6,
+        moveType: "Holy",
+        category: "Buff",
+        duration: 3,
+        damage: 15,
+        scaling: "STR/100 + END/100",
+        effect: "Provides all allies a 20% damage resistance buff and 2.5% of the target's max HP as a regen buff. Applies 3 Weakened. (Difficulty: 6 bars at base)",
+        image: "https://trello.com/1/cards/67b3293ad5daa6959942a4cf/attachments/69803e08ace609edb4662958/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202110148.png"
+      },
+      {
+        slot: "3rd Learn",
+        level: 19,
+        type: "Passive",
+        name: "Enduring Fighter",
+        quote: "Take less damage and gain some health regen.",
+        effect: "Provides a permanent 15% damage resistance buff and grants +2 base regen. (Requires rejoining the game to take effect if just obtained.)"
+      },
+      {
+        slot: "4th Learn",
+        level: 21,
+        type: "Active",
+        name: "Holy Crash",
+        quote: "Condense holy energy into your blade, striking it down upon your foes with a large explosion. Causes enemies to aggro onto you for a short time.",
+        cost: 2,
+        cooldown: 4,
+        moveType: "Holy",
+        category: "Attack",
+        damage: 13,
+        scaling: "STR/END",
+        effect: "Applies 3 turns of Taunt onto the main target. Has a 50% chance to apply 2 Taunt to adjacent targets. (Difficulty: 6 bars at base)",
+        image: "https://trello.com/1/cards/67b3293ad5daa6959942a4cf/attachments/69803e0d0cd179680a4400b4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202110223.png"
+      },
+      {
+        slot: "5th Learn",
+        level: 23,
+        type: "Passive",
+        name: "Shield Training",
+        quote: "Block better at the cost of moving slower. Guarding causes you to absorb damage from your teammates.",
+        effect: "Guarding reduces the damage the next ally takes by 50%. A small portion of that damage is redirected to you. Any effects your shield can apply on block will also apply when taking damage while guarding for a teammate. (Not required to equip a shield.)"
+      },
+      {
+        slot: "6th Learn",
+        level: 25,
+        type: "Passive",
+        name: "Protector",
+        quote: "Guarding now lets you choose a player to guard, taking the damage of the attack. Choosing yourself guards normally.",
+        effect: "Guarding now lets you choose a player to guard, taking the full damage of attacks targeting them. Choosing yourself functions as a normal guard."
+      }
+    ]
+  },
   "Blade Dancer (N)": { innatePassives: [], learns: [] },
   "Berserker (Ch)": { innatePassives: [], learns: [] },
   "Wizard": {
@@ -1744,7 +1916,7 @@ function renderMoves() {
 
   let html = "";
 
-  // --- Side-by-side: Race | Base Class | Mark ---
+  // --- Side-by-side: Race | Base Class | Super Class | Mark ---
   html += `<div class="moves-columns">`;
 
   html += `<div class="moves-col">`;
@@ -1773,6 +1945,19 @@ function renderMoves() {
   html += `</div>`;
 
   html += `<div class="moves-col">`;
+  if (superClass) {
+    html += `<div class="moves-entity-label">Super Class</div>`;
+    html += `<h2 class="moves-race-title">${superClass}</h2>`;
+    if (superData) {
+      html += entityMovesHtml(superData, lvl);
+      html += entityPassivesHtml(superData, lvl);
+    } else {
+      html += `<p class="moves-empty">No moves for this super class.</p>`;
+    }
+  }
+  html += `</div>`;
+
+  html += `<div class="moves-col">`;
   if (markName) {
     html += `<div class="moves-entity-label">Mark</div>`;
     html += `<h2 class="moves-race-title">${markName}</h2>`;
@@ -1786,20 +1971,6 @@ function renderMoves() {
   html += `</div>`;
 
   html += `</div>`; // end .moves-columns
-
-  // --- Super Class (full width) ---
-  if (superClass) {
-    html += `<div class="moves-super-section">`;
-    html += `<div class="moves-entity-label">Super Class</div>`;
-    html += `<h2 class="moves-race-title">${superClass}</h2>`;
-    if (superData) {
-      html += entityMovesHtml(superData, lvl);
-      html += entityPassivesHtml(superData, lvl);
-    } else {
-      html += `<p class="moves-empty">No moves for this super class.</p>`;
-    }
-    html += `</div>`;
-  }
 
   // --- Combined sections ---
   const allData = [raceData, baseData, superData, markData].filter(Boolean);
@@ -1833,6 +2004,326 @@ superPicker.addEventListener("change", () => {
   renderMoves();
 });
 
+// --- Soul Tree ---
+const ROMAN = ["—", "I", "II", "III", "IV", "V"];
+
+const soulTreeData = {
+  "Path of Destruction": [
+    { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125] },
+    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}%",                                         perRank: 5,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 5} },
+    { id: "strike_first", name: "Strike First, No Mercy",    desc: "First attack +{v}% damage (expires after 2 turns)",              perRank: 5,   maxRank: 5, costs: [100,200,300,400,500] },
+    { id: "lil_crit",     name: "Lil Bit of Crit",           desc: "Base crit chance +{v}%",                                         perRank: 1,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-chance": 1} },
+    { id: "com_focus",    name: "Combat Focus",               desc: "After meditating, +{v}% damage for 2 turns",                    perRank: 2,   maxRank: 5, costs: [50,100,150,200,250] }
+  ],
+  "Path of Empowerment": [
+    { id: "end_vessel",   name: "Enduring Vessel",            desc: "Base HP +{v}",                                                   perRank: 2,   maxRank: 5, costs: [20,40,60,80,100],    hpFlat: 2 },
+    { id: "calm_mind",    name: "Calm Mind",                  desc: "Meditate damage vulnerability -{v}%",                            perRank: 5,   maxRank: 3, costs: [50,100,150] },
+    { id: "bat_renewal",  name: "Battle Renewal",             desc: "Post-combat healing +{v}%",                                      perRank: 2.5, maxRank: 4, costs: [20,40,60,80] },
+    { id: "mending",      name: "Mending",                    desc: "+{v} HP regen per turn (does not scale with outgoing)",          perRank: 0.5, maxRank: 5, costs: [20,40,60,80,100] }
+  ]
+};
+
+const soulTreeRanks = {};
+Object.values(soulTreeData).flat().forEach(n => { soulTreeRanks[n.id] = 0; });
+
+function recalcSoulTreeBonuses() {
+  soulTreeBonuses["crit-dmg"]    = 0;
+  soulTreeBonuses["crit-chance"] = 0;
+  soulTreeBonuses.endFlat        = 0;
+  Object.values(soulTreeData).flat().forEach(node => {
+    const rank = soulTreeRanks[node.id];
+    if (!rank) return;
+    if (node.bonus) Object.entries(node.bonus).forEach(([k, v]) => { soulTreeBonuses[k] = (soulTreeBonuses[k] || 0) + rank * v; });
+    if (node.hpFlat) soulTreeBonuses.endFlat += rank * node.hpFlat;
+  });
+}
+
+function renderSoulTree() {
+  const container = document.getElementById("soul-tree-content");
+  let html = `<div class="soul-tree-columns">`;
+
+  for (const [pathName, nodes] of Object.entries(soulTreeData)) {
+    html += `<div class="soul-tree-path"><h3 class="soul-path-title">${pathName}</h3>`;
+    for (const node of nodes) {
+      const rank = soulTreeRanks[node.id];
+      const val  = +(rank * node.perRank).toFixed(1);
+      const desc = node.desc.replace("{v}", val);
+      const nextCost = rank < node.maxRank ? node.costs[rank] : null;
+      html += `
+        <div class="soul-node ${rank > 0 ? "soul-node-active" : ""}">
+          <div class="soul-node-top">
+            <span class="soul-node-name">${node.name}</span>
+            <div class="soul-rank-ctrl">
+              <button class="soul-btn" onclick="changeRank('${node.id}',-1)">−</button>
+              <span class="soul-rank-val">${ROMAN[rank]} / ${ROMAN[node.maxRank]}</span>
+              <button class="soul-btn" onclick="changeRank('${node.id}',1)">+</button>
+            </div>
+          </div>
+          <div class="soul-node-desc">${desc}</div>
+          <div class="soul-node-footer">
+            ${nextCost ? `<span class="soul-next-cost">Next: ${nextCost}</span>` : rank === node.maxRank ? `<span class="soul-maxed">MAXED</span>` : ""}
+          </div>
+        </div>`;
+    }
+    html += `</div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function changeRank(nodeId, delta) {
+  const node = Object.values(soulTreeData).flat().find(n => n.id === nodeId);
+  if (!node) return;
+  soulTreeRanks[nodeId] = Math.max(0, Math.min(node.maxRank, soulTreeRanks[nodeId] + delta));
+  recalcSoulTreeBonuses();
+  renderSoulTree();
+  updatePecents();
+}
+
+renderSoulTree();
+
+// === MASTERY TREE ===
+
+const MASTERY_TOTAL_POINTS = 35;
+
+const masteryNodeMap = {};
+
+const masteryNodes = [
+  // Shared trunk
+  { id: "s1",  name: "Node",         type: "node",         branch: "shared", parent: null   },
+  { id: "s2",  name: "Node",         type: "node",         branch: "shared", parent: "s1"   },
+  { id: "s3",  name: "Node",         type: "node",         branch: "shared", parent: "s2"   },
+  { id: "s4",  name: "Node",         type: "node",         branch: "shared", parent: "s3"   },
+  // Red (left) branch:
+  //   node → [node | node] → [node | node] → breakthrough → [◆Mastery LEFT | node RIGHT] → 2 nodes → breakthrough → node → ◆Mastery
+  { id: "l1",   name: "Node",         type: "node",         branch: "red",   parent: "s4"    },
+  { id: "l2",   name: "Node",         type: "node",         branch: "red",   parent: "l1"    },
+  { id: "l3",   name: "Node",         type: "node",         branch: "red",   parent: "l1"    },
+  { id: "l4",   name: "Node",         type: "node",         branch: "red",   parent: "l2"    },
+  { id: "l5",   name: "Node",         type: "node",         branch: "red",   parent: "l3"    },
+  { id: "lbt1", name: "Breakthrough", type: "breakthrough", branch: "red",   parent: "l4",   shardCost: 1 },
+  { id: "l6",   name: "Node",         type: "node",         branch: "red",   parent: "lbt1"  }, // main path node; Mastery links left
+  { id: "lm1",  name: "Mastery",      type: "mastery",      branch: "red",   parent: "l6"    }, // side Mastery to the LEFT of l6
+  { id: "l7",   name: "Node",         type: "node",         branch: "red",   parent: "l6"    }, // 1st node below l6
+  { id: "l8",   name: "Node",         type: "node",         branch: "red",   parent: "l7"    }, // 2nd node below l6
+  { id: "lbt2", name: "Breakthrough", type: "breakthrough", branch: "red",   parent: "l8",   shardCost: 1 },
+  { id: "l9",   name: "Node",         type: "node",         branch: "red",   parent: "lbt2"  },
+  { id: "lm2",  name: "Mastery",      type: "mastery",      branch: "red",   parent: "l9"    },
+  // Green (center) branch
+  { id: "c1",  name: "Node",         type: "node",         branch: "green",  parent: "s4"   },
+  { id: "c2a", name: "Node",         type: "node",         branch: "green",  parent: "c1"   },
+  { id: "c2b", name: "Node",         type: "node",         branch: "green",  parent: "c1"   },
+  { id: "c3a", name: "Node",         type: "node",         branch: "green",  parent: "c2a"  },
+  { id: "cb1", name: "Breakthrough", type: "breakthrough", branch: "green",  parent: "c3a", shardCost: 1 },
+  { id: "cm1", name: "Mastery",      type: "mastery",      branch: "green",  parent: "cb1"  },
+  { id: "c4",  name: "Node",         type: "node",         branch: "green",  parent: "cm1"  },
+  { id: "c5a", name: "Node",         type: "node",         branch: "green",  parent: "c4"   },
+  { id: "c5b", name: "Node",         type: "node",         branch: "green",  parent: "c4"   },
+  { id: "cb2", name: "Breakthrough", type: "breakthrough", branch: "green",  parent: "c5a", shardCost: 1 },
+  { id: "cm2", name: "Mastery",      type: "mastery",      branch: "green",  parent: "cb2"  },
+  // Blue (right) branch — mirrored structure, Mastery is to the RIGHT of the node
+  //   node → [node | node] → [node | node] → breakthrough → [node LEFT | ◆Mastery RIGHT] → 2 nodes → breakthrough → node → ◆Mastery
+  { id: "r1",   name: "Node",         type: "node",         branch: "blue",  parent: "s4"    },
+  { id: "r2",   name: "Node",         type: "node",         branch: "blue",  parent: "r1"    },
+  { id: "r3",   name: "Node",         type: "node",         branch: "blue",  parent: "r1"    },
+  { id: "r4",   name: "Node",         type: "node",         branch: "blue",  parent: "r2"    },
+  { id: "r5",   name: "Node",         type: "node",         branch: "blue",  parent: "r3"    },
+  { id: "rbt1", name: "Breakthrough", type: "breakthrough", branch: "blue",  parent: "r4",   shardCost: 1 },
+  { id: "r6",   name: "Node",         type: "node",         branch: "blue",  parent: "rbt1"  }, // main path node; Mastery links right
+  { id: "rm1",  name: "Mastery",      type: "mastery",      branch: "blue",  parent: "r6"    }, // side Mastery to the RIGHT of r6
+  { id: "r7",   name: "Node",         type: "node",         branch: "blue",  parent: "r6"    },
+  { id: "r8",   name: "Node",         type: "node",         branch: "blue",  parent: "r7"    },
+  { id: "rbt2", name: "Breakthrough", type: "breakthrough", branch: "blue",  parent: "r8",   shardCost: 1 },
+  { id: "r9",   name: "Node",         type: "node",         branch: "blue",  parent: "rbt2"  },
+  { id: "rm2",  name: "Mastery",      type: "mastery",      branch: "blue",  parent: "r9"    },
+];
+
+masteryNodes.forEach(n => masteryNodeMap[n.id] = n);
+
+const masteryState = {};
+masteryNodes.forEach(n => masteryState[n.id] = false);
+
+// Row groupings for rendering. Each inner array = one horizontal row.
+// For mixed [mastery, node] rows, mastery is a side branch; the node is the main path.
+const masteryBranchRows = {
+  red: [
+    ["l1"],            // node 1
+    ["l2"],      // node 2
+    ["l3", "l4"],//node 3 and 4 (side by side fork)
+    ["l5"],      // nodes 5 
+    ["lbt1"],          // breakthrough 1
+    ["lm1", "l6"],     // ◆Mastery (left side branch) | node (right, main path)
+    ["l7"],            // node below l6
+    ["l8"],            // node below l7
+    ["lbt2"],          // breakthrough 2
+    ["l9"],            // node after bt2
+    ["lm2"],           // ◆Mastery 2
+  ],
+  green: [
+    ["c1"],
+    ["c2a", "c2b"],
+    ["c3a"],
+    ["cb1"],
+    ["cm1"],
+    ["c4"],
+    ["c5a", "c5b"],
+    ["cb2"],
+    ["cm2"],
+  ],
+  blue: [
+    ["r1"],            // node 1
+    ["r2"],      // nodes 2 & 3 (side by side fork)
+    ["r3", "r4"],    // nodes 4 & 5 (side by side fork continues)
+    ["r5"],
+    ["rbt1"],          // breakthrough 1
+    ["r6", "rm1"],     // node (left, main path) | ◆Mastery (right side branch)
+    ["r7"],            // node below r6
+    ["r8"],            // node below r7
+    ["rbt2"],          // breakthrough 2
+    ["r9"],            // node after bt2
+    ["rm2"],           // ◆Mastery 2
+  ],
+};
+
+function masteryPointsSpent() {
+  return masteryNodes
+    .filter(n => masteryState[n.id] && n.type !== "breakthrough")
+    .reduce((sum, n) => sum + (n.type === "mastery" ? 5 : 1), 0);
+}
+
+function masteryShardsSpent() {
+  return masteryNodes.filter(n => masteryState[n.id] && n.type === "breakthrough").length;
+}
+
+function hasMasteryActiveChild(id) {
+  return masteryNodes.some(n => n.parent === id && masteryState[n.id]);
+}
+
+function toggleMasteryNode(id) {
+  const node = masteryNodeMap[id];
+  if (!node) return;
+
+  if (masteryState[id]) {
+    // Deactivate only if no active children depend on it
+    if (hasMasteryActiveChild(id)) return;
+    masteryState[id] = false;
+  } else {
+    // Require parent to be active
+    if (node.parent && !masteryState[node.parent]) return;
+    // Check point budget (breakthroughs cost shards, not points)
+    if (node.type !== "breakthrough") {
+      const cost = node.type === "mastery" ? 5 : 1;
+      if (masteryPointsSpent() + cost > MASTERY_TOTAL_POINTS) return;
+    }
+    masteryState[id] = true;
+  }
+
+  updateMasteryDisplay();
+}
+
+function resetMastery() {
+  masteryNodes.forEach(n => masteryState[n.id] = false);
+  updateMasteryDisplay();
+}
+
+function masteryNodeHtml(id) {
+  const node = masteryNodeMap[id];
+  const active = masteryState[id];
+  const parentOk = !node.parent || masteryState[node.parent];
+  const locked = !parentOk;
+  const childLocked = active && hasMasteryActiveChild(id);
+
+  const costLabel = node.type === "mastery" ? "5 pts"
+                  : node.type === "breakthrough" ? "1 echo shard"
+                  : "1 pt";
+
+  let cls = `mn-node mn-${node.branch} mn-type-${node.type}`;
+  if (active) cls += " mn-active";
+  if (locked) cls += " mn-locked";
+  if (childLocked) cls += " mn-child-locked";
+
+  const cursor = locked || childLocked ? "not-allowed" : "pointer";
+  return `<div class="${cls}" id="mn-${id}" onclick="toggleMasteryNode('${id}')" title="${node.name} — ${costLabel}" style="cursor:${cursor}"></div>`;
+}
+
+function masteryBranchHtml(branch) {
+  const rows = masteryBranchRows[branch];
+  let html = `<div class="mastery-branch mastery-branch-${branch}">`;
+  rows.forEach((rowIds, i) => {
+    let rowClass = "mastery-row";
+    if (i === 0) rowClass += " mastery-row-first";
+
+    // Mixed mastery+node row: add class so connector line aligns with main-path node
+    if (rowIds.length === 2) {
+      const first = masteryNodeMap[rowIds[0]];
+      const second = masteryNodeMap[rowIds[1]];
+      if (first && second) {
+        if (first.type === "mastery" && second.type !== "mastery") {
+          rowClass += " mastery-side-left";  // mastery on left → connector tracks right node
+        } else if (second.type === "mastery" && first.type !== "mastery") {
+          rowClass += " mastery-side-right"; // mastery on right → connector tracks left node
+        }
+      }
+    }
+
+    html += `<div class="${rowClass}">`;
+    rowIds.forEach(id => {
+      html += `<div class="mn-wrap">${masteryNodeHtml(id)}</div>`;
+    });
+    html += `</div>`;
+  });
+  html += `</div>`;
+  return html;
+}
+
+function renderMastery() {
+  const container = document.getElementById("mastery-tree-container");
+  if (!container) return;
+
+  let html = `<div class="mastery-trunk">`;
+  ["s1","s2","s3","s4"].forEach(id => {
+    html += `<div class="mastery-row"><div class="mn-wrap">${masteryNodeHtml(id)}</div></div>`;
+  });
+  html += `</div>`;
+
+  html += `<div class="mastery-branch-split"><div class="mastery-split-h"></div></div>`;
+
+  html += `<div class="mastery-branches">`;
+  html += masteryBranchHtml("red");
+  html += masteryBranchHtml("green");
+  html += masteryBranchHtml("blue");
+  html += `</div>`;
+
+  container.innerHTML = html;
+  updateMasteryDisplay();
+}
+
+function updateMasteryDisplay() {
+  masteryNodes.forEach(n => {
+    const el = document.getElementById(`mn-${n.id}`);
+    if (!el) return;
+    const active = masteryState[n.id];
+    const parentOk = !n.parent || masteryState[n.parent];
+    const locked = !parentOk;
+    const childLocked = active && hasMasteryActiveChild(n.id);
+
+    el.className = `mn-node mn-${n.branch} mn-type-${n.type}`;
+    if (active) el.className += " mn-active";
+    if (locked) el.className += " mn-locked";
+    if (childLocked) el.className += " mn-child-locked";
+    el.style.cursor = locked || childLocked ? "not-allowed" : "pointer";
+  });
+
+  const ptsEl = document.getElementById("mastery-pts-used");
+  const shardsEl = document.getElementById("mastery-shards-used");
+  if (ptsEl) ptsEl.textContent = masteryPointsSpent();
+  if (shardsEl) shardsEl.textContent = masteryShardsSpent();
+
+  // Color pts red if over budget
+  if (ptsEl) ptsEl.style.color = masteryPointsSpent() >= MASTERY_TOTAL_POINTS ? "#ff5555" : "white";
+}
+
 // --- Tabs ---
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
@@ -1849,6 +2340,8 @@ tabs.forEach(tab => {
     // activate clicked
     tab.classList.add("active");
     document.getElementById(target).classList.add("active");
+
+    if (target === "mastery") renderMastery();
 
   });
 });
