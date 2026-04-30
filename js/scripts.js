@@ -166,11 +166,11 @@ function calcPercentage(stat, val){
     end:         v => v * 1.3, //finalized
     spd:         v => v * 2,
     "crit-chance": () => lck * 0.25,
-    "crit-dmg":    () => lck * 0.0025,
+    "crit-dmg":    () => 1.5 + lck * 0.0025,
     "out-heal":    () => 0,
     "inc-heal":    () => 0,
   };
-  return formulas[stat] ? formulas[stat](val).toFixed(1) : "—";
+  return formulas[stat] ? formulas[stat](val).toFixed(stat === "crit-dmg" ? 2 : 1) : "—";
 }
 
 function updatePoints() {
@@ -196,7 +196,7 @@ function updatePecents() {
     } else if (stat === "end") {
       display = (parseFloat(base) + (soulTreeBonuses.endFlat ?? 0)).toFixed(1);
     } else {
-      display = (parseFloat(base) + pctBonus).toFixed(1);
+      display = (parseFloat(base) + pctBonus).toFixed(stat === "crit-dmg" ? 2 : 1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : "%";
     item.querySelector(".percent-val").textContent = display + suffix;
@@ -416,9 +416,20 @@ Object.keys(artifactItems).forEach(name => {
 // --- Shards ---
 // To add: "Shard Name": {}
 const shardItems = {
-  "Striking": {},
-  "Shattering": {},
-  "Regenerative": {}
+  "Striking (R)": {},
+  "Striking (P)": {},
+  "Shattering (R)": {},
+  "Shattering (P)": {},
+  "Regenerative (R)": {},
+  "Regenerative (P)": {},
+  "Voltaic (R)": {},
+  "Voltaic (P)": {},
+  "Executing (R)": {},
+  "Executing (P)": {},
+  "Reversing (R)": {},
+  "Reversing (P)": {},
+  "Empowering (R)": {},
+  "Empowering (P)": {}
 };
 
 const shardPickers = document.querySelectorAll(".shard-picker");
@@ -432,7 +443,6 @@ shardPickers.forEach(picker => {
   });
 });
 
-shardPickers.forEach(picker => picker.addEventListener("change", enforceUniqueShards));
 
 const enchantDescSection = document.getElementById("enchant-desc-section");
 
@@ -3179,6 +3189,8 @@ function renderMoves() {
   // --- Combined sections ---
   const allData = [raceData, baseData, superData, subData, markData].filter(Boolean);
   if (allData.length > 1) {
+    html += `<div class="moves-combined-row">`;
+
     const allActives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Active"));
     html += `<div class="moves-combined-section">`;
     html += `<h2 class="moves-combined-title">All Moves</h2>`;
@@ -3193,6 +3205,8 @@ function renderMoves() {
     if (!allInnates.length && !allPassives.length) html += `<p class="moves-empty">No passives.</p>`;
     allInnates.forEach(p => html += innateCardHtml(p));
     allPassives.forEach(m => html += passiveCardHtml(m));
+    html += `</div>`;
+
     html += `</div>`;
   }
 
@@ -3222,7 +3236,7 @@ const ROMAN = ["—", "I", "II", "III", "IV", "V"];
 const soulTreeData = {
   "Path of Destruction": [
     { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125] },
-    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}%",                                         perRank: 5,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 5} },
+    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}x",                                         perRank: 0.05, maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 0.05} },
     { id: "strike_first", name: "Strike First, No Mercy",    desc: "First attack +{v}% damage (expires after 2 turns)",              perRank: 5,   maxRank: 5, costs: [100,200,300,400,500] },
     { id: "lil_crit",     name: "Lil Bit of Crit",           desc: "Base crit chance +{v}%",                                         perRank: 1,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-chance": 1} },
     { id: "com_focus",    name: "Combat Focus",               desc: "After meditating, +{v}% damage for 2 turns",                    perRank: 2,   maxRank: 5, costs: [50,100,150,200,250] }
