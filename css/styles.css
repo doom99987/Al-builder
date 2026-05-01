@@ -410,6 +410,12 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 160px;
+}
+
+.shard-slot .wpick-wrap {
+  flex: 1;
+  min-width: 0;
 }
 
 .shard-label {
@@ -707,6 +713,11 @@ body {
   color: white;
 }
 
+.wpick-item.wpick-disabled {
+  color: #444;
+  cursor: not-allowed;
+}
+
 /* Moves panel */
 .moves-container {
   width: 100%;
@@ -966,6 +977,43 @@ body {
   display: flex;
   gap: 32px;
   align-items: flex-start;
+}
+
+.mastery-locked-msg {
+  color: #666;
+  font-size: 14px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.mastery-passive-card {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.mastery-passive-name {
+  font-weight: bold;
+  color: #c9a227;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.mastery-passive-desc {
+  color: #bbb;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mastery-branch-label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #666;
+  margin-bottom: 6px;
+  text-align: center;
 }
 
 /* Individual branch column */
