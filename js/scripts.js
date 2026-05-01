@@ -812,7 +812,37 @@ function updateEnchantDesc() {
 }
 
 buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), updateEnchantDesc);
-buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), renderMoves);
+buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); });
+
+function renderArtifactDesc() {
+  const section = artifactDescSection;
+  const content = artifactDesc;
+  if (!section || !content) return;
+  const name = artifactPicker.value;
+  const data = name ? artifactMoves[name] : null;
+  if (!name || !data) { section.style.display = "none"; content.innerHTML = ""; return; }
+  let html = `<div class="enchant-name">${name}</div>`;
+  (data.learns || []).forEach(m => {
+    if (m.type === "Passive") {
+      html += `<div style="margin-top:6px"><strong>${m.name}</strong></div>`;
+      html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
+    } else if (m.type === "Active") {
+      html += `<div style="margin-top:6px"><strong>${m.name}</strong> <span class="enchant-level">Active</span></div>`;
+      const stats = [
+        m.cost !== undefined ? `Cost: ${m.cost}` : null,
+        m.cooldown !== undefined ? `CD: ${m.cooldown}` : null,
+        m.moveType ? `Type: ${m.moveType}` : null,
+        m.damage !== undefined ? `Dmg: ${m.damage}` : null,
+        m.scaling ? `Scl: ${m.scaling}` : null,
+      ].filter(Boolean).join(" | ");
+      if (stats) html += `<div class="enchant-level" style="margin-top:2px">${stats}</div>`;
+      html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
+      if (m.image) html += `<img class="move-image" src="${m.image}" alt="${m.name}" style="margin-top:6px;max-width:100%">`;
+    }
+  });
+  content.innerHTML = html;
+  section.style.display = "";
+}
 
 function renderGearInfo() {
   const section = document.getElementById("gear-desc-section");
@@ -4427,6 +4457,7 @@ function passiveCardHtml(m) {
 function isSummonMove(m) {
   const s = m.slot || "";
   if (!s) return false;
+  if (/^Active$/i.test(s) || /^Passive$/i.test(s)) return false;
   return !/^\d+(st|nd|rd|th)\s+Learn$/i.test(s)
       && !/^Class\s+Active$/i.test(s)
       && !/^Tier\s+\d+$/i.test(s);
