@@ -549,13 +549,6 @@ const enchantItems = {
 const enchantPicker = document.getElementById("enchant-picker");
 const enchantDesc   = document.getElementById("enchant-desc");
 
-Object.keys(enchantItems).forEach(name => {
-  const opt = document.createElement("option");
-  opt.value = name;
-  opt.textContent = name;
-  enchantPicker.appendChild(opt);
-});
-
 // --- Artifacts ---
 // To add: "Artifact Name": { learns: [...] }
 const artifactItems = {
@@ -763,20 +756,8 @@ const artifactMoves = {
 };
 
 const artifactPicker = document.getElementById("artifact-picker");
-
-Object.keys(artifactItems).forEach(name => {
-  const opt = document.createElement("option");
-  opt.value = name;
-  opt.textContent = name;
-  artifactPicker.appendChild(opt);
-});
-
 const artifactDescSection = document.getElementById("artifact-desc-section");
 const artifactDesc = document.getElementById("artifact-desc");
-
-artifactPicker.addEventListener("change", () => {
-  renderMoves();
-});
 
 // --- Shards ---
 // To add: "Shard Name": {}
@@ -800,18 +781,13 @@ const shardItems = {
 const shardPickers = document.querySelectorAll(".shard-picker");
 
 shardPickers.forEach(picker => {
-  Object.keys(shardItems).forEach(name => {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    picker.appendChild(opt);
-  });
+  buildSimpleDropdown(picker, Object.keys(shardItems), () => {});
 });
 
 
 const enchantDescSection = document.getElementById("enchant-desc-section");
 
-enchantPicker.addEventListener("change", () => {
+function updateEnchantDesc() {
   const item = enchantItems[enchantPicker.value];
   if (!item) {
     enchantDesc.innerHTML = "";
@@ -821,7 +797,10 @@ enchantPicker.addEventListener("change", () => {
   const lvlLine = item.level ? `<span class="enchant-level">Req. Level ${item.level}</span>` : `<span class="enchant-level">No level requirement</span>`;
   enchantDesc.innerHTML = `<div class="enchant-name">${enchantPicker.value}</div>` + lvlLine + "<br><br>" + item.effect.replace(/\n/g, "<br>");
   enchantDescSection.style.display = "";
-});
+}
+
+buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), updateEnchantDesc);
+buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), renderMoves);
 
 // --- Gear ---
 // To add gear: "Item Name": { str, arc, end, spd, lck }
@@ -1207,10 +1186,8 @@ buildWeaponDropdown(offhandWeaponPicker, offhandSeries);
 // To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
 // Flat stats add to the stat value before formula. pct adds directly to the output % value.
 
-function buildArmourDropdown(picker) {
+function buildSimpleDropdown(picker, names, onSelect) {
   picker.style.display = "none";
-
-  const allArmours = Object.keys(armourItems);
 
   const wrap = document.createElement("div");
   wrap.className = "wpick-wrap";
@@ -1231,7 +1208,7 @@ function buildArmourDropdown(picker) {
   const list = document.createElement("div");
   list.className = "wpick-list";
 
-  allArmours.forEach(name => {
+  names.forEach(name => {
     const opt = document.createElement("option");
     opt.value = name;
     picker.appendChild(opt);
@@ -1265,11 +1242,11 @@ function buildArmourDropdown(picker) {
       picker.value = "";
       display.textContent = "— None —";
       close();
-      updatePecents();
+      onSelect();
     });
     list.appendChild(none);
 
-    allArmours
+    names
       .filter(name => !q || name.toLowerCase().includes(q.toLowerCase()))
       .forEach(name => {
         const item = document.createElement("div");
@@ -1280,7 +1257,7 @@ function buildArmourDropdown(picker) {
           picker.value = name;
           display.textContent = name;
           close();
-          updatePecents();
+          onSelect();
         });
         list.appendChild(item);
       });
@@ -1298,7 +1275,7 @@ function buildArmourDropdown(picker) {
 }
 
 const armourPicker = document.getElementById("armour-main");
-buildArmourDropdown(armourPicker);
+buildSimpleDropdown(armourPicker, Object.keys(armourItems), updatePecents);
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
