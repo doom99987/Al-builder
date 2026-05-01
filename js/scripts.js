@@ -5708,6 +5708,31 @@ function setPickerDisplay(picker, name) {
   }
 }
 
+// --- Compact lookup tables (built once) ---
+function _buildLists() {
+  const flatList = obj => Object.keys(obj);
+  const flatWeapons = series => Object.values(series).flatMap(w => Object.keys(w));
+  const flatGears   = series => Object.values(series).flat();
+  return {
+    race:  flatList(races),
+    cls:   flatList(classes),
+    sub:   subClasses,
+    mark:  flatList(markItems),
+    cov:   flatList(covenantItems),
+    ench:  flatList(enchantItems),
+    art:   flatList(artifactItems),
+    shard: flatList(shardItems),
+    gear:  flatGears(gearSeries),
+    wm:    flatWeapons(mainWeaponSeries),
+    wo:    flatWeapons(offhandSeries),
+    arm:   flatList(armourItems),
+  };
+}
+const _L = _buildLists();
+
+function _i(list, val) { return val ? list.indexOf(val) : -1; }
+function _v(list, idx) { return (idx >= 0 && idx < list.length) ? list[idx] : ''; }
+
 function getBuildState() {
   const stats = {};
   ['str','arc','end','spd','lck'].forEach(s => {
@@ -5739,6 +5764,84 @@ function getBuildState() {
     msty: mastery,
     soul
   };
+}
+
+// Encode state to compact string (indices instead of names)
+function encodeState(state) {
+  const supList = classes[state.cls] || [];
+  // mastery bitmask as hex (up to 32 nodes; split into two 16-bit halves if needed)
+  let mlo = 0, mhi = 0;
+  masteryNodes.forEach((n, i) => {
+    if (state.msty.includes(n.id)) {
+      if (i < 30) mlo |= (1 << i);
+      else        mhi |= (1 << (i - 30));
+    }
+  });
+  const soulVals = Object.keys(soulTreeRanks).map(id => state.soul[id] || 0).join('');
+  const parts = [
+    2,                                 // version 2 = compact format
+    state.lvl,
+    _i(_L.race, state.race),
+    _i(_L.cls,  state.cls),
+    supList.indexOf(state.sup),
+    _i(_L.sub,  state.sub),
+    state.str, state.arc, state.end, state.spd, state.lck,
+    _i(_L.mark, state.mark),
+    _i(_L.cov,  state.cov),
+    state.covR,
+    _i(_L.ench, state.ench),
+    _i(_L.art,  state.art),
+    ...state.sh.map(s => _i(_L.shard, s)),
+    ...state.g.map(g => _i(_L.gear,  g)),
+    _i(_L.wm,   state.wm),
+    _i(_L.wo,   state.wo),
+    _i(_L.arm,  state.arm),
+    mlo.toString(36),                  // mastery bits (base36)
+    mhi.toString(36),
+    soulVals,                          // 9 digits
+    encodeURIComponent(state.name || '')
+  ];
+  return parts.join('~');
+}
+
+// Decode compact string back to state object
+function decodeState(raw) {
+  const parts = raw.split('~');
+  let i = 0;
+  const n = () => +parts[i++];
+  const s = () => parts[i++];
+  const v = n();
+  if (v !== 2) return null; // not compact format
+  const lvl    = n();
+  const race   = _v(_L.race, n());
+  const cls    = _v(_L.cls,  n());
+  const supIdx = n();
+  const supList= classes[cls] || [];
+  const sup    = supList[supIdx] || '';
+  const sub    = _v(_L.sub,  n());
+  const str = n(), arc = n(), end = n(), spd = n(), lck = n();
+  const mark   = _v(_L.mark, n());
+  const cov    = _v(_L.cov,  n());
+  const covR   = n();
+  const ench   = _v(_L.ench, n());
+  const art    = _v(_L.art,  n());
+  const sh     = [...document.querySelectorAll('.shard-picker')].map(() => _v(_L.shard, n()));
+  const g      = [...document.querySelectorAll('.gear-picker')].map(() => _v(_L.gear,  n()));
+  const wm     = _v(_L.wm,   n());
+  const wo     = _v(_L.wo,   n());
+  const arm    = _v(_L.arm,  n());
+  const mlo    = parseInt(s(), 36);
+  const mhi    = parseInt(s(), 36);
+  const msty   = masteryNodes
+    .filter((nd, idx) => idx < 30 ? (mlo & (1 << idx)) : (mhi & (1 << (idx - 30))))
+    .map(nd => nd.id);
+  const soulVals = s();
+  const soulKeys = Object.keys(soulTreeRanks);
+  const soul = {};
+  soulKeys.forEach((id, idx) => { const r = +soulVals[idx]; if (r > 0) soul[id] = r; });
+  const name = decodeURIComponent(s() || '');
+  return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
+           mark, cov, covR, ench, art, sh, g, wm, wo, arm, msty, soul, name };
 }
 
 function loadBuildState(state) {
@@ -5819,6 +5922,10 @@ function loadBuildState(state) {
   });
   recalcSoulTreeBonuses();
 
+  // Build name
+  const buildNameInput = document.getElementById('build-name-input');
+  if (buildNameInput && state.name && state.name !== 'Untitled') buildNameInput.value = state.name;
+
   // Final renders
   updatePoints();
   updatePecents();
@@ -5829,49 +5936,37 @@ function loadBuildState(state) {
   renderMasteryInfoSection();
 }
 
-// Share button + modal
-const shareBuildBtn    = document.getElementById('share-build-btn');
-const shareModal       = document.getElementById('share-modal');
-const shareBuildNameEl = document.getElementById('share-build-name');
-const shareModalCancel = document.getElementById('share-modal-cancel');
-const shareModalConfirm= document.getElementById('share-modal-confirm');
+// Share button
+const shareBuildBtn   = document.getElementById('share-build-btn');
+const buildNameInput  = document.getElementById('build-name-input');
 
-function openShareModal() {
-  shareBuildNameEl.value = '';
-  shareModal.style.display = 'flex';
-  shareBuildNameEl.focus();
-}
-
-function closeShareModal() {
-  shareModal.style.display = 'none';
-}
-
-function doShare() {
-  const name = shareBuildNameEl.value.trim();
-  const state = getBuildState();
-  if (name) state.name = name;
-  const encoded = btoa(JSON.stringify(state));
-  const url = window.location.href.split('#')[0] + '#' + encoded;
-  closeShareModal();
-  navigator.clipboard.writeText(url).then(() => {
-    shareBuildBtn.textContent = 'Copied!';
-    setTimeout(() => { shareBuildBtn.textContent = 'Share Build'; }, 2000);
-  }).catch(() => {
-    prompt('Copy this link:', url);
+if (shareBuildBtn) {
+  shareBuildBtn.addEventListener('click', () => {
+    const state = getBuildState();
+    state.name = (buildNameInput ? buildNameInput.value.trim() : '') || 'Untitled';
+    const encoded = encodeState(state);
+    const url = window.location.href.split('#')[0] + '#' + encoded;
+    navigator.clipboard.writeText(url).then(() => {
+      shareBuildBtn.textContent = 'Copied!';
+      setTimeout(() => { shareBuildBtn.textContent = 'Share'; }, 2000);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
   });
 }
-
-if (shareBuildBtn)     shareBuildBtn.addEventListener('click', openShareModal);
-if (shareModalCancel)  shareModalCancel.addEventListener('click', closeShareModal);
-if (shareModalConfirm) shareModalConfirm.addEventListener('click', doShare);
-if (shareBuildNameEl)  shareBuildNameEl.addEventListener('keydown', e => { if (e.key === 'Enter') doShare(); if (e.key === 'Escape') closeShareModal(); });
-if (shareModal)        shareModal.addEventListener('mousedown', e => { if (e.target === shareModal) closeShareModal(); });
 
 // Load build from URL hash on page load
 (function () {
   const hash = window.location.hash.slice(1);
   if (!hash) return;
   try {
+    // Compact format (v2): starts with "2~"
+    if (hash.startsWith('2~')) {
+      const state = decodeState(hash);
+      if (state) loadBuildState(state);
+      return;
+    }
+    // Legacy format (v1): base64 JSON
     const state = JSON.parse(atob(hash));
     if (state && state.v === 1) loadBuildState(state);
   } catch (e) { /* not a valid build hash */ }
