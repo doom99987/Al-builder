@@ -39,12 +39,13 @@
           <div class="gear-slot">
             <label class="gear-label">Covenant</label>
             <div class="covenant-row">
-              <select class="covenant-picker" id="covenant-picker">
+              <select class="covenant-picker" id="covenant-picker" disabled>
                 <option value="">— None —</option>
               </select>
-              <input type="number" id="covenant-rank" class="covenant-rank-input" value="1" min="1" max="20" title="Covenant Rank">
+              <input type="number" id="covenant-rank" class="covenant-rank-input" value="1" min="1" max="20" title="Covenant Rank" disabled>
             </div>
           </div>
+          <div class="class-cost-note covenant-cost-note">Req. Lvl 10</div>
 
           <h2 class="gear-sub-header">Enchants</h2>
           <div class="gear-slot">
@@ -190,6 +191,10 @@
             <div class="percent-item" data-stat="inc-heal">
               <span class="percent-val" id="inc-heal-pct">—</span>
               <span class="percent-label">in heal</span>
+            </div>
+            <div class="percent-item" data-stat="energy">
+              <span class="percent-val" id="energy-pct">—</span>
+              <span class="percent-label">energy%</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-﻿// --- Race data ---
+// --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
 const races = {
   "Estella (24%)": {str: 2, arc: 2, end: 2, lck: 1, spd: 1},
@@ -65,6 +65,7 @@ function updateClassPickerLock() {
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
   const locked = lvl < 5;
   const superLocked = lvl < 15;
+  const covLocked = lvl < 10;
   classPicker.disabled = locked;
   subPicker.disabled = locked || subClasses.length === 0;
   if (locked) {
@@ -89,6 +90,17 @@ function updateClassPickerLock() {
     opt.value = "";
     opt.textContent = "Req. Lvl 15";
     superPicker.appendChild(opt);
+  }
+  const covPicker = document.getElementById("covenant-picker");
+  const covRankEl = document.getElementById("covenant-rank");
+  if (covPicker) {
+    covPicker.disabled = covLocked;
+    if (covRankEl) covRankEl.disabled = covLocked;
+    if (covLocked && covPicker.value) {
+      covPicker.value = "";
+      renderMoves();
+      updatePecents();
+    }
   }
 }
 
@@ -154,7 +166,105 @@ document.querySelectorAll(".stat-row").forEach(row => {
   });
 });
 
-const armourItems = {};
+const armourItems = {
+  "Paladin Cuirass": {
+    endFlat: 20,
+    pct: { end: 17.5 }
+    // Also grants: +10% Physical Armor, -5% Run Speed, +5% Holy Armor, +5% Magic Armor, +5% Fire Armor
+  },
+  "Adept Warrior": {
+    endFlat: 15,
+    pct: { end: 10, str: 5, energy: 16.6 }
+    // Also grants: +5% Physical Armor, +20% Fall Resistance, +10% Dark Armor
+  },
+  "Raging Warrior": {
+    endFlat: 16,
+    pct: { end: 10, "inc-heal": 10, energy: 10 }
+    // Also grants: +5% Physical Armor, +10% Hex Armor, +5% Fire Armor
+  },
+  "Arcane Robes": {
+    arc: 4,
+    endFlat: 15,
+    pct: { arc: 7.5 }
+    // Also grants: +10% Magic Armor, +10% Poison Armor, +10% Holy Armor, +10% Fire Armor
+  },
+  "Magister Apprentice": {
+    arc: 3,
+    endFlat: 15,
+    pct: { arc: 5 }
+    // Also grants: +15% Magic Armor, +10% Poison Armor, +10% Fire Armor, +1 HP Regen
+  },
+  "Corrupt Caster": {
+    arc: 2,
+    endFlat: 16,
+    pct: { end: 5, arc: 5, energy: 10 }
+    // Also grants: +15% Magic Armor, +10% Poison Armor, +10% Holy Armor
+  },
+  "Lifebound Archer": {
+    arc: 3,
+    endFlat: 15,
+    pct: { end: 5, arc: 5 }
+    // Also grants: +10% Magic Armor, +10% Poison Armor, +10% Nature Armor, +1 HP Regen, +15% Run Speed
+  },
+  "Rogue Hunter": {
+    endFlat: 15,
+    pct: { end: 7.5, spd: 10, energy: 10 }
+    // Also grants: +5% Physical Armor, +20% Run Speed, +5% Fire Armor, +1 HP Regen, +25% Fall Resistance
+  },
+  "Shadow Cloak": {
+    endFlat: 13,
+    pct: { end: 7.5, energy: 12.5 }
+    // Also grants: +5% Physical Armor, +30% Run Speed, +5% Dark Armor, +1 HP Regen, +30% Fall Resistance
+  },
+  "Traveling Pasmark": {
+    str: 5,
+    endFlat: 16,
+    pct: { end: 7.5, str: 5 }
+    // Also grants: +5% Physical Armor, +5% Holy Armor, +1 HP Regen, +10% Fall Resistance, +5% Fire Armor, +5% Dark Armor
+  },
+  "Wandering Practitioner": {
+    endFlat: 18,
+    pct: { end: 7.5, str: 10, energy: 16.6 }
+    // Also grants: +5% Physical Armor, +10% Fall Damage Resistance, +10% Fire Armor
+  },
+  "Shade Walker": {
+    endFlat: 18,
+    pct: { end: 7.5, arc: 5 }
+    // Also grants: +5% Physical Armor, +10% Hex Armor, +10% Fall Resistance, +20% Dark Armor
+  },
+  "Pathfinder Martyr": {
+    arc: 3,
+    spd: 1,
+    endFlat: 20,
+    pct: { end: 7.5 }
+    // Also grants: +5% Physical Armor, +15% Holy Armor, +1 HP Regen
+  },
+  "Armored Lancer": {
+    endFlat: 20,
+    pct: { end: 15, energy: 12.5 }
+    // Also grants: +10% Physical Armor, -5% Run Speed, +10% Magic Armor, +5% Fire Armor
+  },
+  "Bloody Menace": {
+    endFlat: 22,
+    pct: { end: 10, "inc-heal": 20 }
+    // Also grants: +10% Physical Armor, +5% Hex Armor, +5% Poison Armor
+  },
+  "Venerated Legionnaire": {
+    endFlat: 17,
+    pct: { end: 12.5 }
+    // Also grants: +15% Physical Armor, +15% Fire Armor, +10% Ice Armor, +10% Nature Armor, +5% Dark Armor, +5% Magic Armor
+  },
+  "Fortified Seer": {
+    endFlat: 35,
+    pct: { end: 5 }
+    // Also grants: +15% Dark Armor, +15% Hex Armor, +10% Holy Armor, +10% Ice Armor, +10% Fire Armor, +10% Physical Armor
+  },
+  "Deathmantle": {
+    endFlat: 25,
+    pct: { end: 2.5, arc: 10 }
+    // Also grants: +10% Magic Armor, +5% Physical Armor, +10% Ice Armor, +15% Holy Armor, +20% Dark Armor
+  }
+};
 const soulTreeBonuses = { "crit-dmg": 0, "crit-chance": 0, endFlat: 0 };
 
 // Flat % bonuses granted by equipped weapons (added on top of base in updatePecents)
@@ -163,18 +273,26 @@ const weaponBonuses = {
   "Jade Prayerstaff": { "out-heal": 30, "inc-heal": 30 },
 };
 
+// Covenant rank-gated bonuses: array of { minRank, bonuses: { stat: value } }
+const covenantBonuses = {
+  "Way of Life": [
+    { minRank: 5, bonuses: { "out-heal": 15 } }
+  ]
+};
+
 function calcPercentage(stat, val){
   const lckAllocated = +document.querySelector('.stat-row[data-stat="lck"] .stat-val').value;
   const lck = lckAllocated + (raceBase.lck ?? 0);
   const formulas = {
     str:         v => 100 + v * 2.5,
     arc:         v => 100 + v * 3,
-    end:         v => v * 1.3, //finalized
+    end:         v => 45 + v * 1.3, //finalized
     spd:         v => v * 2,
-    "crit-chance": () => lck * 0.25,
+    "crit-chance": () => 19.8 + lck * 0.25,
     "crit-dmg":    () => 1.5 + lck * 0.0025,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
+    "energy":      () => 0,
   };
   return formulas[stat] ? formulas[stat](val).toFixed(stat === "crit-dmg" ? 2 : 1) : "—";
 }
@@ -202,6 +320,19 @@ function updatePecents() {
     });
   });
 
+  const covName = document.getElementById("covenant-picker")?.value;
+  const covRank = Math.min(20, Math.max(1, +document.getElementById("covenant-rank")?.value || 1));
+  const covPct = {};
+  if (covName && covenantBonuses[covName]) {
+    covenantBonuses[covName].forEach(({ minRank, bonuses }) => {
+      if (covRank >= minRank) {
+        Object.entries(bonuses).forEach(([k, v]) => {
+          covPct[k] = (covPct[k] || 0) + v;
+        });
+      }
+    });
+  }
+
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
     const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
@@ -209,16 +340,22 @@ function updatePecents() {
     const flatBonus = armour[stat] ?? 0;
     const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
     const base = calcPercentage(stat, val);
-    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0);
+    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0);
     let display;
     if (base === "—") {
       display = "—";
     } else if (stat === "end") {
-      display = (parseFloat(base) + (soulTreeBonuses.endFlat ?? 0)).toFixed(1);
+      const hpBase = parseFloat(base);
+      const flatHP = (soulTreeBonuses.endFlat ?? 0) + (armour.endFlat ?? 0);
+      const hpPct = armourPct.end ?? 0;
+      display = (hpBase + flatHP + hpBase * hpPct / 100).toFixed(1);
+    } else if (stat === "energy") {
+      const total = pctBonus;
+      display = total > 0 ? total.toFixed(1) : "—";
     } else {
       display = (parseFloat(base) + pctBonus).toFixed(stat === "crit-dmg" ? 2 : 1);
     }
-    const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : "%";
+    const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     item.querySelector(".percent-val").textContent = display + suffix;
   });
 }
@@ -1070,34 +1207,148 @@ buildWeaponDropdown(offhandWeaponPicker, offhandSeries);
 // To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
 // Flat stats add to the stat value before formula. pct adds directly to the output % value.
 
+function buildArmourDropdown(picker) {
+  picker.style.display = "none";
+
+  const allArmours = Object.keys(armourItems);
+
+  const wrap = document.createElement("div");
+  wrap.className = "wpick-wrap";
+
+  const display = document.createElement("div");
+  display.className = "wpick-display";
+  display.textContent = "— None —";
+
+  const panel = document.createElement("div");
+  panel.className = "wpick-panel";
+  panel.style.display = "none";
+
+  const search = document.createElement("input");
+  search.type = "text";
+  search.placeholder = "Search...";
+  search.className = "wpick-search";
+
+  const list = document.createElement("div");
+  list.className = "wpick-list";
+
+  allArmours.forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    picker.appendChild(opt);
+  });
+
+  panel.appendChild(search);
+  panel.appendChild(list);
+  wrap.appendChild(display);
+  wrap.appendChild(panel);
+  picker.parentNode.insertBefore(wrap, picker);
+
+  function open() {
+    panel.style.display = "block";
+    search.value = "";
+    buildList("");
+    search.focus();
+  }
+
+  function close() {
+    panel.style.display = "none";
+  }
+
+  function buildList(q) {
+    list.innerHTML = "";
+
+    const none = document.createElement("div");
+    none.className = "wpick-item" + (!picker.value ? " wpick-selected" : "");
+    none.textContent = "— None —";
+    none.addEventListener("mousedown", e => {
+      e.preventDefault();
+      picker.value = "";
+      display.textContent = "— None —";
+      close();
+      updatePecents();
+    });
+    list.appendChild(none);
+
+    allArmours
+      .filter(name => !q || name.toLowerCase().includes(q.toLowerCase()))
+      .forEach(name => {
+        const item = document.createElement("div");
+        item.className = "wpick-item" + (picker.value === name ? " wpick-selected" : "");
+        item.textContent = name;
+        item.addEventListener("mousedown", e => {
+          e.preventDefault();
+          picker.value = name;
+          display.textContent = name;
+          close();
+          updatePecents();
+        });
+        list.appendChild(item);
+      });
+  }
+
+  display.addEventListener("click", () => {
+    panel.style.display === "none" ? open() : close();
+  });
+
+  search.addEventListener("input", () => buildList(search.value));
+
+  document.addEventListener("mousedown", e => {
+    if (!wrap.contains(e.target)) close();
+  });
+}
+
 const armourPicker = document.getElementById("armour-main");
-
-Object.keys(armourItems).forEach(name => {
-  const opt = document.createElement("option");
-  opt.value = name;
-  opt.textContent = name;
-  armourPicker.appendChild(opt);
-});
-
-armourPicker.addEventListener("change", updatePecents);
+buildArmourDropdown(armourPicker);
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
 // learns entry: { level: <rank_req>, type: "Active"|"Passive", name, quote, effect, [cost, cooldown, moveType, category, damage, scaling] }
 const covenantItems = {
-  "Blades of the World": {}
+  "Blades of the World": {},
+  "Way of Life": {},
+  "Church of Raphion": {},
+  "Cult of Thanasiu": {}
 };
 
 const covenantMoves = {
   "Blades of the World": {
     learns: [
-      { level: 1,  type: "Passive", name: "Mercenary",          quote: "", effect: "Gain more from guild requests by 50% and 3x the amount of the potion rewards." },
-      { level: 3,  type: "Passive", name: "Initiate Blade",     quote: "", effect: "Grants access to the blades questboard." },
-      { level: 5,  type: "Passive", name: "Assassin's Cape",    quote: "", effect: "Reward item." },
-      { level: 10, type: "Active",  name: "Gilded Strike",      quote: "", cost: 2, cooldown: 9, moveType: "Holy", category: "Attack", damage: 12, scaling: "STR/75", effect: "Gain (?)% of the enemies hp in gold, 190% if you unlocked the Avarice passive. (Does not work on bosses)" },
-      { level: 13, type: "Passive", name: "Mercenary's Cape",   quote: "", effect: "Reward item." },
-      { level: 15, type: "Passive", name: "Avarice",            quote: "", effect: "Gain much more gold (30%). The mysterious merchant respects you. (~30% discount & sell price)." },
+      { level: 1,  type: "Passive", name: "Mercenary",            quote: "", effect: "Gain more from guild requests by 50% and 3x the amount of the potion rewards." },
+      { level: 3,  type: "Passive", name: "Initiate Blade",       quote: "", effect: "Grants access to the blades questboard." },
+      { level: 5,  type: "Passive", name: "Assassin's Cape",      quote: "", effect: "Reward item." },
+      { level: 10, type: "Active",  name: "Gilded Strike",        quote: "", cost: 2, cooldown: 9, moveType: "Holy", category: "Attack", damage: 12, scaling: "STR/75", effect: "Gain (?)% of the enemies hp in gold, 190% if you unlocked the Avarice passive. (Does not work on bosses)" },
+      { level: 13, type: "Passive", name: "Mercenary's Cape",     quote: "", effect: "Reward item." },
+      { level: 15, type: "Passive", name: "Avarice",              quote: "", effect: "Gain much more gold (30%). The mysterious merchant respects you. (~30% discount & sell price)." },
       { level: 20, type: "Passive", name: "Blessing of Survival", quote: "", effect: "Gives Mulligan upon reaching 0 health which makes you survive 1 more turn with 0.1 hp." }
+    ]
+  },
+  "Way of Life": {
+    learns: [
+      { level: 1,  type: "Passive", name: "Gatherer",          quote: "", effect: "Have a chance of getting double of an ingredient when collecting." },
+      { level: 5,  type: "Passive", name: "Lifebound",         quote: "", effect: "Gives 15% outgoing healing." },
+      { level: 7,  type: "Passive", name: "Alchemist's Scarf", quote: "", effect: "Reward item." },
+      { level: 10, type: "Active",  name: "Lesser Heal",       quote: "", cost: 2, cooldown: 6, moveType: "Nature", scaling: "Outgoing%", effect: "Heals for (?) at base." },
+      { level: 13, type: "Passive", name: "Blindfold",         quote: "", effect: "Reward item." },
+      { level: 15, type: "Passive", name: "Graced One",        quote: "", effect: "Lesser Heal now heals for (?) more." },
+      { level: 20, type: "Passive", name: "Blessing of Life",  quote: "", effect: "Gives 2x for all passive regen in fights and 1% passive regen out of fights every 3s." }
+    ]
+  },
+  "Church of Raphion": {
+    learns: [
+      { level: 1,  type: "Active",  name: "Bless",            quote: "", cost: 1, cooldown: 5, moveType: "Holy", scaling: "Unknown", effect: "Clears basic debuffs (burn, vulnerable, ?) on a target, and heals them for 2% per type of debuff cleansed." },
+      { level: 5,  type: "Passive", name: "Supporting Light", quote: "", effect: "After buffing a target, recover some hp and gain a boost to damage reduction for 2 turns." },
+      { level: 10, type: "Active",  name: "Holy Light",       quote: "", cost: 2, cooldown: 5, moveType: "Holy", scaling: "END/100", effect: "5% DR buff and a 0.5% regen for 4 turns upon usage. Also grants the targeted person a 20 HP shield that scales with Endurance. Dodging an attack will still reduce the shield." },
+      { level: 15, type: "Passive", name: "Spreading Grace",  quote: "", effect: "Meditating gives one other person in the party +1 energy as well, and getting hit during your meditation creates a burst of healing for your team that recovers (?) hp." },
+      { level: 20, type: "Passive", name: "N/A",              quote: "", effect: "Grants the ability to teleport/host and fight Seraphon." }
+    ]
+  },
+  "Cult of Thanasiu": {
+    learns: [
+      { level: 1,  type: "Active",  name: "Soul Absorb",        quote: "", cost: 1, cooldown: 4, moveType: "Dark", category: "Attack", damage: 2, scaling: "N/A", effect: "Deal 2 damage, but instantly kill enemy if they have 5% (2.5% of max hp for bosses) or less of max hp and the attack hits them. Will not kill if the enemy blocks or dodges it; being immune to dark damage also prevents the kill." },
+      { level: 5,  type: "Passive", name: "Internal Corruption", quote: "", effect: "Killing enemies gives you +2 energy. Summons get only +1 energy from killing." },
+      { level: 10, type: "Active",  name: "Death Curtain",       quote: "", cost: 2, cooldown: 6, moveType: "Dark", category: "Attack", damage: "6x2", scaling: "STR/75 + ARC/75", effect: "Pull down a hail of projectiles upon enemy and adjacent enemies. Heals 25% of max hp over 4 turns per enemy killed (6.25% per turn), capping at 2 enemies for a total of 50% max hp over 4 turns, and gives 1 energy. Deals double damage if enemy has the Cursed status effect." },
+      { level: 15, type: "Passive", name: "Dark Inversion",      quote: "", effect: "Dark and Hex affinity attacks deal 10% less damage to you. If they deal more than 20% of your max hp, gain 1 energy." },
+      { level: 20, type: "Passive", name: "N/A",                 quote: "", effect: "Grants the ability to teleport/host and fight Arkhaia." }
     ]
   }
 };
@@ -1112,11 +1363,13 @@ Object.keys(covenantItems).forEach(name => {
   covenantPicker.appendChild(opt);
 });
 
-covenantPicker.addEventListener("change", renderMoves);
+covenantPicker.addEventListener("change", () => { renderMoves(); updatePecents(); });
 covenantRankInput.addEventListener("change", () => {
   covenantRankInput.value = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
   renderMoves();
+  updatePecents();
 });
+
 
 // --- Classes ---
 // To add a class: "ClassName": ["SuperClass1", "SuperClass2", ...]
@@ -4326,4 +4579,5 @@ tabs.forEach(tab => {
     if (target === "mastery") renderMastery();
 
   });
-});
+})();
+
