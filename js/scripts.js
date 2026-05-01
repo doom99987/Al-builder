@@ -5799,14 +5799,22 @@ function encodeState(state) {
     mlo.toString(36),                  // mastery bits (base36)
     mhi.toString(36),
     soulVals,                          // 9 digits
-    encodeURIComponent(state.name || '')
   ];
-  return parts.join('~');
+  const name = encodeURIComponent(state.name || 'Untitled');
+  return name + '/' + parts.join('~');
 }
 
 // Decode compact string back to state object
 function decodeState(raw) {
-  const parts = raw.split('~');
+  // Strip leading "name/" prefix if present
+  let name = 'Untitled';
+  let data = raw;
+  const slash = raw.indexOf('/');
+  if (slash !== -1) {
+    name = decodeURIComponent(raw.slice(0, slash));
+    data = raw.slice(slash + 1);
+  }
+  const parts = data.split('~');
   let i = 0;
   const n = () => +parts[i++];
   const s = () => parts[i++];
@@ -5839,7 +5847,6 @@ function decodeState(raw) {
   const soulKeys = Object.keys(soulTreeRanks);
   const soul = {};
   soulKeys.forEach((id, idx) => { const r = +soulVals[idx]; if (r > 0) soul[id] = r; });
-  const name = decodeURIComponent(s() || '');
   return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
            mark, cov, covR, ench, art, sh, g, wm, wo, arm, msty, soul, name };
 }
@@ -5960,8 +5967,8 @@ if (shareBuildBtn) {
   const hash = window.location.hash.slice(1);
   if (!hash) return;
   try {
-    // Compact format (v2): starts with "2~"
-    if (hash.startsWith('2~')) {
+    // New format: "name/2~..." or legacy compact "2~..."
+    if (hash.includes('/') || hash.startsWith('2~')) {
       const state = decodeState(hash);
       if (state) loadBuildState(state);
       return;
