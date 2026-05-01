@@ -324,8 +324,9 @@ body {
 .marks-section {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 6px;
   padding-top: 8px;
+  width: 180px;
 }
 
 .marks-section h2 {
@@ -341,7 +342,7 @@ body {
   border-radius: 4px;
   font-size: 13px;
   cursor: pointer;
-  min-width: 160px;
+  width: 100%;
 }
 
 .mark-picker:focus {
@@ -369,7 +370,7 @@ body {
   border-radius: 4px;
   font-size: 13px;
   cursor: pointer;
-  min-width: 160px;
+  width: 100%;
 }
 
 #enchant-picker:focus {
@@ -385,7 +386,7 @@ body {
   border-radius: 4px;
   font-size: 13px;
   cursor: pointer;
-  min-width: 160px;
+  width: 100%;
 }
 
 #artifact-picker:focus {
@@ -565,9 +566,9 @@ body {
 }
 
 .gear-sub-header {
-  margin: 14px 0 6px 0;
+  margin: 8px 0 2px 0;
   border-top: 1px solid #2a2a2a;
-  padding-top: 14px;
+  padding-top: 8px;
 }
 
 .gear-slot {
@@ -584,7 +585,8 @@ body {
 
 .gear-picker,
 .weapon-picker,
-.armour-picker {
+.armour-picker,
+.covenant-picker {
   background: #1a1a1a;
   border: 1px solid #444;
   color: white;
@@ -597,7 +599,34 @@ body {
 
 .gear-picker:focus,
 .weapon-picker:focus,
-.armour-picker:focus {
+.armour-picker:focus,
+.covenant-picker:focus {
+  outline: none;
+  border-color: #666;
+}
+
+.covenant-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.covenant-row .covenant-picker {
+  flex: 1;
+}
+
+.covenant-rank-input {
+  width: 45px;
+  min-width: 45px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: #ccc;
+  border-radius: 4px;
+  padding: 4px 0 4px 4px;
+  font-size: 13px;
+}
+
+.covenant-rank-input:focus {
   outline: none;
   border-color: #666;
 }
