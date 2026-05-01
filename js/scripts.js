@@ -766,6 +766,57 @@ const mainWeaponSeries = {
     "Blightrock Gauntlets": { type: "Gauntlets" },
     "Blightrock Spear":     { type: "Spear" },
   },
+  "Sun": {
+    "Sun Sword":      { type: "Sword" },
+    "Sun Staff":      { type: "Staff" },
+    "Sun Dagger":     { type: "Dagger" },
+    "Sun Spear":      { type: "Spear" },
+    "Sun Greatsword": { type: "Greatsword" },
+  },
+  "Darkblood": {
+    "Darkblood Sword":  { type: "Sword" },
+    "Darkblood Staff":  { type: "Staff" },
+    "Darkblood Dagger": { type: "Dagger" },
+    "Darkblood Cestus": { type: "Gauntlets" },
+    "Darkblood Spear":  { type: "Spear" },
+    "Darkblood Hexer":  { type: "Greatsword" },
+  },
+  "Sandstone": {
+    "Sandstone Staff":     { type: "Staff" },
+    "Sandstone Dagger":    { type: "Dagger" },
+    "Sandstone Gauntlets": { type: "Gauntlets" },
+    "Sandstone Spear":     { type: "Spear" },
+    "Sandstone Hammer":    { type: "Hammer" },
+  },
+  "Primordial": {
+    "Primordial Sword":     { type: "Sword" },
+    "Primordial Staff":     { type: "Staff" },
+    "Primordial Dagger":    { type: "Dagger" },
+    "Primordial Gauntlets": { type: "Gauntlets" },
+    "Primordial Spear":     { type: "Spear" },
+    "Primordial Axe":       { type: "Axe" },
+    "Primordial Hammer":    { type: "Hammer" },
+  },
+  "Icerind": {
+    "Icerind Sword":      { type: "Sword" },
+    "Icerind Staff":      { type: "Staff" },
+    "Icerind Sai":        { type: "Dagger" },
+    "Icerind Cestus":     { type: "Gauntlets" },
+    "Icerind Spear":      { type: "Spear" },
+    "Icerind Greatsword": { type: "Greatsword" },
+  },
+  "Ivory": {
+    "Ivory Sword":      { type: "Sword" },
+    "Ivory Dagger":     { type: "Dagger" },
+    "Ivory Spear":      { type: "Spear" },
+    "Ivory Axe":        { type: "Axe" },
+    "Ivory Hammer":     { type: "Hammer" },
+    "Ivory Greatsword": { type: "Greatsword" },
+  },
+  "Unique": {
+    "Vastic Glaive":      { type: "Spear" },
+    "Star-Seeing Hammer": { type: "Hammer" },
+  },
 };
 
 const offhandSeries = {
@@ -781,53 +832,117 @@ const offhandSeries = {
   },
 };
 
-const blacksteelPassive = {
-  slot: "", level: 1, type: "Passive",
-  name: "Blacksteel",
-  quote: "",
-  effect: "Grants a 10% damage buff."
-};
+// --- Shared weapon passives ---
+function mkPassive(name, effect) {
+  return { slot: "", level: 1, type: "Passive", name, quote: "", effect };
+}
+
+const blacksteelPassive = mkPassive("Blacksteel", "Grants a 10% damage buff.");
+const jadePassive       = mkPassive("Jade",        "Increases incoming and outgoing healing by a flat 30%.");
+const corealloyPassive  = mkPassive("Corealloy",   "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color.");
+const dragonPassive     = mkPassive("Dragon",      "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect.");
+const blightPassive     = mkPassive("Blight",      "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)");
+const sunPassive        = mkPassive("Sun",         "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants your attacks a 10% chance to increase your Defense for 3 turns and a 20% chance to decrease the enemy's Defense by 10% for 3 turns. The Defense Down applies to the hit which triggers it.");
+const sunDaggerPassive   = mkPassive("Sun",        "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants your attacks a 10% chance to increase your Defense for 3 turns and a 20% chance to decrease the enemy's Defense by 10% for 3 turns. The Defense Down applies to the hit which triggers it. (bugged)");
+const darkbloodPassive    = mkPassive("Darkblood",  "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 10% damage buff.\n\nShares status effects applied to you with the attacker. (does not work on Metrom's Vessel)");
+const sandstoneWepPassive = mkPassive("Sandstone",  "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants your attacks a 20% chance to apply 2 Sundered.");
+const primordialWepPassive = mkPassive("Primordial", "Allows the use of weapon locked skills in respect to their weapon type.\n\nHas a chance to apply the Soulless status effect on hit. (currently does nothing)");
+const icerindWepPassive    = mkPassive("Icerind",    "Allows the use of Sword locked skills.\n\nGrants a 20% damage buff if the enemy has the Cold status effect.\n\nGrants your attacks a ?% chance to apply Cold.");
+const ivoryWepPassive      = mkPassive("Ivory",      "Allows the use of weapon locked skills in respect to their weapon type.\n\nIncreases your luck stat by X amount.\n\nCritical attacks have a ~15% chance to grant you 1 energy and heal you by 5% of your max hp. (can only happen twice in one turn)");
+
+function w(passive) { return { learns: passive ? [passive] : [] }; }
 
 const weaponMoves = {
-  "Ferrus Sword":      { learns: [] },
-  "Old Staff":         { learns: [] },
-  "Ferrus Dagger":     { learns: [] },
-  "Ferrus Cestus":     { learns: [] },
-  "Ferrus Spear":      { learns: [] },
-  "Ferrus Axe":        { learns: [] },
-  "Ferrus Tenderizer": { learns: [] },
-  "Blacksteel Sabre":  { learns: [blacksteelPassive] },
-  "Blacksteel Staff":  { learns: [blacksteelPassive] },
-  "Blacksteel Knife":  { learns: [blacksteelPassive] },
-  "Blacksteel Claws":  { learns: [blacksteelPassive] },
-  "Blacksteel Spear":  { learns: [blacksteelPassive] },
-  "Blacksteel Axe":    { learns: [blacksteelPassive] },
-  "Greatsword":        { learns: [blacksteelPassive] },
-  "Jade Broadsword":   { learns: [{ slot: "", level: 1, type: "Passive", name: "Jade", quote: "", effect: "Increases incoming and outgoing healing by a flat 30%." }] },
-  "Jade Prayerstaff":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Jade", quote: "", effect: "Increases incoming and outgoing healing by a flat 30%." }] },
-  "Targe":              { learns: [{ slot: "", level: 1, type: "Passive", name: "Targe", quote: "", effect: "Grants a 20% Damage Reduction." }] },
-  "Ferrus Towershield": { learns: [{ slot: "", level: 1, type: "Passive", name: "Ferrus Towershield", quote: "", effect: "Grants a 40% Damage Reduction." }] },
-  "Dragonflame Shield": { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragonflame Shield", quote: "", effect: "Grants a 30% Damage Reduction.\n\nReflects incoming melee damage by 200%." }] },
-  "Slimy Buckler":      { learns: [{ slot: "", level: 1, type: "Passive", name: "Slimy Buckler", quote: "", effect: "Grants a 15% Damage Reduction.\n\nApplies 2 Weakened and 1 Blindness upon blocking a Melee attack. Does not stack with Slimy Shield passive (Lentum passive)." }] },
-  "Icerind Shield":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Icerind Shield", quote: "", effect: "Grants a 30% Damage Reduction.\n\nApplies 2 stacks of Cold upon blocking a melee attack." }] },
-  "Sandstone Shield":   { learns: [{ slot: "", level: 1, type: "Passive", name: "Sandstone Shield", quote: "", effect: "Grants a 30% Damage Reduction." }] },
-  "Primordial Shield":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Primordial Shield", quote: "", effect: "Grants a ~15% Damage Reduction." }] },
-  "Ivory Shield":       { learns: [{ slot: "", level: 1, type: "Passive", name: "Ivory Shield", quote: "", effect: "Grants a 30% Damage Reduction." }] },
-  "Corealloy Manadagger": { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
-  "Corealloy Manaclaws":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
-  "Corealloy Manablade":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
-  "Dragontooth Blade":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Dragontooth Staff":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Dragontooth Dagger":   { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Dragonbone Gauntlets": { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Dragonbone Spear":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Dragonpyre Axe":       { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Dragonbone Hammer":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
-  "Blightrock Sword":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
-  "Blightwood Staff":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
-  "Blightrock Dagger":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
-  "Blightrock Gauntlets": { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
-  "Blightrock Spear":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
+  // Ferrus (no passive)
+  "Ferrus Sword":      w(null),
+  "Old Staff":         w(null),
+  "Ferrus Dagger":     w(null),
+  "Ferrus Cestus":     w(null),
+  "Ferrus Spear":      w(null),
+  "Ferrus Axe":        w(null),
+  "Ferrus Tenderizer": w(null),
+  // Blacksteel
+  "Blacksteel Sabre":  w(blacksteelPassive),
+  "Blacksteel Staff":  w(blacksteelPassive),
+  "Blacksteel Knife":  w(blacksteelPassive),
+  "Blacksteel Claws":  w(blacksteelPassive),
+  "Blacksteel Spear":  w(blacksteelPassive),
+  "Blacksteel Axe":    w(blacksteelPassive),
+  "Greatsword":        w(blacksteelPassive),
+  // Jade
+  "Jade Broadsword":   w(jadePassive),
+  "Jade Prayerstaff":  w(jadePassive),
+  // Shields (unique passives)
+  "Targe":              { learns: [mkPassive("Targe",              "Grants a 20% Damage Reduction.")] },
+  "Ferrus Towershield": { learns: [mkPassive("Ferrus Towershield", "Grants a 40% Damage Reduction.")] },
+  "Dragonflame Shield": { learns: [mkPassive("Dragonflame Shield", "Grants a 30% Damage Reduction.\n\nReflects incoming melee damage by 200%.")] },
+  "Slimy Buckler":      { learns: [mkPassive("Slimy Buckler",      "Grants a 15% Damage Reduction.\n\nApplies 2 Weakened and 1 Blindness upon blocking a Melee attack. Does not stack with Slimy Shield passive (Lentum passive).")] },
+  "Icerind Shield":     { learns: [mkPassive("Icerind Shield",     "Grants a 30% Damage Reduction.\n\nApplies 2 stacks of Cold upon blocking a melee attack.")] },
+  "Sandstone Shield":   { learns: [mkPassive("Sandstone Shield",   "Grants a 30% Damage Reduction.")] },
+  "Primordial Shield":  { learns: [mkPassive("Primordial Shield",  "Grants a ~15% Damage Reduction.")] },
+  "Ivory Shield":       { learns: [mkPassive("Ivory Shield",       "Grants a 30% Damage Reduction.")] },
+  // Corealloy
+  "Corealloy Manadagger": w(corealloyPassive),
+  "Corealloy Manaclaws":  w(corealloyPassive),
+  "Corealloy Manablade":  w(corealloyPassive),
+  // Dragon
+  "Dragontooth Blade":    w(dragonPassive),
+  "Dragontooth Staff":    w(dragonPassive),
+  "Dragontooth Dagger":   w(dragonPassive),
+  "Dragonbone Gauntlets": w(dragonPassive),
+  "Dragonbone Spear":     w(dragonPassive),
+  "Dragonpyre Axe":       w(dragonPassive),
+  "Dragonbone Hammer":    w(dragonPassive),
+  // Blight
+  "Blightrock Sword":     w(blightPassive),
+  "Blightwood Staff":     w(blightPassive),
+  "Blightrock Dagger":    w(blightPassive),
+  "Blightrock Gauntlets": w(blightPassive),
+  "Blightrock Spear":     w(blightPassive),
+  // Sun
+  "Sun Sword":      w(sunPassive),
+  "Sun Staff":      w(sunPassive),
+  "Sun Dagger":     w(sunDaggerPassive),
+  "Sun Spear":      w(sunPassive),
+  "Sun Greatsword": w(sunPassive),
+  // Darkblood
+  "Darkblood Sword":   w(darkbloodPassive),
+  "Darkblood Staff":   w(darkbloodPassive),
+  "Darkblood Dagger":  w(darkbloodPassive),
+  "Darkblood Cestus":  w(darkbloodPassive),
+  "Darkblood Spear":   w(darkbloodPassive),
+  "Darkblood Hexer":   w(darkbloodPassive),
+  // Sandstone
+  "Sandstone Staff":    w(sandstoneWepPassive),
+  "Sandstone Dagger":   w(sandstoneWepPassive),
+  "Sandstone Gauntlets":w(sandstoneWepPassive),
+  "Sandstone Spear":    w(sandstoneWepPassive),
+  "Sandstone Hammer":    w(sandstoneWepPassive),
+  // Primordial
+  "Primordial Sword":     w(primordialWepPassive),
+  "Primordial Staff":     w(primordialWepPassive),
+  "Primordial Dagger":    w(primordialWepPassive),
+  "Primordial Gauntlets": w(primordialWepPassive),
+  "Primordial Spear":     w(primordialWepPassive),
+  "Primordial Axe":       w(primordialWepPassive),
+  "Primordial Hammer":    w(primordialWepPassive),
+  // Icerind
+  "Icerind Sword":      w(icerindWepPassive),
+  "Icerind Staff":      w(icerindWepPassive),
+  "Icerind Sai":        w(icerindWepPassive),
+  "Icerind Cestus":     w(icerindWepPassive),
+  "Icerind Spear":      w(icerindWepPassive),
+  "Icerind Greatsword": w(icerindWepPassive),
+  // Ivory
+  "Ivory Sword":      w(ivoryWepPassive),
+  "Ivory Dagger":     w(ivoryWepPassive),
+  "Ivory Spear":      w(ivoryWepPassive),
+  "Ivory Axe":        w(ivoryWepPassive),
+  "Ivory Hammer":     w(ivoryWepPassive),
+  "Ivory Greatsword": w(ivoryWepPassive),
+  // Unique
+  "Vastic Glaive":      { learns: [mkPassive("Vastic Glaive", "Allows the use of Spear locked skills.\n\nOn hit, you have a 12.5% chance to proc a random effect based on your highest stat. (16.6% if Vastayan)\n\nSTR — Places a bomb on the enemy that explodes. Can kill, cannot crit.\nARC — Places a bomb on the enemy that explodes. Cannot kill, cannot crit.\nEND — Heals you for 5% of your max HP.\nLCK — Grants an 80% increased crit chance for your next attack.\nSPD — Grants damage, defense, and speed buffs for 2 turns. (BUGGED)")] },
+  "Star-Seeing Hammer": { learns: [mkPassive("Star-Seeing Hammer", "Allows the use of Hammer locked skills.\n\nDoes nothing.")] },
 };
 
 function buildWeaponDropdown(picker, seriesData) {
@@ -965,6 +1080,43 @@ Object.keys(armourItems).forEach(name => {
 });
 
 armourPicker.addEventListener("change", updatePecents);
+
+// --- Covenants ---
+// To add a covenant: "Name": { learns: [...] }
+// learns entry: { level: <rank_req>, type: "Active"|"Passive", name, quote, effect, [cost, cooldown, moveType, category, damage, scaling] }
+const covenantItems = {
+  "Blades of the World": {}
+};
+
+const covenantMoves = {
+  "Blades of the World": {
+    learns: [
+      { level: 1,  type: "Passive", name: "Mercenary",          quote: "", effect: "Gain more from guild requests by 50% and 3x the amount of the potion rewards." },
+      { level: 3,  type: "Passive", name: "Initiate Blade",     quote: "", effect: "Grants access to the blades questboard." },
+      { level: 5,  type: "Passive", name: "Assassin's Cape",    quote: "", effect: "Reward item." },
+      { level: 10, type: "Active",  name: "Gilded Strike",      quote: "", cost: 2, cooldown: 9, moveType: "Holy", category: "Attack", damage: 12, scaling: "STR/75", effect: "Gain (?)% of the enemies hp in gold, 190% if you unlocked the Avarice passive. (Does not work on bosses)" },
+      { level: 13, type: "Passive", name: "Mercenary's Cape",   quote: "", effect: "Reward item." },
+      { level: 15, type: "Passive", name: "Avarice",            quote: "", effect: "Gain much more gold (30%). The mysterious merchant respects you. (~30% discount & sell price)." },
+      { level: 20, type: "Passive", name: "Blessing of Survival", quote: "", effect: "Gives Mulligan upon reaching 0 health which makes you survive 1 more turn with 0.1 hp." }
+    ]
+  }
+};
+
+const covenantPicker = document.getElementById("covenant-picker");
+const covenantRankInput = document.getElementById("covenant-rank");
+
+Object.keys(covenantItems).forEach(name => {
+  const opt = document.createElement("option");
+  opt.value = name;
+  opt.textContent = name;
+  covenantPicker.appendChild(opt);
+});
+
+covenantPicker.addEventListener("change", renderMoves);
+covenantRankInput.addEventListener("change", () => {
+  covenantRankInput.value = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
+  renderMoves();
+});
 
 // --- Classes ---
 // To add a class: "ClassName": ["SuperClass1", "SuperClass2", ...]
@@ -3526,6 +3678,52 @@ function entityPassivesHtml(data, lvl) {
   return h;
 }
 
+function covenantActiveCardHtml(m) {
+  return `
+    <div class="move-learn-header">Rank <span class="move-learn-level">${m.level}</span></div>
+    <div class="move-card active-move">
+      <div class="move-header"><span class="move-badge active-badge">Active</span></div>
+      <div class="move-name">${m.name}</div>
+      ${m.quote ? `<div class="move-quote">"${m.quote}"</div>` : ""}
+      <div class="move-stats">
+        ${m.cost !== undefined ? `<span class="move-stat">Cost: ${m.cost}</span>` : ""}
+        ${m.cooldown !== undefined ? `<span class="move-stat">CD: ${m.cooldown}</span>` : ""}
+        ${m.moveType ? `<span class="move-stat">Type: ${m.moveType}</span>` : ""}
+        ${m.category ? `<span class="move-stat">Cat: ${m.category}</span>` : ""}
+        ${m.damage !== undefined ? `<span class="move-stat">Dmg: ${m.damage}</span>` : ""}
+        ${m.scaling ? `<span class="move-stat">Scl: ${m.scaling}</span>` : ""}
+      </div>
+      <div class="move-desc">${m.effect}</div>
+    </div>`;
+}
+
+function covenantPassiveCardHtml(m) {
+  return `
+    <div class="move-learn-header">Rank <span class="move-learn-level">${m.level}</span></div>
+    <div class="move-card passive">
+      <div class="move-header"><span class="move-badge passive-badge">Passive</span></div>
+      <div class="move-name">${m.name}</div>
+      ${m.quote ? `<div class="move-quote">"${m.quote}"</div>` : ""}
+      <div class="move-desc">${m.effect}</div>
+    </div>`;
+}
+
+function covenantMovesHtml(data, rank) {
+  const actives = (data.learns || []).filter(m => m.type === "Active" && m.level <= rank);
+  let h = `<h3 class="moves-section-title">Moves</h3>`;
+  if (!actives.length) h += `<p class="moves-empty">No moves at this rank.</p>`;
+  else actives.forEach(m => h += covenantActiveCardHtml(m));
+  return h;
+}
+
+function covenantPassivesHtml(data, rank) {
+  const passives = (data.learns || []).filter(m => m.type === "Passive" && m.level <= rank);
+  let h = `<h3 class="moves-section-title">Passives</h3>`;
+  if (!passives.length) h += `<p class="moves-empty">No passives at this rank.</p>`;
+  else passives.forEach(m => h += covenantPassiveCardHtml(m));
+  return h;
+}
+
 function renderMoves() {
   const container = document.getElementById("moves-content");
   const raceName     = racePicker.value;
@@ -3536,9 +3734,11 @@ function renderMoves() {
   const artifactName = artifactPicker.value;
   const weaponMain   = document.getElementById("weapon-main").value;
   const weaponOff    = document.getElementById("weapon-offhand").value;
+  const covenantName = covenantPicker.value;
+  const covenantRank = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
   const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff) {
+  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     return;
   }
@@ -3549,8 +3749,9 @@ function renderMoves() {
   const subData       = subClass     ? classMoves[subClass]        : null;
   const markData      = markName     ? markMoves[markName]         : null;
   const artifactData  = artifactName ? artifactMoves[artifactName] : null;
-  const weaponMainData = weaponMain  ? weaponMoves[weaponMain]     : null;
-  const weaponOffData  = weaponOff   ? weaponMoves[weaponOff]      : null;
+  const weaponMainData = weaponMain    ? weaponMoves[weaponMain]       : null;
+  const weaponOffData  = weaponOff     ? weaponMoves[weaponOff]        : null;
+  const covenantData   = covenantName  ? covenantMoves[covenantName]   : null;
 
   let html = "";
 
@@ -3628,10 +3829,19 @@ function renderMoves() {
     html += `</div>`;
   }
 
+  if (covenantName) {
+    html += `<div class="moves-col">`;
+    html += `<div class="moves-entity-label">Covenant</div>`;
+    html += `<h2 class="moves-race-title">${covenantName} <span class="moves-entity-label">Rank ${covenantRank}</span></h2>`;
+    if (covenantData) { html += covenantMovesHtml(covenantData, covenantRank); html += covenantPassivesHtml(covenantData, covenantRank); }
+    else html += `<p class="moves-empty">No moves for this covenant.</p>`;
+    html += `</div>`;
+  }
+
   html += `</div>`; // end .moves-columns
 
   // --- Combined sections ---
-  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData].filter(Boolean);
   if (allData.length > 1) {
     html += `<div class="moves-combined-row">`;
 
