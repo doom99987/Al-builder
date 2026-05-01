@@ -1,4 +1,4 @@
-// --- Race data ---
+﻿// --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
 const races = {
   "Estella (24%)": {str: 2, arc: 2, end: 2, lck: 1, spd: 1},
@@ -157,6 +157,12 @@ document.querySelectorAll(".stat-row").forEach(row => {
 const armourItems = {};
 const soulTreeBonuses = { "crit-dmg": 0, "crit-chance": 0, endFlat: 0 };
 
+// Flat % bonuses granted by equipped weapons (added on top of base in updatePecents)
+const weaponBonuses = {
+  "Jade Broadsword":  { "out-heal": 30, "inc-heal": 30 },
+  "Jade Prayerstaff": { "out-heal": 30, "inc-heal": 30 },
+};
+
 function calcPercentage(stat, val){
   const lckAllocated = +document.querySelector('.stat-row[data-stat="lck"] .stat-val').value;
   const lck = lckAllocated + (raceBase.lck ?? 0);
@@ -167,8 +173,8 @@ function calcPercentage(stat, val){
     spd:         v => v * 2,
     "crit-chance": () => lck * 0.25,
     "crit-dmg":    () => 1.5 + lck * 0.0025,
-    "out-heal":    () => 0,
-    "inc-heal":    () => 0,
+    "out-heal":    () => 100,
+    "inc-heal":    () => 100,
   };
   return formulas[stat] ? formulas[stat](val).toFixed(stat === "crit-dmg" ? 2 : 1) : "—";
 }
@@ -182,6 +188,20 @@ function updatePecents() {
   const armourEl = document.getElementById("armour-main");
   const armour = armourItems?.[armourEl?.value] || {};
   const armourPct = armour.pct || {};
+
+  // Collect flat % bonuses from equipped weapons
+  const equippedWeapons = [
+    document.getElementById("weapon-main")?.value,
+    document.getElementById("weapon-offhand")?.value,
+  ];
+  const weaponPct = {};
+  equippedWeapons.forEach(w => {
+    if (!w || !weaponBonuses[w]) return;
+    Object.entries(weaponBonuses[w]).forEach(([k, v]) => {
+      weaponPct[k] = (weaponPct[k] || 0) + v;
+    });
+  });
+
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
     const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
@@ -189,7 +209,7 @@ function updatePecents() {
     const flatBonus = armour[stat] ?? 0;
     const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
     const base = calcPercentage(stat, val);
-    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0);
+    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0);
     let display;
     if (base === "—") {
       display = "—";
@@ -400,8 +420,209 @@ Object.keys(enchantItems).forEach(name => {
 });
 
 // --- Artifacts ---
-// To add: "Artifact Name": { effect: "" }
+// To add: "Artifact Name": { learns: [...] }
 const artifactItems = {
+  "Reality Watch": {},
+  "Narthana's Sigil": {},
+  "Shifting Hourglass": {},
+  "Metrom's Amulet": {},
+  "Heaven's Authority": {},
+  "Darksigil": {},
+  "Stellian Core": {},
+  "Chaos Orb": {},
+  "Arkhaia's Visage": {},
+  "Paranoxian Crux": {},
+  "Ancient Insignia": {},
+  "Celestial Emblem": {}
+};
+
+const artifactMoves = {
+  "Reality Watch": {
+    learns: [
+      {
+        slot: "Active",
+        level: 1,
+        type: "Active",
+        name: "Chronos",
+        quote: "",
+        cost: 0,
+        cooldown: 12,
+        moveType: "N/A",
+        category: "Buff",
+        effect: "Saves your point in time for 3 turns, after which time reverts and your health and energy rewind. Will not revive you if you die within these 3 turns.",
+        image: "https://trello.com/1/cards/67b18f753aaf3bb967408434/attachments/69789abaaf1e0df695c50d73/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127155958.png"
+      }
+    ]
+  },
+  "Narthana's Sigil": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Narthana's Sigil",
+        quote: "",
+        effect: "When healing 270 HP, deals X damage (scales on level) and heals X to allies.\n\nNote: Equipping this artifact may boost passive regen (unconfirmed — needs testing)."
+      }
+    ]
+  },
+  "Shifting Hourglass": {
+    learns: [
+      {
+        slot: "Active",
+        level: 1,
+        type: "Active",
+        name: "Sands Of Time",
+        quote: "",
+        cost: 1,
+        cooldown: 15,
+        moveType: "N/A",
+        category: "Buff",
+        effect: "Enter Heavy Stun for a turn. If Heavy Stun passes and you haven't lost 20% of your HP, grants a 20% Dmg buff and DR.\n\nCapped at 5 uses per fight.",
+        image: "https://trello.com/1/cards/67b18f72fc91f2c663d38db9/attachments/69789a2040497cfe15daec75/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127155456.png"
+      }
+    ]
+  },
+  "Darksigil": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Darksigil",
+        quote: "",
+        effect: "After applying 6 different instances of statuses to opponents, shoots a Dark Orb at them. Deals damage equal to your current Level×2 and applies 2 Vulnerable and 2 Weakened to all opponents."
+      }
+    ]
+  },
+  "Metrom's Amulet": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Metrom's Amulet",
+        quote: "",
+        effect: "When you kill an enemy, the overkill damage from that hit scales an AoE attack that hits all enemies. Bypasses reflects. Can crit. Heals MV if used in the raid and cannot damage Seraphon/Arkhaia.\n\nExample: If your attack deals 20 damage against a 15 HP enemy, the AoE base damage is 5."
+      }
+    ]
+  },
+  "Stellian Core": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Stellian Core",
+        quote: "",
+        effect: "Grants 30% Dmg buff, 20% DR, and 15% Crit rate while active. Only activates when you are above 95% of your Max HP."
+      }
+    ]
+  },
+  "Chaos Orb": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Chaos Orb",
+        quote: "",
+        effect: "When applying a status, you have a 33% chance to apply an additional random status. Excludes Heavy Stunned, Fractured, Hex, Stunned, and any boss-exclusive statuses.\n\nNote: Can apply Ghostflame only if you have the Dullahan race."
+      }
+    ]
+  },
+  "Celestial Emblem": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Celestial Emblem",
+        quote: "",
+        effect: "When fighting a Goblin, Night Raider, Sentient Darkness, Star Slime, or Arkhaia, they become empowered with special effects unique to each enemy type.\n\nYou must be the one who starts the fight."
+      }
+    ]
+  },
+  "Heaven's Authority": {
+    learns: [
+      {
+        slot: "Active",
+        level: 1,
+        type: "Active",
+        name: "Calling Light",
+        quote: "",
+        cost: 2,
+        cooldown: 9,
+        moveType: "N/A",
+        category: "Buff",
+        effect: "Randomly summon one of three Sheeas: Saint, Paladin, or Elementalist. All summons have 250 HP and start with only Strike and Skyward Bolt. If you have their respective weapon type equipped, they gain all abilities of their Super Class.\n\nIf you are at or below 20% Max HP, summon 2 Sheeas instead of 1."
+      }
+    ]
+  },
+  "Arkhaia's Visage": {
+    learns: [
+      {
+        slot: "Active",
+        level: 1,
+        type: "Active",
+        name: "Infernal Pledge",
+        quote: "",
+        cost: 1,
+        cooldown: 8,
+        moveType: "Dark",
+        category: "Buff",
+        effect: "Creates a link with an enemy for 3 turns. While active, damage taken is shared with the linked target. Excludes self-damage."
+      }
+    ]
+  },
+  "Paranoxian Crux": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Paranoxian Crux",
+        quote: "",
+        effect: "When equipped, multiplies your max HP by 1.5×, then sets your current HP to 10% of the new value. The remaining HP is converted into Shield HP. Can stack with other sources of Shield HP."
+      },
+      {
+        slot: "Active",
+        level: 1,
+        type: "Active",
+        name: "Congeal Flesh",
+        quote: "",
+        cost: "X",
+        cooldown: 6,
+        moveType: "Ice",
+        category: "Buff",
+        effect: "Restores 15×X% of your Shield HP, where X is the amount of energy consumed by the move."
+      }
+    ]
+  },
+  "Ancient Insignia": {
+    learns: [
+      {
+        slot: "Passive",
+        level: 1,
+        type: "Passive",
+        name: "Ancient Insignia",
+        quote: "",
+        effect: "Start with a random Stance. Stances switch randomly every 3 turns.\n\n• Paper: Gain 1 Resist for each debuff inflicted on you.\n• Rock: Gain 15% Damage Reduction.\n• Scissors: Gain 5 Energy."
+      },
+      {
+        slot: "Active",
+        level: 1,
+        type: "Active",
+        name: "Written in Stone",
+        quote: "",
+        cost: 1,
+        cooldown: 12,
+        moveType: "Physical",
+        category: "Buff",
+        effect: "Immediately switch your current Stance. The new Stance lasts for 4 turns instead of 3."
+      }
+    ]
+  }
 };
 
 const artifactPicker = document.getElementById("artifact-picker");
@@ -411,6 +632,13 @@ Object.keys(artifactItems).forEach(name => {
   opt.value = name;
   opt.textContent = name;
   artifactPicker.appendChild(opt);
+});
+
+const artifactDescSection = document.getElementById("artifact-desc-section");
+const artifactDesc = document.getElementById("artifact-desc");
+
+artifactPicker.addEventListener("change", () => {
+  renderMoves();
 });
 
 // --- Shards ---
@@ -454,7 +682,7 @@ enchantPicker.addEventListener("change", () => {
     return;
   }
   const lvlLine = item.level ? `<span class="enchant-level">Req. Level ${item.level}</span>` : `<span class="enchant-level">No level requirement</span>`;
-  enchantDesc.innerHTML = lvlLine + "<br><br>" + item.effect.replace(/\n/g, "<br>");
+  enchantDesc.innerHTML = `<div class="enchant-name">${enchantPicker.value}</div>` + lvlLine + "<br><br>" + item.effect.replace(/\n/g, "<br>");
   enchantDescSection.style.display = "";
 });
 
@@ -490,35 +718,210 @@ gearPickers.forEach(picker => {
 });
 
 // --- Weapons ---
-// To add weapon: "Item Name": { str, arc, end, spd, lck }
-const weaponItems = {
-  // example: "Iron Sword": { str: 5, arc: 0, end: 0, spd: 0, lck: 0 },
+// mainWeaponSeries: weapons for the main hand slot
+// offhandSeries: weapons for the off-hand slot (different items)
+// weaponMoves: shared passive lookup for any weapon by name
+
+const mainWeaponSeries = {
+  "Ferrus": {
+    "Ferrus Sword":      { type: "Sword" },
+    "Old Staff":         { type: "Staff" },
+    "Ferrus Dagger":     { type: "Dagger" },
+    "Ferrus Cestus":     { type: "Gauntlets" },
+    "Ferrus Spear":      { type: "Spear" },
+    "Ferrus Axe":        { type: "Axe" },
+    "Ferrus Tenderizer": { type: "Hammer" },
+  },
+  "Blacksteel": {
+    "Blacksteel Sabre": { type: "Sword" },
+    "Blacksteel Staff": { type: "Staff" },
+    "Blacksteel Knife": { type: "Dagger" },
+    "Blacksteel Claws": { type: "Gauntlets" },
+    "Blacksteel Spear": { type: "Spear" },
+    "Blacksteel Axe":   { type: "Axe" },
+    "Greatsword":       { type: "Greatsword" },
+  },
+  "Jade": {
+    "Jade Broadsword":  { type: "Sword" },
+    "Jade Prayerstaff": { type: "Staff" },
+  },
+  "Corealloy": {
+    "Corealloy Manadagger": { type: "Dagger" },
+    "Corealloy Manaclaws":  { type: "Gauntlets" },
+    "Corealloy Manablade":  { type: "Greatsword" },
+  },
 };
 
-const weaponPickers = document.querySelectorAll(".weapon-picker");
+const offhandSeries = {
+  "Shields": {
+    "Targe":              { type: "Shield" },
+    "Ferrus Towershield": { type: "Shield" },
+    "Dragonflame Shield": { type: "Shield" },
+    "Slimy Buckler":      { type: "Shield" },
+    "Icerind Shield":     { type: "Shield" },
+    "Sandstone Shield":   { type: "Shield" },
+    "Primordial Shield":  { type: "Shield" },
+    "Ivory Shield":       { type: "Shield" },
+  },
+};
 
-weaponPickers.forEach(picker => {
-  Object.keys(weaponItems).forEach(name => {
+const blacksteelPassive = {
+  slot: "", level: 1, type: "Passive",
+  name: "Blacksteel",
+  quote: "",
+  effect: "Grants a 10% damage buff."
+};
+
+const weaponMoves = {
+  "Ferrus Sword":      { learns: [] },
+  "Old Staff":         { learns: [] },
+  "Ferrus Dagger":     { learns: [] },
+  "Ferrus Cestus":     { learns: [] },
+  "Ferrus Spear":      { learns: [] },
+  "Ferrus Axe":        { learns: [] },
+  "Ferrus Tenderizer": { learns: [] },
+  "Blacksteel Sabre":  { learns: [blacksteelPassive] },
+  "Blacksteel Staff":  { learns: [blacksteelPassive] },
+  "Blacksteel Knife":  { learns: [blacksteelPassive] },
+  "Blacksteel Claws":  { learns: [blacksteelPassive] },
+  "Blacksteel Spear":  { learns: [blacksteelPassive] },
+  "Blacksteel Axe":    { learns: [blacksteelPassive] },
+  "Greatsword":        { learns: [blacksteelPassive] },
+  "Jade Broadsword":   { learns: [{ slot: "", level: 1, type: "Passive", name: "Jade", quote: "", effect: "Increases incoming and outgoing healing by a flat 30%." }] },
+  "Jade Prayerstaff":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Jade", quote: "", effect: "Increases incoming and outgoing healing by a flat 30%." }] },
+  "Targe":              { learns: [{ slot: "", level: 1, type: "Passive", name: "Targe", quote: "", effect: "Grants a 20% Damage Reduction." }] },
+  "Ferrus Towershield": { learns: [{ slot: "", level: 1, type: "Passive", name: "Ferrus Towershield", quote: "", effect: "Grants a 40% Damage Reduction." }] },
+  "Dragonflame Shield": { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragonflame Shield", quote: "", effect: "Grants a 30% Damage Reduction.\n\nReflects incoming melee damage by 200%." }] },
+  "Slimy Buckler":      { learns: [{ slot: "", level: 1, type: "Passive", name: "Slimy Buckler", quote: "", effect: "Grants a 15% Damage Reduction.\n\nApplies 2 Weakened and 1 Blindness upon blocking a Melee attack. Does not stack with Slimy Shield passive (Lentum passive)." }] },
+  "Icerind Shield":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Icerind Shield", quote: "", effect: "Grants a 30% Damage Reduction.\n\nApplies 2 stacks of Cold upon blocking a melee attack." }] },
+  "Sandstone Shield":   { learns: [{ slot: "", level: 1, type: "Passive", name: "Sandstone Shield", quote: "", effect: "Grants a 30% Damage Reduction." }] },
+  "Primordial Shield":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Primordial Shield", quote: "", effect: "Grants a ~15% Damage Reduction." }] },
+  "Ivory Shield":       { learns: [{ slot: "", level: 1, type: "Passive", name: "Ivory Shield", quote: "", effect: "Grants a 30% Damage Reduction." }] },
+  "Corealloy Manadagger": { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
+  "Corealloy Manaclaws":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
+  "Corealloy Manablade":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
+};
+
+function buildWeaponDropdown(picker, seriesData) {
+  // Hide the native select — we store the value there but render a custom UI
+  picker.style.display = "none";
+
+  const allWeapons = [];
+  Object.entries(seriesData).forEach(([series, weapons]) => {
+    Object.entries(weapons).forEach(([name, data]) => {
+      allWeapons.push({ name, type: data.type, series });
+    });
+  });
+
+  // --- DOM structure ---
+  const wrap = document.createElement("div");
+  wrap.className = "wpick-wrap";
+
+  const display = document.createElement("div");
+  display.className = "wpick-display";
+  display.textContent = "— None —";
+
+  const panel = document.createElement("div");
+  panel.className = "wpick-panel";
+  panel.style.display = "none";
+
+  const search = document.createElement("input");
+  search.type = "text";
+  search.placeholder = "Search...";
+  search.className = "wpick-search";
+
+  const list = document.createElement("div");
+  list.className = "wpick-list";
+
+  // Populate hidden select with options so picker.value = name works correctly
+  allWeapons.forEach(({ name }) => {
     const opt = document.createElement("option");
     opt.value = name;
-    opt.textContent = name;
     picker.appendChild(opt);
   });
-});
 
-function enforceUniqueWeapon() {
-  const selected = Array.from(weaponPickers).map(p => p.value).filter(v => v !== "");
-  weaponPickers.forEach(picker => {
-    Array.from(picker.options).forEach(opt => {
-      if (opt.value === "") return;
-      opt.disabled = selected.includes(opt.value) && picker.value !== opt.value;
+  panel.appendChild(search);
+  panel.appendChild(list);
+  wrap.appendChild(display);
+  wrap.appendChild(panel);
+  picker.parentNode.insertBefore(wrap, picker);
+
+  // --- Open / close ---
+  function open() {
+    panel.style.display = "block";
+    search.value = "";
+    buildList("");
+    search.focus();
+  }
+
+  function close() {
+    panel.style.display = "none";
+  }
+
+  // --- Build filtered list ---
+  function buildList(q) {
+    list.innerHTML = "";
+
+    const none = document.createElement("div");
+    none.className = "wpick-item" + (!picker.value ? " wpick-selected" : "");
+    none.textContent = "— None —";
+    none.addEventListener("mousedown", e => {
+      e.preventDefault();
+      picker.value = "";
+      display.textContent = "— None —";
+      close();
+      renderMoves();
+      updatePecents();
     });
+    list.appendChild(none);
+
+    const grouped = {};
+    allWeapons.forEach(({ name, type, series }) => {
+      if (!q || `${name} ${type}`.toLowerCase().includes(q.toLowerCase())) {
+        if (!grouped[series]) grouped[series] = [];
+        grouped[series].push({ name, type });
+      }
+    });
+
+    Object.entries(grouped).forEach(([series, weapons]) => {
+      const header = document.createElement("div");
+      header.className = "wpick-group";
+      header.textContent = series;
+      list.appendChild(header);
+
+      weapons.forEach(({ name, type }) => {
+        const item = document.createElement("div");
+        item.className = "wpick-item" + (picker.value === name ? " wpick-selected" : "");
+        item.textContent = `${name} (${type})`;
+        item.addEventListener("mousedown", e => {
+          e.preventDefault();
+          picker.value = name;
+          display.textContent = `${name} (${type})`;
+          close();
+          renderMoves();
+          updatePecents();
+        });
+        list.appendChild(item);
+      });
+    });
+  }
+
+  display.addEventListener("click", () => {
+    panel.style.display === "none" ? open() : close();
+  });
+
+  search.addEventListener("input", () => buildList(search.value));
+
+  document.addEventListener("mousedown", e => {
+    if (!wrap.contains(e.target)) close();
   });
 }
 
-weaponPickers.forEach(picker => {
-  picker.addEventListener("change", enforceUniqueWeapon);
-});
+const mainWeaponPicker    = document.getElementById("weapon-main");
+const offhandWeaponPicker = document.getElementById("weapon-offhand");
+
+buildWeaponDropdown(mainWeaponPicker, mainWeaponSeries);
+buildWeaponDropdown(offhandWeaponPicker, offhandSeries);
 
 // --- Armour ---
 // To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
@@ -3097,97 +3500,110 @@ function entityPassivesHtml(data, lvl) {
 
 function renderMoves() {
   const container = document.getElementById("moves-content");
-  const raceName   = racePicker.value;
-  const baseClass  = classPicker.value;
-  const superClass = superPicker.value;
-  const subClass   = subPicker.value;
-  const markName   = markPicker.value;
+  const raceName     = racePicker.value;
+  const baseClass    = classPicker.value;
+  const superClass   = superPicker.value;
+  const subClass     = subPicker.value;
+  const markName     = markPicker.value;
+  const artifactName = artifactPicker.value;
+  const weaponMain   = document.getElementById("weapon-main").value;
+  const weaponOff    = document.getElementById("weapon-offhand").value;
   const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass && !markName) {
-    container.innerHTML = `<p class="moves-placeholder">Select a race, class, or mark to view moves.</p>`;
+  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff) {
+    container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     return;
   }
 
-  const raceData  = raceName   ? raceMoves[raceName]    : null;
-  const baseData  = baseClass  ? classMoves[baseClass]  : null;
-  const superData = superClass ? classMoves[superClass] : null;
-  const subData   = subClass   ? classMoves[subClass]   : null;
-  const markData  = markName   ? markMoves[markName]    : null;
+  const raceData      = raceName     ? raceMoves[raceName]         : null;
+  const baseData      = baseClass    ? classMoves[baseClass]       : null;
+  const superData     = superClass   ? classMoves[superClass]      : null;
+  const subData       = subClass     ? classMoves[subClass]        : null;
+  const markData      = markName     ? markMoves[markName]         : null;
+  const artifactData  = artifactName ? artifactMoves[artifactName] : null;
+  const weaponMainData = weaponMain  ? weaponMoves[weaponMain]     : null;
+  const weaponOffData  = weaponOff   ? weaponMoves[weaponOff]      : null;
 
   let html = "";
 
-  // --- Side-by-side: Race | Base Class | Super Class | Sub Class | Mark ---
+  // --- Side-by-side columns — only render a column if that slot is selected ---
   html += `<div class="moves-columns">`;
 
-  html += `<div class="moves-col">`;
   if (raceName) {
+    html += `<div class="moves-col">`;
     html += `<h2 class="moves-race-title">${raceName}</h2>`;
-    if (raceData) {
-      html += entityMovesHtml(raceData, lvl);
-      html += entityPassivesHtml(raceData, lvl);
-    } else {
-      html += `<p class="moves-empty">No moves for this race.</p>`;
-    }
+    if (raceData) { html += entityMovesHtml(raceData, lvl); html += entityPassivesHtml(raceData, lvl); }
+    else html += `<p class="moves-empty">No moves for this race.</p>`;
+    html += `</div>`;
   }
-  html += `</div>`;
 
-  html += `<div class="moves-col">`;
   if (baseClass) {
+    html += `<div class="moves-col">`;
     html += `<div class="moves-entity-label">Base Class</div>`;
     html += `<h2 class="moves-race-title">${baseClass}</h2>`;
-    if (baseData) {
-      html += entityMovesHtml(baseData, lvl);
-      html += entityPassivesHtml(baseData, lvl);
-    } else {
-      html += `<p class="moves-empty">No moves for this class.</p>`;
-    }
+    if (baseData) { html += entityMovesHtml(baseData, lvl); html += entityPassivesHtml(baseData, lvl); }
+    else html += `<p class="moves-empty">No moves for this class.</p>`;
+    html += `</div>`;
   }
-  html += `</div>`;
 
-  html += `<div class="moves-col">`;
   if (superClass) {
+    html += `<div class="moves-col">`;
     html += `<div class="moves-entity-label">Super Class</div>`;
     html += `<h2 class="moves-race-title">${superClass}</h2>`;
-    if (superData) {
-      html += entityMovesHtml(superData, lvl);
-      html += entityPassivesHtml(superData, lvl);
-    } else {
-      html += `<p class="moves-empty">No moves for this super class.</p>`;
-    }
+    if (superData) { html += entityMovesHtml(superData, lvl); html += entityPassivesHtml(superData, lvl); }
+    else html += `<p class="moves-empty">No moves for this super class.</p>`;
+    html += `</div>`;
   }
-  html += `</div>`;
 
-  html += `<div class="moves-col">`;
   if (subClass) {
+    html += `<div class="moves-col">`;
     html += `<div class="moves-entity-label">Sub Class</div>`;
     html += `<h2 class="moves-race-title">${subClass}</h2>`;
-    if (subData) {
-      html += entityMovesHtml(subData, lvl);
-      html += entityPassivesHtml(subData, lvl);
-    } else {
-      html += `<p class="moves-empty">No moves for this sub class.</p>`;
-    }
+    if (subData) { html += entityMovesHtml(subData, lvl); html += entityPassivesHtml(subData, lvl); }
+    else html += `<p class="moves-empty">No moves for this sub class.</p>`;
+    html += `</div>`;
   }
-  html += `</div>`;
 
-  html += `<div class="moves-col">`;
+  if (artifactName) {
+    html += `<div class="moves-col">`;
+    html += `<div class="moves-entity-label">Artifact</div>`;
+    html += `<h2 class="moves-race-title">${artifactName}</h2>`;
+    if (artifactData && artifactData.learns.length) { html += entityMovesHtml(artifactData, lvl); html += entityPassivesHtml(artifactData, lvl); }
+    else html += `<p class="moves-empty">No moves for this artifact.</p>`;
+    html += `</div>`;
+  }
+
   if (markName) {
+    html += `<div class="moves-col">`;
     html += `<div class="moves-entity-label">Mark</div>`;
     html += `<h2 class="moves-race-title">${markName}</h2>`;
-    if (markData) {
-      html += entityMovesHtml(markData, lvl);
-      html += entityPassivesHtml(markData, lvl);
-    } else {
-      html += `<p class="moves-empty">No moves for this mark.</p>`;
-    }
+    if (markData) { html += entityMovesHtml(markData, lvl); html += entityPassivesHtml(markData, lvl); }
+    else html += `<p class="moves-empty">No moves for this mark.</p>`;
+    html += `</div>`;
   }
-  html += `</div>`;
+
+  if (weaponMain) {
+    html += `<div class="moves-col">`;
+    html += `<div class="moves-entity-label">Weapon</div>`;
+    html += `<h2 class="moves-race-title">${weaponMain}</h2>`;
+    if (weaponMainData && weaponMainData.learns.length) { html += entityMovesHtml(weaponMainData, lvl); html += entityPassivesHtml(weaponMainData, lvl); }
+    else html += `<p class="moves-empty">No passives for this weapon.</p>`;
+    html += `</div>`;
+  }
+
+  if (weaponOff) {
+    html += `<div class="moves-col">`;
+    html += `<div class="moves-entity-label">Off Hand</div>`;
+    html += `<h2 class="moves-race-title">${weaponOff}</h2>`;
+    if (weaponOffData && weaponOffData.learns.length) { html += entityMovesHtml(weaponOffData, lvl); html += entityPassivesHtml(weaponOffData, lvl); }
+    else html += `<p class="moves-empty">No passives for this weapon.</p>`;
+    html += `</div>`;
+  }
 
   html += `</div>`; // end .moves-columns
 
   // --- Combined sections ---
-  const allData = [raceData, baseData, superData, subData, markData].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData].filter(Boolean);
   if (allData.length > 1) {
     html += `<div class="moves-combined-row">`;
 
