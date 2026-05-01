@@ -750,6 +750,22 @@ const mainWeaponSeries = {
     "Corealloy Manaclaws":  { type: "Gauntlets" },
     "Corealloy Manablade":  { type: "Greatsword" },
   },
+  "Dragon": {
+    "Dragontooth Blade":    { type: "Sword" },
+    "Dragontooth Staff":    { type: "Staff" },
+    "Dragontooth Dagger":   { type: "Dagger" },
+    "Dragonbone Gauntlets": { type: "Gauntlets" },
+    "Dragonbone Spear":     { type: "Spear" },
+    "Dragonpyre Axe":       { type: "Axe" },
+    "Dragonbone Hammer":    { type: "Hammer" },
+  },
+  "Blight": {
+    "Blightrock Sword":     { type: "Sword" },
+    "Blightwood Staff":     { type: "Staff" },
+    "Blightrock Dagger":    { type: "Dagger" },
+    "Blightrock Gauntlets": { type: "Gauntlets" },
+    "Blightrock Spear":     { type: "Spear" },
+  },
 };
 
 const offhandSeries = {
@@ -800,6 +816,18 @@ const weaponMoves = {
   "Corealloy Manadagger": { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
   "Corealloy Manaclaws":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
   "Corealloy Manablade":  { learns: [{ slot: "", level: 1, type: "Passive", name: "Corealloy", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 5% damage buff per Energy. (calculated after Energy consumption of moves)\n\nWeapon color changes with your soul color." }] },
+  "Dragontooth Blade":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Dragontooth Staff":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Dragontooth Dagger":   { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Dragonbone Gauntlets": { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Dragonbone Spear":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Dragonpyre Axe":       { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Dragonbone Hammer":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Dragon", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 15% damage buff if the enemy has the Burn status effect." }] },
+  "Blightrock Sword":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
+  "Blightwood Staff":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
+  "Blightrock Dagger":    { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
+  "Blightrock Gauntlets": { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
+  "Blightrock Spear":     { learns: [{ slot: "", level: 1, type: "Passive", name: "Blight", quote: "", effect: "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff if the enemy has the Weakened and/or Vulnerable status effect. (does not stack)\n\nApplies 2 stacks of Cursed per hit if the enemy has the Weakened and/or Vulnerable status effect. (guaranteed, does not stack)" }] },
 };
 
 function buildWeaponDropdown(picker, seriesData) {
