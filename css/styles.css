@@ -137,16 +137,19 @@ body {
 }
 
 .stat-base {
+  order: 5;
   width: 28px;
   font-size: 11px;
   color: #4caf8a;
-  text-align: right;
+  text-align: left;
 }
 
 .stat-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: fit-content;
+  margin: 0 auto;
 }
 
 .stat-row {
@@ -535,6 +538,13 @@ body {
   letter-spacing: 0.5px;
 }
 
+.enchant-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
 .enchant-level {
   font-size: 10px;
   font-weight: bold;
@@ -590,6 +600,83 @@ body {
 .armour-picker:focus {
   outline: none;
   border-color: #666;
+}
+
+/* Custom weapon dropdown */
+.wpick-wrap {
+  position: relative;
+  min-width: 160px;
+}
+
+.wpick-display {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  color: #ccc;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wpick-display:hover {
+  border-color: #666;
+  color: white;
+}
+
+.wpick-panel {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: #1a1a1a;
+  border: 1px solid #555;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.wpick-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  background: #111;
+  border: none;
+  border-bottom: 1px solid #333;
+  color: white;
+  padding: 6px 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.wpick-list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.wpick-group {
+  padding: 5px 10px 2px;
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.wpick-item {
+  padding: 5px 12px;
+  font-size: 13px;
+  color: #bbb;
+  cursor: pointer;
+}
+
+.wpick-item:hover {
+  background: #2a2a2a;
+  color: white;
+}
+
+.wpick-item.wpick-selected {
+  background: #333;
+  color: white;
 }
 
 /* Moves panel */
