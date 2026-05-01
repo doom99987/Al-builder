@@ -854,7 +854,8 @@ function renderGearInfo() {
 // --- Gear ---
 // To add gear: "Item Name": { str, arc, end, spd, lck }
 const gearItems = {
-  "Iron Sword":          { str: 5, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Lethal Blackjack":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Everbeating Drums":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
   // Easter Gears
   "Rabbit Pelt":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
   "Egg Shelmet":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
@@ -866,12 +867,81 @@ const gearItems = {
   "Snorb":               { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
   "Elementary Resonance":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
   "Frosty Topper":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Forest Gears
+  "7 Leafed Everthistle":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Shattered Clock Hand":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "The Biggest Pebble":  { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Arbusta Tear":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Parasitic Leech":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Spore Root":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Forest Charm":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Elemental Infuser":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Crystallized Star":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Pathfinder Mark":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Gilded Pouch":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Desert Gears
+  "Crystal Sphere":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Dust Storm":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Golem Rune Core":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Spiked Steel Ball":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Stone Brand":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Ramizcan Idol":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Band of Crushing Force":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Grain Of Balance":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Madseer's Codex":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Impure Crown":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "The Last Straw":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Imbued Chains":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Delicate Purse":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Desert Escutcheon":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Deeproot Gears
+  "Cursed Brand":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Narthana's Leaf":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Wicked Crown":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Sanguine Fang":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Coagulated Finger Nail":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Shard of Blight":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Traveler's Lamp":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Expedite Anklet":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Phantom Ooze":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Volcano Gears
+  "Imperial Headband":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Magma Charm":           { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Vulcan Knuckle":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Dragon Memoir":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Blazing Brand":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Molten Carapace":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Bosses/Minibosses Gears
+  "Gelat Band":            { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Tear Blood Crystal":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Ptera's Heart":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "DeathBeak Dagger":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Blazing Perforator":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Yar'thul's Wrath":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Frostburned Rune":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Vow of Ruin":           { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Frozen Diadem":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Imbuement Reliquary":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Divine Promise":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Focused Mind":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Aspect of Maladaptation":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Tainted Quiver":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Vainglorious Locket":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "The Smallest Boulder":  { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Eroded Blade":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Dust Devil's Eye":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Open Hand":             { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
 };
 
 const gearSeries = {
   "Easter Gears":         ["Rabbit Pelt", "Egg Shelmet", "Chocolate Egg", "Party Egg", "Gleaming Carrot", "Rabbit's Foot"],
   "Winter Solstice Gears":["Snorb", "Elementary Resonance", "Frosty Topper"],
-  "Other":                ["Iron Sword"],
+  "Forest":               ["7 Leafed Everthistle", "Shattered Clock Hand", "The Biggest Pebble", "Arbusta Tear", "Parasitic Leech", "Spore Root", "Forest Charm", "Elemental Infuser", "Crystallized Star", "Pathfinder Mark", "Gilded Pouch"],
+  "Desert":               ["Crystal Sphere", "Dust Storm", "Golem Rune Core", "Spiked Steel Ball", "Stone Brand", "Ramizcan Idol", "Band of Crushing Force", "Grain Of Balance", "Madseer's Codex", "Impure Crown", "The Last Straw", "Imbued Chains", "Delicate Purse", "Desert Escutcheon"],
+  "Deeproot":             ["Cursed Brand", "Narthana's Leaf", "Wicked Crown", "Sanguine Fang", "Coagulated Finger Nail", "Shard of Blight", "Traveler's Lamp", "Expedite Anklet", "Phantom Ooze"],
+  "Volcano":              ["Imperial Headband", "Magma Charm", "Vulcan Knuckle", "Dragon Memoir", "Blazing Brand", "Molten Carapace"],
+  "Bosses/Minibosses":    ["Gelat Band", "Tear Blood Crystal", "Ptera's Heart", "DeathBeak Dagger", "Blazing Perforator", "Yar'thul's Wrath", "Frostburned Rune", "Vow of Ruin", "Frozen Diadem", "Imbuement Reliquary", "Divine Promise", "Focused Mind", "Aspect of Maladaptation", "Tainted Quiver", "Vainglorious Locket", "The Smallest Boulder", "Eroded Blade", "Dust Devil's Eye", "Open Hand"],
+  "Other":                ["Lethal Blackjack", "Everbeating Drums"],
 };
 
 const gearPickers = document.querySelectorAll(".gear-picker");
@@ -1144,6 +1214,205 @@ const gearMoves = {
     { slot: "Snowman", level: 1, type: "Active", name: "Hidden Presents", quote: "", cost: 2, cooldown: 6, moveType: "Ice", effect: "Creates a bundle of presents, healing the party for 12 base HP and granting 5% DR for 4 turns.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab18abe4d8d8191e1fde/previews/69abab19abe4d8d8191e2033/download/image.webp" },
     { slot: "Snowman", level: 1, type: "Active", name: "Jolly Spirit", quote: "", cost: 3, cooldown: 8, moveType: "Ice", effect: "Target an ally and infuse them with energy.\n\nIf they are a player: provides an additional hit on their attack, fully AoE, applying 2 Cold to all enemies. Base damage equals the triggering move's base damage, scaling ARC/75 + STR/75.\n\nIf they are a summon: provides approximately 50% of their health as a shield for an indefinite duration.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab2c4c4cb2217416cb3d/previews/69abab2c4c4cb2217416cba6/download/image.webp" },
     { slot: "Snowman", level: 1, type: "Active", name: "Drifting Snow", quote: "", cost: 1, cooldown: 0, moveType: "Ice", effect: "The Snowman buffs its allies with a flurry of snow, granting a flat +10 Speed for 2 turns.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab3ad069ad3044d4a057/previews/69abab3ad069ad3044d4a0d4/download/image.webp" },
+  ]},
+
+  // Forest
+  "7 Leafed Everthistle": { learns: [
+    mkPassive("7 Leafed Everthistle", "Increase drop rate and gold by 1.85x at the end of the fight."),
+  ]},
+  "Shattered Clock Hand": { learns: [
+    mkPassive("Shattered Clock Hand", "When using Strike, you have a 30% chance to decrease all your move cooldowns by 1 turn."),
+  ]},
+  "The Biggest Pebble": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Pebble", quote: "", cost: 0, cooldown: 4, effect: "Throw the rock, increasing the chance to escape from the fight by 300%." },
+  ]},
+  "Arbusta Tear": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Arbusta's Fragrance", quote: "", cost: 0, cooldown: 7, effect: "Increase your aggro for 4 turns when used.", image: "https://trello.com/1/cards/67c3fd496f7b29feb166cd72/attachments/697ec9244cff4a03226d59af/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203232.png" },
+  ]},
+  "Parasitic Leech": { learns: [
+    mkPassive("Parasitic Leech", "Heal all teammates for 2% of the damage you deal to opponents. This healing is classified as a proper heal (not lifesteal), meaning it scales with your Outgoing Healing stat and the Incoming Healing of whoever is being healed."),
+  ]},
+  "Spore Root": { learns: [
+    mkPassive("Spore Root", "Apply 2 Poison and have a 30% chance to apply 2 Weakened when blocking a melee attack."),
+  ]},
+  "Forest Charm": { learns: [
+    mkPassive("Forest Charm", "Increase your damage by 15% while in the forest.\n\nGive a 25% damage buff for Nature elemental attacks. (Nature element buff works everywhere)"),
+  ]},
+  "Elemental Infuser": { learns: [
+    { slot: "", level: 1, type: "Active", name: "From Sky to Soul", quote: "", cost: 3, cooldown: 10, moveType: "Physical", effect: "Suffuse your soul with elemental essence. Applies 3 Vulnerable to yourself for 3 turns. Magic, Fire, Ice, and Hex abilities deal increasing damage over the next 3 turns (10% / 20% / 30%).\n\nNote: The buff is currently bugged and does not scale.", image: "https://trello.com/1/cards/696ab334c45d0880564f11ad/attachments/697eca8f8218c2bff4726102/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203726.png" },
+  ]},
+  "Crystallized Star": { learns: [
+    mkPassive("Crystallized Star", "You gain a flat +10 Luck buff every successful crit for 2 effective turns. (5 stacks max)"),
+  ]},
+  "Pathfinder Mark": { learns: [
+    mkPassive("Pathfinder Mark", "Your Strike now scales with END at a rate of END/75."),
+  ]},
+
+  // Desert
+  "Crystal Sphere": { learns: [
+    mkPassive("Crystal Sphere", "Removes crit fatigue and increases your crit chance by 5%."),
+  ]},
+  "Dust Storm": { learns: [
+    mkPassive("Dust Storm", "Gives a 10% chance to phase through an attack, negating all damage taken (debuffs will still apply).\n\nThis will trigger passives that proc on dodge effects, such as Swift Fighter (Slayer base class) or Verdant Archer (Ranger super class)."),
+  ]},
+  "Golem Rune Core": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Call Sand Golem", quote: "", cost: 2, cooldown: 999, moveType: "Physical", scaling: "ARC/6", effect: "Summon a Sand Golem when used. The Sand Golem has 75 base HP.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed647ed829742fa6f1894/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092721.png" },
+    { slot: "Sand Golem", level: 1, type: "Active", name: "Smash", quote: "", cost: 0, cooldown: 0, moveType: "Physical", damage: 10, effect: "Basic attack.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed6415e251a5b21d26b41/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091747.png" },
+    { slot: "Sand Golem", level: 1, type: "Active", name: "Core Rage", quote: "", cost: 2, cooldown: 8, moveType: "Physical", effect: "Go into a resting state, applying 1 Heavy Stun to yourself. On your next turn, exit this state and gain a permanent 40% damage buff, 15% defense buff, and 2 extra regen.\n\nIf enough damage is dealt before you exit this state, it can be cancelled.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed6430a18bfc46654e708/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091904.png" },
+    { slot: "Sand Golem", level: 1, type: "Active", name: "Dust Burst", quote: "", cost: 2, cooldown: 5, moveType: "Physical", damage: "6x3", effect: "Stuns the opponent if they have the Blinded status.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed644e458694137159bb3/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092257.png" },
+    { slot: "Sand Golem", level: 1, type: "Active", name: "Sand Eruption", quote: "", cost: 3, cooldown: 7, moveType: "Physical", damage: 22, effect: "Applies 4 Crippled, 2 Weakened, and 1 Vulnerable. This move has a pseudo AoE effect if it successfully hits its target.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed64638fd4da4aabe69d1/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092624.png" },
+  ]},
+  "Spiked Steel Ball": { learns: [
+    mkPassive("Spiked Steel Ball", "Your attacks have a 30–40% (?) chance to apply 1 Vulnerable and 1 Weakened.\n\nDespite the developer's claims, this also deals an additional 35% damage when it procs."),
+  ]},
+  "Stone Brand": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Stone Skin", quote: "", cost: 2, cooldown: 6, moveType: "Physical", category: "Buff", duration: 3, effect: "Your summons gain the move \"Stone Skin\". When used, grants 60% defence reduction against most attacks for 3 turns.", image: "https://trello.com/1/cards/67c456b08594a7ec9963c03c/attachments/697ecad5a010aa0619d29d75/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203749.png" },
+  ]},
+  "Ramizcan Idol": { learns: [
+    mkPassive("Ramizcan Idol", "Gives a 15% damage buff for 1 turn after blocking or parrying."),
+  ]},
+  "Band of Crushing Force": { learns: [
+    mkPassive("Band of Crushing Force", "Deal 25% more damage against blocking enemies.\n\nGives a 10% damage buff whenever an enemy blocks a hit of your attack, until the end of your next turn.\n\nNote: The 15% damage reduction while in desert described in-game does not actually apply."),
+  ]},
+  "Grain Of Balance": { learns: [
+    mkPassive("Grain Of Balance", "Takes 25% off your highest stat and distributes it across all other stats.\n\nNote: Currently bugged — seems to grant negative stat points rather than adding to stats."),
+  ]},
+  "Madseer's Codex": { learns: [
+    mkPassive("Madseer's Codex", "Increases the difficulty of QTEs.\n\nIn exchange, all Magic, Fire, Ice, and Hex attacks have a chance to apply a random status effect:\nPoisoned, Cursed, Blinded, Crippled, Weakened, or Vulnerable."),
+  ]},
+  "Impure Crown": { learns: [
+    mkPassive("Impure Crown", "Every time you apply Poison, apply 1 additional stack. This does not count as a separate instance of Poison."),
+  ]},
+  "The Last Straw": { learns: [
+    mkPassive("The Last Straw", "Gives you 1 stack of Invisibility every five turns."),
+  ]},
+  "Imbued Chains": { learns: [
+    mkPassive("Imbued Chains", "Currently bugged."),
+  ]},
+  "Delicate Purse": { learns: [
+    mkPassive("Delicate Purse", "Grants a random amount of gold at the end of an encounter. Taking damage during the encounter reduces the amount of gold received."),
+  ]},
+  "Desert Escutcheon": { learns: [
+    mkPassive("Desert Escutcheon", "When you successfully block an attack, gain 1 Charge. At 3 Charges, the next damage you block is completely ignored.\n\nCharges persist through fights, but reset if you fail to block or if you dodge an attack."),
+  ]},
+
+  // Deeproot
+  "Cursed Brand": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Curse Consumption", quote: "", cost: 2, cooldown: 5, moveType: "Physical", effect: "At the cost of 10% of your summon's HP, consume the selected target's status effects and give the summon a 5% damage buff per status consumed. (Cannot consume Heavy Stun)", image: "https://trello.com/1/cards/67c4625099eba39045d244a9/attachments/697ed088a579feb6744878bb/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131204123.png" },
+  ]},
+  "Narthana's Leaf": { learns: [
+    mkPassive("Narthana's Leaf", "Sacrifice 25% of your max HP to gain a 1.75x outgoing heal buff. Does not affect regen."),
+  ]},
+  "Wicked Crown": { learns: [
+    mkPassive("Wicked Crown", "When worn, turns all your physical moves into Dark element. Become immune to Poison and decrease all incoming DoT damage by 15%."),
+  ]},
+  "Sanguine Fang": { learns: [
+    mkPassive("Sanguine Fang", "When hitting an enemy, you have a 25% chance to heal by 10% of the attack damage."),
+  ]},
+  "Coagulated Finger Nail": { learns: [
+    mkPassive("Coagulated Finger Nail", "At the start of every turn, increase base stats by 1.5 points. Caps at 10 turns (15 stat points total to every stat).\n\nNote: Increasing the Endurance stat grants damage reduction instead of HP increase."),
+  ]},
+  "Shard of Blight": { learns: [
+    mkPassive("Shard of Blight", "Gain a 15% defence increase while inside Deeproot Canopy, as well as a 25% increase to dark elemental attacks."),
+  ]},
+  "Traveler's Lamp": { learns: [
+    mkPassive("Traveler's Lamp", "Start each fight with one extra energy and apply 3 Vulnerable to all enemies.\n\nProvides light outside of battle."),
+  ]},
+  "Expedite Anklet": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Godspeed", quote: "", cost: 0, cooldown: 12, moveType: "Magic", effect: "Increases your speed by a flat +30. Gives 1 energy per dodge while active and removes block/dodge bar fatigue.\n\nSpeculation: May increase movement speed outside of battle.", image: "https://trello.com/1/cards/67c488f6dfe5361a2078144b/attachments/697eca6a77fb9f0ee85ce040/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203343.png" },
+  ]},
+  "Phantom Ooze": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Gluttony", quote: "", cost: 0, cooldown: 14, moveType: "Physical", effect: "Consumes up to 10 negative status effect stacks on yourself and applies 1 Cursemaw per stack consumed. Cursemaw reduces DR by (stacks × 5%) while it lasts.\n\nConsumption priority: Sundered > Poisoned > Bleeding > Weakened > Vulnerable." },
+  ]},
+
+  // Volcano
+  "Imperial Headband": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Self Destruct", quote: "", cost: 2, cooldown: 0, moveType: "Physical", scaling: "ARC", effect: "When your summons drop below 90% HP, blow up your summons, dealing damage to all targets (scales with the summon's total HP × 2). Also has a chance to apply 2 Stun and 2 Weakened.\n\nNote: Can be blocked, and can be dodged with enough speed.", image: "https://trello.com/1/cards/67c45621e05f17e3f3e34bf1/attachments/697ed0babef5ea81d42c5af8/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131204217.png" },
+  ]},
+  "Magma Charm": { learns: [
+    mkPassive("Magma Charm", "Give 10% resistance to fire attacks and increase movement speed by 15%."),
+  ]},
+  "Vulcan Knuckle": { learns: [
+    mkPassive("Vulcan Knuckle", "Increase fire elemental move damage by 15%. Gives a 15% defence buff while in the Volcano and changes Strike type to Fire element."),
+  ]},
+  "Dragon Memoir": { learns: [
+    mkPassive("Dragon Memoir", "Your first Strike or Magic Missile applies 2 stacks of Bleed. After this, your next 3 Strikes or Magic Missiles apply 2 stacks of Fractured. After those 3, it applies only 2 Bleed on Strike or Magic Missile for the rest of the fight."),
+  ]},
+  "Blazing Brand": { learns: [
+    mkPassive("Blazing Brand", "When enemies attack your summons, they take small damage and receive 3 Burn."),
+  ]},
+  "Molten Carapace": { learns: [
+    mkPassive("Molten Carapace", "Increase your defense by 30% when below 40% HP."),
+  ]},
+
+  // Bosses/Minibosses
+  "Gelat Band": { learns: [
+    mkPassive("Gelat Band", "Allows you to speak with the King Slime statue."),
+    { slot: "", level: 1, type: "Active", name: "Slime Creation", quote: "", cost: 1, cooldown: 10, moveType: "Poison", scaling: "ARC/3", effect: "Summon a Slime when used. The Slime has 35 base HP.", image: "https://trello.com/1/cards/67d41c0244a2d23e350b851e/attachments/697ed2ef8e457c3cafdf421b/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091316.png" },
+    { slot: "Slime", level: 1, type: "Active", name: "Smack", quote: "", cost: 0, cooldown: 0, moveType: "Physical", damage: 14, scaling: "ARC/50", effect: "Le slime does the spin and wow that hurt!", image: "https://trello.com/1/cards/67d41c0244a2d23e350b851e/attachments/697ed2ece01efac571adf148/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091038.png" },
+    { slot: "Slime", level: 1, type: "Active", name: "Acid Spit", quote: "", cost: 2, cooldown: 4, moveType: "Poison", damage: 4, scaling: "ARC/75", effect: "Shoots off a ball of acid, inflicting 2 stacks of Poison.", image: "https://trello.com/1/cards/67d41c0244a2d23e350b851e/attachments/697ed2eebbe76e185c06a42d/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091230.png" },
+  ]},
+  "Tear Blood Crystal": { learns: [
+    mkPassive("Tear Blood Crystal", "Give a 5% defense and crit chance buff for 5 turns when applying Bleed."),
+  ]},
+  "Ptera's Heart": { learns: [
+    mkPassive("Ptera's Heart", "At the start of combat, apply 3 Poison to yourself and all enemies on the field. At the start of your turn, apply 1 Poison to yourself and all enemies on the field."),
+  ]},
+  "DeathBeak Dagger": { learns: [
+    mkPassive("DeathBeak Dagger", "Whenever you crit, throw a dagger at the enemy dealing damage equal to BaseDMG × CritDMG × 0.15, or × 0.25 if the triggering attack applies any status effect.\n\nBaseDMG refers to the base damage of the triggering move. CritDMG is your critical damage multiplier.\n\nThe dagger works with multihits. It cannot crit, is non-lethal, and is not affected by your buffs. It can be affected by status effects on the enemy and by your enchant. If your attack crits but is dodged, the dagger will still trigger."),
+  ]},
+  "Blazing Perforator": { learns: [
+    mkPassive("Blazing Perforator", "Converts burn damage into healing, but only at half the magnitude. Does not work on Ghostflame."),
+  ]},
+  "Yar'thul's Wrath": { learns: [
+    mkPassive("Yar'thul's Wrath", "Every 5 turns, gain a stack of Overheat: +8% damage and +7.5% speed per stack. Caps at 10 stacks.\n\nYou lose a stack of Overheat when healed by someone other than yourself. (Parasitic Leech counts as a heal)"),
+  ]},
+  "Frostburned Rune": { learns: [
+    mkPassive("Frostburned Rune", "Fire affinity moves apply Cold, and Ice affinity moves apply Burn. Both status effects have a 30% chance to be applied."),
+  ]},
+  "Vow of Ruin": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Pact of Ruin", quote: "", cost: 1, cooldown: 3, moveType: "Physical", effect: "Link with an ally for 3 turns, causing you to take 25% of the damage dealt to them. After the link ends, release the absorbed damage in an explosion scaling with the total amount absorbed." },
+  ]},
+  "Frozen Diadem": { learns: [
+    mkPassive("Frozen Diadem", "Have a 5% innate extra crit chance against enemies with the Cold status.\n\nApplying Cold gives a non-stacking 10% extra crit chance for 2 turns."),
+  ]},
+  "Imbuement Reliquary": { learns: [
+    mkPassive("Imbuement Reliquary", "Summons now have the full effects of your enchant."),
+  ]},
+  "Divine Promise": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Divine Gift", quote: "", cost: 1, cooldown: 3, moveType: "Holy", effect: "Grants the targeted ally or summon 1 Energy and 10% Damage Reduction for 5 turns." },
+  ]},
+  "Focused Mind": { learns: [
+    mkPassive("Focused Mind", "After Meditate, gain a 20% damage buff for 1 turn, but take 15% more damage."),
+  ]},
+  "Aspect of Maladaptation": { learns: [
+    mkPassive("Aspect of Maladaptation", "When damaged by an attack, take 25% less damage from the same element, but take 30% more damage from ALL other elements."),
+  ]},
+  "Tainted Quiver": { learns: [
+    mkPassive("Tainted Quiver", "Your first attack always applies 1 Sundered and steals 1 energy. Every attack after has a ~25% (?) chance to remove 1 energy from the enemy and apply 1 Sunder."),
+  ]},
+  "Vainglorious Locket": { learns: [
+    mkPassive("Vainglorious Locket", "While equipped, your turn is before your opponents. Additionally gain a 10% damage buff which decreases by 5% every turn."),
+  ]},
+  "The Smallest Boulder": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Boulder Buddy", quote: "", cost: 1, cooldown: 14, moveType: "Physical", scaling: "LVL*2", effect: "Summon a Boulder with 35 base HP. When you take damage, the Boulder takes it for you instead. It has no HP regeneration but can still be healed. Unlike other summons, the Boulder does not take turns and you can only have one at a time.\n\nNote: The Vastayan's passive does not increase the HP of the Boulder." },
+  ]},
+  "Eroded Blade": { learns: [
+    mkPassive("Eroded Blade", "Your attacks have a 10% chance to steal 1 NRG from the opponent, granting that energy to yourself on a successful steal.\n\nCannot grant energy more than twice per turn."),
+  ]},
+  "Dust Devil's Eye": { learns: [
+    mkPassive("Dust Devil's Eye", "Has a 5% chance to proc when hitting an enemy. On proc, hits the target 3 additional times.\n\nThe extra 3 hits have their own base damage and scaling."),
+  ]},
+  "Open Hand": { learns: [
+    mkPassive("Open Hand", "Poison, Bleed, Burn, Cold, Ghostflame, and Weakened applied to you decay by 2 instead of 1."),
+  ]},
+
+  // Other
+  "Everbeating Drums": { learns: [
+    mkPassive("Everbeating Drums", "Gives every attack a 20% chance to deal a portion of the damage dealt to all enemies."),
+  ]},
+  "Lethal Blackjack": { learns: [
+    { slot: "", level: 1, type: "Active", name: "D20", quote: "", cost: 0, cooldown: 4, effect: "Roll a D20 for a random effect.\n\n1 — Lose HP down to 10% remaining, drain all energy, gain 2 Cursed. (HP won't change if already below 10%)\n2 — Lose half of current HP, gain 1 Cursed, lose 1 Energy.\n3 — Gain 2 Hexed and 2 Cursed, lose 2 Energy.\n4 — Gain a 10% Damage Down, lose 1 Energy.\n5 — Lose 1 Energy, gain Healing Reduced and 1 Vulnerable.\n6 — Gain 3 Vulnerable and 3 Weakened.\n7 — Gain 2 Vulnerable and 2 Cripple.\n8 — Gain 1 Vulnerable.\n9 — Lose 5 HP.\n10 — Nothing happens.\n11 — Heal 5 HP.\n12 — Gain a 5% Speed buff for 3 turns.\n13 — Gain a 5% Speed and 5% Luck buff for 3 turns.\n14 — Gain a 5% Defence buff for 3 turns.\n15 — Gain a 5% Defence and 5% Damage buff for 3 turns.\n16 — Gain a 10% Damage buff and 1 Energy.\n17 — Gain a 5% Damage buff, 10% Luck buff, 10% Defence buff, and 1 Energy.\n18 — Heal 25% of max HP, gain 2 Energy, reduce all move cooldowns by 1.\n19 — Gain 2 Energy and a 10% Damage, Luck, and Defence boost for 3 turns.\n20 — Fully heal to 100% HP and gain 6 Energy for the next 3 turns.", image: "https://trello.com/1/cards/67c45450bc87ff359b42b78c/attachments/697eca3036b0dabd9e1726b9/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203309.png" },
   ]},
 };
 
