@@ -224,3 +224,29 @@ h2 {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 72 72'%3E%3Cpolygon points='36,4 68,36 36,68 4,36' fill='%230a0a28' stroke='%235599ff' stroke-width='2.5'/%3E%3Cpolygon points='36,14 58,36 36,58 14,36' fill='none' stroke='%235599ff' stroke-width='1.5'/%3E%3Cline x1='14' y1='14' x2='36' y2='36' stroke='%235599ff' stroke-width='1'/%3E%3Cline x1='58' y1='14' x2='36' y2='36' stroke='%235599ff' stroke-width='1'/%3E%3Cline x1='14' y1='58' x2='36' y2='36' stroke='%235599ff' stroke-width='1'/%3E%3Cline x1='58' y1='58' x2='36' y2='36' stroke='%235599ff' stroke-width='1'/%3E%3Ccircle cx='36' cy='36' r='4' fill='%235599ff'/%3E%3Ccircle cx='36' cy='36' r='8' fill='none' stroke='%235599ff' stroke-width='1'/%3E%3C/svg%3E") !important;
   filter: drop-shadow(0 0 12px rgba(60,120,255,0.7)) !important;
 }
+
+/* ============================================================
+   4. SHARE BUTTON
+   ============================================================ */
+.share-build-btn {
+  margin-left: auto;
+  margin-right: 10px;
+  padding: 6px 16px;
+  background: #1e3a1e;
+  border: 1px solid #3a7a3a;
+  border-radius: 4px;
+  color: #66cc66;
+  cursor: pointer;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  align-self: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.share-build-btn:hover {
+  background: #2a5a2a;
+  color: #88ee88;
+}

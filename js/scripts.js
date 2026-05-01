@@ -5697,3 +5697,159 @@ tabs.forEach(tab => {
   });
 })();
 
+// === BUILD SHARE ===
+
+function setPickerDisplay(picker, name) {
+  picker.value = name;
+  const wrap = picker.previousElementSibling;
+  if (wrap && wrap.classList.contains('wpick-wrap')) {
+    const display = wrap.querySelector('.wpick-display');
+    if (display) display.textContent = name || '— None —';
+  }
+}
+
+function getBuildState() {
+  const stats = {};
+  ['str','arc','end','spd','lck'].forEach(s => {
+    stats[s] = +document.querySelector(`.stat-row[data-stat="${s}"] .stat-val`).value || 0;
+  });
+  const shards  = [...document.querySelectorAll('.shard-picker')].map(p => p.value);
+  const gears   = [...document.querySelectorAll('.gear-picker')].map(p => p.value);
+  const mastery = masteryNodes.filter(n => masteryState[n.id]).map(n => n.id);
+  const soul    = {};
+  Object.entries(soulTreeRanks).forEach(([id, rank]) => { if (rank > 0) soul[id] = rank; });
+  return {
+    v:    1,
+    lvl:  +lvlInput.value || 1,
+    race: racePicker.value,
+    cls:  classPicker.value,
+    sup:  superPicker.value,
+    sub:  subPicker.value,
+    ...stats,
+    mark: markPicker.value,
+    cov:  covenantPicker.value,
+    covR: +(document.getElementById('covenant-rank').value) || 1,
+    ench: enchantPicker.value,
+    art:  artifactPicker.value,
+    sh:   shards,
+    g:    gears,
+    wm:   mainWeaponPicker.value,
+    wo:   offhandWeaponPicker.value,
+    arm:  armourPicker.value,
+    msty: mastery,
+    soul
+  };
+}
+
+function loadBuildState(state) {
+  if (!state || state.v !== 1) return;
+
+  // Level
+  lvlInput.value = state.lvl || 1;
+  lvlInput.dispatchEvent(new Event('change'));
+
+  // Race
+  racePicker.value = state.race || '';
+  racePicker.dispatchEvent(new Event('change'));
+
+  // Stats — dispatch change so `spent` is updated correctly
+  ['str','arc','end','spd','lck'].forEach(s => {
+    const input = document.querySelector(`.stat-row[data-stat="${s}"] .stat-val`);
+    if (!input) return;
+    input.dataset.prev = 0;
+    input.value = state[s] || 0;
+    input.dispatchEvent(new Event('change'));
+  });
+
+  // Class (populates super options, resets mastery)
+  classPicker.value = state.cls || '';
+  classPicker.dispatchEvent(new Event('change'));
+
+  // Super
+  superPicker.value = state.sup || '';
+  superPicker.dispatchEvent(new Event('change'));
+
+  // Sub
+  subPicker.value = state.sub || '';
+  subPicker.dispatchEvent(new Event('change'));
+
+  // Mark
+  markPicker.value = state.mark || '';
+  markPicker.dispatchEvent(new Event('change'));
+
+  // Covenant
+  covenantPicker.value = state.cov || '';
+  const covRankEl = document.getElementById('covenant-rank');
+  if (covRankEl) covRankEl.value = state.covR || 1;
+  covenantPicker.dispatchEvent(new Event('change'));
+
+  // Enchant
+  setPickerDisplay(enchantPicker, state.ench || '');
+  updateEnchantDesc();
+
+  // Artifact
+  setPickerDisplay(artifactPicker, state.art || '');
+  renderArtifactDesc();
+
+  // Shards
+  const shards = state.sh || [];
+  document.querySelectorAll('.shard-picker').forEach((p, i) => setPickerDisplay(p, shards[i] || ''));
+
+  // Gears
+  const gears = state.g || [];
+  document.querySelectorAll('.gear-picker').forEach((p, i) => setPickerDisplay(p, gears[i] || ''));
+
+  // Weapons
+  setPickerDisplay(mainWeaponPicker, state.wm || '');
+  setPickerDisplay(offhandWeaponPicker, state.wo || '');
+
+  // Armour
+  setPickerDisplay(armourPicker, state.arm || '');
+  updateArmourGold(prevArmourSelection, state.arm || '');
+  prevArmourSelection = state.arm || '';
+
+  // Mastery (set after class/super dispatch so resets don't clobber)
+  masteryNodes.forEach(n => { masteryState[n.id] = false; });
+  (state.msty || []).forEach(id => { if (Object.prototype.hasOwnProperty.call(masteryState, id)) masteryState[id] = true; });
+
+  // Soul tree
+  Object.keys(soulTreeRanks).forEach(id => { soulTreeRanks[id] = 0; });
+  Object.entries(state.soul || {}).forEach(([id, rank]) => {
+    if (Object.prototype.hasOwnProperty.call(soulTreeRanks, id)) soulTreeRanks[id] = rank;
+  });
+  recalcSoulTreeBonuses();
+
+  // Final renders
+  updatePoints();
+  updatePecents();
+  renderMoves();
+  renderGearInfo();
+  renderSoulTree();
+  renderMastery();
+  renderMasteryInfoSection();
+}
+
+// Share button
+const shareBuildBtn = document.getElementById('share-build-btn');
+if (shareBuildBtn) {
+  shareBuildBtn.addEventListener('click', () => {
+    const encoded = btoa(JSON.stringify(getBuildState()));
+    const url = window.location.href.split('#')[0] + '#' + encoded;
+    navigator.clipboard.writeText(url).then(() => {
+      shareBuildBtn.textContent = 'Copied!';
+      setTimeout(() => { shareBuildBtn.textContent = 'Share Build'; }, 2000);
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  });
+}
+
+// Load build from URL hash on page load
+(function () {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return;
+  try {
+    const state = JSON.parse(atob(hash));
+    if (state && state.v === 1) loadBuildState(state);
+  } catch (e) { /* not a valid build hash */ }
+})();
