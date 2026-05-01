@@ -333,12 +333,23 @@ function updatePecents() {
     });
   }
 
+  // Collect flat stat bonuses from equipped gear
+  const gearStatBonuses = {};
+  ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
+    const name = document.getElementById(id)?.value;
+    const g = name ? gearItems[name] : null;
+    if (!g) return;
+    Object.entries(g).forEach(([k, v]) => {
+      if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v;
+    });
+  });
+
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
     const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
     const allocated = row ? +row.value : 0;
     const masteryStats = getMasteryStatBonuses();
-    const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0);
+    const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
     const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
     const base = calcPercentage(stat, val);
     const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0);
@@ -347,7 +358,7 @@ function updatePecents() {
       display = "—";
     } else if (stat === "end") {
       const hpBase = parseFloat(base);
-      const flatHP = (soulTreeBonuses.endFlat ?? 0) + (armour.endFlat ?? 0);
+      const flatHP = (soulTreeBonuses.endFlat ?? 0) + (armour.endFlat ?? 0) + (gearStatBonuses.endFlat ?? 0);
       const hpPct = armourPct.end ?? 0;
       display = (hpBase + flatHP + hpBase * hpPct / 100).toFixed(1);
     } else if (stat === "energy") {
@@ -803,22 +814,60 @@ function updateEnchantDesc() {
 buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), updateEnchantDesc);
 buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), renderMoves);
 
+function renderGearInfo() {
+  const section = document.getElementById("gear-desc-section");
+  const content = document.getElementById("gear-desc");
+  if (!section || !content) return;
+  const slots = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
+  const withMoves = slots.filter(name => gearMoves[name]);
+  if (!withMoves.length) { section.style.display = "none"; content.innerHTML = ""; return; }
+  let html = "";
+  withMoves.forEach((name, i) => {
+    if (i > 0) html += `<hr style="border-color:rgba(255,255,255,0.1);margin:10px 0">`;
+    html += `<div class="enchant-name">${name}</div>`;
+    const data = gearMoves[name];
+    (data.learns || []).forEach(m => {
+      if (m.type === "Passive") {
+        html += `<div style="margin-top:6px"><strong>${m.name}</strong></div>`;
+        html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
+      } else if (m.type === "Active") {
+        html += `<div style="margin-top:6px"><strong>${m.name}</strong> <span class="enchant-level">Active</span></div>`;
+        const stats = [
+          m.cost !== undefined ? `Cost: ${m.cost}` : null,
+          m.cooldown !== undefined ? `CD: ${m.cooldown}` : null,
+          m.moveType ? `Type: ${m.moveType}` : null,
+          m.duration !== undefined ? `Dur: ${m.duration}` : null,
+          m.damage !== undefined ? `Dmg: ${m.damage}` : null,
+          m.scaling ? `Scl: ${m.scaling}` : null,
+        ].filter(Boolean).join(" | ");
+        if (stats) html += `<div class="enchant-level" style="margin-top:2px">${stats}</div>`;
+        html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
+      }
+    });
+  });
+  content.innerHTML = html;
+  section.style.display = "";
+}
+
 // --- Gear ---
 // To add gear: "Item Name": { str, arc, end, spd, lck }
 const gearItems = {
-  "Iron Sword": { str: 5, arc: 0, end: 0, spd: 0, lck: 0 }
+  "Iron Sword":      { str: 5, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Rabbit Pelt":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Egg Shelmet":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Chocolate Egg":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Party Egg":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Gleaming Carrot": { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Rabbit's Foot":   { str: 0, arc: 0, end: 0, spd: 5, lck: 5 },
+};
+
+const gearSeries = {
+  "Easter Gears": ["Rabbit Pelt", "Egg Shelmet", "Chocolate Egg", "Party Egg", "Gleaming Carrot", "Rabbit's Foot"],
+  "Other":        ["Iron Sword"],
 };
 
 const gearPickers = document.querySelectorAll(".gear-picker");
-
-gearPickers.forEach(picker => {
-  buildSimpleDropdown(
-    picker,
-    Object.keys(gearItems),
-    () => {},
-    name => Array.from(gearPickers).some(p => p !== picker && p.value === name)
-  );
-});
+gearPickers.forEach(picker => buildGearDropdown(picker, gearSeries));
 
 // --- Weapons ---
 // mainWeaponSeries: weapons for the main hand slot
@@ -1047,6 +1096,126 @@ const weaponMoves = {
   "Vastic Glaive":      { learns: [mkPassive("Vastic Glaive", "Allows the use of Spear locked skills.\n\nOn hit, you have a 12.5% chance to proc a random effect based on your highest stat. (16.6% if Vastayan)\n\nSTR — Places a bomb on the enemy that explodes. Can kill, cannot crit.\nARC — Places a bomb on the enemy that explodes. Cannot kill, cannot crit.\nEND — Heals you for 5% of your max HP.\nLCK — Grants an 80% increased crit chance for your next attack.\nSPD — Grants damage, defense, and speed buffs for 2 turns. (BUGGED)")] },
   "Star-Seeing Hammer": { learns: [mkPassive("Star-Seeing Hammer", "Allows the use of Hammer locked skills.\n\nDoes nothing.")] },
 };
+
+// --- Gear passives ---
+const easterGearsPassive = mkPassive("Easter Gears", "Gain a stacking 5% defense buff per consecutive damaging move used on an enemy, buff is cleared when you stop attacking. (capped at 30%)");
+
+const gearMoves = {
+  "Rabbit Pelt": { learns: [easterGearsPassive] },
+  "Egg Shelmet": { learns: [
+    easterGearsPassive,
+    mkPassive("Egg Shelmet", "Start the fight with 10% more of your max HP in the form of an HP shield.\nWhen the shield breaks, gain a permanent 10% DR."),
+  ]},
+  "Chocolate Egg": { learns: [
+    easterGearsPassive,
+    { slot: "", level: 1, type: "Active", name: "Easter Snack", quote: "", cost: 0, cooldown: 99, effect: "Target an ally with this skill. The ally you choose will be healed for 7.5 HP and be given regen equal to 1% of their max HP for 2 turns." },
+  ]},
+  "Party Egg": { learns: [
+    easterGearsPassive,
+    { slot: "", level: 1, type: "Active", name: "Egg Throw", quote: "", cost: 2, cooldown: 6, moveType: "Physical", duration: 3, damage: 5, scaling: "SPD/80", effect: "Throw an egg at a target. If it hits, you gain a 7.5% speed boost and apply 2 random status effects (including ghostflame) to the target." },
+  ]},
+  "Gleaming Carrot": { learns: [
+    easterGearsPassive,
+    { slot: "", level: 1, type: "Active", name: "Carrot Munch", quote: "", cost: 2, cooldown: 99, effect: "Gives yourself +1% critical chance per turn for 6 turns." },
+  ]},
+  "Rabbit's Foot": { learns: [
+    easterGearsPassive,
+    mkPassive("Rabbit's Foot", "+5 Luck Stat.\n+5 Speed Stat.\nEvery turn, have a 33% chance to gain a 5% luck and speed boost for that turn, a 33% chance to gain 2 cursed stacks on yourself, and a 33% chance to gain 1 cursed stack and 1 hex stack on yourself."),
+  ]},
+};
+
+function buildGearDropdown(picker, seriesData) {
+  picker.style.display = "none";
+
+  const allItems = [];
+  Object.entries(seriesData).forEach(([series, names]) => {
+    names.forEach(name => allItems.push({ name, series }));
+  });
+
+  allItems.forEach(({ name }) => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    picker.appendChild(opt);
+  });
+
+  const wrap = document.createElement("div");
+  wrap.className = "wpick-wrap";
+
+  const display = document.createElement("div");
+  display.className = "wpick-display";
+  display.textContent = "— None —";
+
+  const panel = document.createElement("div");
+  panel.className = "wpick-panel";
+  panel.style.display = "none";
+
+  const search = document.createElement("input");
+  search.type = "text";
+  search.placeholder = "Search...";
+  search.className = "wpick-search";
+
+  const list = document.createElement("div");
+  list.className = "wpick-list";
+
+  panel.appendChild(search);
+  panel.appendChild(list);
+  wrap.appendChild(display);
+  wrap.appendChild(panel);
+  picker.parentNode.insertBefore(wrap, picker);
+
+  function open() { panel.style.display = "block"; search.value = ""; buildList(""); search.focus(); }
+  function close() { panel.style.display = "none"; }
+
+  function buildList(q) {
+    list.innerHTML = "";
+
+    const none = document.createElement("div");
+    none.className = "wpick-item" + (!picker.value ? " wpick-selected" : "");
+    none.textContent = "— None —";
+    none.addEventListener("mousedown", e => {
+      e.preventDefault();
+      picker.value = "";
+      display.textContent = "— None —";
+      close();
+      renderMoves(); renderGearInfo(); updatePecents();
+    });
+    list.appendChild(none);
+
+    const grouped = {};
+    allItems.forEach(({ name, series }) => {
+      const takenByOther = Array.from(gearPickers).some(p => p !== picker && p.value === name);
+      if (takenByOther) return;
+      if (q && !name.toLowerCase().includes(q.toLowerCase()) && !series.toLowerCase().includes(q.toLowerCase())) return;
+      if (!grouped[series]) grouped[series] = [];
+      grouped[series].push(name);
+    });
+
+    Object.entries(grouped).forEach(([series, names]) => {
+      const header = document.createElement("div");
+      header.className = "wpick-group";
+      header.textContent = series;
+      list.appendChild(header);
+
+      names.forEach(name => {
+        const item = document.createElement("div");
+        item.className = "wpick-item" + (picker.value === name ? " wpick-selected" : "");
+        item.textContent = name;
+        item.addEventListener("mousedown", e => {
+          e.preventDefault();
+          picker.value = name;
+          display.textContent = name;
+          close();
+          renderMoves(); renderGearInfo(); updatePecents();
+        });
+        list.appendChild(item);
+      });
+    });
+  }
+
+  display.addEventListener("click", () => panel.style.display === "none" ? open() : close());
+  search.addEventListener("input", () => buildList(search.value));
+  document.addEventListener("mousedown", e => { if (!wrap.contains(e.target)) close(); });
+}
 
 function buildWeaponDropdown(picker, seriesData) {
   // Hide the native select — we store the value there but render a custom UI
@@ -3971,10 +4140,11 @@ function renderMoves() {
   const weaponMain   = document.getElementById("weapon-main").value;
   const weaponOff    = document.getElementById("weapon-offhand").value;
   const covenantName = covenantPicker.value;
+  const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
   const covenantRank = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
   const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName) {
+  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     return;
   }
@@ -3988,6 +4158,7 @@ function renderMoves() {
   const weaponMainData = weaponMain    ? weaponMoves[weaponMain]       : null;
   const weaponOffData  = weaponOff     ? weaponMoves[weaponOff]        : null;
   const covenantData   = covenantName  ? covenantMoves[covenantName]   : null;
+  const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
   let html = "";
 
@@ -4067,7 +4238,7 @@ function renderMoves() {
   html += `</div>`; // end .moves-columns
 
   // --- Combined sections ---
-  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, ...gearDataList.map(g => g.data)].filter(Boolean);
   if (allData.length > 1) {
     html += `<div class="moves-combined-row">`;
 
