@@ -826,12 +826,13 @@ function renderGearInfo() {
     if (i > 0) html += `<hr style="border-color:rgba(255,255,255,0.1);margin:10px 0">`;
     html += `<div class="enchant-name">${name}</div>`;
     const data = gearMoves[name];
-    (data.learns || []).forEach(m => {
+    (data.learns || []).filter(m => !isSummonMove(m)).forEach(m => {
       if (m.type === "Passive") {
         html += `<div style="margin-top:6px"><strong>${m.name}</strong></div>`;
         html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
       } else if (m.type === "Active") {
-        html += `<div style="margin-top:6px"><strong>${m.name}</strong> <span class="enchant-level">Active</span></div>`;
+        const slotLabel = m.slot ? `<span class="enchant-level" style="margin-right:4px">${m.slot}</span>` : "";
+        html += `<div style="margin-top:6px">${slotLabel}<strong>${m.name}</strong> <span class="enchant-level">Active</span></div>`;
         const stats = [
           m.cost !== undefined ? `Cost: ${m.cost}` : null,
           m.cooldown !== undefined ? `CD: ${m.cooldown}` : null,
@@ -842,6 +843,7 @@ function renderGearInfo() {
         ].filter(Boolean).join(" | ");
         if (stats) html += `<div class="enchant-level" style="margin-top:2px">${stats}</div>`;
         html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
+        if (m.image) html += `<img class="move-image" src="${m.image}" alt="${m.name}" style="margin-top:6px;max-width:100%">`;
       }
     });
   });
@@ -852,18 +854,24 @@ function renderGearInfo() {
 // --- Gear ---
 // To add gear: "Item Name": { str, arc, end, spd, lck }
 const gearItems = {
-  "Iron Sword":      { str: 5, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Rabbit Pelt":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Egg Shelmet":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Chocolate Egg":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Party Egg":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Gleaming Carrot": { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Rabbit's Foot":   { str: 0, arc: 0, end: 0, spd: 5, lck: 5 },
+  "Iron Sword":          { str: 5, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Easter Gears
+  "Rabbit Pelt":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Egg Shelmet":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Chocolate Egg":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Party Egg":           { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Gleaming Carrot":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Rabbit's Foot":       { str: 0, arc: 0, end: 0, spd: 5, lck: 5 },
+  // Winter Solstice Gears
+  "Snorb":               { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Elementary Resonance":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Frosty Topper":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
 };
 
 const gearSeries = {
-  "Easter Gears": ["Rabbit Pelt", "Egg Shelmet", "Chocolate Egg", "Party Egg", "Gleaming Carrot", "Rabbit's Foot"],
-  "Other":        ["Iron Sword"],
+  "Easter Gears":         ["Rabbit Pelt", "Egg Shelmet", "Chocolate Egg", "Party Egg", "Gleaming Carrot", "Rabbit's Foot"],
+  "Winter Solstice Gears":["Snorb", "Elementary Resonance", "Frosty Topper"],
+  "Other":                ["Iron Sword"],
 };
 
 const gearPickers = document.querySelectorAll(".gear-picker");
@@ -1121,6 +1129,21 @@ const gearMoves = {
   "Rabbit's Foot": { learns: [
     easterGearsPassive,
     mkPassive("Rabbit's Foot", "+5 Luck Stat.\n+5 Speed Stat.\nEvery turn, have a 33% chance to gain a 5% luck and speed boost for that turn, a 33% chance to gain 2 cursed stacks on yourself, and a 33% chance to gain 1 cursed stack and 1 hex stack on yourself."),
+  ]},
+
+  // Winter Solstice Gears
+  "Snorb": { learns: [
+    mkPassive("Snorb", "Whenever you are attacked this gear will trigger, applying 2 Cold and dealing 10% of your total HP to all opponents. Has an internal proc cooldown of 2 turns, cannot execute, and only procs on the first hit.\n\nSnorb's damage proc can trigger Parasitic Leech and Sanguine Fang's life steal.\n\nThe orb will display yellow particles around it when it is off cooldown."),
+  ]},
+  "Elementary Resonance": { learns: [
+    mkPassive("Elementary Resonance", "Changes colour every turn. If you use an attack that's under the same type/colour as the colour of this gear it does a special effect and makes that attack do 10% more damage.\n\nPhysical — Your attack applies 2 Weakened and 2 Vulnerable.\nArcane — You regain 1 Energy.\nFire — Your attack applies 5 Burn.\nIce — Your attack applies 3 Cold.\nNature — Heal 10% of your MAX HP.\nPoison — Your attack applies 6 Poison.\nHoly — You gain 1 Resist.\nDark — Your attack gains 25% Lifesteal.\nHex — Your attack applies 3 Sundered."),
+  ]},
+  "Frosty Topper": { learns: [
+    { slot: "", level: 1, type: "Active", name: "Call Snowman", quote: "", cost: 2, cooldown: 10, moveType: "Ice", scaling: "ARC/6", effect: "Summon a Snowman when used. The Snowman has 75 base HP." },
+    { slot: "Snowman", level: 1, type: "Active", name: "Snowball", quote: "", cost: 0, cooldown: 0, moveType: "Ice", damage: 4, scaling: "ARC/75", effect: "The Snowman pelts an enemy with a Snowball, applying 1 Blinded and having a chance to apply 1 Cold.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab13ec8f2e26741ea1f0/previews/69abab14ec8f2e26741ea23b/download/image.webp" },
+    { slot: "Snowman", level: 1, type: "Active", name: "Hidden Presents", quote: "", cost: 2, cooldown: 6, moveType: "Ice", effect: "Creates a bundle of presents, healing the party for 12 base HP and granting 5% DR for 4 turns.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab18abe4d8d8191e1fde/previews/69abab19abe4d8d8191e2033/download/image.webp" },
+    { slot: "Snowman", level: 1, type: "Active", name: "Jolly Spirit", quote: "", cost: 3, cooldown: 8, moveType: "Ice", effect: "Target an ally and infuse them with energy.\n\nIf they are a player: provides an additional hit on their attack, fully AoE, applying 2 Cold to all enemies. Base damage equals the triggering move's base damage, scaling ARC/75 + STR/75.\n\nIf they are a summon: provides approximately 50% of their health as a shield for an indefinite duration.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab2c4c4cb2217416cb3d/previews/69abab2c4c4cb2217416cba6/download/image.webp" },
+    { slot: "Snowman", level: 1, type: "Active", name: "Drifting Snow", quote: "", cost: 1, cooldown: 0, moveType: "Ice", effect: "The Snowman buffs its allies with a flurry of snow, granting a flat +10 Speed for 2 turns.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab3ad069ad3044d4a057/previews/69abab3ad069ad3044d4a0d4/download/image.webp" },
   ]},
 };
 
@@ -2357,6 +2380,34 @@ const classMoves = {
         image: "https://trello.com/1/cards/67b3294b205bcc638e528caa/attachments/69805411bda66bf0d6f17341/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202113956.png"
       },
       {
+        slot: "Skeleton",
+        level: 21,
+        type: "Active",
+        name: "Smack",
+        quote: "???",
+        cost: 0,
+        cooldown: 0,
+        moveType: "Physical",
+        damage: 14,
+        scaling: "ARC/50",
+        effect: "Just usual smack.",
+        image: "https://trello.com/1/cards/67b3294b205bcc638e528caa/attachments/6980601856a256810cb7255f/download/smack.png"
+      },
+      {
+        slot: "Skeleton",
+        level: 21,
+        type: "Active",
+        name: "Bone Spray",
+        quote: "Create a barrage of bones and fire them at all enemies.",
+        cost: 2,
+        cooldown: 4,
+        moveType: "Physical",
+        damage: 20,
+        scaling: "ARC/50",
+        effect: "This attack is fully AoE.",
+        image: "https://trello.com/1/cards/67b3294b205bcc638e528caa/attachments/6980601a9128e5ad830b7e2f/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202132757.png"
+      },
+      {
         slot: "5th Learn",
         level: 23,
         type: "Passive",
@@ -2603,6 +2654,45 @@ const classMoves = {
         category: "Utility",
         scaling: "ARC/4",
         effect: "Summons a Darkbeast with 40 base HP. Always consumes all current Darkcores, granting +5% HP and Damage per Darkcore consumed. At max Darkcores deal an additional 50% damage (stacks with Darkcore bonuses). Consuming 4+ Darkcores allows the Darkbeast to use Shade Roar (costs 3 NRG)."
+      },
+      {
+        slot: "Darkbeast",
+        level: 21,
+        type: "Active",
+        name: "Pounce",
+        quote: "Pounce and strike an enemy",
+        cost: 0,
+        cooldown: 0,
+        moveType: "Physical",
+        damage: 6,
+        scaling: "ARC/105",
+        effect: "Single-Target | Melee | Blockable and Dodgeable\n\nInnate: Meditating grants the Darkbeast 2 energy instead of 1."
+      },
+      {
+        slot: "Darkbeast",
+        level: 21,
+        type: "Active",
+        name: "Void Bite",
+        quote: "Bite a target with dark energy, siphoning off life from them",
+        cost: 2,
+        cooldown: 3,
+        moveType: "Hex",
+        damage: 11,
+        scaling: "ARC/105",
+        effect: "Single-Target | Melee | Blockable and Dodgeable\n\nHas 20% lifesteal."
+      },
+      {
+        slot: "Darkbeast",
+        level: 21,
+        type: "Active",
+        name: "Shade Roar",
+        quote: "Roar with dark energy, weakening and damaging all enemies from the pressure",
+        cost: 3,
+        cooldown: 7,
+        moveType: "Dark",
+        damage: 9,
+        scaling: "ARC/109",
+        effect: "Enemy-wide | Ranged | Dodgeable\n\nApplies 2 Vulnerable, 2 Weakened, and 1 Stunned to all enemies.\n\nOnly available when Call Darkbeast is used with 4+ Darkcores."
       },
       {
         slot: "5th Learn",
@@ -4065,8 +4155,16 @@ function passiveCardHtml(m) {
     </div>`;
 }
 
+function isSummonMove(m) {
+  const s = m.slot || "";
+  if (!s) return false;
+  return !/^\d+(st|nd|rd|th)\s+Learn$/i.test(s)
+      && !/^Class\s+Active$/i.test(s)
+      && !/^Tier\s+\d+$/i.test(s);
+}
+
 function entityMovesHtml(data, lvl) {
-  const actives = (data.learns || []).filter(m => m.type === "Active");
+  const actives = (data.learns || []).filter(m => m.type === "Active" && !isSummonMove(m));
   if (!actives.length) return "";
   let h = `<h3 class="moves-section-title">Moves</h3>`;
   actives.forEach(m => h += activeCardHtml(m, lvl));
@@ -4075,7 +4173,7 @@ function entityMovesHtml(data, lvl) {
 
 function entityPassivesHtml(data, lvl) {
   const innates  = data.innatePassives || [];
-  const passives = (data.learns || []).filter(m => m.type === "Passive");
+  const passives = (data.learns || []).filter(m => m.type === "Passive" && !isSummonMove(m));
   if (!innates.length && !passives.length) return "";
   let h = `<h3 class="moves-section-title">Passives</h3>`;
   innates.forEach(p => h += innateCardHtml(p, lvl));
@@ -4237,12 +4335,32 @@ function renderMoves() {
 
   html += `</div>`; // end .moves-columns
 
-  // --- Combined sections ---
+  // --- Summons section ---
   const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allSummonMoves = allData.flatMap(d => (d.learns || []).filter(isSummonMove));
+  if (allSummonMoves.length) {
+    const summonGroups = {};
+    allSummonMoves.forEach(m => {
+      if (!summonGroups[m.slot]) summonGroups[m.slot] = [];
+      summonGroups[m.slot].push(m);
+    });
+    html += `<div class="moves-combined-row">`;
+    html += `<h2 class="moves-combined-title">Summons</h2>`;
+    html += `<div class="moves-columns">`;
+    Object.entries(summonGroups).forEach(([summonName, moves]) => {
+      html += `<div class="moves-col">`;
+      html += `<h2 class="moves-race-title">${summonName}</h2>`;
+      moves.forEach(m => html += activeCardHtml(m));
+      html += `</div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // --- Combined sections ---
   if (allData.length > 1) {
     html += `<div class="moves-combined-row">`;
 
-    const allActives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Active"));
+    const allActives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Active" && !isSummonMove(m)));
     if (allActives.length) {
       html += `<div class="moves-combined-section">`;
       html += `<h2 class="moves-combined-title">All Moves</h2>`;
@@ -4251,7 +4369,7 @@ function renderMoves() {
     }
 
     const allInnates  = allData.flatMap(d => (d.innatePassives || []));
-    const allPassives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Passive"));
+    const allPassives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Passive" && !isSummonMove(m)));
     if (allInnates.length || allPassives.length) {
       html += `<div class="moves-combined-section">`;
       html += `<h2 class="moves-combined-title">All Passives</h2>`;
