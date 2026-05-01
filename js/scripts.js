@@ -4104,6 +4104,7 @@ superPicker.addEventListener("change", () => {
   prevSuperSelection = selected;
   resetSubPicker();
   renderMoves();
+  resetMastery(); renderMastery(); renderMasteryInfoSection();
 });
 
 subPicker.addEventListener("change", () => {
@@ -4682,6 +4683,8 @@ const masteryClassData = {
 };
 
 function getActiveMasteryData() {
+  const sup = document.getElementById("super-picker")?.value;
+  if (sup && masteryClassData[sup]) return masteryClassData[sup];
   const cls = document.getElementById("class-picker")?.value;
   return cls ? masteryClassData[cls] ?? null : null;
 }
