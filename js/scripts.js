@@ -5695,7 +5695,7 @@ tabs.forEach(tab => {
     if (target === "mastery") renderMastery();
 
   });
-})();
+});
 
 // === BUILD SHARE ===
 
@@ -5829,20 +5829,43 @@ function loadBuildState(state) {
   renderMasteryInfoSection();
 }
 
-// Share button
-const shareBuildBtn = document.getElementById('share-build-btn');
-if (shareBuildBtn) {
-  shareBuildBtn.addEventListener('click', () => {
-    const encoded = btoa(JSON.stringify(getBuildState()));
-    const url = window.location.href.split('#')[0] + '#' + encoded;
-    navigator.clipboard.writeText(url).then(() => {
-      shareBuildBtn.textContent = 'Copied!';
-      setTimeout(() => { shareBuildBtn.textContent = 'Share Build'; }, 2000);
-    }).catch(() => {
-      prompt('Copy this link:', url);
-    });
+// Share button + modal
+const shareBuildBtn    = document.getElementById('share-build-btn');
+const shareModal       = document.getElementById('share-modal');
+const shareBuildNameEl = document.getElementById('share-build-name');
+const shareModalCancel = document.getElementById('share-modal-cancel');
+const shareModalConfirm= document.getElementById('share-modal-confirm');
+
+function openShareModal() {
+  shareBuildNameEl.value = '';
+  shareModal.style.display = 'flex';
+  shareBuildNameEl.focus();
+}
+
+function closeShareModal() {
+  shareModal.style.display = 'none';
+}
+
+function doShare() {
+  const name = shareBuildNameEl.value.trim();
+  const state = getBuildState();
+  if (name) state.name = name;
+  const encoded = btoa(JSON.stringify(state));
+  const url = window.location.href.split('#')[0] + '#' + encoded;
+  closeShareModal();
+  navigator.clipboard.writeText(url).then(() => {
+    shareBuildBtn.textContent = 'Copied!';
+    setTimeout(() => { shareBuildBtn.textContent = 'Share Build'; }, 2000);
+  }).catch(() => {
+    prompt('Copy this link:', url);
   });
 }
+
+if (shareBuildBtn)     shareBuildBtn.addEventListener('click', openShareModal);
+if (shareModalCancel)  shareModalCancel.addEventListener('click', closeShareModal);
+if (shareModalConfirm) shareModalConfirm.addEventListener('click', doShare);
+if (shareBuildNameEl)  shareBuildNameEl.addEventListener('keydown', e => { if (e.key === 'Enter') doShare(); if (e.key === 'Escape') closeShareModal(); });
+if (shareModal)        shareModal.addEventListener('mousedown', e => { if (e.target === shareModal) closeShareModal(); });
 
 // Load build from URL hash on page load
 (function () {
