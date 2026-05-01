@@ -122,7 +122,9 @@ body {
 
 #class-picker:disabled,
 #super-picker:disabled,
-#sub-picker:disabled {
+#sub-picker:disabled,
+#covenant-picker:disabled,
+#covenant-rank:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -134,6 +136,10 @@ body {
   margin-top: -8px;
   margin-bottom: 6px;
   letter-spacing: 0.5px;
+}
+
+.covenant-cost-note {
+  margin-top: 2px;
 }
 
 .stat-base {
@@ -313,13 +319,6 @@ body {
   line-height: 1;
 }
 
-.percent-item:nth-child(7) {
-  grid-column: 2 / span 2;
-}
-
-.percent-item:nth-child(8) {
-  grid-column: 4 / span 2;
-}
 
 .marks-section {
   display: flex;
