@@ -337,7 +337,8 @@ function updatePecents() {
     const stat = item.dataset.stat;
     const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
     const allocated = row ? +row.value : 0;
-    const flatBonus = armour[stat] ?? 0;
+    const masteryStats = getMasteryStatBonuses();
+    const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0);
     const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
     const base = calcPercentage(stat, val);
     const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0);
@@ -811,26 +812,12 @@ const gearItems = {
 const gearPickers = document.querySelectorAll(".gear-picker");
 
 gearPickers.forEach(picker => {
-  Object.keys(gearItems).forEach(name => {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    picker.appendChild(opt);
-  });
-});
-
-function enforceUniqueGear() {
-  const selected = Array.from(gearPickers).map(p => p.value).filter(v => v !== "");
-  gearPickers.forEach(picker => {
-    Array.from(picker.options).forEach(opt => {
-      if (opt.value === "") return;
-      opt.disabled = selected.includes(opt.value) && picker.value !== opt.value;
-    });
-  });
-}
-
-gearPickers.forEach(picker => {
-  picker.addEventListener("change", enforceUniqueGear);
+  buildSimpleDropdown(
+    picker,
+    Object.keys(gearItems),
+    () => {},
+    name => Array.from(gearPickers).some(p => p !== picker && p.value === name)
+  );
 });
 
 // --- Weapons ---
@@ -1186,7 +1173,7 @@ buildWeaponDropdown(offhandWeaponPicker, offhandSeries);
 // To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
 // Flat stats add to the stat value before formula. pct adds directly to the output % value.
 
-function buildSimpleDropdown(picker, names, onSelect) {
+function buildSimpleDropdown(picker, names, onSelect, isDisabled) {
   picker.style.display = "none";
 
   const wrap = document.createElement("div");
@@ -1249,16 +1236,21 @@ function buildSimpleDropdown(picker, names, onSelect) {
     names
       .filter(name => !q || name.toLowerCase().includes(q.toLowerCase()))
       .forEach(name => {
+        const disabled = isDisabled ? isDisabled(name) : false;
         const item = document.createElement("div");
-        item.className = "wpick-item" + (picker.value === name ? " wpick-selected" : "");
+        item.className = "wpick-item" +
+          (picker.value === name ? " wpick-selected" : "") +
+          (disabled ? " wpick-disabled" : "");
         item.textContent = name;
-        item.addEventListener("mousedown", e => {
-          e.preventDefault();
-          picker.value = name;
-          display.textContent = name;
-          close();
-          onSelect();
-        });
+        if (!disabled) {
+          item.addEventListener("mousedown", e => {
+            e.preventDefault();
+            picker.value = name;
+            display.textContent = name;
+            close();
+            onSelect();
+          });
+        }
         list.appendChild(item);
       });
   }
@@ -1275,7 +1267,12 @@ function buildSimpleDropdown(picker, names, onSelect) {
 }
 
 const armourPicker = document.getElementById("armour-main");
-buildSimpleDropdown(armourPicker, Object.keys(armourItems), updatePecents);
+buildSimpleDropdown(armourPicker, Object.keys(armourItems), () => {
+  const newVal = armourPicker.value;
+  updateArmourGold(prevArmourSelection, newVal);
+  prevArmourSelection = newVal;
+  updatePecents();
+});
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
@@ -1389,6 +1386,15 @@ let totalGold = 0;
 let prevClassSelection = "";
 let prevSuperSelection = "";
 let prevSubSelection   = "";
+let prevArmourSelection = "";
+
+const ARMOUR_GOLD_COST = 750;
+
+function updateArmourGold(oldArmour, newArmour) {
+  if (oldArmour) totalGold -= ARMOUR_GOLD_COST;
+  if (newArmour) totalGold += ARMOUR_GOLD_COST;
+  goldDisplay.textContent = totalGold;
+}
 
 function updateGold(oldClass, newClass) {
   if (CLASS_GOLD_COST[oldClass]) totalGold -= CLASS_GOLD_COST[oldClass];
@@ -3892,17 +3898,17 @@ function passiveCardHtml(m) {
 
 function entityMovesHtml(data, lvl) {
   const actives = (data.learns || []).filter(m => m.type === "Active");
+  if (!actives.length) return "";
   let h = `<h3 class="moves-section-title">Moves</h3>`;
-  if (!actives.length) h += `<p class="moves-empty">No moves.</p>`;
-  else actives.forEach(m => h += activeCardHtml(m, lvl));
+  actives.forEach(m => h += activeCardHtml(m, lvl));
   return h;
 }
 
 function entityPassivesHtml(data, lvl) {
   const innates  = data.innatePassives || [];
   const passives = (data.learns || []).filter(m => m.type === "Passive");
+  if (!innates.length && !passives.length) return "";
   let h = `<h3 class="moves-section-title">Passives</h3>`;
-  if (!innates.length && !passives.length) h += `<p class="moves-empty">No passives.</p>`;
   innates.forEach(p => h += innateCardHtml(p, lvl));
   passives.forEach(m => h += passiveCardHtml(m, lvl));
   return h;
@@ -3940,17 +3946,17 @@ function covenantPassiveCardHtml(m) {
 
 function covenantMovesHtml(data, rank) {
   const actives = (data.learns || []).filter(m => m.type === "Active" && m.level <= rank);
+  if (!actives.length) return "";
   let h = `<h3 class="moves-section-title">Moves</h3>`;
-  if (!actives.length) h += `<p class="moves-empty">No moves at this rank.</p>`;
-  else actives.forEach(m => h += covenantActiveCardHtml(m));
+  actives.forEach(m => h += covenantActiveCardHtml(m));
   return h;
 }
 
 function covenantPassivesHtml(data, rank) {
   const passives = (data.learns || []).filter(m => m.type === "Passive" && m.level <= rank);
+  if (!passives.length) return "";
   let h = `<h3 class="moves-section-title">Passives</h3>`;
-  if (!passives.length) h += `<p class="moves-empty">No passives at this rank.</p>`;
-  else passives.forEach(m => h += covenantPassiveCardHtml(m));
+  passives.forEach(m => h += covenantPassiveCardHtml(m));
   return h;
 }
 
@@ -3992,7 +3998,6 @@ function renderMoves() {
     html += `<div class="moves-col">`;
     html += `<h2 class="moves-race-title">${raceName}</h2>`;
     if (raceData) { html += entityMovesHtml(raceData, lvl); html += entityPassivesHtml(raceData, lvl); }
-    else html += `<p class="moves-empty">No moves for this race.</p>`;
     html += `</div>`;
   }
 
@@ -4001,7 +4006,6 @@ function renderMoves() {
     html += `<div class="moves-entity-label">Base Class</div>`;
     html += `<h2 class="moves-race-title">${baseClass}</h2>`;
     if (baseData) { html += entityMovesHtml(baseData, lvl); html += entityPassivesHtml(baseData, lvl); }
-    else html += `<p class="moves-empty">No moves for this class.</p>`;
     html += `</div>`;
   }
 
@@ -4010,7 +4014,6 @@ function renderMoves() {
     html += `<div class="moves-entity-label">Super Class</div>`;
     html += `<h2 class="moves-race-title">${superClass}</h2>`;
     if (superData) { html += entityMovesHtml(superData, lvl); html += entityPassivesHtml(superData, lvl); }
-    else html += `<p class="moves-empty">No moves for this super class.</p>`;
     html += `</div>`;
   }
 
@@ -4019,7 +4022,6 @@ function renderMoves() {
     html += `<div class="moves-entity-label">Sub Class</div>`;
     html += `<h2 class="moves-race-title">${subClass}</h2>`;
     if (subData) { html += entityMovesHtml(subData, lvl); html += entityPassivesHtml(subData, lvl); }
-    else html += `<p class="moves-empty">No moves for this sub class.</p>`;
     html += `</div>`;
   }
 
@@ -4027,8 +4029,7 @@ function renderMoves() {
     html += `<div class="moves-col">`;
     html += `<div class="moves-entity-label">Artifact</div>`;
     html += `<h2 class="moves-race-title">${artifactName}</h2>`;
-    if (artifactData && artifactData.learns.length) { html += entityMovesHtml(artifactData, lvl); html += entityPassivesHtml(artifactData, lvl); }
-    else html += `<p class="moves-empty">No moves for this artifact.</p>`;
+    if (artifactData) { html += entityMovesHtml(artifactData, lvl); html += entityPassivesHtml(artifactData, lvl); }
     html += `</div>`;
   }
 
@@ -4037,25 +4038,21 @@ function renderMoves() {
     html += `<div class="moves-entity-label">Mark</div>`;
     html += `<h2 class="moves-race-title">${markName}</h2>`;
     if (markData) { html += entityMovesHtml(markData, lvl); html += entityPassivesHtml(markData, lvl); }
-    else html += `<p class="moves-empty">No moves for this mark.</p>`;
     html += `</div>`;
   }
 
-  if (weaponMain) {
+  if (weaponMain || weaponOff) {
     html += `<div class="moves-col">`;
-    html += `<div class="moves-entity-label">Weapon</div>`;
-    html += `<h2 class="moves-race-title">${weaponMain}</h2>`;
-    if (weaponMainData && weaponMainData.learns.length) { html += entityMovesHtml(weaponMainData, lvl); html += entityPassivesHtml(weaponMainData, lvl); }
-    else html += `<p class="moves-empty">No passives for this weapon.</p>`;
-    html += `</div>`;
-  }
-
-  if (weaponOff) {
-    html += `<div class="moves-col">`;
-    html += `<div class="moves-entity-label">Off Hand</div>`;
-    html += `<h2 class="moves-race-title">${weaponOff}</h2>`;
-    if (weaponOffData && weaponOffData.learns.length) { html += entityMovesHtml(weaponOffData, lvl); html += entityPassivesHtml(weaponOffData, lvl); }
-    else html += `<p class="moves-empty">No passives for this weapon.</p>`;
+    if (weaponMain) {
+      html += `<div class="moves-entity-label">Weapon</div>`;
+      html += `<h2 class="moves-race-title">${weaponMain}</h2>`;
+      if (weaponMainData) { html += entityMovesHtml(weaponMainData, lvl); html += entityPassivesHtml(weaponMainData, lvl); }
+    }
+    if (weaponOff) {
+      html += `<div class="moves-entity-label" style="margin-top:18px">Off Hand</div>`;
+      html += `<h2 class="moves-race-title">${weaponOff}</h2>`;
+      if (weaponOffData) { html += entityMovesHtml(weaponOffData, lvl); html += entityPassivesHtml(weaponOffData, lvl); }
+    }
     html += `</div>`;
   }
 
@@ -4064,7 +4061,6 @@ function renderMoves() {
     html += `<div class="moves-entity-label">Covenant</div>`;
     html += `<h2 class="moves-race-title">${covenantName} <span class="moves-entity-label">Rank ${covenantRank}</span></h2>`;
     if (covenantData) { html += covenantMovesHtml(covenantData, covenantRank); html += covenantPassivesHtml(covenantData, covenantRank); }
-    else html += `<p class="moves-empty">No moves for this covenant.</p>`;
     html += `</div>`;
   }
 
@@ -4076,20 +4072,22 @@ function renderMoves() {
     html += `<div class="moves-combined-row">`;
 
     const allActives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Active"));
-    html += `<div class="moves-combined-section">`;
-    html += `<h2 class="moves-combined-title">All Moves</h2>`;
-    if (!allActives.length) html += `<p class="moves-empty">No moves.</p>`;
-    else allActives.forEach(m => html += activeCardHtml(m));
-    html += `</div>`;
+    if (allActives.length) {
+      html += `<div class="moves-combined-section">`;
+      html += `<h2 class="moves-combined-title">All Moves</h2>`;
+      allActives.forEach(m => html += activeCardHtml(m));
+      html += `</div>`;
+    }
 
     const allInnates  = allData.flatMap(d => (d.innatePassives || []));
     const allPassives = allData.flatMap(d => (d.learns || []).filter(m => m.type === "Passive"));
-    html += `<div class="moves-combined-section">`;
-    html += `<h2 class="moves-combined-title">All Passives</h2>`;
-    if (!allInnates.length && !allPassives.length) html += `<p class="moves-empty">No passives.</p>`;
-    allInnates.forEach(p => html += innateCardHtml(p));
-    allPassives.forEach(m => html += passiveCardHtml(m));
-    html += `</div>`;
+    if (allInnates.length || allPassives.length) {
+      html += `<div class="moves-combined-section">`;
+      html += `<h2 class="moves-combined-title">All Passives</h2>`;
+      allInnates.forEach(p => html += innateCardHtml(p));
+      allPassives.forEach(m => html += passiveCardHtml(m));
+      html += `</div>`;
+    }
 
     html += `</div>`;
   }
@@ -4099,6 +4097,7 @@ function renderMoves() {
 
 racePicker.addEventListener("change", renderMoves);
 classPicker.addEventListener("change", renderMoves);
+classPicker.addEventListener("change", () => { resetMastery(); renderMastery(); renderMasteryInfoSection(); });
 superPicker.addEventListener("change", () => {
   const selected = superPicker.value;
   updateGold(prevSuperSelection, selected);
@@ -4196,6 +4195,86 @@ renderSoulTree();
 // === MASTERY TREE ===
 
 const MASTERY_TOTAL_POINTS = 35;
+
+// Class-specific mastery node names/descriptions, keyed by base class name.
+const masteryClassData = {
+  "Warrior": {
+    branches: { red: "Speed", green: "Strength", blue: "Endurance" },
+    branchStats: { shared: "lck", red: "spd", green: "str", blue: "end" },
+    nodes: {
+      s1:  { name: "Luck Node" }, s2:  { name: "Luck Node" },
+      s3:  { name: "Luck Node" }, s4:  { name: "Luck Node" },
+      l1:  { name: "Speed Node" }, l2:  { name: "Speed Node" },
+      l3:  { name: "Speed Node" }, l4:  { name: "Speed Node" },
+      l5:  { name: "Speed Node" }, l6:  { name: "Speed Node" },
+      l7:  { name: "Speed Node" }, l8:  { name: "Speed Node" },
+      l9:  { name: "Speed Node" },
+      lm1: { name: "Holy Shield",               desc: "Guarding for someone will now grant an additional 15% TDR.\nTDR = True Damage Resistance (defense)." },
+      lm2: { name: "Holy Crash Proficiency",    desc: "Taunt is now guaranteed on all targets hit — both main and adjacent.\nAdditionally raise base DMG to 15 and adjacent DMG to 10." },
+      c1:  { name: "Strength Node" }, c2a: { name: "Strength Node" },
+      c2b: { name: "Strength Node" }, c3a: { name: "Strength Node" },
+      c4:  { name: "Strength Node" }, c5a: { name: "Strength Node" },
+      c5b: { name: "Strength Node" },
+      cm1: { name: "High Endurance",            desc: "Removes the dodge window penalty when you have a shield equipped.\nNote: Still has old effect — while below 30% HP, gain 30% DR (bypasses DR ignorance)." },
+      cm2: { name: "Pure Resonation Proficiency", desc: "Now grants Shield HP equal to 5% of your max HP for Pure Resonation's duration.\nShield HP also scales on Endurance at a rate of END/200." },
+      r1:  { name: "Endurance Node" }, r2:  { name: "Endurance Node" },
+      r3:  { name: "Endurance Node" }, r4:  { name: "Endurance Node" },
+      r5:  { name: "Endurance Node" }, r6:  { name: "Endurance Node" },
+      r7:  { name: "Endurance Node" }, r8:  { name: "Endurance Node" },
+      r9:  { name: "Endurance Node" },
+      rm1: { name: "Runic Shield",              desc: "Blocking or dodging attacks will raise your ATKP +.25 for (3T). This cannot stack.\nNote: +.25 ATKP = 25% dmg buff. Buff lasts 1 turn, only affects holy type moves." },
+      rm2: { name: "Sacred Call Proficiency",   desc: "Grants the target of Sacred Call 5 Energized.\nNote: Buff lasts 4 turns." },
+    }
+  },
+  "Blade Dancer (N)": {
+    branches: { red: "Strength", green: "Endurance", blue: "Speed" },
+    branchStats: { shared: "lck", red: "str", green: "end", blue: "spd" },
+    branchMultipliers: { red: 1.15 },
+    nodes: {
+      s1:  { name: "Luck Node" }, s2:  { name: "Luck Node" },
+      s3:  { name: "Luck Node" }, s4:  { name: "Luck Node" },
+      l1:  { name: "Strength Node" }, l2:  { name: "Strength Node" },
+      l3:  { name: "Strength Node" }, l4:  { name: "Strength Node" },
+      l5:  { name: "Strength Node" }, l6:  { name: "Strength Node" },
+      l7:  { name: "Strength Node" }, l8:  { name: "Strength Node" },
+      l9:  { name: "Strength Node" },
+      lm1: { name: "Unending Flow",              desc: "Deal increasing damage for every consecutive hit you deal; if you don't deal damage for a turn then it resets.\nGain a 5% damage buff before attacking per attack you use. This caps at 50% after 10 turns.\nCan occasionally randomly reset (bugged)." },
+      lm2: { name: "Impaling Strike Proficiency", desc: "Bleeds for longer, now applies 2 vulnerable as well.\nNow applies 3 bleeding and 2 vulnerable. The vulnerable is applied before you deal damage, meaning you receive the vulnerable bonus if the enemy doesn't have the status." },
+      c1:  { name: "Endurance Node" }, c2a: { name: "Endurance Node" },
+      c2b: { name: "Endurance Node" }, c3a: { name: "Endurance Node" },
+      c4:  { name: "Endurance Node" }, c5a: { name: "Endurance Node" },
+      c5b: { name: "Endurance Node" },
+      cm1: { name: "Deep Focus",                 desc: "Increased proc chance for enchantments passively.\nThis increases their chance by approximately 25%." },
+      cm2: { name: "Simple Domain Proficiency",  desc: "Now allows Simple Domain to parry ranged attacks, excluding ultimate moves (e.g. Obliteration, Styx, Justice, Oblivion, etc.). No changes to scaling.\nThis lets you counter Justice or Styx regardless of the description." },
+      r1:  { name: "Speed Node" }, r2:  { name: "Speed Node" },
+      r3:  { name: "Speed Node" }, r4:  { name: "Speed Node" },
+      r5:  { name: "Speed Node" }, r6:  { name: "Speed Node" },
+      r7:  { name: "Speed Node" }, r8:  { name: "Speed Node" },
+      r9:  { name: "Speed Node" },
+      rm1: { name: "Parry Master",               desc: "Increases parry chance to 100%. Damage on parry slightly reduced.\nBase damage appears to be reduced by around 1 base damage. (Need more testing)" },
+      rm2: { name: "Flowing Dance Proficiency",  desc: "Increased speed scaling, now deals bonus damage and turns a tinge of red against bleeding targets.\nChanges scaling to SPD/50. The bleeding buff does not work." },
+    }
+  }
+};
+
+function getActiveMasteryData() {
+  const cls = document.getElementById("class-picker")?.value;
+  return cls ? masteryClassData[cls] ?? null : null;
+}
+
+function getMasteryStatBonuses() {
+  const classData = getActiveMasteryData();
+  if (!classData?.branchStats) return {};
+  const bonuses = {};
+  const multipliers = classData.branchMultipliers ?? {};
+  masteryNodes.forEach(n => {
+    if (!masteryState[n.id] || n.type === "breakthrough" || n.type === "mastery") return;
+    const stat = classData.branchStats[n.branch];
+    const mult = multipliers[n.branch] ?? 1;
+    if (stat) bonuses[stat] = (bonuses[stat] || 0) + mult;
+  });
+  return bonuses;
+}
 
 const masteryNodeMap = {};
 
@@ -4310,9 +4389,35 @@ function hasMasteryActiveChild(id) {
   return masteryNodes.some(n => [].concat(n.parent ?? []).includes(id) && masteryState[n.id]);
 }
 
+function renderMasteryInfoSection() {
+  const section = document.getElementById("mastery-info-section");
+  const content = document.getElementById("mastery-info-content");
+  if (!section || !content) return;
+
+  const classData = getActiveMasteryData();
+  const active = masteryNodes.filter(n => n.type === "mastery" && masteryState[n.id]);
+
+  if (!active.length) {
+    section.style.display = "none";
+    return;
+  }
+
+  section.style.display = "";
+  content.innerHTML = active.map(n => {
+    const override = classData?.nodes?.[n.id] || {};
+    const name = override.name || n.name;
+    const desc = override.desc || "";
+    return `<div class="mastery-passive-card">
+      <div class="mastery-passive-name">${name}</div>
+      ${desc ? `<div class="mastery-passive-desc">${desc.replace(/\n/g, "<br>")}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
 function toggleMasteryNode(id) {
   const node = masteryNodeMap[id];
   if (!node) return;
+  if (!getActiveMasteryData()) return;
 
   if (masteryState[id]) {
     // Deactivate only if no active children depend on it
@@ -4330,15 +4435,24 @@ function toggleMasteryNode(id) {
   }
 
   updateMasteryDisplay();
+  renderMasteryInfoSection();
+  updatePecents();
 }
 
 function resetMastery() {
   masteryNodes.forEach(n => masteryState[n.id] = false);
   updateMasteryDisplay();
+  renderMasteryInfoSection();
+  updatePecents();
 }
 
 function masteryNodeHtml(id) {
   const node = masteryNodeMap[id];
+  const classData = getActiveMasteryData();
+  const override = classData?.nodes?.[id] || {};
+  const displayName = override.name || node.name;
+  const desc = override.desc || "";
+
   const active = masteryState[id];
   const parentOk = !node.parent || [].concat(node.parent).every(p => masteryState[p]);
   const locked = !parentOk;
@@ -4354,12 +4468,16 @@ function masteryNodeHtml(id) {
   if (childLocked) cls += " mn-child-locked";
 
   const cursor = locked || childLocked ? "not-allowed" : "pointer";
-  return `<div class="${cls}" id="mn-${id}" onclick="toggleMasteryNode('${id}')" title="${node.name} — ${costLabel}" style="cursor:${cursor}"></div>`;
+  const tooltip = desc ? `${displayName} — ${costLabel}\n\n${desc}` : `${displayName} — ${costLabel}`;
+  return `<div class="${cls}" id="mn-${id}" onclick="toggleMasteryNode('${id}')" title="${tooltip}" style="cursor:${cursor}"></div>`;
 }
 
 function masteryBranchHtml(branch) {
   const rows = masteryBranchRows[branch];
+  const classData = getActiveMasteryData();
+  const branchLabel = classData?.branches?.[branch] || "";
   let html = `<div class="mastery-branch mastery-branch-${branch}">`;
+  if (branchLabel) html += `<div class="mastery-branch-label">${branchLabel}</div>`;
   rows.forEach((rowIds, i) => {
     let rowClass = "mastery-row";
     if (i === 0) rowClass += " mastery-row-first";
@@ -4390,6 +4508,11 @@ function masteryBranchHtml(branch) {
 function renderMastery() {
   const container = document.getElementById("mastery-tree-container");
   if (!container) return;
+
+  if (!getActiveMasteryData()) {
+    container.innerHTML = `<div class="mastery-locked-msg">Select a class to unlock mastery</div>`;
+    return;
+  }
 
   let html = `<div class="mastery-trunk">`;
   ["s1","s2","s3","s4"].forEach(id => {
