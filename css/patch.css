@@ -229,8 +229,6 @@ h2 {
    4. SHARE BUTTON
    ============================================================ */
 .share-build-btn {
-  margin-left: 10px;
-  margin-right: 10px;
   padding: 6px 16px;
   background: #1e3a1e;
   border: 1px solid #3a7a3a;
@@ -251,8 +249,16 @@ h2 {
   color: #88ee88;
 }
 
-/* Build name input in tabbar */
+/* Build name + share button sit on the right, tabs stay centered */
+.tabbar {
+  position: relative;
+}
+
 .build-name-input {
+  position: absolute;
+  right: 90px;
+  top: 50%;
+  transform: translateY(-50%);
   background: #111;
   border: 1px solid #333;
   border-radius: 4px;
@@ -260,10 +266,8 @@ h2 {
   font-family: 'Inter', Arial, sans-serif;
   font-size: 0.85rem;
   padding: 5px 10px;
-  width: 160px;
+  width: 140px;
   outline: none;
-  align-self: center;
-  margin-left: auto;
 }
 
 .build-name-input::placeholder {
@@ -273,4 +277,12 @@ h2 {
 .build-name-input:focus {
   border-color: #555;
   color: #eee;
+}
+
+.share-build-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
 }
