@@ -1,4 +1,4 @@
-// --- Race data ---
+﻿// --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
 const races = {
   "Estella (24%)": {str: 2, arc: 2, end: 2, lck: 1, spd: 1},
@@ -284,7 +284,7 @@ function calcPercentage(stat, val){
   const lckAllocated = +document.querySelector('.stat-row[data-stat="lck"] .stat-val').value;
   const lck = lckAllocated + (raceBase.lck ?? 0);
   const formulas = {
-    str:         v => 100 + v * 2.5,
+    str:         v => 100 + v * 1.75,
     arc:         v => 100 + v * 3,
     end:         v => 45 + v * 1.3, //finalized
     spd:         v => v * 2,
@@ -333,16 +333,26 @@ function updatePecents() {
     });
   }
 
-  // Collect flat stat bonuses from equipped gear
+  // Collect flat stat bonuses and pct bonuses from equipped gear
   const gearStatBonuses = {};
+  const gearPct = {};
   ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
     const name = document.getElementById(id)?.value;
     const g = name ? gearItems[name] : null;
-    if (!g) return;
-    Object.entries(g).forEach(([k, v]) => {
-      if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v;
-    });
+    if (g) {
+      Object.entries(g).forEach(([k, v]) => {
+        if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v;
+      });
+    }
+    if (name && gearPctBonuses[name]) {
+      Object.entries(gearPctBonuses[name]).forEach(([k, v]) => {
+        gearPct[k] = (gearPct[k] || 0) + v;
+      });
+    }
   });
+
+  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  const lvlStatBonus = Math.floor(lvl / 5);
 
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
@@ -350,9 +360,10 @@ function updatePecents() {
     const allocated = row ? +row.value : 0;
     const masteryStats = getMasteryStatBonuses();
     const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
-    const val = allocated + (raceBase[stat] ?? 0) + flatBonus;
+    const levelBonus = row ? lvlStatBonus : 0;
+    const val = allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
     const base = calcPercentage(stat, val);
-    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0);
+    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
     let display;
     if (base === "—") {
       display = "—";
@@ -882,6 +893,11 @@ function renderGearInfo() {
 }
 
 // --- Gear ---
+// Percentage bonuses granted by gear items (e.g. crit-chance, energy)
+const gearPctBonuses = {
+  "Crystal Sphere": { "crit-chance": 5 },
+};
+
 // To add gear: "Item Name": { str, arc, end, spd, lck }
 const gearItems = {
   "Lethal Blackjack":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
