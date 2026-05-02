@@ -3365,7 +3365,53 @@ const classMoves = {
       }
     ]
   },
-  "Sentry": { innatePassives: [], learns: [] },
+  "Sentry": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 5,
+        type: "Passive",
+        name: "Hunker Down",
+        quote: "",
+        effect: "After you GUARD, gain a 15% defense buff for 3 turns."
+      },
+      {
+        slot: "2nd Learn",
+        level: 5,
+        type: "Passive",
+        name: "High Pressure",
+        quote: "",
+        effect: "When combat starts apply 3 Pressure to all enemies."
+      },
+      {
+        slot: "3rd Learn",
+        level: 5,
+        type: "Active",
+        name: "Prepare",
+        quote: "Loosen your shoulders and get ready to strike.",
+        cost: 1,
+        cooldown: 4,
+        moveType: "Physical",
+        category: "Utility",
+        effect: "On your next hit, apply 3 Pressure and 2 Vulnerable."
+      },
+      {
+        slot: "4th Learn",
+        level: 5,
+        type: "Active",
+        name: "Lookout",
+        quote: "Prepare yourself to defend a target of your choice.",
+        cost: 2,
+        cooldown: 5,
+        moveType: "Physical",
+        category: "Melee",
+        damage: 9,
+        scaling: "STR/75",
+        effect: "Sure-Hit\nSingle-target."
+      }
+    ]
+  },
   "Citadel (Or)": { innatePassives: [], learns: [] },
   "Arbiter (N)": {
     innatePassives: [],
