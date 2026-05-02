@@ -5766,89 +5766,120 @@ function getBuildState() {
   };
 }
 
-// Encode state to compact string (indices instead of names)
-function encodeState(state) {
-  const supList = classes[state.cls] || [];
-  // mastery bitmask as hex (up to 32 nodes; split into two 16-bit halves if needed)
-  let mlo = 0, mhi = 0;
-  masteryNodes.forEach((n, i) => {
-    if (state.msty.includes(n.id)) {
-      if (i < 30) mlo |= (1 << i);
-      else        mhi |= (1 << (i - 30));
+// --- Binary bit-packing encoder ---
+class _BitWriter {
+  constructor() { this._buf = []; this._cur = 0; this._bits = 0; }
+  write(val, width) {
+    for (let i = width - 1; i >= 0; i--) {
+      this._cur = (this._cur << 1) | ((val >>> i) & 1);
+      if (++this._bits === 8) { this._buf.push(this._cur); this._cur = 0; this._bits = 0; }
     }
-  });
-  const soulVals = Object.keys(soulTreeRanks).map(id => state.soul[id] || 0).join('');
-  const parts = [
-    2,                                 // version 2 = compact format
-    state.lvl,
-    _i(_L.race, state.race),
-    _i(_L.cls,  state.cls),
-    supList.indexOf(state.sup),
-    _i(_L.sub,  state.sub),
-    state.str, state.arc, state.end, state.spd, state.lck,
-    _i(_L.mark, state.mark),
-    _i(_L.cov,  state.cov),
-    state.covR,
-    _i(_L.ench, state.ench),
-    _i(_L.art,  state.art),
-    ...state.sh.map(s => _i(_L.shard, s)),
-    ...state.g.map(g => _i(_L.gear,  g)),
-    _i(_L.wm,   state.wm),
-    _i(_L.wo,   state.wo),
-    _i(_L.arm,  state.arm),
-    mlo.toString(36),                  // mastery bits (base36)
-    mhi.toString(36),
-    soulVals,                          // 9 digits
-  ];
-  const name = encodeURIComponent(state.name || 'Untitled');
-  return name + '/' + parts.join('~');
+  }
+  toB64url() {
+    const buf = [...this._buf];
+    if (this._bits > 0) buf.push(this._cur << (8 - this._bits));
+    return btoa(String.fromCharCode(...buf)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  }
 }
 
-// Decode compact string back to state object
-function decodeState(raw) {
-  // Strip leading "name/" prefix if present
-  let name = 'Untitled';
-  let data = raw;
-  const slash = raw.indexOf('/');
-  if (slash !== -1) {
-    name = decodeURIComponent(raw.slice(0, slash));
-    data = raw.slice(slash + 1);
+class _BitReader {
+  constructor(b64url) {
+    const b64 = b64url.replace(/-/g,'+').replace(/_/g,'/');
+    const pad = b64.length % 4 ? '===='.slice(b64.length % 4) : '';
+    const bin = atob(b64 + pad);
+    this._bytes = Array.from(bin, c => c.charCodeAt(0));
+    this._pos = 0; this._cur = 0; this._bits = 0;
   }
-  const parts = data.split('~');
-  let i = 0;
-  const n = () => +parts[i++];
-  const s = () => parts[i++];
-  const v = n();
-  if (v !== 2) return null; // not compact format
-  const lvl    = n();
-  const race   = _v(_L.race, n());
-  const cls    = _v(_L.cls,  n());
-  const supIdx = n();
-  const supList= classes[cls] || [];
-  const sup    = supList[supIdx] || '';
-  const sub    = _v(_L.sub,  n());
-  const str = n(), arc = n(), end = n(), spd = n(), lck = n();
-  const mark   = _v(_L.mark, n());
-  const cov    = _v(_L.cov,  n());
-  const covR   = n();
-  const ench   = _v(_L.ench, n());
-  const art    = _v(_L.art,  n());
-  const sh     = [...document.querySelectorAll('.shard-picker')].map(() => _v(_L.shard, n()));
-  const g      = [...document.querySelectorAll('.gear-picker')].map(() => _v(_L.gear,  n()));
-  const wm     = _v(_L.wm,   n());
-  const wo     = _v(_L.wo,   n());
-  const arm    = _v(_L.arm,  n());
-  const mlo    = parseInt(s(), 36);
-  const mhi    = parseInt(s(), 36);
-  const msty   = masteryNodes
-    .filter((nd, idx) => idx < 30 ? (mlo & (1 << idx)) : (mhi & (1 << (idx - 30))))
-    .map(nd => nd.id);
-  const soulVals = s();
-  const soulKeys = Object.keys(soulTreeRanks);
-  const soul = {};
-  soulKeys.forEach((id, idx) => { const r = +soulVals[idx]; if (r > 0) soul[id] = r; });
+  read(width) {
+    let val = 0;
+    for (let i = 0; i < width; i++) {
+      if (!this._bits) { this._cur = this._bytes[this._pos++] || 0; this._bits = 8; }
+      val = (val << 1) | ((this._cur >> --this._bits) & 1);
+    }
+    return val >>> 0;
+  }
+}
+
+// bits needed to store values 0..n  (n+1 distinct values)
+function _wb(n) { let b = 1; while ((1 << b) <= n) b++; return b; }
+
+// Pack build data into binary build (base64url), no name included
+function _packState(state) {
+  const bw = new _BitWriter();
+  const supList = classes[state.cls] || [];
+  const wi = (list, val) => {
+    const idx = val ? list.indexOf(val) : -1;
+    bw.write(idx < 0 ? 0 : idx + 1, _wb(list.length));
+  };
+  bw.write(state.lvl - 1, 6);
+  wi(_L.race, state.race);
+  wi(_L.cls,  state.cls);
+  const supIdx = supList.indexOf(state.sup);
+  bw.write(supIdx < 0 ? 0 : supIdx + 1, 4);
+  wi(_L.sub,  state.sub);
+  ['str','arc','end','spd','lck'].forEach(s => bw.write(state[s] || 0, 8));
+  wi(_L.mark, state.mark);
+  wi(_L.cov,  state.cov);
+  bw.write((state.covR || 1) - 1, 5);
+  wi(_L.ench, state.ench);
+  wi(_L.art,  state.art);
+  (state.sh || []).forEach(s => wi(_L.shard, s));
+  (state.g  || []).forEach(g => wi(_L.gear,  g));
+  wi(_L.wm,  state.wm);
+  wi(_L.wo,  state.wo);
+  wi(_L.arm, state.arm);
+  masteryNodes.forEach(nd => bw.write(state.msty.includes(nd.id) ? 1 : 0, 1));
+  Object.keys(soulTreeRanks).forEach(id => bw.write(state.soul[id] || 0, 3));
+  return bw.toB64url();
+}
+
+// Unpack binary build back into state fields (no name — caller supplies it)
+function _unpackState(blob, name) {
+  const br = new _BitReader(blob);
+  const ri = list => { const v = br.read(_wb(list.length)); return v === 0 ? '' : (list[v - 1] || ''); };
+  const lvl     = br.read(6) + 1;
+  const race    = ri(_L.race);
+  const cls     = ri(_L.cls);
+  const supList = classes[cls] || [];
+  const supIdx  = br.read(4) - 1;
+  const sup     = supIdx < 0 ? '' : (supList[supIdx] || '');
+  const sub     = ri(_L.sub);
+  const [str, arc, end, spd, lck] = [0,0,0,0,0].map(() => br.read(8));
+  const mark    = ri(_L.mark);
+  const cov     = ri(_L.cov);
+  const covR    = br.read(5) + 1;
+  const ench    = ri(_L.ench);
+  const art     = ri(_L.art);
+  const sh      = [...document.querySelectorAll('.shard-picker')].map(() => ri(_L.shard));
+  const g       = [...document.querySelectorAll('.gear-picker')].map(()  => ri(_L.gear));
+  const wm      = ri(_L.wm);
+  const wo      = ri(_L.wo);
+  const arm     = ri(_L.arm);
+  const msty    = masteryNodes.filter(nd => br.read(1) === 1).map(nd => nd.id);
+  const soul    = {};
+  Object.keys(soulTreeRanks).forEach(id => { const r = br.read(3); if (r > 0) soul[id] = r; });
   return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
            mark, cov, covR, ench, art, sh, g, wm, wo, arm, msty, soul, name };
+}
+
+// Build the shareable URL: domain/Al-builder/id/name?d=blob
+function encodeState(state) {
+  const blob  = _packState(state);
+  const id    = Math.random().toString(36).slice(2, 10);
+  localStorage.setItem('alb:' + id, blob);
+  const name  = encodeURIComponent(state.name || 'Untitled');
+  const repo  = window.location.pathname.split('/').filter(Boolean)[0];
+  const base  = window.location.origin + '/' + repo + '/';
+  return base + id + '/' + name + '?d=' + blob;
+}
+
+// Decode from the path segments + optional blob data
+function decodeState(id, nameParts, blob) {
+  const name = decodeURIComponent(nameParts.join('/'));
+  const data = localStorage.getItem('alb:' + id) || blob;
+  if (!data) return null;
+  localStorage.setItem('alb:' + id, data);
+  return _unpackState(data, name);
 }
 
 function loadBuildState(state) {
@@ -5951,8 +5982,7 @@ if (shareBuildBtn) {
   shareBuildBtn.addEventListener('click', () => {
     const state = getBuildState();
     state.name = (buildNameInput ? buildNameInput.value.trim() : '') || 'Untitled';
-    const encoded = encodeState(state);
-    const url = window.location.href.split('#')[0] + '#' + encoded;
+    const url = encodeState(state);
     navigator.clipboard.writeText(url).then(() => {
       shareBuildBtn.textContent = 'Copied!';
       setTimeout(() => { shareBuildBtn.textContent = 'Share'; }, 2000);
@@ -5962,19 +5992,47 @@ if (shareBuildBtn) {
   });
 }
 
-// Load build from URL hash on page load
+// Load build on page start — handles both path-based and legacy hash-based links
 (function () {
+  // Path-based link via 404 redirect
+  const stored = sessionStorage.getItem('alb-redirect');
+  if (stored) {
+    sessionStorage.removeItem('alb-redirect');
+    try {
+      const { path, search } = JSON.parse(stored);
+      // path = /Al-builder/id/name  →  segments[1]=id, segments[2+]=name
+      const segs = path.split('/').filter(Boolean);
+      if (segs.length >= 3 && /^[0-9a-z]{8}$/.test(segs[1])) {
+        const id   = segs[1];
+        const blob = new URLSearchParams(search).get('d') || '';
+        const state = decodeState(id, segs.slice(2), blob);
+        if (state) {
+          history.replaceState(null, '', path + search);
+          loadBuildState(state);
+        }
+      }
+    } catch (e) {}
+    return;
+  }
+
+  // Legacy hash-based links
   const hash = window.location.hash.slice(1);
   if (!hash) return;
   try {
-    // New format: "name/2~..." or legacy compact "2~..."
-    if (hash.includes('/') || hash.startsWith('2~')) {
-      const state = decodeState(hash);
-      if (state) loadBuildState(state);
+    if (hash.includes('/')) {
+      // Old formats: "name/blob" or "id/blob/name"
+      const parts = hash.split('/');
+      if (/^[0-9a-z]{8}$/.test(parts[0]) && parts.length >= 3) {
+        const state = decodeState(parts[0], parts.slice(2), parts[1]);
+        if (state) loadBuildState(state);
+      } else if (parts.length === 2) {
+        const state = _unpackState(parts[1], decodeURIComponent(parts[0]));
+        if (state) loadBuildState(state);
+      }
       return;
     }
-    // Legacy format (v1): base64 JSON
+    // Legacy base64-JSON
     const state = JSON.parse(atob(hash));
     if (state && state.v === 1) loadBuildState(state);
-  } catch (e) { /* not a valid build hash */ }
+  } catch (e) {}
 })();
