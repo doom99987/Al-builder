@@ -5524,7 +5524,8 @@ function masteryNodeHtml(id) {
                   : node.type === "breakthrough" ? "1 echo shard"
                   : "1 pt";
 
-  let cls = `mn-node mn-${node.branch} mn-type-${node.type}`;
+  const stat = classData?.branchStats?.[node.branch] || 'lck';
+  let cls = `mn-node mn-${node.branch} mn-type-${node.type} mn-stat-${stat}`;
   if (active) cls += " mn-active";
   if (locked) cls += " mn-locked";
   if (childLocked) cls += " mn-child-locked";
@@ -5602,7 +5603,9 @@ function updateMasteryDisplay() {
     const locked = !parentOk;
     const childLocked = active && hasMasteryActiveChild(n.id);
 
-    el.className = `mn-node mn-${n.branch} mn-type-${n.type}`;
+    const classData2 = getActiveMasteryData();
+    const stat2 = classData2?.branchStats?.[n.branch] || 'lck';
+    el.className = `mn-node mn-${n.branch} mn-type-${n.type} mn-stat-${stat2}`;
     if (active) el.className += " mn-active";
     if (locked) el.className += " mn-locked";
     if (childLocked) el.className += " mn-child-locked";
