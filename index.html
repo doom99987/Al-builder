@@ -307,6 +307,21 @@
 
 </div>
 
+<!-- Mastery node confirm modal -->
+<div id="mastery-modal" class="mastery-modal-overlay" style="display:none" onclick="closeMasteryModal(event)">
+  <div class="mastery-modal-box">
+    <div class="mastery-modal-header">
+      <span id="mastery-modal-name"></span>
+      <span id="mastery-modal-cost" class="mastery-modal-cost"></span>
+    </div>
+    <div id="mastery-modal-desc" class="mastery-modal-desc"></div>
+    <div class="mastery-modal-btns">
+      <button id="mastery-modal-confirm" class="mastery-modal-btn confirm" onclick="confirmMasteryNode()"></button>
+      <button class="mastery-modal-btn cancel" onclick="document.getElementById('mastery-modal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/scripts.js"></script>
 </body>
 </html>
