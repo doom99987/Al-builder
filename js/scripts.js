@@ -104,6 +104,14 @@ function updateClassPickerLock() {
   }
 }
 
+function updateLvlBonusDisplay() {
+  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  const bonus = Math.floor(lvl / 5);
+  document.querySelectorAll(".stat-lvl-bonus").forEach(el => {
+    el.textContent = bonus > 0 ? `+${bonus}` : "";
+  });
+}
+
 lvlInput.addEventListener("change", () => {
   lvlInput.value = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
   const total = getEffectiveTotal();
@@ -119,6 +127,7 @@ lvlInput.addEventListener("change", () => {
       spent -= reduce;
     }
   }
+  updateLvlBonusDisplay();
   updateClassPickerLock();
   updatePoints();
   updatePecents();
@@ -281,15 +290,13 @@ const covenantBonuses = {
 };
 
 function calcPercentage(stat, val){
-  const lckAllocated = +document.querySelector('.stat-row[data-stat="lck"] .stat-val').value;
-  const lck = lckAllocated + (raceBase.lck ?? 0);
   const formulas = {
-    str:         v => 100 + v * 1.75,
-    arc:         v => 100 + v * 1.75,
-    end:         v => 45 + v * 1.3, //finalized
-    spd:         v => v * 2,
-    "crit-chance": () => 19.8 + lck * 0.25,
-    "crit-dmg":    () => 1.5 + lck * 0.0025,
+    str:           v => 100 + v * 1.75,
+    arc:           v => 100 + v * 1.75,
+    end:           v => 45 + v * 1.3, //finalized
+    spd:           v => v * 2,
+    "crit-chance": v => 19.8 + v * 0.25,
+    "crit-dmg":    v => 1.5 + v * 0.00248,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
     "energy":      () => 0,
@@ -354,14 +361,18 @@ function updatePecents() {
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
   const lvlStatBonus = Math.floor(lvl / 5);
 
+  const masteryStats = getMasteryStatBonuses();
+  const lckRow = document.querySelector('.stat-row[data-stat="lck"] .stat-val');
+  const totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus;
+
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
     const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
     const allocated = row ? +row.value : 0;
-    const masteryStats = getMasteryStatBonuses();
     const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
     const levelBonus = row ? lvlStatBonus : 0;
-    const val = allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
+    const isCritStat = stat === "crit-chance" || stat === "crit-dmg";
+    const val = isCritStat ? totalLck : allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
     const base = calcPercentage(stat, val);
     const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
     let display;
@@ -380,6 +391,17 @@ function updatePecents() {
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     item.querySelector(".percent-val").textContent = display + suffix;
+  });
+
+  // Update stat total display
+  document.querySelectorAll(".stat-row[data-stat]").forEach(rowEl => {
+    const stat = rowEl.dataset.stat;
+    const input = rowEl.querySelector(".stat-val");
+    const allocated = input ? +input.value : 0;
+    const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
+    const total = allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus;
+    const totalEl = rowEl.querySelector(".stat-total");
+    if (totalEl) totalEl.textContent = total || "";
   });
 }
 
@@ -4771,7 +4793,7 @@ const ROMAN = ["—", "I", "II", "III", "IV", "V"];
 const soulTreeData = {
   "Path of Destruction": [
     { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125] },
-    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}x",                                         perRank: 0.05, maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 0.05} },
+    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}%",                                         perRank: 5,    maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 0.05} },
     { id: "strike_first", name: "Strike First, No Mercy",    desc: "First attack +{v}% damage (expires after 2 turns)",              perRank: 5,   maxRank: 5, costs: [100,200,300,400,500] },
     { id: "lil_crit",     name: "Lil Bit of Crit",           desc: "Base crit chance +{v}%",                                         perRank: 1,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-chance": 1} },
     { id: "com_focus",    name: "Combat Focus",               desc: "After meditating, +{v}% damage for 2 turns",                    perRank: 2,   maxRank: 5, costs: [50,100,150,200,250] }
@@ -4807,7 +4829,7 @@ function renderSoulTree() {
     html += `<div class="soul-tree-path"><h3 class="soul-path-title">${pathName}</h3>`;
     for (const node of nodes) {
       const rank = soulTreeRanks[node.id];
-      const val  = +(rank * node.perRank).toFixed(1);
+      const val  = +(rank * node.perRank).toFixed(node.decimals ?? 1);
       const desc = node.desc.replace("{v}", val);
       const nextCost = rank < node.maxRank ? node.costs[rank] : null;
       html += `
