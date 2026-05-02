@@ -5476,6 +5476,61 @@ function renderMasteryInfoSection() {
   }).join("");
 }
 
+let _masteryModalTarget = null;
+
+function openMasteryModal(id) {
+  const node = masteryNodeMap[id];
+  if (!node) return;
+  const classData = getActiveMasteryData();
+  if (!classData) return;
+
+  const override = classData?.nodes?.[id] || {};
+  const displayName = override.name || node.name;
+  const desc = override.desc || "";
+  const active = masteryState[id];
+  const parentOk = !node.parent || [].concat(node.parent).every(p => masteryState[p]);
+  const locked = !parentOk;
+  const childLocked = active && hasMasteryActiveChild(id);
+
+  if (locked || childLocked) return; // can't interact, do nothing
+
+  const costLabel = node.type === "mastery" ? "5 pts"
+                  : node.type === "breakthrough" ? "1 echo shard"
+                  : "1 pt";
+
+  _masteryModalTarget = id;
+
+  document.getElementById("mastery-modal-name").textContent = displayName;
+  document.getElementById("mastery-modal-cost").textContent = active ? "Active" : costLabel;
+  document.getElementById("mastery-modal-desc").textContent = desc || "No description.";
+
+  const confirmBtn = document.getElementById("mastery-modal-confirm");
+  if (active) {
+    confirmBtn.textContent = "Deactivate";
+    confirmBtn.classList.add("deactivate");
+  } else {
+    confirmBtn.textContent = "Confirm";
+    confirmBtn.classList.remove("deactivate");
+  }
+
+  document.getElementById("mastery-modal").style.display = "flex";
+}
+
+function confirmMasteryNode() {
+  if (_masteryModalTarget !== null) {
+    toggleMasteryNode(_masteryModalTarget);
+    _masteryModalTarget = null;
+  }
+  document.getElementById("mastery-modal").style.display = "none";
+}
+
+function closeMasteryModal(event) {
+  if (event.target === document.getElementById("mastery-modal")) {
+    document.getElementById("mastery-modal").style.display = "none";
+    _masteryModalTarget = null;
+  }
+}
+
 function toggleMasteryNode(id) {
   const node = masteryNodeMap[id];
   if (!node) return;
@@ -5532,7 +5587,8 @@ function masteryNodeHtml(id) {
 
   const cursor = locked || childLocked ? "not-allowed" : "pointer";
   const tooltip = desc ? `${displayName} — ${costLabel}\n\n${desc}` : `${displayName} — ${costLabel}`;
-  return `<div class="${cls}" id="mn-${id}" onclick="toggleMasteryNode('${id}')" title="${tooltip}" style="cursor:${cursor}"></div>`;
+  const clickFn = node.type === "mastery" ? `openMasteryModal('${id}')` : `toggleMasteryNode('${id}')`;
+  return `<div class="${cls}" id="mn-${id}" onclick="${clickFn}" title="${tooltip}" style="cursor:${cursor}"></div>`;
 }
 
 function masteryBranchHtml(branch) {
