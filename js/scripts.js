@@ -285,7 +285,7 @@ function calcPercentage(stat, val){
   const lck = lckAllocated + (raceBase.lck ?? 0);
   const formulas = {
     str:         v => 100 + v * 1.75,
-    arc:         v => 100 + v * 3,
+    arc:         v => 100 + v * 1.75,
     end:         v => 45 + v * 1.3, //finalized
     spd:         v => v * 2,
     "crit-chance": () => 19.8 + lck * 0.25,
