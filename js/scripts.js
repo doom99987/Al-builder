@@ -5862,24 +5862,54 @@ function _unpackState(blob, name) {
            mark, cov, covR, ench, art, sh, g, wm, wo, arm, msty, soul, name };
 }
 
-// Build the shareable URL: domain/Al-builder/id/name?d=blob
-function encodeState(state) {
-  const blob  = _packState(state);
-  const id    = Math.random().toString(36).slice(2, 10);
-  localStorage.setItem('alb:' + id, blob);
-  const name  = encodeURIComponent(state.name || 'Untitled');
-  const repo  = window.location.pathname.split('/').filter(Boolean)[0];
-  const base  = window.location.origin + '/' + repo + '/';
-  return base + id + '/' + name + '?d=' + blob;
+const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
+
+// Save to JSONBlob (cross-device) + localStorage (local cache)
+// Returns the share URL
+async function encodeState(state) {
+  const blob    = _packState(state);
+  const name    = state.name || 'Untitled';
+  const payload = JSON.stringify({ d: blob, n: name });
+  const base    = window.location.origin +
+                  window.location.pathname.replace(/\/[^/]*$/, '/');
+  let id;
+  try {
+    const res = await fetch(_CLOUD, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: payload
+    });
+    if (!res.ok) throw new Error();
+    const loc = res.headers.get('Location') || '';
+    id = loc.split('/').pop();
+  } catch (e) { id = ''; }
+
+  if (id) {
+    localStorage.setItem('alb:' + id, payload);
+  } else {
+    // Fallback: local-only short ID
+    id = Math.random().toString(36).slice(2, 10);
+    localStorage.setItem('alb:' + id, payload);
+  }
+  return base + '?id=' + id;
 }
 
-// Decode from the path segments + optional blob data
-function decodeState(id, nameParts, blob) {
-  const name = decodeURIComponent(nameParts.join('/'));
-  const data = localStorage.getItem('alb:' + id) || blob;
-  if (!data) return null;
-  localStorage.setItem('alb:' + id, data);
-  return _unpackState(data, name);
+// Load payload by ID — localStorage first, then JSONBlob
+async function _loadById(id) {
+  const cached = localStorage.getItem('alb:' + id);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) {
+      // old format was raw blob string
+      return { d: cached, n: 'Untitled' };
+    }
+  }
+  try {
+    const res = await fetch(_CLOUD + '/' + id);
+    if (!res.ok) throw new Error();
+    const json = await res.json();
+    localStorage.setItem('alb:' + id, JSON.stringify(json));
+    return json;
+  } catch (e) { return null; }
 }
 
 function loadBuildState(state) {
@@ -5979,39 +6009,35 @@ const shareBuildBtn   = document.getElementById('share-build-btn');
 const buildNameInput  = document.getElementById('build-name-input');
 
 if (shareBuildBtn) {
-  shareBuildBtn.addEventListener('click', () => {
+  shareBuildBtn.addEventListener('click', async () => {
     const state = getBuildState();
     state.name = (buildNameInput ? buildNameInput.value.trim() : '') || 'Untitled';
-    const url = encodeState(state);
+    shareBuildBtn.textContent = 'Saving...';
+    shareBuildBtn.disabled = true;
+    const url = await encodeState(state);
+    shareBuildBtn.disabled = false;
     navigator.clipboard.writeText(url).then(() => {
       shareBuildBtn.textContent = 'Copied!';
       setTimeout(() => { shareBuildBtn.textContent = 'Share'; }, 2000);
     }).catch(() => {
       prompt('Copy this link:', url);
+      shareBuildBtn.textContent = 'Share';
     });
   });
 }
 
-// Load build on page start — handles both path-based and legacy hash-based links
-(function () {
-  // Path-based link via 404 redirect
-  const stored = sessionStorage.getItem('alb-redirect');
-  if (stored) {
-    sessionStorage.removeItem('alb-redirect');
-    try {
-      const { path, search } = JSON.parse(stored);
-      // path = /Al-builder/id/name  →  segments[1]=id, segments[2+]=name
-      const segs = path.split('/').filter(Boolean);
-      if (segs.length >= 3 && /^[0-9a-z]{8}$/.test(segs[1])) {
-        const id   = segs[1];
-        const blob = new URLSearchParams(search).get('d') || '';
-        const state = decodeState(id, segs.slice(2), blob);
-        if (state) {
-          history.replaceState(null, '', path + search);
-          loadBuildState(state);
-        }
-      }
-    } catch (e) {}
+// Load build on page start
+(async function () {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (id) {
+    const payload = await _loadById(id);
+    if (payload) {
+      const nameInput = document.getElementById('build-name-input');
+      if (nameInput && payload.n && payload.n !== 'Untitled') nameInput.value = payload.n;
+      const state = _unpackState(payload.d, payload.n || 'Untitled');
+      if (state) loadBuildState(state);
+    }
     return;
   }
 
@@ -6020,18 +6046,13 @@ if (shareBuildBtn) {
   if (!hash) return;
   try {
     if (hash.includes('/')) {
-      // Old formats: "name/blob" or "id/blob/name"
       const parts = hash.split('/');
-      if (/^[0-9a-z]{8}$/.test(parts[0]) && parts.length >= 3) {
-        const state = decodeState(parts[0], parts.slice(2), parts[1]);
-        if (state) loadBuildState(state);
-      } else if (parts.length === 2) {
+      if (parts.length === 2) {
         const state = _unpackState(parts[1], decodeURIComponent(parts[0]));
         if (state) loadBuildState(state);
       }
       return;
     }
-    // Legacy base64-JSON
     const state = JSON.parse(atob(hash));
     if (state && state.v === 1) loadBuildState(state);
   } catch (e) {}
