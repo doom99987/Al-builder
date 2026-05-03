@@ -1803,6 +1803,20 @@ buildSimpleDropdown(armourPicker, Object.keys(armourItems), () => {
   updatePecents();
 });
 
+// --- Scrolls ---
+// To add a lost scroll: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
+const lostScrollItems = {};
+// To add a scroll: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
+const scrollItems = {};
+
+const lostScrollPicker = document.getElementById("scroll-lost");
+buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => updatePecents());
+
+const scroll1Picker = document.getElementById("scroll-1");
+const scroll2Picker = document.getElementById("scroll-2");
+buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => updatePecents());
+buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => updatePecents());
+
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
 // learns entry: { level: <rank_req>, type: "Active"|"Passive", name, quote, effect, [cost, cooldown, moveType, category, damage, scaling] }
