@@ -6450,6 +6450,17 @@ class _BitReader {
 // bits needed to store values 0..n  (n+1 distinct values)
 function _wb(n) { let b = 1; while ((1 << b) <= n) b++; return b; }
 
+// XOR-scramble a base64url blob with a fixed key so it doesn't look like AAAAAAA.
+// Self-inverse: applying twice returns the original.
+const _SCRAMBLE_KEY = [0x5A,0xA5,0x3C,0xC3,0x69,0x96,0xF0,0x0F,0x27,0xD8,0x4B,0xB4,0x1E,0xE1,0x72,0x8D];
+function _xorBlob(b64url) {
+  const b64  = b64url.replace(/-/g,'+').replace(/_/g,'/');
+  const pad  = b64.length % 4 ? '===='.slice(b64.length % 4) : '';
+  const bin  = atob(b64 + pad);
+  const xord = Array.from(bin, (c, i) => c.charCodeAt(0) ^ _SCRAMBLE_KEY[i % _SCRAMBLE_KEY.length]);
+  return btoa(String.fromCharCode(...xord)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
 // Pack build data into binary build (base64url), no name included
 function _packState(state) {
   const bw = new _BitWriter();
@@ -6536,14 +6547,14 @@ async function encodeState(state) {
     return base + '?id=' + id;
   }
   // Fallback: encode build state directly into the id param (no external service needed)
-  return base + '?id=b_' + blob;
+  return base + '?id=b_' + _xorBlob(blob);
 }
 
 // Load payload by ID — handles b_ (direct-encoded), localStorage, then JSONBlob
 async function _loadById(id) {
-  // b_ prefix = build state encoded directly in the id param
+  // b_ prefix = build state encoded directly in the id param (XOR-scrambled)
   if (id.startsWith('b_')) {
-    return { d: id.slice(2), n: 'Untitled' };
+    return { d: _xorBlob(id.slice(2)), n: 'Untitled' };
   }
   const cached = localStorage.getItem('alb:' + id);
   if (cached) {
