@@ -291,9 +291,9 @@ const covenantBonuses = {
 
 function calcPercentage(stat, val){
   const formulas = {
-    str:           v => 100 + v * 1.75,
-    arc:           v => 100 + v * 1.75,
-    end:           v => 45 + v * 1.3, //finalized
+    str:           v => 100 + v * 1.65,
+    arc:           v => 100 + v * 1.65,
+    end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
     "crit-chance": v => 19.8 + v * 0.25,
     "crit-dmg":    v => 1.5 + v * 0.00248,
@@ -381,8 +381,14 @@ function updatePecents() {
     } else if (stat === "end") {
       const hpBase = parseFloat(base);
       const flatHP = (soulTreeBonuses.endFlat ?? 0) + (armour.endFlat ?? 0) + (gearStatBonuses.endFlat ?? 0);
-      const hpPct = armourPct.end ?? 0;
-      display = (hpBase + flatHP + hpBase * hpPct / 100).toFixed(1);
+      const hpPct = (armourPct.end ?? 0) + (gearPct.end ?? 0);
+      display = (hpBase * (1 + hpPct / 100) + flatHP).toFixed(1);
+      if (document.getElementById("artifact-picker")?.value === "Paranoxian Crux") {
+        const fullHP = parseFloat(display);
+        const currentHP = (fullHP * 0.15).toFixed(1);
+        const shieldHP = (fullHP - fullHP * 0.15).toFixed(1);
+        display = `${currentHP} (${shieldHP} Shield)`;
+      }
     } else if (stat === "energy") {
       const total = pctBonus;
       display = total > 0 ? total.toFixed(1) : "—";
@@ -758,7 +764,7 @@ const artifactMoves = {
         type: "Passive",
         name: "Paranoxian Crux",
         quote: "",
-        effect: "When equipped, multiplies your max HP by 1.5×, then sets your current HP to 10% of the new value. The remaining HP is converted into Shield HP. Can stack with other sources of Shield HP."
+        effect: "When equipped, multiplies your max HP by 1.5x, then sets it to 10% of the new value. The remaining HP is converted into Shield HP. This can stack with other sources of Shield HP."
       },
       {
         slot: "Active",
@@ -845,7 +851,7 @@ function updateEnchantDesc() {
 }
 
 buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), updateEnchantDesc);
-buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); });
+buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); updatePecents(); });
 
 function renderArtifactDesc() {
   const section = artifactDescSection;
@@ -917,7 +923,8 @@ function renderGearInfo() {
 // --- Gear ---
 // Percentage bonuses granted by gear items (e.g. crit-chance, energy)
 const gearPctBonuses = {
-  "Crystal Sphere": { "crit-chance": 5 },
+  "Crystal Sphere":  { "crit-chance": 5 },
+  "Narthana's Leaf": { "out-heal": 75, "end": -25 },
 };
 
 // To add gear: "Item Name": { str, arc, end, spd, lck }
@@ -4862,7 +4869,13 @@ function renderMoves() {
     if (weaponOff) {
       html += `<div class="moves-entity-label" style="margin-top:18px">Off Hand</div>`;
       html += `<h2 class="moves-race-title">${weaponOff}</h2>`;
-      if (weaponOffData) { html += entityMovesHtml(weaponOffData, lvl); html += entityPassivesHtml(weaponOffData, lvl); }
+      if (weaponOffData) {
+        html += entityMovesHtml(weaponOffData, lvl);
+        const isShield = !!(offhandSeries["Shields"] && offhandSeries["Shields"][weaponOff]);
+        const shieldClasses = ["Paladin (Or)", "Lancer (N)", "Lionheart (N)", "Citadel (Or)"];
+        const hasShieldClass = shieldClasses.some(c => c === baseClass || c === superClass || c === subClass);
+        if (!isShield || hasShieldClass) html += entityPassivesHtml(weaponOffData, lvl);
+      }
     }
     html += `</div>`;
   }
@@ -4961,6 +4974,7 @@ let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
+let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -5272,6 +5286,7 @@ function getActiveDmgBonus() {
     if (p.name === "Absolute Radiance") return sum + ABS_RAD_BONUSES[absRadTurn - 1];
     if (p.name === "Bulk Up") return sum + bulkUpStacks * 20;
     if (p.name === "Sands Of Time") return sum + hourglassStacks * 20;
+    if (p.name === "Oppression") return sum + oppressionCount * 5;
     return sum + p.bonus;
   }, 0);
   if (statusEffectsActive.overheat) total += overheatStacks * 8;
@@ -5350,6 +5365,11 @@ function changeOverheatStacks(delta) {
   renderDmgBonusSection();
 }
 
+function changeOppressionCount(delta) {
+  oppressionCount = Math.min(5, Math.max(1, oppressionCount + delta));
+  renderDmgBonusSection();
+}
+
 function getStatusMultiplier(moveType) {
   let mult = 1;
   const labels = [];
@@ -5403,15 +5423,17 @@ function renderDmgBonusSection() {
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
-    const isRageEmp    = p.name === "Rage Empower";
-    const isAbsRad     = p.name === "Absolute Radiance";
-    const isBulkUp     = p.name === "Bulk Up";
-    const isHourglass  = p.name === "Sands Of Time";
-    const displayBonus = isRageEmp   ? 30 + rageEmpHpConsumed
-                       : isAbsRad    ? ABS_RAD_BONUSES[absRadTurn - 1]
-                       : isBulkUp    ? bulkUpStacks * 20
-                       : isHourglass ? hourglassStacks * 20
-                       : p.bonus;
+    const isRageEmp      = p.name === "Rage Empower";
+    const isAbsRad       = p.name === "Absolute Radiance";
+    const isBulkUp       = p.name === "Bulk Up";
+    const isHourglass    = p.name === "Sands Of Time";
+    const isOppression   = p.name === "Oppression";
+    const displayBonus   = isRageEmp     ? 30 + rageEmpHpConsumed
+                         : isAbsRad      ? ABS_RAD_BONUSES[absRadTurn - 1]
+                         : isBulkUp      ? bulkUpStacks * 20
+                         : isHourglass   ? hourglassStacks * 20
+                         : isOppression  ? oppressionCount * 5
+                         : p.bonus;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${p.name}</span>
@@ -5452,6 +5474,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeHourglassStacks(-1)">−</button>
           <span class="dc-energy-val">${hourglassStacks}</span>
           <button class="dc-energy-btn" onclick="changeHourglassStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isOppression) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Effects</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeOppressionCount(-1)">−</button>
+          <span class="dc-energy-val">${oppressionCount}</span>
+          <button class="dc-energy-btn" onclick="changeOppressionCount(1)">+</button>
         </div>
       </div>`;
     }
