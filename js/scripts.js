@@ -4628,6 +4628,7 @@ function renderMoves() {
 
   if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
+    renderDmgCalc();
     return;
   }
 
@@ -4766,6 +4767,445 @@ function renderMoves() {
   }
 
   container.innerHTML = html;
+  renderDmgCalc();
+}
+
+// --- Dmg Calc helpers ---
+
+let dmgCalcMoveList = [];
+
+const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
+
+function parseScaling(scalingStr) {
+  // Returns [{stat, scaling, label}, ...] or null if unparseable
+  if (!scalingStr) return null;
+  const s = scalingStr.trim();
+  if (s === "N/A" || s === "Unknown" || s === "" || s.includes("%") || s.includes("*") || s.includes("?")) return null;
+  const parts = s.split("+").map(p => p.trim());
+  const result = [];
+  for (const part of parts) {
+    const m = part.match(/^(STR|ARC|END|SPD|LCK)\/(\d+(?:\.\d+)?)$/);
+    if (!m) return null;
+    result.push({ stat: STAT_LABEL_MAP[m[1]], scaling: +m[2], label: m[1] });
+  }
+  return result.length ? result : null;
+}
+
+function getTotalStat(statKey) {
+  const row = document.querySelector(`.stat-row[data-stat="${statKey}"] .stat-val`);
+  const allocated = row ? +row.value : 0;
+  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  const lvlBonus = Math.floor(lvl / 5);
+  const masteryStats = getMasteryStatBonuses();
+  const armourEl = document.getElementById("armour-main");
+  const armourData = armourItems?.[armourEl?.value] || {};
+  const gearBonuses = {};
+  ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
+    const g = gearItems?.[document.getElementById(id)?.value];
+    if (g) Object.entries(g).forEach(([k, v]) => { if (v) gearBonuses[k] = (gearBonuses[k] || 0) + v; });
+  });
+  return allocated + (raceBase[statKey] ?? 0) + (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + lvlBonus;
+}
+
+function toggleDmgDetail(rowEl, idx) {
+  const detail = rowEl.nextElementSibling;
+  if (!detail || !detail.classList.contains("dc-detail")) return;
+  if (detail.style.display !== "none") { detail.style.display = "none"; rowEl.classList.remove("dc-row-open"); return; }
+
+  const m = dmgCalcMoveList[idx];
+  const scalings = parseScaling(m.scaling);
+
+  // Parse base damage — handle "6x2" style
+  let baseDmgNum = null;
+  let hitCount = 1;
+  if (m.damage !== undefined) {
+    const dmgStr = String(m.damage);
+    const multiHit = dmgStr.match(/^(\d+(?:\.\d+)?)x(\d+)$/);
+    if (multiHit) { baseDmgNum = +multiHit[1]; hitCount = +multiHit[2]; }
+    else if (/^\d+(\.\d+)?$/.test(dmgStr)) baseDmgNum = +dmgStr;
+  }
+
+  if (baseDmgNum === null) {
+    detail.innerHTML = `<div class="dc-calc-unavail">No damage calculation available for this move.</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
+  }
+  if (!scalings) {
+    const activeBonus = getActiveDmgBonus();
+    const bonusMult   = 1 + activeBonus / 100;
+    const boosted     = baseDmgNum * bonusMult;
+    let formula;
+    if (activeBonus > 0) {
+      formula = `${baseDmgNum} × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">[+${activeBonus}% bonus]</span> = <b>${boosted.toFixed(2)}</b>`;
+      if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${(boosted * hitCount).toFixed(2)}</b>`;
+    } else {
+      formula = hitCount > 1
+        ? `${baseDmgNum} × ${hitCount} hits = <b>${baseDmgNum * hitCount}</b>`
+        : `Base damage: <b>${baseDmgNum}</b>`;
+    }
+    detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
+  }
+
+  // Full formula: BaseDMG(1 + stat1/scl1 + stat2/scl2 ...)
+  const statParts = scalings.map(({ stat, scaling, label }) => {
+    const val = getTotalStat(stat);
+    return { label, val, scaling, contrib: val / scaling };
+  });
+  const totalContrib = statParts.reduce((sum, p) => sum + p.contrib, 0);
+  const dmgPerHit = baseDmgNum * (1 + totalContrib);
+  const totalDmg  = dmgPerHit * hitCount;
+
+  const activeBonus = getActiveDmgBonus();
+  const bonusMult   = 1 + activeBonus / 100;
+  const scalingStr  = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
+  let formula = `${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(2)}</b>`;
+  if (activeBonus > 0) {
+    const boosted = dmgPerHit * bonusMult;
+    formula += ` × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">[+${activeBonus}% bonus]</span> = <b>${boosted.toFixed(2)}</b>`;
+    if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${(boosted * hitCount).toFixed(2)}</b>`;
+  } else if (hitCount > 1) {
+    formula += ` × ${hitCount} hits = <b>${totalDmg.toFixed(2)}</b>`;
+  }
+
+  detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
+  detail.style.display = "block"; rowEl.classList.add("dc-row-open");
+}
+
+// --- Dmg Bonus passives ---
+let dmgBonusPassives = [];
+const dmgBonusActive = {};
+
+function parseDmgBonus(text) {
+  if (!text) return null;
+  const patterns = [
+    /(\d+(?:\.\d+)?)\s*%\s*damage\s+buff/i,
+    /(\d+(?:\.\d+)?)\s*%\s*damage\s+bonus/i,
+    /(\d+(?:\.\d+)?)\s*%\s*dmg\s+buff/i,
+    /increases?\s+(?:(?:\w+)\s+)*?damage\s+by\s+(\d+(?:\.\d+)?)\s*%/i,
+    /deal[s]?\s+(\d+(?:\.\d+)?)\s*%\s+more\s+damage/i,
+    /(\d+(?:\.\d+)?)\s*%\s+more\s+damage/i,
+    /(\d+(?:\.\d+)?)\s*%\s+(?:extra|additional)\s+damage/i,
+    /grants?\s+(?:a\s+)?(\d+(?:\.\d+)?)\s*%\s+damage/i,
+    /give[s]?\s+(?:a\s+)?(\d+(?:\.\d+)?)\s*%\s+damage/i,
+    /(\d+(?:\.\d+)?)\s*%\s+damage\s+(?:increase|boost)/i,
+  ];
+  for (const pat of patterns) {
+    const m = text.match(pat);
+    if (m) {
+      // find first numeric capture group
+      for (let i = 1; i < m.length; i++) { if (m[i] !== undefined) return +m[i]; }
+    }
+  }
+  return null;
+}
+
+function collectDmgBonusPassives() {
+  const raceName     = racePicker.value;
+  const baseClass    = classPicker.value;
+  const superClass   = superPicker.value;
+  const subClass     = subPicker.value;
+  const markName     = markPicker.value;
+  const artifactName = artifactPicker.value;
+  const weaponMain   = document.getElementById("weapon-main").value;
+  const weaponOff    = document.getElementById("weapon-offhand").value;
+  const covenantName = covenantPicker.value;
+  const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
+
+  const allData = [
+    raceName     ? raceMoves[raceName]         : null,
+    baseClass    ? classMoves[baseClass]       : null,
+    superClass   ? classMoves[superClass]      : null,
+    subClass     ? classMoves[subClass]        : null,
+    markName     ? markMoves[markName]         : null,
+    artifactName ? artifactMoves[artifactName] : null,
+    weaponMain   ? weaponMoves[weaponMain]     : null,
+    weaponOff    ? weaponMoves[weaponOff]      : null,
+    covenantName ? covenantMoves[covenantName] : null,
+    ...gearSlots.map(name => gearMoves[name] || null),
+  ].filter(Boolean);
+
+  const rawEntries = [];
+  const seen = new Set();
+
+  function tryAdd(name, text, kind) {
+    const bonus = parseDmgBonus(text);
+    const key = kind + ":" + name;
+    if (bonus !== null && !seen.has(key)) {
+      seen.add(key);
+      rawEntries.push({ key, name, bonus, kind, desc: text });
+    }
+  }
+
+  // Patterns that indicate a buff granted TO the user (not just attack damage)
+  const buffGrantPatterns = [
+    /grants?\s+(?:a\s+)?(?:you\s+)?(?:the\s+)?(?:user\s+)?\d+/i,
+    /gives?\s+(?:a\s+)?\d+/i,
+    /gain\s+(?:a\s+)?\d+/i,
+    /you\s+gain\s+\d+/i,
+    /\d+.*?damage\s+buff/i,
+    /\d+.*?dmg\s+buff/i,
+    /\d+.*?damage\s+bonus/i,
+    /damage\s+buff.*?\d+/i,
+  ];
+
+  // Build/class/weapon/gear/mark passives & buff moves
+  allData.forEach(d => {
+    (d.innatePassives || []).forEach(p => tryAdd(p.name, p.description || p.effect || "", "passive"));
+    (d.learns || []).forEach(m => {
+      if (m.type === "Passive") tryAdd(m.name, m.effect || "", "passive");
+      if (m.type === "Active") {
+        const text = m.effect || "";
+        // Buff-category moves always checked for dmg bonus (they ARE the buff)
+        // Other active moves only if they explicitly grant a damage buff to the user
+        if (m.category === "Buff" || buffGrantPatterns.some(pat => pat.test(text))) {
+          tryAdd(m.name, text, "buff");
+        }
+      }
+    });
+  });
+
+  // Active mastery move nodes (lm1/lm2/cm1/cm2/rm1/rm2 — type:"mastery" only)
+  const classData = getActiveMasteryData();
+  if (classData?.nodes) {
+    masteryNodes
+      .filter(n => n.type === "mastery" && masteryState[n.id])
+      .forEach(n => {
+        const override = classData.nodes[n.id] || {};
+        const desc = override.desc || "";
+        if (desc) {
+          // If this mastery upgrades a specific buff/move, register under that name so it merges
+          const name = override.upgrades || override.name || n.name;
+          tryAdd(name, desc, "mastery");
+        }
+      });
+  }
+
+  // Ranked soul tree nodes
+  Object.values(soulTreeData).flat().forEach(node => {
+    const rank = soulTreeRanks[node.id] || 0;
+    if (!rank) return;
+    const val = +(rank * node.perRank).toFixed(node.decimals ?? 1);
+    const desc = node.desc.replace("{v}", val);
+    tryAdd(node.name, desc, "mastery");
+  });
+
+  // --- Merge pass ---
+  // Mastery entries that are "[X] Proficiency" get merged into the base "[X]" entry if it exists.
+  // Any two entries sharing the same display-name get merged too.
+  const merged = [];
+  const nameIdx = new Map(); // displayName (lowercase) → index in merged
+
+  rawEntries.forEach(e => {
+    const baseName = (e.kind === "mastery" && e.name.endsWith(" Proficiency"))
+      ? e.name.slice(0, -" Proficiency".length)
+      : null;
+    const lookupKey = (baseName ?? e.name).toLowerCase();
+    const existingIdx = nameIdx.get(lookupKey);
+
+    if (existingIdx !== undefined) {
+      const ex = merged[existingIdx];
+      if (!ex.kinds.includes(e.kind)) {
+        if (e.kind === "mastery") {
+          // Mastery upgrades the base entry — put it first so it's the "primary" version
+          ex.kinds.unshift("mastery");
+          ex.descs.unshift({ kind: "mastery", text: e.desc });
+          ex.bonus = e.bonus; // mastery overrides base bonus
+        } else {
+          ex.kinds.push(e.kind);
+          ex.descs.push({ kind: e.kind, text: e.desc });
+          ex.bonus = Math.max(ex.bonus, e.bonus);
+        }
+      }
+    } else {
+      const displayName = baseName ?? e.name;
+      const idx = merged.length;
+      nameIdx.set(displayName.toLowerCase(), idx);
+      merged.push({
+        key:   e.key,
+        name:  displayName,
+        bonus: e.bonus,
+        kinds: [e.kind],
+        descs: [{ kind: e.kind, text: e.desc }],
+      });
+    }
+  });
+
+  return merged;
+}
+
+function getActiveDmgBonus() {
+  return dmgBonusPassives.filter(p => dmgBonusActive[p.key]).reduce((sum, p) => sum + p.bonus, 0);
+}
+
+let _dmgBonusFilter = "";
+let _dcTooltip = null;
+
+function ensureDcTooltip() {
+  if (!_dcTooltip) {
+    _dcTooltip = document.createElement("div");
+    _dcTooltip.className = "dc-bonus-tooltip";
+    _dcTooltip.style.display = "none";
+    document.body.appendChild(_dcTooltip);
+  }
+  return _dcTooltip;
+}
+
+const KIND_COLORS = { passive: "#9b7ae8", buff: "#4ade80", mastery: "#fbbf24" };
+
+function showDcTooltip(rowEl, p) {
+  const descs = p.descs || [{ kind: p.kind || "passive", text: p.desc || "" }];
+  if (!descs.some(d => d.text)) return;
+  const tip = ensureDcTooltip();
+  tip.innerHTML = descs.map((d, i) => {
+    const col = KIND_COLORS[d.kind] || "#ccc";
+    const label = d.kind.charAt(0).toUpperCase() + d.kind.slice(1);
+    return (i > 0 ? `<div class="dc-tip-divider"></div>` : "")
+      + `<div class="dc-tip-section">
+           <span class="dc-tip-kind" style="color:${col}">${label}</span>
+           <span class="dc-tip-body">${d.text.replace(/\n/g, "<br>")}</span>
+         </div>`;
+  }).join("");
+
+  const rect = rowEl.getBoundingClientRect();
+  const tipW = 290;
+  let left = rect.right + 10;
+  if (left + tipW > window.innerWidth - 8) left = rect.left - tipW - 10;
+  tip.style.left = Math.max(8, left) + "px";
+  tip.style.top  = rect.top + "px";
+  tip.style.display = "block";
+}
+
+function hideDcTooltip() {
+  if (_dcTooltip) _dcTooltip.style.display = "none";
+}
+
+function renderDmgBonusSection() {
+  const container = document.getElementById("dmg-bonus-section");
+  if (!container) return;
+
+  dmgBonusPassives = collectDmgBonusPassives();
+  if (!dmgBonusPassives.length) { container.innerHTML = ""; return; }
+
+  // Init toggle state for any new passives
+  dmgBonusPassives.forEach(p => { if (!(p.key in dmgBonusActive)) dmgBonusActive[p.key] = false; });
+
+  let html = `<h3 class="dc-bonus-title">Dmg Bonus</h3>
+    <input type="text" id="dmg-bonus-search" class="dc-bonus-search" placeholder="Search..." value="${_dmgBonusFilter.replace(/"/g, "&quot;")}">
+    <div class="dc-bonus-list">`;
+
+  function kindBadge(k) {
+    if (k === "buff")    return `<span class="dc-bonus-kind dc-bonus-kind-buff">Buff</span>`;
+    if (k === "mastery") return `<span class="dc-bonus-kind dc-bonus-kind-mastery">Mastery</span>`;
+    return `<span class="dc-bonus-kind dc-bonus-kind-passive">Passive</span>`;
+  }
+
+  dmgBonusPassives.forEach((p, fullIdx) => {
+    if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
+    const on = dmgBonusActive[p.key];
+    const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
+    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}">
+      <div class="dc-bonus-check">${on ? "✓" : ""}</div>
+      <span class="dc-bonus-name">${p.name}</span>
+      <span class="dc-bonus-badges">${badges}</span>
+      <span class="dc-bonus-pct">+${p.bonus}%</span>
+    </div>`;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+
+  document.getElementById("dmg-bonus-search").addEventListener("input", e => {
+    _dmgBonusFilter = e.target.value.toLowerCase();
+    renderDmgBonusSection();
+  });
+
+  container.querySelectorAll(".dc-bonus-row").forEach(row => {
+    const p = dmgBonusPassives[+row.dataset.bidx];
+    if (!p) return;
+    row.addEventListener("click", () => {
+      dmgBonusActive[p.key] = !dmgBonusActive[p.key];
+      renderDmgBonusSection();
+    });
+    row.addEventListener("mouseenter", () => showDcTooltip(row, p));
+    row.addEventListener("mouseleave", hideDcTooltip);
+  });
+}
+
+// --- Dmg Calc move list ---
+const MOVE_TYPE_COLORS = {
+  "Physical": "#f4a460",
+  "Magic":    "#9b7ae8",
+  "Holy":     "#ffd700",
+  "Dark":     "#c084fc",
+  "Fire":     "#ff6b35",
+  "Ice":      "#7dd3fc",
+  "Nature":   "#4ade80",
+  "Poison":   "#a3e635",
+  "Hex":      "#f472b6",
+  "N/A":      "#888888",
+};
+
+function renderDmgCalc() {
+  const container = document.getElementById("dmg-calc-moves");
+  if (!container) return;
+
+  const raceName     = racePicker.value;
+  const baseClass    = classPicker.value;
+  const superClass   = superPicker.value;
+  const subClass     = subPicker.value;
+  const markName     = markPicker.value;
+  const artifactName = artifactPicker.value;
+  const weaponMain   = document.getElementById("weapon-main").value;
+  const weaponOff    = document.getElementById("weapon-offhand").value;
+  const covenantName = covenantPicker.value;
+  const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
+
+  const raceData       = raceName     ? raceMoves[raceName]          : null;
+  const baseData       = baseClass    ? classMoves[baseClass]        : null;
+  const superData      = superClass   ? classMoves[superClass]       : null;
+  const subData        = subClass     ? classMoves[subClass]         : null;
+  const markData       = markName     ? markMoves[markName]          : null;
+  const artifactData   = artifactName ? artifactMoves[artifactName]  : null;
+  const weaponMainData = weaponMain   ? weaponMoves[weaponMain]      : null;
+  const weaponOffData  = weaponOff    ? weaponMoves[weaponOff]       : null;
+  const covenantData   = covenantName ? covenantMoves[covenantName]  : null;
+  const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
+
+  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allMoves = allData.flatMap(d => (d.learns || []).filter(m =>
+    m.type === "Active" &&
+    m.category !== "Buff" &&
+    m.damage !== undefined &&
+    /^\d/.test(String(m.damage)) &&
+    !isSummonMove(m)
+  ));
+
+  if (!allMoves.length) {
+    container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
+    renderDmgBonusSection();
+    return;
+  }
+
+  dmgCalcMoveList = allMoves;
+  let html = `<div class="dmg-calc-move-list">`;
+  allMoves.forEach((m, i) => {
+    const color = MOVE_TYPE_COLORS[m.moveType] || "#cccccc";
+    const canCalc = m.damage !== undefined && /^\d/.test(String(m.damage));
+    const dmgStr  = m.damage   !== undefined ? `<span class="dc-stat">Dmg: <b>${m.damage}</b></span>` : "";
+    const sclStr  = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
+    const costStr = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
+    const cdStr   = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
+    html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `onclick="toggleDmgDetail(this,${i})"` : ""}>
+      <span class="dc-name" style="color:${color}">${m.name}</span>
+      <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>
+      <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}</span>
+      ${canCalc ? `<span class="dc-hint">click to calculate</span>` : ""}
+    </div>
+    <div class="dc-detail" style="display:none"></div>`;
+  });
+  html += `</div>`;
+  container.innerHTML = html;
+  renderDmgBonusSection();
 }
 
 racePicker.addEventListener("change", renderMoves);
@@ -4862,6 +5302,7 @@ function changeRank(nodeId, delta) {
   recalcSoulTreeBonuses();
   renderSoulTree();
   updatePecents();
+  renderDmgBonusSection();
 }
 
 renderSoulTree();
@@ -5110,7 +5551,7 @@ const masteryClassData = {
       l5:  { name: "Luck Node" }, l6:  { name: "Luck Node" },
       l7:  { name: "Luck Node" }, l8:  { name: "Luck Node" },
       l9:  { name: "Luck Node" },
-      lm1: { name: "Shadow Master",               desc: "All attacks dealt while invisible now deal 30% more damage. (Doesn't stack with Stealth Strike's buff)\nActually works with Stealth Strike's buff despite the description. Also stacks multiplicatively with the invisible innate 20% damage buff." },
+      lm1: { name: "Shadow Master",               desc: "All attacks dealt while invisible now deal 30% more damage. (Doesn't stack with Stealth Strike's buff)\nActually works with Stealth Strike's buff despite the description. Also stacks multiplicatively with Shadow Form's innate damage buff.", upgrades: "Shadow Form" },
       lm2: { name: "Shadow Form Proficiency",     desc: "Now makes your next attack apply 2 sundered and 3 poison.\nThese statuses are applied before the damage is dealt." },
       c1:  { name: "Endurance Node" }, c2a: { name: "Endurance Node" },
       c2b: { name: "Endurance Node" }, c3a: { name: "Endurance Node" },
@@ -5592,6 +6033,7 @@ function toggleMasteryNode(id) {
   updateMasteryDisplay();
   renderMasteryInfoSection();
   updatePecents();
+  renderDmgBonusSection();
 }
 
 function resetMastery() {
@@ -5836,6 +6278,7 @@ tabs.forEach(tab => {
     document.getElementById(target).classList.add("active");
 
     if (target === "mastery") renderMastery();
+    if (target === "dmg-calc") renderDmgCalc();
 
   });
 });
