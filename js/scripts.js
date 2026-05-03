@@ -6535,13 +6535,16 @@ async function encodeState(state) {
     localStorage.setItem('alb:' + id, payload);
     return base + '?id=' + id;
   }
-  // Fallback: encode state directly in URL hash (works without any external service)
-  const safeName = encodeURIComponent((name || 'Untitled').replace(/\//g, ' '));
-  return base + '#' + safeName + '/' + blob;
+  // Fallback: encode build state directly into the id param (no external service needed)
+  return base + '?id=b_' + blob;
 }
 
-// Load payload by ID — localStorage first, then JSONBlob
+// Load payload by ID — handles b_ (direct-encoded), localStorage, then JSONBlob
 async function _loadById(id) {
+  // b_ prefix = build state encoded directly in the id param
+  if (id.startsWith('b_')) {
+    return { d: id.slice(2), n: 'Untitled' };
+  }
   const cached = localStorage.getItem('alb:' + id);
   if (cached) {
     try { return JSON.parse(cached); } catch (e) {
