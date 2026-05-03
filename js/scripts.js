@@ -2452,7 +2452,8 @@ const classMoves = {
         category: "Attack",
         damage: "1x20",
         scaling: "STR/120",
-        effect: "Consumes all current energy to increase damage by 20% per energy consumed past 1 energy.\n\nApplies 3 sunder on the last hit if you are at max energy.\n\nEnemy-Wide | Melee | Sure Hit"
+        effect: "Consumes all current energy to increase damage by 20% per energy consumed past 1 energy.\n\nApplies 3 sunder on the last hit if you are at max energy.\n\nEnemy-Wide | Melee | Sure Hit",
+        energyScaling: { perEnergy: 20, past: 1 }
       },
       {
         slot: "3rd Learn",
@@ -2582,6 +2583,7 @@ const classMoves = {
         damage: 18,
         scaling: "ARC/45",
         effect: "Consumes all energy; for each energy consumed over 3, this move gains a 12.5% damage buff. Fully AoE, has a chance to apply 1 Stun to each opponent.",
+        energyScaling: { perEnergy: 12.5, past: 3 },
         image: "https://trello.com/1/cards/67b32945a9f9561ed5168d6b/attachments/697fc3d4b7830acd7f2af61b/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202022104.png"
       },
       {
@@ -4773,6 +4775,8 @@ function renderMoves() {
 // --- Dmg Calc helpers ---
 
 let dmgCalcMoveList = [];
+let energyCount = 0;
+let rageEmpHpConsumed = 0; // 0-65: % of max HP consumed → up to 65% dmg bonus
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -4829,13 +4833,31 @@ function toggleDmgDetail(rowEl, idx) {
     detail.innerHTML = `<div class="dc-calc-unavail">No damage calculation available for this move.</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
+
+  // Energy bonus for energy-scaling moves
+  function getEnergyBonusPct(move) {
+    if (!move.energyScaling || energyCount <= 0) return 0;
+    const extra = Math.max(0, energyCount - move.energyScaling.past);
+    return extra * move.energyScaling.perEnergy;
+  }
+
+  function buildBonusTag(activePct, energyPct) {
+    if (activePct > 0 && energyPct > 0)
+      return `[+${activePct}% bonus, +${energyPct}% energy (${energyCount}E)]`;
+    if (energyPct > 0)
+      return `[+${energyPct}% energy (${energyCount}E)]`;
+    return `[+${activePct}% bonus]`;
+  }
+
   if (!scalings) {
-    const activeBonus = getActiveDmgBonus();
-    const bonusMult   = 1 + activeBonus / 100;
-    const boosted     = baseDmgNum * bonusMult;
+    const activeBonus  = getActiveDmgBonus();
+    const energyBonus  = getEnergyBonusPct(m);
+    const totalBonus   = activeBonus + energyBonus;
+    const bonusMult    = 1 + totalBonus / 100;
+    const boosted      = baseDmgNum * bonusMult;
     let formula;
-    if (activeBonus > 0) {
-      formula = `${baseDmgNum} × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">[+${activeBonus}% bonus]</span> = <b>${boosted.toFixed(2)}</b>`;
+    if (totalBonus > 0) {
+      formula = `${baseDmgNum} × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
       if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${(boosted * hitCount).toFixed(2)}</b>`;
     } else {
       formula = hitCount > 1
@@ -4856,12 +4878,14 @@ function toggleDmgDetail(rowEl, idx) {
   const totalDmg  = dmgPerHit * hitCount;
 
   const activeBonus = getActiveDmgBonus();
-  const bonusMult   = 1 + activeBonus / 100;
+  const energyBonus = getEnergyBonusPct(m);
+  const totalBonus  = activeBonus + energyBonus;
+  const bonusMult   = 1 + totalBonus / 100;
   const scalingStr  = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(2)}</b>`;
-  if (activeBonus > 0) {
+  if (totalBonus > 0) {
     const boosted = dmgPerHit * bonusMult;
-    formula += ` × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">[+${activeBonus}% bonus]</span> = <b>${boosted.toFixed(2)}</b>`;
+    formula += ` × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
     if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${(boosted * hitCount).toFixed(2)}</b>`;
   } else if (hitCount > 1) {
     formula += ` × ${hitCount} hits = <b>${totalDmg.toFixed(2)}</b>`;
@@ -5034,7 +5058,10 @@ function collectDmgBonusPassives() {
 }
 
 function getActiveDmgBonus() {
-  return dmgBonusPassives.filter(p => dmgBonusActive[p.key]).reduce((sum, p) => sum + p.bonus, 0);
+  return dmgBonusPassives.filter(p => dmgBonusActive[p.key]).reduce((sum, p) => {
+    if (p.name === "Rage Empower") return sum + 30 + rageEmpHpConsumed;
+    return sum + p.bonus;
+  }, 0);
 }
 
 let _dmgBonusFilter = "";
@@ -5079,17 +5106,41 @@ function hideDcTooltip() {
   if (_dcTooltip) _dcTooltip.style.display = "none";
 }
 
+function changeEnergy(delta) {
+  energyCount = Math.min(6, Math.max(0, energyCount + delta));
+  renderDmgBonusSection();
+}
+
+function setRageEmpHp(val) {
+  rageEmpHpConsumed = +val;
+  const valEl = document.getElementById("dc-rage-hp-val");
+  const pctEl = document.querySelector(".dc-bonus-row[data-rage-emp] .dc-bonus-pct");
+  if (valEl) valEl.textContent = val + "%";
+  if (pctEl) pctEl.textContent = `+${30 + rageEmpHpConsumed}%`;
+}
+
 function renderDmgBonusSection() {
   const container = document.getElementById("dmg-bonus-section");
   if (!container) return;
 
   dmgBonusPassives = collectDmgBonusPassives();
-  if (!dmgBonusPassives.length) { container.innerHTML = ""; return; }
+
+  // Energy counter — always shown
+  let html = `<div class="dc-energy-section">
+    <span class="dc-energy-label">Energy</span>
+    <div class="dc-energy-counter">
+      <button class="dc-energy-btn" onclick="changeEnergy(-1)">−</button>
+      <span class="dc-energy-val" id="dc-energy-val">${energyCount}</span>
+      <button class="dc-energy-btn" onclick="changeEnergy(1)">+</button>
+    </div>
+  </div>`;
+
+  if (!dmgBonusPassives.length) { container.innerHTML = html; return; }
 
   // Init toggle state for any new passives
   dmgBonusPassives.forEach(p => { if (!(p.key in dmgBonusActive)) dmgBonusActive[p.key] = false; });
 
-  let html = `<h3 class="dc-bonus-title">Dmg Bonus</h3>
+  html += `<h3 class="dc-bonus-title">Dmg Bonus</h3>
     <input type="text" id="dmg-bonus-search" class="dc-bonus-search" placeholder="Search..." value="${_dmgBonusFilter.replace(/"/g, "&quot;")}">
     <div class="dc-bonus-list">`;
 
@@ -5103,12 +5154,21 @@ function renderDmgBonusSection() {
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
-    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}">
+    const isRageEmp = p.name === "Rage Empower";
+    const displayBonus = isRageEmp ? 30 + rageEmpHpConsumed : p.bonus;
+    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${p.name}</span>
       <span class="dc-bonus-badges">${badges}</span>
-      <span class="dc-bonus-pct">+${p.bonus}%</span>
+      <span class="dc-bonus-pct">+${displayBonus}%</span>
     </div>`;
+    if (isRageEmp) {
+      html += `<div class="dc-rage-slider-row">
+        <span class="dc-rage-slider-label">HP Consumed: <span id="dc-rage-hp-val">${rageEmpHpConsumed}%</span></span>
+        <input type="range" class="dc-rage-slider" min="0" max="65" value="${rageEmpHpConsumed}" oninput="setRageEmpHp(this.value)">
+        <span class="dc-rage-slider-hint">0% → 65% dmg</span>
+      </div>`;
+    }
   });
 
   html += `</div>`;
@@ -5195,10 +5255,11 @@ function renderDmgCalc() {
     const sclStr  = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
     const costStr = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
     const cdStr   = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
+    const eneStr  = m.energyScaling ? `<span class="dc-stat dc-energy-badge">+${m.energyScaling.perEnergy}%/E (past ${m.energyScaling.past})</span>` : "";
     html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `onclick="toggleDmgDetail(this,${i})"` : ""}>
       <span class="dc-name" style="color:${color}">${m.name}</span>
       <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>
-      <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}</span>
+      <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}${eneStr}</span>
       ${canCalc ? `<span class="dc-hint">click to calculate</span>` : ""}
     </div>
     <div class="dc-detail" style="display:none"></div>`;
@@ -6472,12 +6533,11 @@ async function encodeState(state) {
 
   if (id) {
     localStorage.setItem('alb:' + id, payload);
-  } else {
-    // Fallback: local-only short ID
-    id = Math.random().toString(36).slice(2, 10);
-    localStorage.setItem('alb:' + id, payload);
+    return base + '?id=' + id;
   }
-  return base + '?id=' + id;
+  // Fallback: encode state directly in URL hash (works without any external service)
+  const safeName = encodeURIComponent((name || 'Untitled').replace(/\//g, ' '));
+  return base + '#' + safeName + '/' + blob;
 }
 
 // Load payload by ID — localStorage first, then JSONBlob
