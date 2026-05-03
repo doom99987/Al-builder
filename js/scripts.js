@@ -6450,15 +6450,21 @@ class _BitReader {
 // bits needed to store values 0..n  (n+1 distinct values)
 function _wb(n) { let b = 1; while ((1 << b) <= n) b++; return b; }
 
-// XOR-scramble a base64url blob with a fixed key so it doesn't look like AAAAAAA.
-// Self-inverse: applying twice returns the original.
-const _SCRAMBLE_KEY = [0x5A,0xA5,0x3C,0xC3,0x69,0x96,0xF0,0x0F,0x27,0xD8,0x4B,0xB4,0x1E,0xE1,0x72,0x8D];
-function _xorBlob(b64url) {
-  const b64  = b64url.replace(/-/g,'+').replace(/_/g,'/');
-  const pad  = b64.length % 4 ? '===='.slice(b64.length % 4) : '';
-  const bin  = atob(b64 + pad);
-  const xord = Array.from(bin, (c, i) => c.charCodeAt(0) ^ _SCRAMBLE_KEY[i % _SCRAMBLE_KEY.length]);
-  return btoa(String.fromCharCode(...xord)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+// Scramble a base64url string so it doesn't look like AAAAAAA when the build is empty.
+// Works directly on characters — no atob/btoa, no padding issues.
+// Each position rotates by a different amount so the same char → different output at each position.
+const _B64U = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function _scrambleBlob(s) {
+  return s.split('').map((c, i) => {
+    const idx = _B64U.indexOf(c);
+    return idx < 0 ? c : _B64U[(idx + 13 + i * 7) % 64];
+  }).join('');
+}
+function _unscrambleBlob(s) {
+  return s.split('').map((c, i) => {
+    const idx = _B64U.indexOf(c);
+    return idx < 0 ? c : _B64U[((idx - 13 - i * 7) % 64 + 640) % 64];
+  }).join('');
 }
 
 // Pack build data into binary build (base64url), no name included
@@ -6547,14 +6553,14 @@ async function encodeState(state) {
     return base + '?id=' + id;
   }
   // Fallback: encode build state directly into the id param (no external service needed)
-  return base + '?id=b_' + _xorBlob(blob);
+  return base + '?id=b_' + _scrambleBlob(blob);
 }
 
 // Load payload by ID — handles b_ (direct-encoded), localStorage, then JSONBlob
 async function _loadById(id) {
-  // b_ prefix = build state encoded directly in the id param (XOR-scrambled)
+  // b_ prefix = build state encoded directly in the id param (scrambled)
   if (id.startsWith('b_')) {
-    return { d: _xorBlob(id.slice(2)), n: 'Untitled' };
+    return { d: _unscrambleBlob(id.slice(2)), n: 'Untitled' };
   }
   const cached = localStorage.getItem('alb:' + id);
   if (cached) {
