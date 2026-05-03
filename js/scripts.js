@@ -1805,12 +1805,53 @@ buildSimpleDropdown(armourPicker, Object.keys(armourItems), () => {
 
 // --- Scrolls ---
 // To add a lost scroll: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
-const lostScrollItems = {};
+const lostScrollItems = {
+  "Metrom's Grasp": {},
+  "Absolute Radiance": {},
+  "Heavenly Prayer": {},
+  "Breath of Fungyir": {},
+  "Permafrost Curse": {},
+  "Wild Impulse": {}
+};
+
+const lostScrollMoves = {
+  "Metrom's Grasp": {
+    learns: [
+      { level: 1, type: "Active", name: "Metrom's Grasp", quote: "", cost: 5, cooldown: 18, moveType: "Magic", category: "Buff", duration: 5, effect: "Decreases opponents' defense by 40%, makes them harder to block/dodge. Grants 30% more damage for DoT effects over 5 turns." }
+    ]
+  },
+  "Absolute Radiance": {
+    learns: [
+      { level: 1, type: "Active", name: "Absolute Radiance", quote: "", cost: 4, cooldown: 18, moveType: "Fire", category: "Buff", duration: 5, effect: "Growing dmg/DR buff each turn — reaches up to 22.5% more damage by turn 5 (~7.5%/10%/12.5%/15%/22.5%)." }
+    ]
+  },
+  "Heavenly Prayer": {
+    learns: [
+      { level: 1, type: "Active", name: "Heavenly Prayer", quote: "", cost: 5, cooldown: 22, moveType: "Holy", category: "Buff", duration: 3, effect: "Grants 10% Lifesteal for 5 turns, 3 Resist, 15% DR for 3 turns, and Death Defy for 2 turns." }
+    ]
+  },
+  "Breath of Fungyir": {
+    learns: [
+      { level: 1, type: "Active", name: "Breath of Fungyir", quote: "", cost: 4, cooldown: 20, moveType: "Magic", category: "Buff", effect: "Enter a stance and unleash a heavy stun on the opponent. Also fully heals your entire team." }
+    ]
+  },
+  "Permafrost Curse": {
+    learns: [
+      { level: 1, type: "Active", name: "Permafrost Curse", quote: "", cost: 4, cooldown: 10, moveType: "Ice", category: "Attack", damage: 14, scaling: "STR/75", effect: "Applies 2 Cold and 1 Stun. Acts as a pseudo-AoE, hitting adjacent enemies as well." }
+    ]
+  },
+  "Wild Impulse": {
+    learns: [
+      { level: 1, type: "Active", name: "Wild Impulse", quote: "", cost: 1, cooldown: 10, moveType: "Magic", category: "Buff", effect: "Your next hit becomes a pseudo-AoE, dealing 20% damage to all nearby enemies. Applies 2 Vulnerable and Weakened to all targets hit." }
+    ]
+  }
+};
+
 // To add a scroll: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
 const scrollItems = {};
 
 const lostScrollPicker = document.getElementById("scroll-lost");
-buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => updatePecents());
+buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { renderMoves(); updatePecents(); });
 
 const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
@@ -4639,10 +4680,11 @@ function renderMoves() {
   const weaponOff    = document.getElementById("weapon-offhand").value;
   const covenantName = covenantPicker.value;
   const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
+  const lostScrollName = lostScrollPicker.value;
   const covenantRank = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
   const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length) {
+  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length && !lostScrollName) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     renderDmgCalc();
     return;
@@ -4657,6 +4699,7 @@ function renderMoves() {
   const weaponMainData = weaponMain    ? weaponMoves[weaponMain]       : null;
   const weaponOffData  = weaponOff     ? weaponMoves[weaponOff]        : null;
   const covenantData   = covenantName  ? covenantMoves[covenantName]   : null;
+  const lostScrollData = lostScrollName ? lostScrollMoves[lostScrollName] : null;
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
   let html = "";
@@ -4734,10 +4777,18 @@ function renderMoves() {
     html += `</div>`;
   }
 
+  if (lostScrollName) {
+    html += `<div class="moves-col">`;
+    html += `<div class="moves-entity-label">Lost Scroll</div>`;
+    html += `<h2 class="moves-race-title">${lostScrollName}</h2>`;
+    if (lostScrollData) { html += entityMovesHtml(lostScrollData, lvl); html += entityPassivesHtml(lostScrollData, lvl); }
+    html += `</div>`;
+  }
+
   html += `</div>`; // end .moves-columns
 
   // --- Summons section ---
-  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
   const allSummonMoves = allData.flatMap(d => (d.learns || []).filter(isSummonMove));
   if (allSummonMoves.length) {
     const summonGroups = {};
@@ -4791,6 +4842,8 @@ function renderMoves() {
 let dmgCalcMoveList = [];
 let energyCount = 0;
 let rageEmpHpConsumed = 0; // 0-65: % of max HP consumed → up to 65% dmg bonus
+let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
+const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -4948,17 +5001,19 @@ function collectDmgBonusPassives() {
   const weaponOff    = document.getElementById("weapon-offhand").value;
   const covenantName = covenantPicker.value;
   const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
+  const lostScrollName = lostScrollPicker.value;
 
   const allData = [
-    raceName     ? raceMoves[raceName]         : null,
-    baseClass    ? classMoves[baseClass]       : null,
-    superClass   ? classMoves[superClass]      : null,
-    subClass     ? classMoves[subClass]        : null,
-    markName     ? markMoves[markName]         : null,
-    artifactName ? artifactMoves[artifactName] : null,
-    weaponMain   ? weaponMoves[weaponMain]     : null,
-    weaponOff    ? weaponMoves[weaponOff]      : null,
-    covenantName ? covenantMoves[covenantName] : null,
+    raceName       ? raceMoves[raceName]               : null,
+    baseClass      ? classMoves[baseClass]             : null,
+    superClass     ? classMoves[superClass]            : null,
+    subClass       ? classMoves[subClass]              : null,
+    markName       ? markMoves[markName]               : null,
+    artifactName   ? artifactMoves[artifactName]       : null,
+    weaponMain     ? weaponMoves[weaponMain]           : null,
+    weaponOff      ? weaponMoves[weaponOff]            : null,
+    covenantName   ? covenantMoves[covenantName]       : null,
+    lostScrollName ? lostScrollMoves[lostScrollName]   : null,
     ...gearSlots.map(name => gearMoves[name] || null),
   ].filter(Boolean);
 
@@ -5074,6 +5129,7 @@ function collectDmgBonusPassives() {
 function getActiveDmgBonus() {
   return dmgBonusPassives.filter(p => dmgBonusActive[p.key]).reduce((sum, p) => {
     if (p.name === "Rage Empower") return sum + 30 + rageEmpHpConsumed;
+    if (p.name === "Absolute Radiance") return sum + ABS_RAD_BONUSES[absRadTurn - 1];
     return sum + p.bonus;
   }, 0);
 }
@@ -5125,6 +5181,11 @@ function changeEnergy(delta) {
   renderDmgBonusSection();
 }
 
+function changeAbsRadTurn(delta) {
+  absRadTurn = Math.min(5, Math.max(1, absRadTurn + delta));
+  renderDmgBonusSection();
+}
+
 function setRageEmpHp(val) {
   rageEmpHpConsumed = +val;
   const valEl = document.getElementById("dc-rage-hp-val");
@@ -5169,7 +5230,10 @@ function renderDmgBonusSection() {
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
     const isRageEmp = p.name === "Rage Empower";
-    const displayBonus = isRageEmp ? 30 + rageEmpHpConsumed : p.bonus;
+    const isAbsRad  = p.name === "Absolute Radiance";
+    const displayBonus = isRageEmp ? 30 + rageEmpHpConsumed
+                       : isAbsRad  ? ABS_RAD_BONUSES[absRadTurn - 1]
+                       : p.bonus;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${p.name}</span>
@@ -5181,6 +5245,16 @@ function renderDmgBonusSection() {
         <span class="dc-rage-slider-label">HP Consumed: <span id="dc-rage-hp-val">${rageEmpHpConsumed}%</span></span>
         <input type="range" class="dc-rage-slider" min="0" max="65" value="${rageEmpHpConsumed}" oninput="setRageEmpHp(this.value)">
         <span class="dc-rage-slider-hint">0% → 65% dmg</span>
+      </div>`;
+    }
+    if (isAbsRad) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Turn</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeAbsRadTurn(-1)">−</button>
+          <span class="dc-energy-val">${absRadTurn}</span>
+          <button class="dc-energy-btn" onclick="changeAbsRadTurn(1)">+</button>
+        </div>
       </div>`;
     }
   });
@@ -5243,9 +5317,11 @@ function renderDmgCalc() {
   const weaponMainData = weaponMain   ? weaponMoves[weaponMain]      : null;
   const weaponOffData  = weaponOff    ? weaponMoves[weaponOff]       : null;
   const covenantData   = covenantName ? covenantMoves[covenantName]  : null;
+  const lostScrollName = lostScrollPicker.value;
+  const lostScrollData = lostScrollName ? lostScrollMoves[lostScrollName] : null;
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
-  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
   const allMoves = allData.flatMap(d => (d.learns || []).filter(m =>
     m.type === "Active" &&
     m.category !== "Buff" &&
