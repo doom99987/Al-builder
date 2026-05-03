@@ -14,8 +14,159 @@
  */
 
 /* ============================================================
+   0. SITE NAVIGATION & HOME PAGE
+   ============================================================ */
+
+/* --- Top nav bar --- */
+.site-nav {
+  display: flex;
+  align-items: center;
+  height: 46px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #222;
+  padding: 0 20px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.site-nav-logo {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+  margin-right: 8px;
+}
+.site-nav-tabs { display: flex; gap: 4px; }
+.site-nav-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s, color 0.15s;
+}
+.site-nav-btn:hover { background: #1a1a1a; color: #fff; }
+.site-nav-btn.active { background: #242424; color: #fff; border-bottom: 2px solid #fff; }
+
+/* --- Top-level page containers --- */
+.site-page { display: none; }
+.site-page.active { display: block; }
+
+/* Builder page fills remaining viewport height */
+#page-builder.active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 46px);
+}
+#page-builder .app {
+  flex: 1;
+  height: 100%;
+}
+
+/* --- Home page --- */
+.home-hero {
+  text-align: center;
+  padding: 72px 24px 48px;
+}
+.home-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 56px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  letter-spacing: 2px;
+  color: #fff;
+}
+.home-subtitle {
+  font-size: 16px;
+  color: #999;
+  max-width: 520px;
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+.home-cta {
+  background: #fff;
+  color: #0d0d0d;
+  border: none;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s, transform 0.1s;
+}
+.home-cta:hover { background: #e0e0e0; transform: translateY(-1px); }
+
+.home-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto 60px;
+  padding: 0 24px;
+}
+.home-card {
+  background: #141414;
+  border: 1px solid #252525;
+  border-radius: 8px;
+  padding: 24px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.home-card:hover { background: #1a1a1a; border-color: #383838; }
+.home-card-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.home-card-body {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.6;
+}
+
+/* --- WIP page --- */
+.wip-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 46px);
+  gap: 12px;
+}
+.wip-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.wip-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #555;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* ============================================================
    1. FONTS
    ============================================================ */
+
+/* .app is now inside #page-builder, not a direct body child — override 100vh */
+.app { height: 100%; }
+
 body {
   font-family: 'Inter', Arial, sans-serif;
 }
