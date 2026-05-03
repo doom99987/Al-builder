@@ -1848,15 +1848,109 @@ const lostScrollMoves = {
 };
 
 // To add a scroll: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
-const scrollItems = {};
+const scrollItems = {
+  "Lights Out": {},
+  "Bulk Up": {},
+  "Immolation": {},
+  "Lesser Absorb": {},
+  "Steel Body": {},
+  "Self Cure": {},
+  "Simple Curse": {},
+  "Fireball": {},
+  "Ice Shards": {},
+  "Dark Slash": {},
+  "Lesser Empower": {},
+  "Torching Soul": {},
+  "Wind Reflect": {},
+  "Surprise Package": {},
+  "Blizzard": {}
+};
+
+const scrollMoves = {
+  "Lights Out": {
+    learns: [
+      { level: 1, type: "Active", name: "Lights Out", quote: "", cost: 1, cooldown: 5, moveType: "Holy", category: "Buff", effect: "Applies 3 Blinded and 1 Stunned to all enemies. Has a chance to backfire and apply to yourself instead." }
+    ]
+  },
+  "Bulk Up": {
+    learns: [
+      { level: 1, type: "Active", name: "Bulk Up", quote: "", cost: 1, cooldown: 6, moveType: "Physical", category: "Buff", effect: "Increases damage by 20% and decreases the user's own defense by 20%. Defense decrease is multiplicative (2 stacks = 44% more dmg taken, 3 stacks = 72%)." }
+    ]
+  },
+  "Immolation": {
+    learns: [
+      { level: 1, type: "Active", name: "Immolation", quote: "", cost: 2, cooldown: 999, moveType: "Fire", category: "Buff", effect: "Gain a 10% damage buff (defense buff is bugged). Take 0.1 damage per turn, increasing by 0.1 each turn. Cannot kill you; leaves you at 0.1 HP." }
+    ]
+  },
+  "Lesser Absorb": {
+    learns: [
+      { level: 1, type: "Active", name: "Lesser Absorb", quote: "", cost: 1, cooldown: 9, moveType: "Magic", category: "Buff", duration: 2, effect: "Places an orb over an ally, redirecting 5% of the damage they take towards you. Cannot be used on yourself." }
+    ]
+  },
+  "Steel Body": {
+    learns: [
+      { level: 1, type: "Active", name: "Steel Body", quote: "", cost: 2, cooldown: 8, moveType: "Physical", category: "Buff", duration: 1, effect: "Decrease all incoming damage by 80%. Does not work on boss ultimates." }
+    ]
+  },
+  "Self Cure": {
+    learns: [
+      { level: 1, type: "Active", name: "Self Cure", quote: "", cost: 2, cooldown: 7, moveType: "Holy", category: "Buff", effect: "Take ~5% of your max HP as damage and remove all status effects applied to you (only one stack of Inferno/Plague removed)." }
+    ]
+  },
+  "Simple Curse": {
+    learns: [
+      { level: 1, type: "Active", name: "Simple Curse", quote: "", cost: 2, cooldown: 6, moveType: "Hex", category: "Attack", damage: 5, scaling: "ARC/75", effect: "Applies 2 Vulnerable and 3 Weakened on hit." }
+    ]
+  },
+  "Fireball": {
+    learns: [
+      { level: 1, type: "Active", name: "Fireball", quote: "", cost: 2, cooldown: 4, moveType: "Fire", category: "Attack", damage: 9, scaling: "ARC/75", effect: "Has a chance to apply 3 Burning on hit." }
+    ]
+  },
+  "Ice Shards": {
+    learns: [
+      { level: 1, type: "Active", name: "Ice Shards", quote: "", cost: 3, cooldown: 8, moveType: "Ice", category: "Attack", damage: "3.5x4", scaling: "ARC/75", effect: "Applies 1 Weakened and 3 Cold on hit." }
+    ]
+  },
+  "Dark Slash": {
+    learns: [
+      { level: 1, type: "Active", name: "Dark Slash", quote: "", cost: 2, cooldown: 6, moveType: "Dark", category: "Attack", damage: 11, scaling: "STR/75", effect: "Has a chance to apply 2 Weakened." }
+    ]
+  },
+  "Lesser Empower": {
+    learns: [
+      { level: 1, type: "Active", name: "Lesser Empower", quote: "", cost: 2, cooldown: 6, moveType: "Magic", category: "Buff", duration: 2, effect: "Give the target a 15% damage buff for 2 turns." }
+    ]
+  },
+  "Torching Soul": {
+    learns: [
+      { level: 1, type: "Active", name: "Torching Soul", quote: "", cost: 3, cooldown: 20, moveType: "Fire", category: "Buff", duration: 5, effect: "Heal 3% of max HP every time you consume or are inflicted with Burn. Gain a damage and defense buff per Burn (doesn't stack). Duration 5 turns." }
+    ]
+  },
+  "Wind Reflect": {
+    learns: [
+      { level: 1, type: "Active", name: "Wind Reflect", quote: "", cost: 2, cooldown: 12, moveType: "Nature", category: "Buff", duration: 3, effect: "Place a shield on yourself or an ally, preventing physical attacks from hitting them. Does not fully work against bosses." }
+    ]
+  },
+  "Surprise Package": {
+    learns: [
+      { level: 1, type: "Active", name: "Surprise Package", quote: "", cost: 2, cooldown: 11, moveType: "Physical", category: "Buff", effect: "Plant a bomb on a target for 3 turns, dealing 30% of max HP (5% for bosses). Explodes with effects based on triggering affinity — Physical/Magic: +35% bonus dmg; Fire: +15% fire dmg + 10 Burning; Holy: 1 Resist + 10% HP heal to party; Ice: 6 Cold to all + -5% def 4 turns; Poison: 20 Poison + 2 Weaken to all; Hex: 1 Hex + 100 true dmg; Dark: 3 Vulnerable + 3 Weakened + disable dodge 4 turns; Nature: Daminos Restructure + remove 1 debuff from each party member." }
+    ]
+  },
+  "Blizzard": {
+    learns: [
+      { level: 1, type: "Active", name: "Blizzard", quote: "", cost: 2, cooldown: 15, moveType: "Ice", category: "Buff", duration: 4, effect: "Creates a snowstorm for 4 turns: all defense -20%, fire defense +25%, increasing ice damage by 20% for the team. Also increases the team's defense by 10%." }
+    ]
+  }
+};
 
 const lostScrollPicker = document.getElementById("scroll-lost");
 buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { renderMoves(); updatePecents(); });
 
 const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
-buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => updatePecents());
-buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => updatePecents());
+buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); });
+buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); });
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
@@ -4681,10 +4775,12 @@ function renderMoves() {
   const covenantName = covenantPicker.value;
   const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
   const lostScrollName = lostScrollPicker.value;
+  const scroll1Name  = scroll1Picker.value;
+  const scroll2Name  = scroll2Picker.value;
   const covenantRank = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
   const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length && !lostScrollName) {
+  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length && !lostScrollName && !scroll1Name && !scroll2Name) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     renderDmgCalc();
     return;
@@ -4700,6 +4796,8 @@ function renderMoves() {
   const weaponOffData  = weaponOff     ? weaponMoves[weaponOff]        : null;
   const covenantData   = covenantName  ? covenantMoves[covenantName]   : null;
   const lostScrollData = lostScrollName ? lostScrollMoves[lostScrollName] : null;
+  const scroll1Data    = scroll1Name   ? scrollMoves[scroll1Name]      : null;
+  const scroll2Data    = scroll2Name   ? scrollMoves[scroll2Name]      : null;
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
   let html = "";
@@ -4777,6 +4875,21 @@ function renderMoves() {
     html += `</div>`;
   }
 
+  if (scroll1Name || scroll2Name) {
+    html += `<div class="moves-col">`;
+    if (scroll1Name) {
+      html += `<div class="moves-entity-label">Scroll 1</div>`;
+      html += `<h2 class="moves-race-title">${scroll1Name}</h2>`;
+      if (scroll1Data) { html += entityMovesHtml(scroll1Data, lvl); html += entityPassivesHtml(scroll1Data, lvl); }
+    }
+    if (scroll2Name) {
+      html += `<div class="moves-entity-label"${scroll1Name ? ' style="margin-top:18px"' : ''}>Scroll 2</div>`;
+      html += `<h2 class="moves-race-title">${scroll2Name}</h2>`;
+      if (scroll2Data) { html += entityMovesHtml(scroll2Data, lvl); html += entityPassivesHtml(scroll2Data, lvl); }
+    }
+    html += `</div>`;
+  }
+
   if (lostScrollName) {
     html += `<div class="moves-col">`;
     html += `<div class="moves-entity-label">Lost Scroll</div>`;
@@ -4788,7 +4901,7 @@ function renderMoves() {
   html += `</div>`; // end .moves-columns
 
   // --- Summons section ---
-  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, scroll1Data, scroll2Data, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
   const allSummonMoves = allData.flatMap(d => (d.learns || []).filter(isSummonMove));
   if (allSummonMoves.length) {
     const summonGroups = {};
@@ -4844,6 +4957,8 @@ let energyCount = 0;
 let rageEmpHpConsumed = 0; // 0-65: % of max HP consumed → up to 65% dmg bonus
 let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
 const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
+let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
+let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -5002,6 +5117,8 @@ function collectDmgBonusPassives() {
   const covenantName = covenantPicker.value;
   const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
   const lostScrollName = lostScrollPicker.value;
+  const scroll1Name    = scroll1Picker.value;
+  const scroll2Name    = scroll2Picker.value;
 
   const allData = [
     raceName       ? raceMoves[raceName]               : null,
@@ -5014,6 +5131,8 @@ function collectDmgBonusPassives() {
     weaponOff      ? weaponMoves[weaponOff]            : null,
     covenantName   ? covenantMoves[covenantName]       : null,
     lostScrollName ? lostScrollMoves[lostScrollName]   : null,
+    scroll1Name    ? scrollMoves[scroll1Name]          : null,
+    scroll2Name    ? scrollMoves[scroll2Name]          : null,
     ...gearSlots.map(name => gearMoves[name] || null),
   ].filter(Boolean);
 
@@ -5079,7 +5198,15 @@ function collectDmgBonusPassives() {
     if (!rank) return;
     const val = +(rank * node.perRank).toFixed(node.decimals ?? 1);
     const desc = node.desc.replace("{v}", val);
-    tryAdd(node.name, desc, "mastery");
+    if (node.dmgBonus) {
+      const key = "soultree:" + node.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        rawEntries.push({ key, name: node.name, bonus: val, kind: "passive", desc });
+      }
+    } else {
+      tryAdd(node.name, desc, "mastery");
+    }
   });
 
   // --- Merge pass ---
@@ -5130,6 +5257,8 @@ function getActiveDmgBonus() {
   return dmgBonusPassives.filter(p => dmgBonusActive[p.key]).reduce((sum, p) => {
     if (p.name === "Rage Empower") return sum + 30 + rageEmpHpConsumed;
     if (p.name === "Absolute Radiance") return sum + ABS_RAD_BONUSES[absRadTurn - 1];
+    if (p.name === "Bulk Up") return sum + bulkUpStacks * 20;
+    if (p.name === "Sands Of Time") return sum + hourglassStacks * 20;
     return sum + p.bonus;
   }, 0);
 }
@@ -5186,6 +5315,16 @@ function changeAbsRadTurn(delta) {
   renderDmgBonusSection();
 }
 
+function changeBulkUpStacks(delta) {
+  bulkUpStacks = Math.min(10, Math.max(1, bulkUpStacks + delta));
+  renderDmgBonusSection();
+}
+
+function changeHourglassStacks(delta) {
+  hourglassStacks = Math.min(5, Math.max(1, hourglassStacks + delta));
+  renderDmgBonusSection();
+}
+
 function setRageEmpHp(val) {
   rageEmpHpConsumed = +val;
   const valEl = document.getElementById("dc-rage-hp-val");
@@ -5229,10 +5368,14 @@ function renderDmgBonusSection() {
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
-    const isRageEmp = p.name === "Rage Empower";
-    const isAbsRad  = p.name === "Absolute Radiance";
-    const displayBonus = isRageEmp ? 30 + rageEmpHpConsumed
-                       : isAbsRad  ? ABS_RAD_BONUSES[absRadTurn - 1]
+    const isRageEmp    = p.name === "Rage Empower";
+    const isAbsRad     = p.name === "Absolute Radiance";
+    const isBulkUp     = p.name === "Bulk Up";
+    const isHourglass  = p.name === "Sands Of Time";
+    const displayBonus = isRageEmp   ? 30 + rageEmpHpConsumed
+                       : isAbsRad    ? ABS_RAD_BONUSES[absRadTurn - 1]
+                       : isBulkUp    ? bulkUpStacks * 20
+                       : isHourglass ? hourglassStacks * 20
                        : p.bonus;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
@@ -5254,6 +5397,26 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeAbsRadTurn(-1)">−</button>
           <span class="dc-energy-val">${absRadTurn}</span>
           <button class="dc-energy-btn" onclick="changeAbsRadTurn(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isBulkUp) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Stacks</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeBulkUpStacks(-1)">−</button>
+          <span class="dc-energy-val">${bulkUpStacks}</span>
+          <button class="dc-energy-btn" onclick="changeBulkUpStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isHourglass) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Stacks</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeHourglassStacks(-1)">−</button>
+          <span class="dc-energy-val">${hourglassStacks}</span>
+          <button class="dc-energy-btn" onclick="changeHourglassStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -5319,9 +5482,13 @@ function renderDmgCalc() {
   const covenantData   = covenantName ? covenantMoves[covenantName]  : null;
   const lostScrollName = lostScrollPicker.value;
   const lostScrollData = lostScrollName ? lostScrollMoves[lostScrollName] : null;
+  const scroll1Name    = scroll1Picker.value;
+  const scroll1Data    = scroll1Name ? scrollMoves[scroll1Name] : null;
+  const scroll2Name    = scroll2Picker.value;
+  const scroll2Data    = scroll2Name ? scrollMoves[scroll2Name] : null;
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
-  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, scroll1Data, scroll2Data, ...gearDataList.map(g => g.data)].filter(Boolean);
   const allMoves = allData.flatMap(d => (d.learns || []).filter(m =>
     m.type === "Active" &&
     m.category !== "Buff" &&
@@ -5383,11 +5550,11 @@ const ROMAN = ["—", "I", "II", "III", "IV", "V"];
 
 const soulTreeData = {
   "Path of Destruction": [
-    { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125] },
-    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}%",                                         perRank: 5,    maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 0.05} },
-    { id: "strike_first", name: "Strike First, No Mercy",    desc: "First attack +{v}% damage (expires after 2 turns)",              perRank: 5,   maxRank: 5, costs: [100,200,300,400,500] },
+    { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125],                              dmgBonus: true },
+    { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}%",                                         perRank: 5,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 0.05} },
+    { id: "strike_first", name: "Strike First, No Mercy",    desc: "First attack +{v}% damage (expires after 2 turns)",              perRank: 5,   maxRank: 5, costs: [100,200,300,400,500],                                       dmgBonus: true },
     { id: "lil_crit",     name: "Lil Bit of Crit",           desc: "Base crit chance +{v}%",                                         perRank: 1,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-chance": 1} },
-    { id: "com_focus",    name: "Combat Focus",               desc: "After meditating, +{v}% damage for 2 turns",                    perRank: 2,   maxRank: 5, costs: [50,100,150,200,250] }
+    { id: "com_focus",    name: "Combat Focus",               desc: "After meditating, +{v}% damage for 2 turns",                    perRank: 2,   maxRank: 5, costs: [50,100,150,200,250],                                       dmgBonus: true }
   ],
   "Path of Empowerment": [
     { id: "end_vessel",   name: "Enduring Vessel",            desc: "Base HP +{v}",                                                   perRank: 2,   maxRank: 5, costs: [20,40,60,80,100],    hpFlat: 2 },
