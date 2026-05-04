@@ -9258,8 +9258,8 @@ function autoSave() {
     const zoneX2 = bx + barW * zoneMax;
     const zoneW  = zoneX2 - zoneX1;
 
-    // Fill colour
-    let fillColor = '#4488ff';
+    // Fill colour: green in zone, blue otherwise; flash on timer expire
+    let fillColor;
     if (releaseFlash !== null) {
       const elapsed = now - flashStart;
       if (elapsed < FLASH_MS) {
@@ -9267,6 +9267,9 @@ function autoSave() {
       } else {
         releaseFlash = null;
       }
+    }
+    if (!fillColor) {
+      fillColor = (fillPct >= zoneMin && fillPct <= zoneMax) ? '#44ee88' : '#4488ff';
     }
 
     // Fill drawn first
