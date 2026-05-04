@@ -1642,3 +1642,45 @@ h2 {
   font-size: 10px;
   color: #666;
 }
+
+/* ============================================================
+   STAFF QTE
+   ============================================================ */
+.staff-qte-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px 14px;
+  min-height: 390px;
+}
+
+.staff-qte-header {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 22px;
+}
+
+.staff-qte-status  { color: #c8b0f0; }
+.staff-qte-streak  { color: #d4b870; }
+.staff-qte-highscore { color: #7ab8d4; font-size: 11px; }
+
+.staff-qte-canvas {
+  border: 2px solid #6a4ea8;
+  border-radius: 8px;
+  background: #100d1e;
+  display: block;
+}
+
+#staff-qte-start-btn,
+#staff-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}

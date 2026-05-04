@@ -124,8 +124,17 @@
         <button class="fist-qte-start-btn" id="sword-qte-resume-btn" style="display:none">Resume</button>
       </div>
     </div>
-    <div class="qte-panel qte-panel-wip" id="qte-panel-staff">
-      <div class="wip-label">WIP</div>
+    <div class="qte-panel" id="qte-panel-staff" style="display:none">
+      <div class="staff-qte-wrap">
+        <div class="staff-qte-header">
+          <span class="staff-qte-status" id="staff-qte-status"></span>
+          <span class="staff-qte-streak" id="staff-qte-streak"></span>
+          <span class="staff-qte-highscore" id="staff-qte-highscore"></span>
+        </div>
+        <canvas id="staff-qte-canvas" class="staff-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="staff-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="staff-qte-resume-btn" style="display:none">Resume</button>
+      </div>
     </div>
     <div class="qte-panel" id="qte-panel-axe" style="display:none">
       <div class="hammer-qte-wrap">
@@ -570,6 +579,8 @@
     if (name !== 'hammer' && typeof window._onHammerQteHide === 'function') window._onHammerQteHide();
     if (name === 'axe'    && typeof window._onAxeQteShow    === 'function') window._onAxeQteShow();
     if (name !== 'axe'    && typeof window._onAxeQteHide    === 'function') window._onAxeQteHide();
+    if (name === 'staff'  && typeof window._onStaffQteShow  === 'function') window._onStaffQteShow();
+    if (name !== 'staff'  && typeof window._onStaffQteHide  === 'function') window._onStaffQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));
