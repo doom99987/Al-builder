@@ -4,7 +4,10 @@
       "Bash(awk 'NR>=190 && NR<=230')",
       "Bash(awk 'NR>=1 && NR<=60')",
       "Bash(awk:*)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(node:*)",
+      "Bash(node.exe:*)",
+      "Bash(cmd.exe:*)"
     ]
   }
 }
