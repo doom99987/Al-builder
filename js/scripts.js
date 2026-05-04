@@ -6705,7 +6705,7 @@ function openMasteryModal(id) {
   const locked = !parentOk;
   const childLocked = active && hasMasteryActiveChild(id);
 
-  if (locked || childLocked) return; // can't interact, do nothing
+  if (childLocked) return; // can't deactivate while children are active
 
   const costLabel = node.type === "mastery" ? "5 pts"
                   : node.type === "breakthrough" ? "1 echo shard"
@@ -6730,11 +6730,45 @@ function openMasteryModal(id) {
 }
 
 function confirmMasteryNode() {
-  if (_masteryModalTarget !== null) {
-    toggleMasteryNode(_masteryModalTarget);
-    _masteryModalTarget = null;
-  }
+  const id = _masteryModalTarget;
+  _masteryModalTarget = null;
   document.getElementById("mastery-modal").style.display = "none";
+
+  if (id === null || !masteryNodeMap[id] || !getActiveMasteryData()) return;
+
+  // If deactivating, just toggle normally
+  if (masteryState[id]) {
+    toggleMasteryNode(id);
+    return;
+  }
+
+  // Collect all inactive ancestors in top-down order, skipping mastery-type nodes
+  const toActivate = [];
+  const visited = new Set();
+  function collectAncestors(nodeId) {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    const n = masteryNodeMap[nodeId];
+    if (!n) return;
+    [].concat(n.parent ?? []).forEach(p => collectAncestors(p));
+    if (!masteryState[nodeId] && n.type !== "mastery") toActivate.push(nodeId);
+  }
+  [].concat(masteryNodeMap[id].parent ?? []).forEach(p => collectAncestors(p));
+  toActivate.push(id); // always include the target itself
+
+  // Check we have enough mastery points for all non-breakthrough nodes
+  const extraCost = toActivate
+    .filter(nid => masteryNodeMap[nid].type !== "breakthrough")
+    .reduce((sum, nid) => sum + (masteryNodeMap[nid].type === "mastery" ? 5 : 1), 0);
+  if (masteryPointsSpent() + extraCost > MASTERY_TOTAL_POINTS) return;
+
+  // Activate ancestors (non-mastery) then the target
+  toActivate.forEach(nid => { masteryState[nid] = true; });
+
+  updateMasteryDisplay();
+  renderMasteryInfoSection();
+  updatePecents();
+  renderDmgBonusSection();
 }
 
 function closeMasteryModal(event) {
@@ -6754,14 +6788,27 @@ function toggleMasteryNode(id) {
     if (hasMasteryActiveChild(id)) return;
     masteryState[id] = false;
   } else {
-    // Require ALL parents to be active
-    if (node.parent && ![].concat(node.parent).every(p => masteryState[p])) return;
-    // Check point budget (breakthroughs cost shards, not points)
-    if (node.type !== "breakthrough") {
-      const cost = node.type === "mastery" ? 5 : 1;
-      if (masteryPointsSpent() + cost > MASTERY_TOTAL_POINTS) return;
+    // Collect all inactive non-mastery ancestors in top-down order
+    const toActivate = [];
+    const _visited = new Set();
+    function _collectAncestors(nodeId) {
+      if (_visited.has(nodeId)) return;
+      _visited.add(nodeId);
+      const n = masteryNodeMap[nodeId];
+      if (!n) return;
+      [].concat(n.parent ?? []).forEach(p => _collectAncestors(p));
+      if (!masteryState[nodeId] && n.type !== "mastery") toActivate.push(nodeId);
     }
-    masteryState[id] = true;
+    [].concat(node.parent ?? []).forEach(p => _collectAncestors(p));
+    toActivate.push(id);
+
+    // Check point budget for everything being activated
+    const cost = toActivate
+      .filter(nid => masteryNodeMap[nid].type !== "breakthrough")
+      .reduce((sum, nid) => sum + 1, 0); // regular nodes cost 1 each
+    if (masteryPointsSpent() + cost > MASTERY_TOTAL_POINTS) return;
+
+    toActivate.forEach(nid => { masteryState[nid] = true; });
   }
 
   updateMasteryDisplay();
@@ -6799,10 +6846,11 @@ function masteryNodeHtml(id) {
   if (locked) cls += " mn-locked";
   if (childLocked) cls += " mn-child-locked";
 
-  const cursor = locked || childLocked ? "not-allowed" : "pointer";
+  const cursor = childLocked ? "not-allowed" : "pointer";
   const tooltip = desc ? `${displayName} — ${costLabel}\n\n${desc}` : `${displayName} — ${costLabel}`;
   const clickFn = node.type === "mastery" ? `openMasteryModal('${id}')` : `toggleMasteryNode('${id}')`;
-  return `<div class="${cls}" id="mn-${id}" onclick="${clickFn}" title="${tooltip}" style="cursor:${cursor}"></div>`;
+  const tipAttr = `data-tip="${tooltip.replace(/"/g, '&quot;')}"`;
+  return `<div class="${cls}" id="mn-${id}" onclick="${clickFn}" ${tipAttr} style="cursor:${cursor}"></div>`;
 }
 
 function masteryBranchHtml(branch) {
@@ -6879,7 +6927,7 @@ function updateMasteryDisplay() {
     if (active) el.className += " mn-active";
     if (locked) el.className += " mn-locked";
     if (childLocked) el.className += " mn-child-locked";
-    el.style.cursor = locked || childLocked ? "not-allowed" : "pointer";
+    el.style.cursor = childLocked ? "not-allowed" : "pointer";
   });
 
   const ptsEl = document.getElementById("mastery-pts-used");
@@ -6890,6 +6938,33 @@ function updateMasteryDisplay() {
   // Color pts red if over budget
   if (ptsEl) ptsEl.style.color = masteryPointsSpent() >= MASTERY_TOTAL_POINTS ? "#ff5555" : "white";
 }
+
+// --- Mastery node instant tooltip ---
+(function () {
+  const tip = document.getElementById("mastery-tip");
+  if (!tip) return;
+  const OFFSET = 12;
+  document.getElementById("mastery")?.addEventListener("mouseover", e => {
+    const node = e.target.closest("[data-tip]");
+    if (!node) { tip.style.display = "none"; return; }
+    tip.textContent = node.dataset.tip;
+    tip.style.display = "block";
+  });
+  document.getElementById("mastery")?.addEventListener("mouseout", e => {
+    const node = e.target.closest("[data-tip]");
+    if (node && node.contains(e.relatedTarget)) return;
+    tip.style.display = "none";
+  });
+  document.addEventListener("mousemove", e => {
+    if (tip.style.display === "none") return;
+    let x = e.clientX + OFFSET;
+    let y = e.clientY + OFFSET;
+    if (x + 240 > window.innerWidth)  x = e.clientX - 240 - OFFSET;
+    if (y + tip.offsetHeight + 8 > window.innerHeight) y = e.clientY - tip.offsetHeight - OFFSET;
+    tip.style.left = x + "px";
+    tip.style.top  = y + "px";
+  });
+})();
 
 function getLineColor(branch) {
   return branch === "red"    ? "#553333"

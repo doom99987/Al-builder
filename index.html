@@ -424,6 +424,9 @@
 </div>
 </div><!-- end page-builder -->
 
+<!-- Mastery node instant tooltip -->
+<div id="mastery-tip"></div>
+
 <!-- Mastery node confirm modal -->
 <div id="mastery-modal" class="mastery-modal-overlay" style="display:none" onclick="closeMasteryModal(event)">
   <div class="mastery-modal-box">
@@ -446,10 +449,16 @@
     document.querySelectorAll('.site-nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
     document.querySelector('.site-nav-btn[data-page="' + name + '"]').classList.add('active');
+    history.replaceState(null, '', '#' + name);
   }
   document.querySelectorAll('.site-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchPage(btn.dataset.page));
   });
+
+  // On load, navigate to the page in the URL hash
+  const _initPage = location.hash.replace('#', '') || 'home';
+  const _validPages = ['home', 'builder', 'qte'];
+  switchPage(_validPages.includes(_initPage) ? _initPage : 'home');
 
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => {
