@@ -9231,7 +9231,7 @@ function autoSave() {
   const DRAIN_RATE  = 0.06;  // fraction lost per second
   const PRESS_AMT   = 0.09;  // fraction added per space press
 
-  function getTimer()    { return Math.max(8 - streak * 0.3, 5); }   // 8s → 5s
+  function getTimer()    { return Math.max(6 - streak * 0.3, 3); }   // 6s → 3s
   function getZoneSize() { return Math.max(0.10 - streak * 0.006, 0.04); }
 
   function randomiseZone() {

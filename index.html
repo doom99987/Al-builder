@@ -27,17 +27,21 @@
 <div id="page-home" class="site-page active">
   <div class="home-hero">
     <h1 class="home-title">AL Builder</h1>
-    <p class="home-subtitle">Plan your build, master your class, and calculate your damage — all in one place.</p>
-    <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
+    <p class="home-subtitle">Plan your build, master your class, calculate your damage, and sharpen your reaction times — all in one place.</p>
+    <div class="home-cta-row">
+      <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
+      <button class="home-cta home-cta-secondary" onclick="switchPage('qte')">QTE Trainer</button>
+    </div>
   </div>
 
+  <div class="home-section-label">Builder</div>
   <div class="home-features">
     <div class="home-card">
       <div class="home-card-title">Build Planner</div>
       <div class="home-card-body">Choose your race, base class, super class, and sub class. Allocate stat points and track your gold spending.</div>
     </div>
     <div class="home-card">
-      <div class="home-card-title">Gear & Equipment</div>
+      <div class="home-card-title">Gear &amp; Equipment</div>
       <div class="home-card-body">Equip gear, weapons, armour, scrolls, lost scrolls, marks, covenants, enchants, artifacts, and shards.</div>
     </div>
     <div class="home-card">
@@ -54,7 +58,43 @@
     </div>
     <div class="home-card">
       <div class="home-card-title">Dmg Calculator</div>
-      <div class="home-card-body">Calculate move damage with stat scaling, active bonuses, soul tree passives, and enemy status effects like Vulnerable, Hexed, and Fractured.</div>
+      <div class="home-card-body">Calculate move damage with stat scaling, active bonuses, soul tree passives, and status effects like Vulnerable, Hexed, and Fractured. Shows average, crit, and multi-hit breakdowns.</div>
+    </div>
+  </div>
+
+  <div class="home-section-label">QTE Trainer</div>
+  <div class="home-features">
+    <div class="home-card">
+      <div class="home-card-title">Dagger</div>
+      <div class="home-card-body">Tap space to pass rings as they close in. CCW rings are auto-passed. Gaps shrink as your streak climbs.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Sword</div>
+      <div class="home-card-body">Hit space to stop a moving bar inside a zone. Bars spawn closer and faster the longer your streak goes.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Spear</div>
+      <div class="home-card-body">React to incoming spear thrusts with precise timing. Speed and difficulty ramp with each success.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Fist</div>
+      <div class="home-card-body">Rapid-fire button sequence challenges. Build rhythm and accuracy to extend your streak.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Hammer</div>
+      <div class="home-card-body">Hold space to charge a bar, release inside the zone to succeed. The zone shrinks with each consecutive hit.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Axe</div>
+      <div class="home-card-body">Press space repeatedly to fill a draining bar. Beat the clock and land in the zone before time runs out. Timer drops from 6s down to 3s.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Staff</div>
+      <div class="home-card-body">Drag runic tiles from the bank into the correct darkened slots. Pattern length grows from 2 up to 9 runes, with a shrinking timer.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Dodge</div>
+      <div class="home-card-body">Press space to jump over a fast-moving white bar. Miss and your streak resets. The bar speeds up the hotter your run gets.</div>
     </div>
   </div>
 </div>
