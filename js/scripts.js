@@ -8720,7 +8720,7 @@ function autoSave() {
   function getRingSpeed(i, total) {
     const base = Math.min(3.2 + streak * 0.25, 7.0); // scales fast, capped at 7 rad/s
     const spd  = base + (total - 1 - i) * 0.5;
-    return spd * (i % 2 === 0 ? 1 : -1);
+    return spd * (Math.random() < 0.5 ? 1 : -1);
   }
 
   function updateHighscore(v) {
