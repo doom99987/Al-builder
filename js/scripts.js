@@ -7853,19 +7853,21 @@ function autoSave() {
   let paused        = false;
   let streak        = 0;
   let animFrame     = null;
-  let circles       = [];
+  let circles       = []; // active hittable circles only
+  let dying         = []; // visual-only fading circles (not clickable)
   let nextSpawn     = 0;
   let lastMissGuard = 0;
   let pauseTime     = 0;
 
   // Circle constants
-  const INNER_R       = 36;
+  const INNER_R       = 52;
   const OUTER_R_START = INNER_R * 2.2;
   const HIT_TOLERANCE = 14;
+  const FADE_MS       = 280;
 
   // starts at 4, caps at 8
   function getMaxSimul()      { return Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return Math.max(900, 1500 - streak * 10); }
+  function getApproachMs()    { return Math.max(650, 950 - streak * 4); }
   function getSpawnInterval() { return Math.max(300, 900 - streak * 20); }
 
   // ---- highscore ----
@@ -7893,8 +7895,7 @@ function autoSave() {
   // ---- spawn ----
   function spawnCircle(now) {
     const margin  = OUTER_R_START + 10;
-    const minDist = INNER_R * 2 + 20; // minimum center-to-center gap
-    const active  = circles.filter(c => !c.hit && !c.missed);
+    const minDist = INNER_R * 2 + 20;
     let x, y, attempts = 0;
     do {
       x = margin + Math.random() * (canvas.width  - margin * 2);
@@ -7902,10 +7903,9 @@ function autoSave() {
       attempts++;
     } while (
       attempts < 30 &&
-      active.some(c => Math.hypot(x - c.x, y - c.y) < minDist)
+      circles.some(c => Math.hypot(x - c.x, y - c.y) < minDist)
     );
-    circles.push({ x, y, spawnTime: now, duration: getApproachMs(),
-                   hit: false, missed: false, alpha: 1, fadeStart: 0 });
+    circles.push({ x, y, spawnTime: now, duration: getApproachMs() });
   }
 
   // ---- draw ----
@@ -7914,52 +7914,45 @@ function autoSave() {
     ctx.fillStyle = '#12121e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    for (let i = circles.length - 1; i >= 0; i--) {
-      const c = circles[i];
+    // Draw dying circles first (purely visual, behind active ones)
+    for (let i = dying.length - 1; i >= 0; i--) {
+      const d     = dying[i];
+      const alpha = Math.max(0, 1 - (now - d.dieTime) / FADE_MS);
+      if (alpha <= 0) { dying.splice(i, 1); continue; }
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, INNER_R, 0, Math.PI * 2);
+      ctx.fillStyle   = d.hit ? 'rgba(100,230,120,0.25)' : 'rgba(230,80,80,0.25)';
+      ctx.strokeStyle = d.hit ? '#66ee88' : '#ee6666';
+      ctx.lineWidth = 3;
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Draw active (hittable) circles
+    for (const c of circles) {
       const elapsed  = now - c.spawnTime;
       const progress = Math.min(elapsed / c.duration, 1);
       const outerR   = INNER_R + (OUTER_R_START - INNER_R) * (1 - progress);
 
-      if (c.hit || c.missed) {
-        if (!c.fadeStart) c.fadeStart = now;
-        c.alpha = Math.max(0, 1 - (now - c.fadeStart) / 280);
-        if (c.alpha <= 0) { circles.splice(i, 1); continue; }
-      } else if (progress >= 1 && !c.missed) {
-        c.missed = true;
-        triggerMiss('Miss! Too slow.');
-      }
-
-      ctx.save();
-      ctx.globalAlpha = c.alpha;
-
       ctx.beginPath();
       ctx.arc(c.x, c.y, INNER_R, 0, Math.PI * 2);
-      if (c.hit) {
-        ctx.fillStyle   = 'rgba(100,230,120,0.25)';
-        ctx.strokeStyle = '#66ee88';
-      } else if (c.missed) {
-        ctx.fillStyle   = 'rgba(230,80,80,0.25)';
-        ctx.strokeStyle = '#ee6666';
-      } else {
-        ctx.fillStyle   = 'rgba(160,160,255,0.12)';
-        ctx.strokeStyle = '#aaaaff';
-      }
+      ctx.fillStyle   = 'rgba(160,160,255,0.12)';
+      ctx.strokeStyle = '#aaaaff';
       ctx.lineWidth = 3;
       ctx.fill();
       ctx.stroke();
 
-      if (!c.hit && !c.missed) {
-        const nearness  = 1 - (outerR - INNER_R) / (OUTER_R_START - INNER_R);
-        const r = Math.round(180 + nearness * 75);
-        const g = Math.round(120 - nearness * 60);
-        ctx.beginPath();
-        ctx.arc(c.x, c.y, outerR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${r},${g},40,0.9)`;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
-
-      ctx.restore();
+      const nearness = 1 - (outerR - INNER_R) / (OUTER_R_START - INNER_R);
+      const r = Math.round(180 + nearness * 75);
+      const g = Math.round(120 - nearness * 60);
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, outerR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${r},${g},40,0.9)`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
     }
   }
 
@@ -7984,6 +7977,7 @@ function autoSave() {
     gameStarted = false;
     paused      = false;
     circles     = [];
+    dying       = [];
     canvas.style.display = 'none';
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
@@ -7992,11 +7986,25 @@ function autoSave() {
   // ---- game loop ----
   function gameLoop(now) {
     if (!running) return;
-    const active = circles.filter(c => !c.hit && !c.missed).length;
-    if (now >= nextSpawn && active < getMaxSimul()) {
+
+    // Check for missed circles (outer ring passed) — move to dying, trigger fail
+    for (let i = circles.length - 1; i >= 0; i--) {
+      const c = circles[i];
+      const progress = (now - c.spawnTime) / c.duration;
+      if (progress >= 1) {
+        dying.push({ x: c.x, y: c.y, dieTime: now, hit: false });
+        circles.splice(i, 1);
+        triggerMiss('Miss! Too slow.');
+        return;
+      }
+    }
+
+    // Spawn new circles
+    if (now >= nextSpawn && circles.length < getMaxSimul()) {
       spawnCircle(now);
       nextSpawn = now + getSpawnInterval();
     }
+
     drawFrame(now);
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -8008,6 +8016,7 @@ function autoSave() {
     gameStarted   = true;
     paused        = false;
     circles       = [];
+    dying         = [];
     lastMissGuard = 0;
     resizeCanvas();
     canvas.style.display = '';
@@ -8041,8 +8050,8 @@ function autoSave() {
     const my   = e.clientY - rect.top;
     const now  = performance.now();
 
-    for (const c of circles) {
-      if (c.hit || c.missed) continue;
+    for (let i = 0; i < circles.length; i++) {
+      const c    = circles[i];
       const dist = Math.hypot(mx - c.x, my - c.y);
       if (dist > INNER_R + HIT_TOLERANCE + 6) continue;
 
@@ -8050,13 +8059,18 @@ function autoSave() {
       const progress = elapsed / c.duration;
       const outerR   = INNER_R + (OUTER_R_START - INNER_R) * (1 - progress);
 
+      // Remove from active array immediately — no lingering clickable state
+      circles.splice(i, 1);
+
       if (outerR > INNER_R + HIT_TOLERANCE) {
-        c.missed = true;
+        // Clicked too early
+        dying.push({ x: c.x, y: c.y, dieTime: now, hit: false });
         triggerMiss('Too early!');
         return;
       }
 
-      c.hit = true;
+      // Good hit
+      dying.push({ x: c.x, y: c.y, dieTime: now, hit: true });
       streak++;
       streakEl.textContent = `Streak: ${streak}`;
       setStatus('Hit!', '#88ee88');
@@ -8134,10 +8148,10 @@ function autoSave() {
 
   let trackX, trackY, trackW, zoneX, zoneW;
 
-  function getSpeed()      { return Math.min(190 + streak * 14, 430); } // px/s, capped at 430
+  function getSpeed()      { return Math.min(380 + streak * 14, 620); } // px/s, capped at 620
   function getBarCount()   { return Math.min(4 + Math.floor(streak / 2), 8); }
-  function getZoneStart()  { return Math.min(0.62 + streak * 0.015, 0.78); } // drifts right
-  function getZoneWidth()  { return Math.max(0.12 - streak * 0.005, 0.05); } // shrinks, min 5%
+  function getZoneStart()  { return 0.70; } // fixed position, further right
+  function getZoneWidth()  { return 0.10; } // fixed size
 
   function updateHighscore(v) {
     if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
@@ -8451,16 +8465,19 @@ function autoSave() {
     setStatus('Press SPACE when the arrow enters the gap!', '#aaaaff');
   }
 
-  function drawFrame() {
+  const EXPAND_MS = 220; // zoom-in animation duration
+
+  function drawFrame(now) {
+    now = now || performance.now();
     const cx = canvas.width / 2, cy = canvas.height / 2;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = '#12121e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const gapSize    = getGapSize();
-    const activeR    = arrowRadius - RING_THICK / 2; // stroke center for active ring
-    const previewMax = activeR * 0.55;               // outermost preview radius
-    const previewMin = RING_THICK * 1.5;             // innermost preview radius
+    const activeR    = arrowRadius - RING_THICK / 2;
+    const previewMax = activeR * 0.55;
+    const previewMin = RING_THICK * 1.5;
 
     for (let i = 0; i < rings.length; i++) {
       const ring     = rings[i];
@@ -8468,13 +8485,20 @@ function autoSave() {
 
       let drawR, lw, color;
       if (isTarget) {
-        drawR = activeR;
+        if (ring.expandFrom !== undefined) {
+          // Zoom-in animation: ease out from expandFrom → activeR
+          const t    = Math.min((now - ring.expandStart) / EXPAND_MS, 1);
+          const ease = 1 - Math.pow(1 - t, 3);
+          drawR = ring.expandFrom + ease * (activeR - ring.expandFrom);
+          if (t >= 1) delete ring.expandFrom; // animation done
+        } else {
+          drawR = activeR;
+        }
         lw    = RING_THICK;
         color = '#ffffff';
       } else {
-        // Preview rings: map i (0..currentRing-1) to radii inside the active ring
-        const n    = currentRing; // number of previews
-        const frac = n <= 1 ? 0.5 : i / (n - 1); // 0 = innermost, 1 = outermost preview
+        const n    = currentRing;
+        const frac = n <= 1 ? 0.5 : i / (n - 1);
         drawR = previewMin + frac * (previewMax - previewMin);
         lw    = Math.max(RING_THICK * 0.45, 5);
         color = `rgba(150,150,220,${0.25 + frac * 0.3})`;
@@ -8518,14 +8542,14 @@ function autoSave() {
       if (secsLeft <= 0) { triggerFail("Time's up!"); return; }
     }
 
-    drawFrame();
+    drawFrame(now);
     animFrame = requestAnimationFrame(gameLoop);
   }
 
   function onSpacePress() {
     if (!running || paused || roundPending) return;
     const ring = rings[currentRing];
-    if (!ring) return;
+    if (!ring || ring.expandFrom !== undefined) return; // block during zoom-in
 
     const gapSize = getGapSize();
     const norm = ((ring.gapAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
@@ -8534,12 +8558,25 @@ function autoSave() {
 
     if (!hit) { triggerFail('Missed the gap!'); return; }
 
-    // Remove the hit ring; remaining rings auto-reposition via drawFrame index mapping
+    // Compute where the next ring was drawn as a preview (it's the outermost preview)
+    const activeR    = arrowRadius - RING_THICK / 2;
+    const previewMax = activeR * 0.55;
+    const previewMin = RING_THICK * 1.5;
+    const n          = currentRing; // number of previews before splice
+    const expandFrom = n <= 1
+      ? previewMin + 0.5 * (previewMax - previewMin)
+      : previewMax; // outermost preview is always at previewMax when n > 1
+
     rings.splice(currentRing, 1);
     currentRing = rings.length - 1;
 
-    if (rings.length === 0) onRoundSuccess();
-    else setStatus('Hit! Next ring...', '#88ee88');
+    if (rings.length === 0) { onRoundSuccess(); return; }
+
+    // Kick off zoom-in animation on the newly active ring
+    rings[currentRing].expandFrom  = expandFrom;
+    rings[currentRing].expandStart = performance.now();
+
+    setStatus('Hit! Next ring...', '#88ee88');
   }
 
   function onRoundSuccess() {
