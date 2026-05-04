@@ -7556,7 +7556,43 @@ function autoSave() {
   const streakEl = document.getElementById('fist-qte-streak');
   const timerEl  = document.getElementById('fist-qte-timer');
   const startBtn = document.getElementById('fist-qte-start-btn');
+  const hsEl     = document.getElementById('fist-qte-highscore');
   if (!bar) return;
+
+  const HS_KEY  = 'alb:fist-hs';
+  const AVG_KEY = 'alb:fist-avg';
+  const avgEl   = document.getElementById('fist-qte-avgtime');
+
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  let _avgData = (() => {
+    try { return JSON.parse(localStorage.getItem(AVG_KEY)) || { total: 0, count: 0 }; } catch (e) { return { total: 0, count: 0 }; }
+  })();
+  let roundStart = 0;
+
+  function updateHighscore(val) {
+    if (val > highscore) {
+      highscore = val;
+      try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
+    }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function recordRoundTime() {
+    if (!roundStart) return;
+    const elapsed = (Date.now() - roundStart) / 1000;
+    _avgData.total += elapsed;
+    _avgData.count++;
+    try { localStorage.setItem(AVG_KEY, JSON.stringify(_avgData)); } catch (e) {}
+    if (avgEl) avgEl.textContent = `Avg: ${(_avgData.total / _avgData.count).toFixed(1)}s`;
+  }
+
+  function initAvgDisplay() {
+    if (avgEl && _avgData.count > 0)
+      avgEl.textContent = `Avg: ${(_avgData.total / _avgData.count).toFixed(1)}s`;
+  }
+  initAvgDisplay();
 
   let sequence      = [];
   let current       = 0;
@@ -7648,6 +7684,7 @@ function autoSave() {
     renderBar();
     streakEl.textContent = streak > 0 ? `Streak: ${streak}` : '';
     startTimer();
+    roundStart = Date.now();
   }
 
   function onSuccess() {
@@ -7658,6 +7695,8 @@ function autoSave() {
       length = Math.min(length + 1, 9);
       setStatus(`✓ Nice! Next: ${length} arrows`, '#88ee88');
       streakEl.textContent = `Streak: ${streak}`;
+      updateHighscore(streak);
+      recordRoundTime();
       setTimeout(startRound, 600);
     });
   }
