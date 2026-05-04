@@ -127,8 +127,17 @@
     <div class="qte-panel qte-panel-wip" id="qte-panel-staff">
       <div class="wip-label">WIP</div>
     </div>
-    <div class="qte-panel qte-panel-wip" id="qte-panel-axe">
-      <div class="wip-label">WIP</div>
+    <div class="qte-panel" id="qte-panel-axe" style="display:none">
+      <div class="hammer-qte-wrap">
+        <div class="hammer-qte-header">
+          <span class="hammer-qte-status" id="axe-qte-status"></span>
+          <span class="hammer-qte-streak" id="axe-qte-streak"></span>
+          <span class="hammer-qte-highscore" id="axe-qte-highscore"></span>
+        </div>
+        <canvas id="axe-qte-canvas" class="hammer-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="axe-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="axe-qte-resume-btn" style="display:none">Resume</button>
+      </div>
     </div>
     <div class="qte-panel" id="qte-panel-hammer" style="display:none">
       <div class="hammer-qte-wrap">
@@ -559,6 +568,8 @@
     if (name !== 'dodge'  && typeof window._onDodgeQteHide  === 'function') window._onDodgeQteHide();
     if (name === 'hammer' && typeof window._onHammerQteShow === 'function') window._onHammerQteShow();
     if (name !== 'hammer' && typeof window._onHammerQteHide === 'function') window._onHammerQteHide();
+    if (name === 'axe'    && typeof window._onAxeQteShow    === 'function') window._onAxeQteShow();
+    if (name !== 'axe'    && typeof window._onAxeQteHide    === 'function') window._onAxeQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

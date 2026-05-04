@@ -9032,15 +9032,9 @@ function autoSave() {
     ctx.fillStyle = '#252535';
     ctx.fillRect(bx, by, barW, BAR_H);
 
-    // Target zone (vertical strip)
     const zoneX1 = bx + barW * zoneMin;
     const zoneX2 = bx + barW * zoneMax;
     const zoneW  = zoneX2 - zoneX1;
-    ctx.fillStyle   = 'rgba(150,150,175,0.28)';
-    ctx.fillRect(zoneX1, by, zoneW, BAR_H);
-    ctx.strokeStyle = 'rgba(190,190,220,0.65)';
-    ctx.lineWidth   = 2;
-    ctx.strokeRect(zoneX1, by, zoneW, BAR_H);
 
     // Fill colour: blue while charging, green/red on release
     let fillColor = '#4488ff';
@@ -9053,12 +9047,19 @@ function autoSave() {
       }
     }
 
-    // Filled portion left to right
+    // Fill drawn first
     const fillW = barW * fillPct;
     if (fillW > 0) {
       ctx.fillStyle = fillColor;
       ctx.fillRect(bx, by, fillW, BAR_H);
     }
+
+    // Zone drawn on top so it's always visible
+    ctx.fillStyle   = 'rgba(150,150,175,0.18)';
+    ctx.fillRect(zoneX1, by, zoneW, BAR_H);
+    ctx.strokeStyle = 'rgba(190,190,220,0.85)';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(zoneX1, by, zoneW, BAR_H);
 
     // Bar border
     ctx.strokeStyle = '#44446a';
@@ -9170,6 +9171,250 @@ function autoSave() {
   };
 
   window._onHammerQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888'); drawFrame();
+    } else {
+      canvas.style.display = 'none';
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888'); streakEl.textContent = '';
+    }
+  };
+
+  canvas.style.display = 'none';
+})();
+
+// === AXE QTE TRAINER (press to fill, bar drains, land in zone when timer ends) ===
+(function () {
+  const canvas    = document.getElementById('axe-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('axe-qte-status');
+  const streakEl  = document.getElementById('axe-qte-streak');
+  const hsEl      = document.getElementById('axe-qte-highscore');
+  const startBtn  = document.getElementById('axe-qte-start-btn');
+  const resumeBtn = document.getElementById('axe-qte-resume-btn');
+
+  const HS_KEY  = 'alb:axe-hs';
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  let running = false, gameStarted = false, paused = false;
+  let streak = 0, animFrame = null, lastTime = 0;
+  let fillPct = 0;
+  let releaseFlash = null, flashStart = 0;
+  let roundEndTime = 0;
+  const FLASH_MS = 600;
+  let zoneMin = 0, zoneMax = 0;
+
+  const BAR_H = 40;
+  const PAD   = 50;
+  const DRAIN_RATE  = 0.06;  // fraction lost per second
+  const PRESS_AMT   = 0.09;  // fraction added per space press
+
+  function getTimer()    { return Math.max(8 - streak * 0.3, 5); }   // 8s → 5s
+  function getZoneSize() { return Math.max(0.10 - streak * 0.006, 0.04); }
+
+  function randomiseZone() {
+    const size   = getZoneSize();
+    const center = 0.45 + Math.random() * 0.35;
+    zoneMin = Math.max(0.05, center - size / 2);
+    zoneMax = Math.min(0.95, zoneMin + size);
+    zoneMin = zoneMax - size;
+  }
+
+  function updateHighscore(v) {
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    canvas.width  = Math.min((wrap ? wrap.clientWidth - 40 : 800) || 800, 900);
+    canvas.height = BAR_H + 60;
+  }
+
+  function drawFrame(now) {
+    now = now || performance.now();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const barW = canvas.width - PAD * 2;
+    const bx   = PAD;
+    const by   = (canvas.height - BAR_H) / 2;
+
+    // Bar background
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(bx, by, barW, BAR_H);
+
+    const zoneX1 = bx + barW * zoneMin;
+    const zoneX2 = bx + barW * zoneMax;
+    const zoneW  = zoneX2 - zoneX1;
+
+    // Fill colour
+    let fillColor = '#4488ff';
+    if (releaseFlash !== null) {
+      const elapsed = now - flashStart;
+      if (elapsed < FLASH_MS) {
+        fillColor = releaseFlash === 'hit' ? '#44ee88' : '#ee4444';
+      } else {
+        releaseFlash = null;
+      }
+    }
+
+    // Fill drawn first
+    const fillW = barW * fillPct;
+    if (fillW > 0) {
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(bx, by, fillW, BAR_H);
+    }
+
+    // Zone drawn on top so it's always visible
+    ctx.fillStyle   = 'rgba(150,150,175,0.18)';
+    ctx.fillRect(zoneX1, by, zoneW, BAR_H);
+    ctx.strokeStyle = 'rgba(190,190,220,0.85)';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(zoneX1, by, zoneW, BAR_H);
+
+    // Bar border
+    ctx.strokeStyle = '#44446a';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(bx, by, barW, BAR_H);
+
+    // Timer bar along top edge
+    if (running && !releaseFlash) {
+      const secsLeft = Math.max(0, (roundEndTime - now) / 1000);
+      const totalTime = getTimer();
+      const timerFrac = secsLeft / totalTime;
+      ctx.fillStyle = secsLeft <= 2 ? '#ee8855' : '#aaaaff';
+      ctx.fillRect(bx, by - 6, barW * timerFrac, 3);
+    }
+
+    // Zone label
+    ctx.fillStyle = 'rgba(200,200,255,0.7)';
+    ctx.font      = '12px Rajdhani, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ZONE', zoneX1 + zoneW / 2, by - 10);
+  }
+
+  function startRound() {
+    fillPct      = 0;
+    releaseFlash = null;
+    randomiseZone();
+    roundEndTime = performance.now() + getTimer() * 1000;
+    setStatus('Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
+    drawFrame();
+  }
+
+  function evaluateRound() {
+    const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
+    releaseFlash = inZone ? 'hit' : 'miss';
+    flashStart   = performance.now();
+    drawFrame(flashStart);
+    if (!inZone) {
+      triggerFail(fillPct < zoneMin ? 'Too low!' : 'Too high!');
+      return;
+    }
+    streak++;
+    streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    setStatus('Landed it!', '#88ee88');
+    setTimeout(() => {
+      if (running) {
+        startRound();
+        lastTime = performance.now();
+        animFrame = requestAnimationFrame(gameLoop);
+      }
+    }, 700);
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    // Drain bar over time
+    fillPct = Math.max(0, fillPct - DRAIN_RATE * dt);
+
+    // Timer expired — evaluate
+    if (now >= roundEndTime) {
+      evaluateRound();
+      return;
+    }
+
+    drawFrame(now);
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onSpacePress() {
+    if (!running || paused) return;
+    fillPct = Math.min(1, fillPct + PRESS_AMT);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    running = paused = false;
+    updateHighscore(streak);
+    setStatus(msg, '#ee5555');
+    streakEl.textContent = '';
+    setTimeout(resetToStart, 900);
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running = gameStarted = paused = false; fillPct = 0;
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('', '#888');
+  }
+
+  function startGame() {
+    streak = 0; running = gameStarted = true; paused = false; fillPct = 0;
+    resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startRound();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused = false; running = true; lastTime = performance.now();
+    // Extend round end time by however long we were paused
+    roundEndTime = performance.now() + getTimer() * 1000;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startRound();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.repeat) return;
+    const panel = document.getElementById('qte-panel-axe');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    onSpacePress();
+  });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  window._onAxeQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame); running = false; paused = true;
+    } else { resetToStart(); streak = 0; }
+  };
+
+  window._onAxeQteShow = function () {
     resizeCanvas();
     if (paused) {
       canvas.style.display = '';
