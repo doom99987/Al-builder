@@ -735,7 +735,7 @@ const artifactMoves = {
         cost: 2,
         cooldown: 9,
         moveType: "N/A",
-        category: "Buff",
+        category: "Summon",
         effect: "Randomly summon one of three Sheeas: Saint, Paladin, or Elementalist. All summons have 250 HP and start with only Strike and Skyward Bolt. If you have their respective weapon type equipped, they gain all abilities of their Super Class.\n\nIf you are at or below 20% Max HP, summon 2 Sheeas instead of 1."
       }
     ]
@@ -5798,9 +5798,10 @@ function renderDmgCalc() {
   const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, scroll1Data, scroll2Data, ...gearDataList.map(g => g.data)].filter(Boolean);
   const allMoves = allData.flatMap(d => (d.learns || []).filter(m =>
     m.type === "Active" &&
-    m.category !== "Buff" &&
-    m.damage !== undefined &&
-    /^\d/.test(String(m.damage))
+    (
+      m.category === "Summon" ||
+      (m.category !== "Buff" && m.damage !== undefined && /^\d/.test(String(m.damage)))
+    )
   ));
 
   if (!allMoves.length) {
@@ -5819,7 +5820,9 @@ function renderDmgCalc() {
     const costStr = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
     const cdStr   = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
     const eneStr  = m.energyScaling ? `<span class="dc-stat dc-energy-badge">+${m.energyScaling.perEnergy}%/E (past ${m.energyScaling.past})</span>` : "";
-    const summonLabel = isSummonMove(m) ? `<span class="dc-stat" style="color:#888">[${m.slot}]</span>` : "";
+    const summonLabel = m.category === "Summon"
+      ? `<span class="dc-stat" style="color:#888">[Summon]</span>`
+      : isSummonMove(m) ? `<span class="dc-stat" style="color:#888">[${m.slot}]</span>` : "";
     html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `onclick="toggleDmgDetail(this,${i})"` : ""}>
       <span class="dc-name" style="color:${color}">${m.name}</span>
       <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>${summonLabel}
