@@ -7156,6 +7156,9 @@ function getBuildState() {
     wm:   mainWeaponPicker.value,
     wo:   offhandWeaponPicker.value,
     arm:  armourPicker.value,
+    ls:   lostScrollPicker.value,
+    sc1:  scroll1Picker.value,
+    sc2:  scroll2Picker.value,
     msty: mastery,
     soul
   };
@@ -7393,6 +7396,11 @@ function loadBuildState(state) {
   updateArmourGold(prevArmourSelection, state.arm || '');
   prevArmourSelection = state.arm || '';
 
+  // Scrolls
+  setPickerDisplay(lostScrollPicker, state.ls  || '');
+  setPickerDisplay(scroll1Picker,    state.sc1 || '');
+  setPickerDisplay(scroll2Picker,    state.sc2 || '');
+
   // Mastery (set after class/super dispatch so resets don't clobber)
   masteryNodes.forEach(n => { masteryState[n.id] = false; });
   (state.msty || []).forEach(id => { if (Object.prototype.hasOwnProperty.call(masteryState, id)) masteryState[id] = true; });
@@ -7440,6 +7448,20 @@ if (shareBuildBtn) {
   });
 }
 
+// === AUTO-SAVE ===
+const _AUTO_SAVE_KEY = 'alb:autosave';
+let _autoSaveTimer = null;
+function autoSave() {
+  clearTimeout(_autoSaveTimer);
+  _autoSaveTimer = setTimeout(() => {
+    try { localStorage.setItem(_AUTO_SAVE_KEY, JSON.stringify(getBuildState())); } catch (e) {}
+  }, 600);
+}
+
+// Hook auto-save into updatePecents (called after virtually every state change)
+const _origUpdatePecents = updatePecents;
+function updatePecents(...args) { _origUpdatePecents(...args); autoSave(); }
+
 // Load build on page start
 (async function () {
   const params = new URLSearchParams(window.location.search);
@@ -7457,17 +7479,28 @@ if (shareBuildBtn) {
 
   // Legacy hash-based links
   const hash = window.location.hash.slice(1);
-  if (!hash) return;
-  try {
-    if (hash.includes('/')) {
-      const parts = hash.split('/');
-      if (parts.length === 2) {
-        const state = _unpackState(parts[1], decodeURIComponent(parts[0]));
-        if (state) loadBuildState(state);
+  const hashPages = ['home', 'builder', 'qte'];
+  if (hash && !hashPages.includes(hash)) {
+    try {
+      if (hash.includes('/')) {
+        const parts = hash.split('/');
+        if (parts.length === 2) {
+          const state = _unpackState(parts[1], decodeURIComponent(parts[0]));
+          if (state) loadBuildState(state);
+        }
+        return;
       }
-      return;
+      const state = JSON.parse(atob(hash));
+      if (state && state.v === 1) { loadBuildState(state); return; }
+    } catch (e) {}
+  }
+
+  // Auto-restore last session from localStorage
+  try {
+    const saved = localStorage.getItem(_AUTO_SAVE_KEY);
+    if (saved) {
+      const state = JSON.parse(saved);
+      if (state && state.v === 1) loadBuildState(state);
     }
-    const state = JSON.parse(atob(hash));
-    if (state && state.v === 1) loadBuildState(state);
   } catch (e) {}
 })();
