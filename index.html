@@ -61,9 +61,19 @@
 
 <!-- Qte Trainer page -->
 <div id="page-qte" class="site-page">
-  <div class="wip-page">
-    <div class="wip-title">Qte Trainer</div>
-    <div class="wip-label">WIP</div>
+  <div class="tabbar" id="qte-tabbar">
+    <button class="tab active" data-qte="dagger">Dagger</button>
+    <button class="tab" data-qte="spear">Spear</button>
+    <button class="tab" data-qte="sword">Sword</button>
+    <button class="tab" data-qte="fist">Fist</button>
+    <button class="tab" data-qte="staff">Staff</button>
+    <button class="tab" data-qte="axe">Axe</button>
+    <button class="tab" data-qte="hammer">Hammer</button>
+  </div>
+  <div class="qte-content">
+    <div class="wip-page">
+      <div class="wip-label">WIP</div>
+    </div>
   </div>
 </div>
 
@@ -435,6 +445,13 @@
   }
   document.querySelectorAll('.site-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchPage(btn.dataset.page));
+  });
+
+  document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#qte-tabbar .tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
   });
 </script>
 </body>
