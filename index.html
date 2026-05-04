@@ -79,6 +79,7 @@
         <div class="fist-qte-bar" id="fist-qte-bar"></div>
         <div class="fist-qte-streak" id="fist-qte-streak"></div>
         <button class="fist-qte-start-btn" id="fist-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="fist-qte-resume-btn" style="display:none">Resume</button>
         <div class="fist-qte-highscore" id="fist-qte-highscore"></div>
         <div class="fist-qte-avgtime" id="fist-qte-avgtime"></div>
       </div>
@@ -490,11 +491,13 @@
   switchPage(_validPages.includes(_initPage) ? _initPage : 'home');
 
   function switchQteTab(name) {
+    if (typeof window._onFistQteHide === 'function') window._onFistQteHide();
     document.querySelectorAll('#qte-tabbar .tab').forEach(b => b.classList.remove('active'));
     document.querySelector(`#qte-tabbar .tab[data-qte="${name}"]`).classList.add('active');
-    document.querySelectorAll('.qte-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.qte-panel').forEach(p => { p.style.display = 'none'; p.style.flex = ''; p.style.flexDirection = ''; });
     const panel = document.getElementById('qte-panel-' + name);
     if (panel) { panel.style.display = 'flex'; panel.style.flex = '1'; panel.style.flexDirection = 'column'; }
+    if (name === 'fist' && typeof window._onFistQteShow === 'function') window._onFistQteShow();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

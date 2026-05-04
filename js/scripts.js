@@ -7594,15 +7594,19 @@ function autoSave() {
   }
   initAvgDisplay();
 
-  let sequence      = [];
-  let current       = 0;
-  let length        = 2;
-  let streak        = 0;
-  let running       = false;
-  let lockout       = false;
-  let started       = false;
-  let timerInterval = null;
-  let timeLeft      = 0;
+  const resumeBtn = document.getElementById('fist-qte-resume-btn');
+
+  let sequence       = [];
+  let current        = 0;
+  let length         = 2;
+  let streak         = 0;
+  let running        = false;
+  let lockout        = false;
+  let started        = false;
+  let paused         = false;
+  let timerInterval  = null;
+  let timeLeft       = 0;
+  let restartTimeout = null;
 
   function getTimeLimit() { return length >= 8 ? 5 : 8; }
 
@@ -7639,7 +7643,7 @@ function autoSave() {
     length = 2;
     setStatus('⏱ Time\'s up!', '#ee8888');
     streakEl.textContent = '';
-    setTimeout(startRound, 900);
+    restartTimeout = setTimeout(startRound, 900);
   }
 
   function randomArrow() {
@@ -7673,13 +7677,30 @@ function autoSave() {
     setTimeout(() => { if (cb) cb(); }, 300);
   }
 
+  function resetToStart() {
+    clearTimeout(restartTimeout);
+    stopTimer();
+    started = false;
+    paused  = false;
+    running = false;
+    lockout = false;
+    bar.innerHTML = '';
+    setStatus('', '#888');
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+  }
+
   function startRound() {
+    restartTimeout = null;
     buildSequence();
     current = 0;
     running = true;
     lockout = false;
+    paused  = false;
     started = true;
-    if (startBtn) startBtn.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
     setStatus('Go!', '#aaaaff');
     renderBar();
     streakEl.textContent = streak > 0 ? `Streak: ${streak}` : '';
@@ -7697,7 +7718,7 @@ function autoSave() {
       streakEl.textContent = `Streak: ${streak}`;
       updateHighscore(streak);
       recordRoundTime();
-      setTimeout(startRound, 600);
+      restartTimeout = setTimeout(startRound, 600);
     });
   }
 
@@ -7711,7 +7732,7 @@ function autoSave() {
     length = 2;
     setStatus(`✗ Wrong! Expected ${sequence[current].symbol}, got ${keyToSymbol(key)}`, '#ee8888');
     streakEl.textContent = '';
-    setTimeout(startRound, 900);
+    restartTimeout = setTimeout(startRound, 900);
   }
 
   function keyToSymbol(key) {
@@ -7731,7 +7752,7 @@ function autoSave() {
     if (panel && panel.style.display !== 'none') e.preventDefault();
     else return;
 
-    if (!started || lockout) return;
+    if (!started || lockout || paused) return;
 
     const expected = sequence[current];
     const matched  = expected.keys.includes(e.key);
@@ -7758,6 +7779,54 @@ function autoSave() {
       startRound();
     });
   }
+
+  // Resume button
+  if (resumeBtn) {
+    resumeBtn.addEventListener('click', () => {
+      if (!paused) return;
+      paused  = false;
+      lockout = false;
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('Go!', '#aaaaff');
+      // Restart timer from remaining time
+      updateTimerDisplay();
+      timerInterval = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        if (timeLeft <= 0) {
+          clearInterval(timerInterval);
+          onTimeout();
+        }
+      }, 1000);
+      roundStart = Date.now() - ((getTimeLimit() - timeLeft) * 1000);
+    });
+  }
+
+  // Called when user leaves the fist tab
+  window._onFistQteHide = function () {
+    if (paused) return; // already paused
+    if (started && running && !lockout) {
+      // Mid-run — pause
+      clearInterval(timerInterval);
+      paused = true;
+    } else {
+      // Lost, pending restart, or not started — reset to Start
+      resetToStart();
+      streak = 0;
+      length = 2;
+    }
+  };
+
+  // Called when user returns to the fist tab
+  window._onFistQteShow = function () {
+    if (paused) {
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+    } else {
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+    }
+  };
 
   // Bar hidden until Start is pressed
   bar.innerHTML = '';
