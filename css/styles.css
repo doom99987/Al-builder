@@ -560,9 +560,16 @@ body {
 
 .gear-section {
   display: flex;
+  flex-direction: row;
+  gap: 16px;
+  padding-top: 4px;
+  align-items: flex-start;
+}
+
+.gear-section-col {
+  display: flex;
   flex-direction: column;
   gap: 7px;
-  padding-top: 4px;
 }
 
 .gear-section h2 {
