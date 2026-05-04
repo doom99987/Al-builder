@@ -178,6 +178,50 @@ html, body {
   color: #aaa;
 }
 
+/* --- Mastery node instant tooltip (JS-driven, see scripts.js) --- */
+#mastery-tip {
+  position: fixed;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  color: #ddd;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  width: 220px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  display: none;
+}
+
+/* --- Gear section two-column layout --- */
+.gear-section {
+  flex-direction: row;
+  gap: 0;
+  align-items: flex-start;
+}
+
+.gear-section-col {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.gear-section-col + .gear-section-col {
+  border-left: 1px solid #2a2a2a;
+  padding-left: 16px;
+  margin-left: 12px;
+}
+
+.gear-section-col h2:first-child {
+  margin-top: 0;
+}
+
 /* --- Shard DR indicator --- */
 .shard-slot.shard-dr .shard-label {
   color: #ff8c00;
