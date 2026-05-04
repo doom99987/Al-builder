@@ -1,4 +1,8 @@
-﻿// --- Race data ---
+﻿// === AUTO-SAVE GLOBALS (must be at top so autoSave() can reference them before its call site) ===
+var _AUTO_SAVE_KEY = 'alb:autosave';
+var _autoSaveTimer = null;
+
+// --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
 const races = {
   "Estella (24%)": {str: 2, arc: 2, end: 2, lck: 1, spd: 1},
@@ -409,6 +413,7 @@ function updatePecents() {
     const totalEl = rowEl.querySelector(".stat-total");
     if (totalEl) totalEl.textContent = total || "";
   });
+  autoSave();
 }
 
 // Init
@@ -7449,18 +7454,13 @@ if (shareBuildBtn) {
 }
 
 // === AUTO-SAVE ===
-const _AUTO_SAVE_KEY = 'alb:autosave';
-let _autoSaveTimer = null;
+// _AUTO_SAVE_KEY and _autoSaveTimer declared at top of file (see below autoSave fn is hoisted)
 function autoSave() {
   clearTimeout(_autoSaveTimer);
   _autoSaveTimer = setTimeout(() => {
     try { localStorage.setItem(_AUTO_SAVE_KEY, JSON.stringify(getBuildState())); } catch (e) {}
   }, 600);
 }
-
-// Hook auto-save into updatePecents (called after virtually every state change)
-const _origUpdatePecents = updatePecents;
-function updatePecents(...args) { _origUpdatePecents(...args); autoSave(); }
 
 // Load build on page start
 (async function () {

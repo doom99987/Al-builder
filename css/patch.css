@@ -222,6 +222,18 @@ html, body {
   margin-top: 0;
 }
 
+/* Ensure wpick dropdowns fill their column */
+.gear-section-col .wpick-wrap {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.gear-section-col .wpick-display {
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* --- Shard DR indicator --- */
 .shard-slot.shard-dr .shard-label {
   color: #ff8c00;
