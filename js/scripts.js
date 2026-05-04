@@ -1742,7 +1742,7 @@ buildWeaponDropdown(offhandWeaponPicker, offhandSeries);
 // To add armour: "Item Name": { str, arc, end, spd, lck, pct: { str, arc, end, spd, lck } }
 // Flat stats add to the stat value before formula. pct adds directly to the output % value.
 
-function buildSimpleDropdown(picker, names, onSelect, isDisabled) {
+function buildSimpleDropdown(picker, names, onSelect, isDisabled, isHidden) {
   picker.style.display = "none";
 
   const wrap = document.createElement("div");
@@ -1803,6 +1803,7 @@ function buildSimpleDropdown(picker, names, onSelect, isDisabled) {
     list.appendChild(none);
 
     names
+      .filter(name => !isHidden || !isHidden(name))
       .filter(name => !q || name.toLowerCase().includes(q.toLowerCase()))
       .forEach(name => {
         const disabled = isDisabled ? isDisabled(name) : false;
@@ -1984,13 +1985,73 @@ const scrollMoves = {
   }
 };
 
+const scrollClassRestrictions = {
+  "Lights Out":      null,
+  "Immolation":      null,
+  "Bulk Up":         null,
+  "Self Cure":       null,
+  "Steel Body":      null,
+  "Ice Shards":      ["Wizard", "Thief", "Slayer"],
+  "Simple Curse":    ["Wizard", "Slayer", "Martial Artist"],
+  "Wind Reflect":    ["Wizard", "Slayer"],
+  "Fireball":        ["Wizard"],
+  "Blizzard":        ["Wizard"],
+  "Dark Slash":      ["Thief", "Warrior"],
+  "Lesser Absorb":   ["Thief", "Warrior", "Slayer"],
+  "Surprise Package":["Thief", "Martial Artist"],
+  "Torching Soul":   ["Warrior", "Martial Artist"],
+  "Lesser Empower":  ["Warrior", "Slayer"],
+};
+
+const lostScrollClassRestrictions = {
+  "Absolute Radiance": null,
+  "Wild Impulse":      null,
+  "Metrom's Grasp":    null,
+  "Permafrost Curse":  ["Wizard"],
+  "Breath of Fungyir": ["Slayer", "Warrior"],
+  "Heavenly Prayer":   ["Slayer", "Warrior", "Wizard"],
+};
+
+function isScrollHidden(name) {
+  const allowed = scrollClassRestrictions[name];
+  if (!allowed) return false;
+  const cls = classPicker.value;
+  if (!cls) return false;
+  return !allowed.includes(cls);
+}
+
+function isLostScrollHidden(name) {
+  const allowed = lostScrollClassRestrictions[name];
+  if (!allowed) return false;
+  const cls = classPicker.value;
+  if (!cls) return false;
+  return !allowed.includes(cls);
+}
+
+function clearRestrictedScrolls() {
+  [
+    { picker: scroll1Picker,    hidden: isScrollHidden },
+    { picker: scroll2Picker,    hidden: isScrollHidden },
+    { picker: lostScrollPicker, hidden: isLostScrollHidden },
+  ].forEach(({ picker, hidden }) => {
+    if (picker.value && hidden(picker.value)) {
+      picker.value = "";
+      const wrap = picker.previousElementSibling;
+      if (wrap?.classList.contains('wpick-wrap'))
+        wrap.querySelector('.wpick-display').textContent = '— None —';
+    }
+  });
+  renderMoves();
+  updatePecents();
+}
+
 const lostScrollPicker = document.getElementById("scroll-lost");
-buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { renderMoves(); updatePecents(); });
+buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { renderMoves(); updatePecents(); }, null, isLostScrollHidden);
 
 const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
-buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); });
-buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); });
+buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); }, null, isScrollHidden);
+buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); }, null, isScrollHidden);
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
@@ -5509,13 +5570,10 @@ function renderDmgBonusSection() {
     return `<span class="dc-bonus-kind dc-bonus-kind-passive">Passive</span>`;
   }
 
-  let _shardSectionOpen = false;
-  dmgBonusPassives.forEach((p, fullIdx) => {
-    const isShard = p.kinds?.includes('shard');
-    if (isShard && !_shardSectionOpen) {
-      html += `</div><h3 class="dc-bonus-title" style="margin-top:12px">Shards</h3><div class="dc-bonus-list">`;
-      _shardSectionOpen = true;
-    }
+  const _nonShardPassives = dmgBonusPassives.filter(p => !p.kinds?.includes('shard'));
+  const _shardPassives    = dmgBonusPassives.filter(p =>  p.kinds?.includes('shard'));
+
+  function renderBonusEntry(p, fullIdx) {
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
@@ -5621,9 +5679,16 @@ function renderDmgBonusSection() {
         <span class="dc-bonus-pct">${active ? "ON" : "OFF"}</span>
       </div>`;
     }
-  });
+  }
 
+  _nonShardPassives.forEach((p, i) => renderBonusEntry(p, dmgBonusPassives.indexOf(p)));
   html += `</div>`;
+
+  if (_shardPassives.length) {
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Shards</h3><div class="dc-bonus-list">`;
+    _shardPassives.forEach(p => renderBonusEntry(p, dmgBonusPassives.indexOf(p)));
+    html += `</div>`;
+  }
   } // end if (dmgBonusPassives.length)
 
   // --- Status Effects (always shown) ---
@@ -5735,8 +5800,7 @@ function renderDmgCalc() {
     m.type === "Active" &&
     m.category !== "Buff" &&
     m.damage !== undefined &&
-    /^\d/.test(String(m.damage)) &&
-    !isSummonMove(m)
+    /^\d/.test(String(m.damage))
   ));
 
   if (!allMoves.length) {
@@ -5755,9 +5819,10 @@ function renderDmgCalc() {
     const costStr = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
     const cdStr   = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
     const eneStr  = m.energyScaling ? `<span class="dc-stat dc-energy-badge">+${m.energyScaling.perEnergy}%/E (past ${m.energyScaling.past})</span>` : "";
+    const summonLabel = isSummonMove(m) ? `<span class="dc-stat" style="color:#888">[${m.slot}]</span>` : "";
     html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `onclick="toggleDmgDetail(this,${i})"` : ""}>
       <span class="dc-name" style="color:${color}">${m.name}</span>
-      <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>
+      <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>${summonLabel}
       <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}${eneStr}</span>
       ${canCalc ? `<span class="dc-hint">click to calculate</span>` : ""}
     </div>
@@ -5770,6 +5835,7 @@ function renderDmgCalc() {
 
 racePicker.addEventListener("change", renderMoves);
 classPicker.addEventListener("change", renderMoves);
+classPicker.addEventListener("change", clearRestrictedScrolls);
 classPicker.addEventListener("change", () => { resetMastery(); renderMastery(); renderMasteryInfoSection(); });
 superPicker.addEventListener("change", () => {
   const selected = superPicker.value;
@@ -5821,9 +5887,33 @@ function recalcSoulTreeBonuses() {
   });
 }
 
+function maxSoulTree() {
+  Object.values(soulTreeData).flat().forEach(node => {
+    soulTreeRanks[node.id] = node.maxRank;
+  });
+  recalcSoulTreeBonuses();
+  renderSoulTree();
+  updatePecents();
+  renderDmgBonusSection();
+}
+
+function resetSoulTree() {
+  Object.values(soulTreeData).flat().forEach(node => {
+    soulTreeRanks[node.id] = 0;
+  });
+  recalcSoulTreeBonuses();
+  renderSoulTree();
+  updatePecents();
+  renderDmgBonusSection();
+}
+
 function renderSoulTree() {
   const container = document.getElementById("soul-tree-content");
-  let html = `<div class="soul-tree-columns">`;
+  let html = `<div class="soul-tree-actions">
+    <button class="soul-tree-btn soul-tree-btn-max" onclick="maxSoulTree()">Max All</button>
+    <button class="soul-tree-btn soul-tree-btn-reset" onclick="resetSoulTree()">Reset All</button>
+  </div>`;
+  html += `<div class="soul-tree-columns">`;
 
   for (const [pathName, nodes] of Object.entries(soulTreeData)) {
     html += `<div class="soul-tree-path"><h3 class="soul-path-title">${pathName}</h3>`;
