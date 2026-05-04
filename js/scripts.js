@@ -2,6 +2,9 @@
 var _AUTO_SAVE_KEY = 'alb:autosave';
 var _autoSaveTimer = null;
 
+// === GLOBAL DMGCALC STATE (must be early so updatePecents() can reference before dmg-calc section) ===
+var crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
+
 // --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
 const races = {
@@ -5189,7 +5192,6 @@ let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
-let crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -8327,7 +8329,7 @@ function autoSave() {
     if (!cur || cur.stopped) return;
 
     cur.stopped = true;
-    cur.inZone  = cur.x >= zoneX - 2 && cur.x + BAR_W <= zoneX + zoneW + 2;
+    cur.inZone  = cur.x < zoneX + zoneW + 2 && cur.x + BAR_W > zoneX - 2; // any overlap with zone counts
 
     if (!cur.inZone) {
       triggerFail('Outside the zone!');
