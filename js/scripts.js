@@ -4068,6 +4068,36 @@ const raceMoves = {
         duration: 4,
         effect: "Grants the user a 15% buff to all stats and a 50% damage buff to their summons for 4 turns. On the 4th turn, the user takes 27.5% HP damage and is unable to act for one turn, becoming heavily stunned until the end of their next turn. Endurance buffs convert to Damage Reduction. Self-Damage can be affected by Hex.",
         image: "https://trello.com/1/cards/67c264ba2e47733e7791287b/attachments/69760691fec445184249c03e/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125170310.png"
+      },
+      {
+        slot: "Sylph",
+        level: 1,
+        type: "Active",
+        name: "Wind Bolt",
+        quote: "",
+        cost: 0,
+        cooldown: 0,
+        moveType: "Nature",
+        category: "Attack",
+        damage: 5,
+        scaling: "STR/100 + ARC/100",
+        effect: "Hits the opponent with a bolt of wind.",
+        image: "https://trello.com/1/cards/67c264ba2e47733e7791287b/attachments/69760b00d969f5a24f658347/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172138.png"
+      },
+      {
+        slot: "Sylph",
+        level: 1,
+        type: "Active",
+        name: "Gale Pulse",
+        quote: "",
+        cost: 2,
+        cooldown: 6,
+        moveType: "Nature",
+        category: "Attack",
+        damage: 7,
+        scaling: "STR/100 + ARC/100",
+        effect: "Hits all of the opponents with a pulse of gale.",
+        image: "https://trello.com/1/cards/67c264ba2e47733e7791287b/attachments/69760b0247b347bc21e64860/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172206.png"
       }
     ]
   },
@@ -5825,24 +5855,30 @@ function renderDmgCalc() {
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
   const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, scroll1Data, scroll2Data, ...gearDataList.map(g => g.data)].filter(Boolean);
-  const _sheeaSkywardBolt = {
-    slot: "Sheea", level: 1, type: "Active", name: "Skyward Bolt",
-    quote: "Condense your light into a bolt of shocking energy, has a chance to blind.",
-    cost: 2, cooldown: 6, moveType: "Holy", category: "Attack", damage: 10, scaling: "STR/ARC",
-    effect: "Shoots a bolt to a target, deals damage and has a chance to apply 2 blind.",
-    image: "https://trello.com/1/cards/67c264d96e98da9ed20197c1/attachments/69761167850a7e2c6c96117b/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125174933.png"
-  };
+  const _sheeaClassMap = [
+    { key: "Saint (Or)",        label: "Sheea (Saint)" },
+    { key: "Paladin (Or)",      label: "Sheea (Paladin)" },
+    { key: "Elementalist (Or)", label: "Sheea (Elementalist)" },
+  ];
   const _sheeaExtraMoves = artifactName === "Heaven's Authority"
-    ? [_sheeaSkywardBolt, ...["Saint (Or)", "Paladin (Or)", "Elementalist (Or)"].flatMap(key => {
+    ? _sheeaClassMap.flatMap(({ key, label }) => {
         const d = classMoves[key];
-        return d ? (d.learns || []).filter(m => m.type === "Active" && !isSummonMove(m)).map(m => ({ ...m, slot: "Sheea" })) : [];
-      })]
+        const classMoveList = d ? (d.learns || []).filter(m => m.type === "Active" && !isSummonMove(m)).map(m => ({ ...m, slot: label })) : [];
+        const skywardBolt = {
+          slot: label, level: 1, type: "Active", name: "Skyward Bolt",
+          quote: "Condense your light into a bolt of shocking energy, has a chance to blind.",
+          cost: 2, cooldown: 6, moveType: "Holy", category: "Attack", damage: 10, scaling: "STR/ARC",
+          effect: "Shoots a bolt to a target, deals damage and has a chance to apply 2 blind.",
+          image: "https://trello.com/1/cards/67c264d96e98da9ed20197c1/attachments/69761167850a7e2c6c96117b/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125174933.png"
+        };
+        return [skywardBolt, ...classMoveList];
+      })
     : [];
   const allMoves = [
     ...allData.flatMap(d => (d.learns || []).filter(m =>
       m.type === "Active" &&
       (
-        m.category === "Summon" ||
+        (m.category === "Summon" && (m.damage !== undefined || m.scaling) && m.name !== "Calling Light" && m.name !== "Call Sylph") ||
         (m.category !== "Buff" && m.damage !== undefined && /^\d/.test(String(m.damage)))
       )
     )),
