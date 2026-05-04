@@ -17,6 +17,15 @@
    0. SITE NAVIGATION & HOME PAGE
    ============================================================ */
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+#page-home.active {
+  overflow-y: auto;
+  height: calc(100vh - 46px);
+}
+
 /* --- Top nav bar --- */
 .site-nav {
   display: flex;
