@@ -391,6 +391,196 @@ html, body {
   color: #aaccff;
 }
 
+/* --- Spear QTE (osu!-style) --- */
+.spear-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.spear-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.spear-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 160px;
+  text-align: center;
+}
+
+.spear-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.spear-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.spear-qte-canvas {
+  border-radius: 8px;
+  cursor: crosshair;
+  width: 100%;
+  max-width: 900px;
+  max-height: 340px;
+  display: block;
+}
+
+#spear-qte-start-btn,
+#spear-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- Dagger QTE --- */
+.dagger-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.dagger-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.dagger-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 260px;
+  text-align: center;
+}
+
+.dagger-qte-timer {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #aaaaff;
+  min-width: 50px;
+  text-align: center;
+  transition: color 0.3s;
+}
+
+.dagger-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.dagger-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.dagger-qte-avgtime {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #555;
+  min-width: 70px;
+}
+
+.dagger-qte-canvas {
+  display: block;
+  border-radius: 8px;
+}
+
+#dagger-qte-start-btn,
+#dagger-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- Sword QTE --- */
+.sword-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.sword-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.sword-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 220px;
+  text-align: center;
+}
+
+.sword-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.sword-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.sword-qte-canvas {
+  border-radius: 8px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 340px;
+  display: block;
+}
+
+#sword-qte-start-btn,
+#sword-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 /* --- WIP page --- */
 .wip-page {
   display: flex;

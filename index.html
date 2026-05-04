@@ -69,6 +69,7 @@
     <button class="tab" data-qte="staff">Staff</button>
     <button class="tab" data-qte="axe">Axe</button>
     <button class="tab" data-qte="hammer">Hammer</button>
+    <button class="tab" data-qte="dodge">Dodge</button>
   </div>
   <div class="qte-content">
     <!-- Fist QTE -->
@@ -85,14 +86,43 @@
       </div>
     </div>
     <!-- Other weapons -->
-    <div class="qte-panel qte-panel-wip" id="qte-panel-dagger">
-      <div class="wip-label">WIP</div>
+    <div class="qte-panel" id="qte-panel-dagger" style="display:none">
+      <div class="dagger-qte-wrap">
+        <div class="dagger-qte-header">
+          <span class="dagger-qte-status" id="dagger-qte-status"></span>
+          <span class="dagger-qte-timer" id="dagger-qte-timer"></span>
+          <span class="dagger-qte-streak" id="dagger-qte-streak"></span>
+          <span class="dagger-qte-highscore" id="dagger-qte-highscore"></span>
+          <span class="dagger-qte-avgtime" id="dagger-qte-avgtime"></span>
+        </div>
+        <canvas id="dagger-qte-canvas" class="dagger-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="dagger-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="dagger-qte-resume-btn" style="display:none">Resume</button>
+      </div>
     </div>
-    <div class="qte-panel qte-panel-wip" id="qte-panel-spear">
-      <div class="wip-label">WIP</div>
+    <div class="qte-panel" id="qte-panel-spear" style="display:none">
+      <div class="spear-qte-wrap">
+        <div class="spear-qte-header">
+          <span class="spear-qte-status" id="spear-qte-status"></span>
+          <span class="spear-qte-streak" id="spear-qte-streak"></span>
+          <span class="spear-qte-highscore" id="spear-qte-highscore"></span>
+        </div>
+        <canvas id="spear-qte-canvas" class="spear-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="spear-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="spear-qte-resume-btn" style="display:none">Resume</button>
+      </div>
     </div>
-    <div class="qte-panel qte-panel-wip" id="qte-panel-sword">
-      <div class="wip-label">WIP</div>
+    <div class="qte-panel" id="qte-panel-sword" style="display:none">
+      <div class="sword-qte-wrap">
+        <div class="sword-qte-header">
+          <span class="sword-qte-status" id="sword-qte-status"></span>
+          <span class="sword-qte-streak" id="sword-qte-streak"></span>
+          <span class="sword-qte-highscore" id="sword-qte-highscore"></span>
+        </div>
+        <canvas id="sword-qte-canvas" class="sword-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="sword-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="sword-qte-resume-btn" style="display:none">Resume</button>
+      </div>
     </div>
     <div class="qte-panel qte-panel-wip" id="qte-panel-staff">
       <div class="wip-label">WIP</div>
@@ -101,6 +131,9 @@
       <div class="wip-label">WIP</div>
     </div>
     <div class="qte-panel qte-panel-wip" id="qte-panel-hammer">
+      <div class="wip-label">WIP</div>
+    </div>
+    <div class="qte-panel qte-panel-wip" id="qte-panel-dodge">
       <div class="wip-label">WIP</div>
     </div>
   </div>
@@ -497,7 +530,13 @@
     document.querySelectorAll('.qte-panel').forEach(p => { p.style.display = 'none'; p.style.flex = ''; p.style.flexDirection = ''; });
     const panel = document.getElementById('qte-panel-' + name);
     if (panel) { panel.style.display = 'flex'; panel.style.flex = '1'; panel.style.flexDirection = 'column'; }
-    if (name === 'fist' && typeof window._onFistQteShow === 'function') window._onFistQteShow();
+    if (name === 'fist'  && typeof window._onFistQteShow  === 'function') window._onFistQteShow();
+    if (name === 'spear' && typeof window._onSpearQteShow === 'function') window._onSpearQteShow();
+    if (name !== 'spear' && typeof window._onSpearQteHide === 'function') window._onSpearQteHide();
+    if (name === 'sword'  && typeof window._onSwordQteShow  === 'function') window._onSwordQteShow();
+    if (name !== 'sword'  && typeof window._onSwordQteHide  === 'function') window._onSwordQteHide();
+    if (name === 'dagger' && typeof window._onDaggerQteShow === 'function') window._onDaggerQteShow();
+    if (name !== 'dagger' && typeof window._onDaggerQteHide === 'function') window._onDaggerQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));
