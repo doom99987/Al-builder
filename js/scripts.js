@@ -179,73 +179,87 @@ document.querySelectorAll(".stat-row").forEach(row => {
   });
 });
 
+// Armour cost = 750 (craft) + cost (material/purchase, fill in below)
 const armourItems = {
   "Paladin Cuirass": {
+    cost: 0, // TODO: add material cost
     endFlat: 20,
     pct: { end: 17.5 }
     // Also grants: +10% Physical Armor, -5% Run Speed, +5% Holy Armor, +5% Magic Armor, +5% Fire Armor
   },
   "Adept Warrior": {
+    cost: 0,
     endFlat: 15,
     pct: { end: 10, str: 5, energy: 16.6 }
     // Also grants: +5% Physical Armor, +20% Fall Resistance, +10% Dark Armor
   },
   "Raging Warrior": {
+    cost: 0,
     endFlat: 16,
     pct: { end: 10, "inc-heal": 10, energy: 10 }
     // Also grants: +5% Physical Armor, +10% Hex Armor, +5% Fire Armor
   },
   "Arcane Robes": {
+    cost: 0,
     arc: 4,
     endFlat: 15,
     pct: { arc: 7.5 }
     // Also grants: +10% Magic Armor, +10% Poison Armor, +10% Holy Armor, +10% Fire Armor
   },
   "Magister Apprentice": {
+    cost: 0,
     arc: 3,
     endFlat: 15,
     pct: { arc: 5 }
     // Also grants: +15% Magic Armor, +10% Poison Armor, +10% Fire Armor, +1 HP Regen
   },
   "Corrupt Caster": {
+    cost: 0,
     arc: 2,
     endFlat: 16,
     pct: { end: 5, arc: 5, energy: 10 }
     // Also grants: +15% Magic Armor, +10% Poison Armor, +10% Holy Armor
   },
   "Lifebound Archer": {
+    cost: 0,
     arc: 3,
     endFlat: 15,
     pct: { end: 5, arc: 5 }
     // Also grants: +10% Magic Armor, +10% Poison Armor, +10% Nature Armor, +1 HP Regen, +15% Run Speed
   },
   "Rogue Hunter": {
+    cost: 0,
     endFlat: 15,
     pct: { end: 7.5, spd: 10, energy: 10 }
     // Also grants: +5% Physical Armor, +20% Run Speed, +5% Fire Armor, +1 HP Regen, +25% Fall Resistance
   },
   "Shadow Cloak": {
+    cost: 0,
     endFlat: 13,
     pct: { end: 7.5, energy: 12.5 }
     // Also grants: +5% Physical Armor, +30% Run Speed, +5% Dark Armor, +1 HP Regen, +30% Fall Resistance
   },
   "Traveling Pasmark": {
+    cost: 0,
     str: 5,
     endFlat: 16,
     pct: { end: 7.5, str: 5 }
     // Also grants: +5% Physical Armor, +5% Holy Armor, +1 HP Regen, +10% Fall Resistance, +5% Fire Armor, +5% Dark Armor
   },
   "Wandering Practitioner": {
+    cost: 0,
     endFlat: 18,
     pct: { end: 7.5, str: 10, energy: 16.6 }
     // Also grants: +5% Physical Armor, +10% Fall Damage Resistance, +10% Fire Armor
   },
   "Shade Walker": {
+    cost: 0,
     endFlat: 18,
     pct: { end: 7.5, arc: 5 }
     // Also grants: +5% Physical Armor, +10% Hex Armor, +10% Fall Resistance, +20% Dark Armor
   },
   "Pathfinder Martyr": {
+    cost: 0,
     arc: 3,
     spd: 1,
     endFlat: 20,
@@ -253,26 +267,31 @@ const armourItems = {
     // Also grants: +5% Physical Armor, +15% Holy Armor, +1 HP Regen
   },
   "Armored Lancer": {
+    cost: 0,
     endFlat: 20,
     pct: { end: 15, energy: 12.5 }
     // Also grants: +10% Physical Armor, -5% Run Speed, +10% Magic Armor, +5% Fire Armor
   },
   "Bloody Menace": {
+    cost: 0,
     endFlat: 22,
     pct: { end: 10, "inc-heal": 20 }
     // Also grants: +10% Physical Armor, +5% Hex Armor, +5% Poison Armor
   },
   "Venerated Legionnaire": {
+    cost: 0,
     endFlat: 17,
     pct: { end: 12.5 }
     // Also grants: +15% Physical Armor, +15% Fire Armor, +10% Ice Armor, +10% Nature Armor, +5% Dark Armor, +5% Magic Armor
   },
   "Fortified Seer": {
+    cost: 0,
     endFlat: 35,
     pct: { end: 5 }
     // Also grants: +15% Dark Armor, +15% Hex Armor, +10% Holy Armor, +10% Ice Armor, +10% Fire Armor, +10% Physical Armor
   },
   "Deathmantle": {
+    cost: 0,
     endFlat: 25,
     pct: { end: 2.5, arc: 10 }
     // Also grants: +10% Magic Armor, +5% Physical Armor, +10% Ice Armor, +15% Holy Armor, +20% Dark Armor
@@ -2172,11 +2191,15 @@ let prevSuperSelection = "";
 let prevSubSelection   = "";
 let prevArmourSelection = "";
 
-const ARMOUR_GOLD_COST = 750;
+const ARMOUR_CRAFT_COST = 750;
+
+function _armourTotalCost(name) {
+  return ARMOUR_CRAFT_COST + (armourItems[name]?.cost || 0);
+}
 
 function updateArmourGold(oldArmour, newArmour) {
-  if (oldArmour) totalGold -= ARMOUR_GOLD_COST;
-  if (newArmour) totalGold += ARMOUR_GOLD_COST;
+  if (oldArmour) totalGold -= _armourTotalCost(oldArmour);
+  if (newArmour) totalGold += _armourTotalCost(newArmour);
   goldDisplay.textContent = totalGold;
 }
 
@@ -7434,6 +7457,20 @@ function loadBuildState(state) {
 // Share button
 const shareBuildBtn   = document.getElementById('share-build-btn');
 const buildNameInput  = document.getElementById('build-name-input');
+
+const resetBuildBtn = document.getElementById('reset-build-btn');
+if (resetBuildBtn) {
+  resetBuildBtn.addEventListener('click', () => {
+    if (!confirm('Reset build? This will clear everything.')) return;
+    try { localStorage.removeItem(_AUTO_SAVE_KEY); } catch (e) {}
+    loadBuildState({ v: 1, lvl: 1, race: '', cls: '', sup: '', sub: '',
+      str: 0, arc: 0, end: 0, spd: 0, lck: 0,
+      mark: '', cov: '', covR: 1, ench: '', art: '',
+      sh: [], g: [], wm: '', wo: '', arm: '', ls: '', sc1: '', sc2: '',
+      msty: [], soul: {} });
+    if (buildNameInput) buildNameInput.value = '';
+  });
+}
 
 if (shareBuildBtn) {
   shareBuildBtn.addEventListener('click', async () => {
