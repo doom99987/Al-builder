@@ -8969,3 +8969,220 @@ function autoSave() {
 
   canvas.style.display = 'none';
 })();
+
+// === HAMMER QTE TRAINER (hold-and-release charge bar) ===
+(function () {
+  const canvas    = document.getElementById('hammer-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('hammer-qte-status');
+  const streakEl  = document.getElementById('hammer-qte-streak');
+  const hsEl      = document.getElementById('hammer-qte-highscore');
+  const startBtn  = document.getElementById('hammer-qte-start-btn');
+  const resumeBtn = document.getElementById('hammer-qte-resume-btn');
+
+  const HS_KEY  = 'alb:hammer-hs';
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  let running = false, gameStarted = false, paused = false;
+  let streak = 0, animFrame = null, lastTime = 0;
+  let holding = false, fillPct = 0;
+  let releaseFlash = null, flashStart = 0;
+  const FLASH_MS = 500;
+  let zoneMin = 0, zoneMax = 0;
+  const BAR_H = 40; // horizontal bar height
+  const PAD   = 50; // left/right padding
+
+  function getFillSpeed() { return 0.30; }
+  function getZoneSize()  { return Math.max(0.10 - streak * 0.006, 0.04); }
+
+  function randomiseZone() {
+    const size   = getZoneSize();
+    const center = 0.45 + Math.random() * 0.35;
+    zoneMin = Math.max(0.05, center - size / 2);
+    zoneMax = Math.min(0.95, zoneMin + size);
+    zoneMin = zoneMax - size;
+  }
+
+  function updateHighscore(v) {
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    canvas.width  = Math.min((wrap ? wrap.clientWidth - 40 : 800) || 800, 900);
+    canvas.height = BAR_H + 60;
+  }
+
+  function drawFrame(now) {
+    now = now || performance.now();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const barW = canvas.width - PAD * 2;
+    const bx   = PAD;
+    const by   = (canvas.height - BAR_H) / 2;
+
+    // Bar background
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(bx, by, barW, BAR_H);
+
+    // Target zone (vertical strip)
+    const zoneX1 = bx + barW * zoneMin;
+    const zoneX2 = bx + barW * zoneMax;
+    const zoneW  = zoneX2 - zoneX1;
+    ctx.fillStyle   = 'rgba(150,150,175,0.28)';
+    ctx.fillRect(zoneX1, by, zoneW, BAR_H);
+    ctx.strokeStyle = 'rgba(190,190,220,0.65)';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(zoneX1, by, zoneW, BAR_H);
+
+    // Fill colour: blue while charging, green/red on release
+    let fillColor = '#4488ff';
+    if (releaseFlash !== null) {
+      const elapsed = now - flashStart;
+      if (elapsed < FLASH_MS) {
+        fillColor = releaseFlash === 'hit' ? '#44ee88' : '#ee4444';
+      } else {
+        releaseFlash = null;
+      }
+    }
+
+    // Filled portion left to right
+    const fillW = barW * fillPct;
+    if (fillW > 0) {
+      ctx.fillStyle = fillColor;
+      ctx.fillRect(bx, by, fillW, BAR_H);
+    }
+
+    // Bar border
+    ctx.strokeStyle = '#44446a';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(bx, by, barW, BAR_H);
+
+    // Zone label above box
+    ctx.fillStyle = 'rgba(200,200,255,0.7)';
+    ctx.font      = '12px Rajdhani, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('RELEASE', zoneX1 + zoneW / 2, by - 6);
+  }
+
+  function startRound() {
+    fillPct = 0; holding = false; releaseFlash = null;
+    randomiseZone();
+    setStatus('Hold SPACE to charge, release in the box!', '#aaaaff');
+    drawFrame();
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    if (holding) {
+      fillPct = Math.min(1, fillPct + getFillSpeed() * dt);
+      if (fillPct >= 1) { holding = false; onRelease(); return; }
+    }
+    drawFrame(now);
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onRelease() {
+    if (!running) return;
+    const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
+    releaseFlash = inZone ? 'hit' : 'miss';
+    flashStart   = performance.now();
+    drawFrame(flashStart);
+    if (!inZone) { triggerFail(fillPct < zoneMin ? 'Too early!' : 'Too late!'); return; }
+    streak++;
+    streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    setStatus('Perfect!', '#88ee88');
+    setTimeout(() => { if (running) startRound(); }, 700);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    running = paused = false; holding = false;
+    updateHighscore(streak);
+    setStatus(msg, '#ee5555');
+    streakEl.textContent = '';
+    setTimeout(resetToStart, 900);
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running = gameStarted = paused = false; holding = false; fillPct = 0;
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('', '#888');
+  }
+
+  function startGame() {
+    streak = 0; running = gameStarted = true; paused = holding = false; fillPct = 0;
+    resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startRound();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused = false; running = true; holding = false; lastTime = performance.now();
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startRound();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.repeat) return;
+    const panel = document.getElementById('qte-panel-hammer');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    if (!running || paused) return;
+    holding = true;
+  });
+
+  document.addEventListener('keyup', e => {
+    if (e.code !== 'Space') return;
+    const panel = document.getElementById('qte-panel-hammer');
+    if (!panel || panel.style.display === 'none') return;
+    if (!running || paused || !holding) return;
+    holding = false;
+    onRelease();
+  });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  window._onHammerQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame); running = false; paused = true; holding = false;
+    } else { resetToStart(); streak = 0; }
+  };
+
+  window._onHammerQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888'); drawFrame();
+    } else {
+      canvas.style.display = 'none';
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888'); streakEl.textContent = '';
+    }
+  };
+
+  canvas.style.display = 'none';
+})();
