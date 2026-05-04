@@ -7541,3 +7541,186 @@ function autoSave() {
     }
   } catch (e) {}
 })();
+
+// === FIST QTE TRAINER ===
+(function () {
+  const ARROWS = [
+    { dir: 'up',    symbol: '↑', keys: ['ArrowUp',    'w', 'W'] },
+    { dir: 'down',  symbol: '↓', keys: ['ArrowDown',  's', 'S'] },
+    { dir: 'left',  symbol: '←', keys: ['ArrowLeft',  'a', 'A'] },
+    { dir: 'right', symbol: '→', keys: ['ArrowRight', 'd', 'D'] },
+  ];
+
+  const bar      = document.getElementById('fist-qte-bar');
+  const status   = document.getElementById('fist-qte-status');
+  const streakEl = document.getElementById('fist-qte-streak');
+  const timerEl  = document.getElementById('fist-qte-timer');
+  const startBtn = document.getElementById('fist-qte-start-btn');
+  if (!bar) return;
+
+  let sequence      = [];
+  let current       = 0;
+  let length        = 2;
+  let streak        = 0;
+  let running       = false;
+  let lockout       = false;
+  let started       = false;
+  let timerInterval = null;
+  let timeLeft      = 0;
+
+  function getTimeLimit() { return length >= 8 ? 5 : 8; }
+
+  function startTimer() {
+    clearInterval(timerInterval);
+    timeLeft = getTimeLimit();
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      updateTimerDisplay();
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        onTimeout();
+      }
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+    if (timerEl) timerEl.textContent = '';
+  }
+
+  function updateTimerDisplay() {
+    if (!timerEl) return;
+    timerEl.textContent = timeLeft + 's';
+    timerEl.style.color = timeLeft <= 2 ? '#ee8888' : '#aaaaff';
+  }
+
+  function onTimeout() {
+    lockout = true;
+    running = false;
+    bar.querySelectorAll('.fist-arrow-box').forEach(b => b.classList.add('wrong'));
+    streak = 0;
+    length = 2;
+    setStatus('⏱ Time\'s up!', '#ee8888');
+    streakEl.textContent = '';
+    setTimeout(startRound, 900);
+  }
+
+  function randomArrow() {
+    return ARROWS[Math.floor(Math.random() * ARROWS.length)];
+  }
+
+  function buildSequence() {
+    sequence = Array.from({ length }, randomArrow);
+  }
+
+  function renderBar() {
+    bar.innerHTML = '';
+    sequence.forEach((arrow, i) => {
+      const box = document.createElement('div');
+      box.className = 'fist-arrow-box' + (i === current ? ' active' : '');
+      box.textContent = arrow.symbol;
+      bar.appendChild(box);
+    });
+  }
+
+  function setStatus(text, color) {
+    status.textContent = text;
+    status.style.color = color || '#888';
+  }
+
+  function flashBox(idx, cls, cb) {
+    const boxes = bar.querySelectorAll('.fist-arrow-box');
+    if (!boxes[idx]) { if (cb) cb(); return; }
+    boxes[idx].classList.remove('active');
+    boxes[idx].classList.add(cls);
+    setTimeout(() => { if (cb) cb(); }, 300);
+  }
+
+  function startRound() {
+    buildSequence();
+    current = 0;
+    running = true;
+    lockout = false;
+    started = true;
+    if (startBtn) startBtn.style.display = 'none';
+    setStatus('Go!', '#aaaaff');
+    renderBar();
+    streakEl.textContent = streak > 0 ? `Streak: ${streak}` : '';
+    startTimer();
+  }
+
+  function onSuccess() {
+    stopTimer();
+    lockout = true;
+    flashBox(current - 1, 'correct', () => {
+      streak++;
+      length = Math.min(length + 1, 9);
+      setStatus(`✓ Nice! Next: ${length} arrows`, '#88ee88');
+      streakEl.textContent = `Streak: ${streak}`;
+      setTimeout(startRound, 600);
+    });
+  }
+
+  function onFail(key) {
+    stopTimer();
+    lockout = true;
+    running = false;
+    const boxes = bar.querySelectorAll('.fist-arrow-box');
+    boxes.forEach((b, i) => { if (i >= current) b.classList.add('wrong'); });
+    streak = 0;
+    length = 2;
+    setStatus(`✗ Wrong! Expected ${sequence[current].symbol}, got ${keyToSymbol(key)}`, '#ee8888');
+    streakEl.textContent = '';
+    setTimeout(startRound, 900);
+  }
+
+  function keyToSymbol(key) {
+    if (['ArrowUp',    'w', 'W'].includes(key)) return '↑';
+    if (['ArrowDown',  's', 'S'].includes(key)) return '↓';
+    if (['ArrowLeft',  'a', 'A'].includes(key)) return '←';
+    if (['ArrowRight', 'd', 'D'].includes(key)) return '→';
+    return key;
+  }
+
+  document.addEventListener('keydown', e => {
+    const isArrow = ARROWS.some(a => a.keys.includes(e.key));
+    if (!isArrow) return;
+
+    // Prevent page scroll on arrow keys only when QTE panel is visible
+    const panel = document.getElementById('qte-panel-fist');
+    if (panel && panel.style.display !== 'none') e.preventDefault();
+    else return;
+
+    if (!started || lockout) return;
+
+    const expected = sequence[current];
+    const matched  = expected.keys.includes(e.key);
+
+    if (matched) {
+      flashBox(current, 'correct', () => {});
+      current++;
+      if (current === sequence.length) {
+        onSuccess();
+      } else {
+        // Highlight next box
+        const boxes = bar.querySelectorAll('.fist-arrow-box');
+        if (boxes[current]) boxes[current].classList.add('active');
+      }
+    } else {
+      onFail(e.key);
+    }
+  });
+
+  // Start button
+  if (startBtn) {
+    startBtn.addEventListener('click', () => {
+      length = 2; streak = 0;
+      startRound();
+    });
+  }
+
+  // Bar hidden until Start is pressed
+  bar.innerHTML = '';
+  setStatus('', '#888');
+})();

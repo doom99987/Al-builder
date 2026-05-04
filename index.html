@@ -71,7 +71,33 @@
     <button class="tab" data-qte="hammer">Hammer</button>
   </div>
   <div class="qte-content">
-    <div class="wip-page">
+    <!-- Fist QTE -->
+    <div class="qte-panel" id="qte-panel-fist" style="display:none">
+      <div class="fist-qte-wrap">
+        <div class="fist-qte-status" id="fist-qte-status"></div>
+        <div class="fist-qte-timer" id="fist-qte-timer"></div>
+        <div class="fist-qte-bar" id="fist-qte-bar"></div>
+        <div class="fist-qte-streak" id="fist-qte-streak"></div>
+        <button class="fist-qte-start-btn" id="fist-qte-start-btn">Start</button>
+      </div>
+    </div>
+    <!-- Other weapons -->
+    <div class="qte-panel qte-panel-wip" id="qte-panel-dagger">
+      <div class="wip-label">WIP</div>
+    </div>
+    <div class="qte-panel qte-panel-wip" id="qte-panel-spear">
+      <div class="wip-label">WIP</div>
+    </div>
+    <div class="qte-panel qte-panel-wip" id="qte-panel-sword">
+      <div class="wip-label">WIP</div>
+    </div>
+    <div class="qte-panel qte-panel-wip" id="qte-panel-staff">
+      <div class="wip-label">WIP</div>
+    </div>
+    <div class="qte-panel qte-panel-wip" id="qte-panel-axe">
+      <div class="wip-label">WIP</div>
+    </div>
+    <div class="qte-panel qte-panel-wip" id="qte-panel-hammer">
       <div class="wip-label">WIP</div>
     </div>
   </div>
@@ -461,12 +487,17 @@
   const _validPages = ['home', 'builder', 'qte'];
   switchPage(_validPages.includes(_initPage) ? _initPage : 'home');
 
+  function switchQteTab(name) {
+    document.querySelectorAll('#qte-tabbar .tab').forEach(b => b.classList.remove('active'));
+    document.querySelector(`#qte-tabbar .tab[data-qte="${name}"]`).classList.add('active');
+    document.querySelectorAll('.qte-panel').forEach(p => p.style.display = 'none');
+    const panel = document.getElementById('qte-panel-' + name);
+    if (panel) { panel.style.display = 'flex'; panel.style.flex = '1'; panel.style.flexDirection = 'column'; }
+  }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('#qte-tabbar .tab').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    });
+    btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));
   });
+  switchQteTab('dagger');
 </script>
 </body>
 </html>

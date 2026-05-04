@@ -79,6 +79,7 @@ html, body {
   height: 100%;
 }
 
+
 /* --- Home page --- */
 .home-hero {
   text-align: center;
@@ -245,6 +246,133 @@ html, body {
   color: #ff8c00;
   text-align: center;
   line-height: 1;
+}
+
+/* ============================================================
+   QTE TRAINER
+   ============================================================ */
+
+#page-qte.active {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 46px);
+}
+
+.qte-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qte-panel {
+  display: none;
+}
+
+/* When shown via JS (display:flex set inline), panel fills content area */
+.qte-panel-wip {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Fist QTE --- */
+.fist-qte-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px 20px;
+}
+
+.fist-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 1px;
+  min-height: 28px;
+}
+
+.fist-qte-timer {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #aaaaff;
+  letter-spacing: 2px;
+  min-height: 36px;
+  transition: color 0.3s;
+}
+
+.fist-qte-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 700px;
+}
+
+.fist-arrow-box {
+  width: 56px;
+  height: 56px;
+  border: 2px solid #333;
+  border-radius: 8px;
+  background: #141414;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: #666;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+}
+
+.fist-arrow-box.active {
+  border-color: #5555ff;
+  color: #aaaaff;
+  background: #0d0d22;
+}
+
+.fist-arrow-box.correct {
+  border-color: #44bb44;
+  color: #88ee88;
+  background: #0d1a0d;
+}
+
+.fist-arrow-box.wrong {
+  border-color: #bb4444;
+  color: #ee8888;
+  background: #1a0d0d;
+}
+
+.fist-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #555;
+  letter-spacing: 1px;
+  min-height: 20px;
+}
+
+.fist-qte-start-btn {
+  padding: 10px 36px;
+  background: #1a2a3a;
+  border: 1px solid #3a6aaa;
+  border-radius: 6px;
+  color: #88aaee;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fist-qte-start-btn:hover {
+  background: #1e3a5a;
+  color: #aaccff;
 }
 
 /* --- WIP page --- */
