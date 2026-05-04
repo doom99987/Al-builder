@@ -144,6 +144,40 @@ html, body {
   line-height: 1.6;
 }
 
+/* --- Soul Tree action buttons --- */
+.soul-tree-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+.soul-tree-btn {
+  padding: 6px 18px;
+  border: none;
+  border-radius: 4px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.soul-tree-btn-max {
+  background: #3a3060;
+  color: #c4b5fd;
+}
+.soul-tree-btn-max:hover {
+  background: #4c3d80;
+}
+.soul-tree-btn-reset {
+  background: #1f1f1f;
+  color: #888;
+  border: 1px solid #2a2a2a;
+}
+.soul-tree-btn-reset:hover {
+  background: #2a2a2a;
+  color: #aaa;
+}
+
 /* --- Shard DR indicator --- */
 .shard-slot.shard-dr .shard-label {
   color: #ff8c00;
