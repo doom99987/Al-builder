@@ -144,6 +144,19 @@ html, body {
   line-height: 1.6;
 }
 
+/* --- Shard DR indicator --- */
+.shard-slot.shard-dr .shard-label {
+  color: #ff8c00;
+}
+.shard-slot.shard-dr::after {
+  content: "25%";
+  display: block;
+  font-size: 10px;
+  color: #ff8c00;
+  text-align: center;
+  line-height: 1;
+}
+
 /* --- WIP page --- */
 .wip-page {
   display: flex;
