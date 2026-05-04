@@ -40,6 +40,19 @@ racePicker.addEventListener("change", e => {
     const base = raceBase[row.dataset.stat] ?? 0;
     row.querySelector(".stat-base").textContent = base > 0 ? `+${base}` : "";
   });
+  const total = getEffectiveTotal();
+  if (spent > total) {
+    const rows = [...document.querySelectorAll(".stat-row")].reverse();
+    for (const row of rows) {
+      if (spent <= total) break;
+      const input = row.querySelector(".stat-val");
+      const cur = +input.value;
+      const reduce = Math.min(cur, spent - total);
+      input.value = cur - reduce;
+      input.dataset.prev = input.value;
+      spent -= reduce;
+    }
+  }
   updatePoints();
   updatePecents();
 });
@@ -417,6 +430,13 @@ function updatePecents() {
       display = total > 0 ? total.toFixed(1) : "—";
     } else {
       display = (parseFloat(base) + pctBonus).toFixed(stat === "crit-dmg" ? 2 : 1);
+    }
+    // Stultus passive: every 10 total speed = +1% crit chance, capped at 100%
+    if (stat === "crit-chance" && racePicker.value === "Stultus (20%)") {
+      const spdRow = document.querySelector('.stat-row[data-stat="spd"] .stat-val');
+      const totalSpd = (spdRow ? +spdRow.value : 0) + (raceBase.spd ?? 0) + (armour.spd ?? 0) + (masteryStats.spd ?? 0) + (gearStatBonuses.spd ?? 0) + lvlStatBonus;
+      const stultusBonus = totalSpd / 10;
+      display = Math.min(100, parseFloat(display) + stultusBonus).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     item.querySelector(".percent-val").textContent = display + suffix;
@@ -3976,8 +3996,8 @@ const raceMoves = {
     innatePassives: [
       {
         level: 1,
-        name: "Speed to Crit",
-        description: "Speed is converted into extra critical chance, capped at 100%. (10 speed = 1% extra crit chance)"
+        name: "Innate Ability",
+        description: "Speed is converted into extra critical chance, the critical chance from this passive is capped at 100%. (10 speed equals 1 extra cc)"
       }
     ],
     learns: [
