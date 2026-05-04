@@ -5231,6 +5231,20 @@ function getTotalStat(statKey) {
   return allocated + (raceBase[statKey] ?? 0) + (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + lvlBonus + crystalBonus;
 }
 
+function recalcOpenDetails() {
+  document.querySelectorAll(".dc-detail").forEach(detail => {
+    if (detail.style.display === "none") return;
+    const rowEl = detail.previousElementSibling;
+    if (!rowEl) return;
+    const idx = rowEl.getAttribute("onclick")?.match(/toggleDmgDetail\(this,(\d+)\)/)?.[1];
+    if (idx === undefined) return;
+    // Close then reopen to recalculate
+    detail.style.display = "none";
+    rowEl.classList.remove("dc-row-open");
+    toggleDmgDetail(rowEl, +idx);
+  });
+}
+
 function getCritDmgMult() {
   const el = document.getElementById("crit-dmg-pct");
   const v = el ? parseFloat(el.textContent) : NaN;
@@ -5607,58 +5621,58 @@ function hideDcTooltip() {
 
 function changeEnergy(delta) {
   energyCount = Math.min(6, Math.max(0, energyCount + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeAbsRadTurn(delta) {
   absRadTurn = Math.min(5, Math.max(1, absRadTurn + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeBulkUpStacks(delta) {
   bulkUpStacks = Math.min(10, Math.max(1, bulkUpStacks + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeHourglassStacks(delta) {
   hourglassStacks = Math.min(5, Math.max(1, hourglassStacks + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function toggleStatusEffect(name) {
   statusEffectsActive[name] = !statusEffectsActive[name];
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeOverheatStacks(delta) {
   overheatStacks = Math.min(10, Math.max(1, overheatStacks + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeOppressionCount(delta) {
   oppressionCount = Math.min(5, Math.max(1, oppressionCount + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeShatteringDebuffs(delta) {
   shatteringDebuffCount = Math.min(15, Math.max(1, shatteringDebuffCount + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeReversingDebuffs(delta) {
   reversingDebuffCount = Math.min(10, Math.max(1, reversingDebuffCount + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function changeCrystalStarStacks(delta) {
   crystalStarStacks = Math.min(5, Math.max(0, crystalStarStacks + delta));
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
   updatePecents();
 }
 
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
-  renderDmgBonusSection();
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function getStatusMultiplier(moveType) {
@@ -5678,6 +5692,7 @@ function setRageEmpHp(val) {
   const pctEl = document.querySelector(".dc-bonus-row[data-rage-emp] .dc-bonus-pct");
   if (valEl) valEl.textContent = val + "%";
   if (pctEl) pctEl.textContent = `+${30 + rageEmpHpConsumed}%`;
+  recalcOpenDetails();
 }
 
 function renderDmgBonusSection() {
@@ -5899,6 +5914,7 @@ function renderDmgBonusSection() {
     row.addEventListener("click", () => {
       dmgBonusActive[p.key] = !dmgBonusActive[p.key];
       renderDmgBonusSection();
+      recalcOpenDetails();
     });
     row.addEventListener("mouseenter", () => showDcTooltip(row, p));
     row.addEventListener("mouseleave", hideDcTooltip);
