@@ -399,7 +399,7 @@ function updatePecents() {
 
   const masteryStats = getMasteryStatBonuses();
   const lckRow = document.querySelector('.stat-row[data-stat="lck"] .stat-val');
-  const totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus;
+  const totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
 
   document.querySelectorAll(".percent-item").forEach(item => {
     const stat = item.dataset.stat;
@@ -5189,6 +5189,7 @@ let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
+let crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -5224,7 +5225,14 @@ function getTotalStat(statKey) {
     const g = gearItems?.[document.getElementById(id)?.value];
     if (g) Object.entries(g).forEach(([k, v]) => { if (v) gearBonuses[k] = (gearBonuses[k] || 0) + v; });
   });
-  return allocated + (raceBase[statKey] ?? 0) + (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + lvlBonus;
+  const crystalBonus = statKey === "lck" ? crystalStarStacks * 10 : 0;
+  return allocated + (raceBase[statKey] ?? 0) + (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + lvlBonus + crystalBonus;
+}
+
+function getCritDmgMult() {
+  const el = document.getElementById("crit-dmg-pct");
+  const v = el ? parseFloat(el.textContent) : NaN;
+  return isNaN(v) ? null : v;
 }
 
 function toggleDmgDetail(rowEl, idx) {
@@ -5240,7 +5248,7 @@ function toggleDmgDetail(rowEl, idx) {
   let hitCount = 1;
   if (m.damage !== undefined) {
     const dmgStr = String(m.damage);
-    const multiHit = dmgStr.match(/^(\d+(?:\.\d+)?)x(\d+)$/);
+    const multiHit = dmgStr.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+)$/i);
     if (multiHit) { baseDmgNum = +multiHit[1]; hitCount = +multiHit[2]; }
     else if (/^\d+(\.\d+)?$/.test(dmgStr)) baseDmgNum = +dmgStr;
   }
@@ -5284,6 +5292,15 @@ function toggleDmgDetail(rowEl, idx) {
     }
     const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
     if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(2)}</b>`;
+    const _finalDmg0 = sMult !== 1 ? currentDmg * sMult : currentDmg;
+    const _critMult0 = getCritDmgMult();
+    if (hitCount > 1) {
+      const _avgHit0 = _finalDmg0 / hitCount;
+      formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit0.toFixed(2)}</b>`;
+      if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(2)}</b>`;
+      formula += `</span>`;
+    }
+    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg0.toFixed(2)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_finalDmg0 * _critMult0).toFixed(2)}</b></span>`;
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -5317,6 +5334,15 @@ function toggleDmgDetail(rowEl, idx) {
   }
   const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(2)}</b>`;
+  const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
+  const _critMult = getCritDmgMult();
+  if (hitCount > 1) {
+    const _avgHit = _finalDmg / hitCount;
+    formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit.toFixed(2)}</b>`;
+    if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(2)}</b>`;
+    formula += `</span>`;
+  }
+  if (_critMult !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg.toFixed(2)}</b> × ${_critMult.toFixed(2)}x = <b>${(_finalDmg * _critMult).toFixed(2)}</b></span>`;
 
   detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
   detail.style.display = "block"; rowEl.classList.add("dc-row-open");
@@ -5622,6 +5648,12 @@ function changeReversingDebuffs(delta) {
   renderDmgBonusSection();
 }
 
+function changeCrystalStarStacks(delta) {
+  crystalStarStacks = Math.min(5, Math.max(0, crystalStarStacks + delta));
+  renderDmgBonusSection();
+  updatePecents();
+}
+
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
   renderDmgBonusSection();
@@ -5652,6 +5684,8 @@ function renderDmgBonusSection() {
 
   dmgBonusPassives = collectDmgBonusPassives();
 
+  const hasCrystalStar = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Crystallized Star");
+
   // Energy counter — always shown
   let html = `<div class="dc-energy-section">
     <span class="dc-energy-label">Energy</span>
@@ -5661,6 +5695,19 @@ function renderDmgBonusSection() {
       <button class="dc-energy-btn" onclick="changeEnergy(1)">+</button>
     </div>
   </div>`;
+
+  if (hasCrystalStar) {
+    html += `<div class="dc-energy-section">
+      <span class="dc-energy-label">Crystal Star LCK stacks <span style="color:#aaa;font-size:11px">(+10 LCK each)</span></span>
+      <div class="dc-energy-counter">
+        <button class="dc-energy-btn" onclick="changeCrystalStarStacks(-1)">−</button>
+        <span class="dc-energy-val">${crystalStarStacks}</span>
+        <button class="dc-energy-btn" onclick="changeCrystalStarStacks(1)">+</button>
+      </div>
+    </div>`;
+  } else if (crystalStarStacks > 0) {
+    crystalStarStacks = 0;
+  }
 
   if (dmgBonusPassives.length) {
   // Init toggle state for any new passives
@@ -8164,11 +8211,12 @@ function autoSave() {
 
   const TRACK_H     = 26;
   const BAR_W       = 10;
-  const BAR_SPACING = 170; // px gap between bars at launch
+  const BAR_MIN_GAP = 75;  // min px gap between bars
+  const BAR_MAX_GAP = 130; // max px gap between bars (randomized)
 
   let trackX, trackY, trackW, zoneX, zoneW;
 
-  function getSpeed()      { return Math.min(380 + streak * 14, 620); } // px/s, capped at 620
+  function getSpeed()      { return Math.min(440 + streak * 14, 660); } // px/s, capped at 660
   function getBarCount()   { return Math.min(4 + Math.floor(streak / 2), 8); }
   function getZoneStart()  { return 0.70; } // fixed position, further right
   function getZoneWidth()  { return 0.10; } // fixed size
@@ -8209,9 +8257,11 @@ function autoSave() {
     const count = getBarCount();
     bars = [];
     currentBar = 0;
-    // Bars stagger from left: bar 0 is furthest right (leads), bar N is furthest left
+    // Bars stagger from left with randomized gaps so timing isn't predictable
+    let xPos = trackX - BAR_W;
     for (let i = 0; i < count; i++) {
-      bars.push({ x: trackX - BAR_W - i * BAR_SPACING, stopped: false, inZone: false });
+      bars.push({ x: xPos, stopped: false, inZone: false });
+      xPos -= BAR_MIN_GAP + Math.random() * (BAR_MAX_GAP - BAR_MIN_GAP);
     }
     setStatus('Press SPACE to stop each bar in the zone!', '#aaaaff');
   }
@@ -8426,7 +8476,7 @@ function autoSave() {
 
   let trackX, trackW, trackY;
 
-  function getWhiteSpeed()  { return Math.min(280 + streak * 12, 500); } // px/s
+  function getWhiteSpeed()  { return Math.min(370 + streak * 12, 580); } // px/s
   function calcYellowWidth(){ return Math.max(trackW * (0.09 - streak * 0.008), BAR_W * 0.5); }
   function getYellowX()     { return trackX + trackW * yellowCenter; }
 
@@ -8459,7 +8509,7 @@ function autoSave() {
   }
 
   function launchBar() {
-    whiteX   = trackX - BAR_W;
+    whiteX   = trackX;
     inFlight = true;
     setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
   }
@@ -8494,7 +8544,7 @@ function autoSave() {
     if (inFlight) {
       whiteX += getWhiteSpeed() * dt;
       // Missed — bar exited right side
-      if (whiteX > trackX + trackW + BAR_W) {
+      if (whiteX > trackX + trackW) {
         inFlight = false;
         triggerFail('Too slow!');
         return;
@@ -8571,8 +8621,9 @@ function autoSave() {
     running  = true;
     lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
+    if (!inFlight) setTimeout(launchBar, 400);
+    else setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
   }
 
   document.addEventListener('keydown', e => {
@@ -8790,12 +8841,16 @@ function autoSave() {
     const ring = rings[currentRing];
     if (!ring || ring.expandFrom !== undefined) return; // block during zoom-in
 
-    const gapSize = getGapSize();
-    const norm = ((ring.gapAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-    const dist = Math.min(norm, Math.PI * 2 - norm);
-    const hit  = dist < gapSize / 2 + getHitExtra();
-
-    if (!hit) { triggerFail('Missed the gap!'); return; }
+    // CCW rings are skippable — pressing space always counts as a hit
+    if (ring.vel < 0) {
+      // auto-pass, fall through to success logic below
+    } else {
+      const gapSize = getGapSize();
+      const norm = ((ring.gapAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const dist = Math.min(norm, Math.PI * 2 - norm);
+      const hit  = dist < gapSize / 2 + getHitExtra();
+      if (!hit) { triggerFail('Missed the gap!'); return; }
+    }
 
     // Compute where the next ring was drawn as a preview (it's the outermost preview)
     const activeR    = arrowRadius - RING_THICK / 2;
