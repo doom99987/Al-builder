@@ -7832,3 +7832,807 @@ function autoSave() {
   bar.innerHTML = '';
   setStatus('', '#888');
 })();
+
+// === SPEAR QTE TRAINER (osu!-style) ===
+(function () {
+  const canvas     = document.getElementById('spear-qte-canvas');
+  if (!canvas) return;
+  const ctx        = canvas.getContext('2d');
+  const statusEl   = document.getElementById('spear-qte-status');
+  const streakEl   = document.getElementById('spear-qte-streak');
+  const hsEl       = document.getElementById('spear-qte-highscore');
+  const startBtn   = document.getElementById('spear-qte-start-btn');
+  const resumeBtn  = document.getElementById('spear-qte-resume-btn');
+
+  const HS_KEY  = 'alb:spear-hs';
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  // Game state
+  let running       = false;
+  let gameStarted   = false;
+  let paused        = false;
+  let streak        = 0;
+  let animFrame     = null;
+  let circles       = [];
+  let nextSpawn     = 0;
+  let lastMissGuard = 0;
+  let pauseTime     = 0;
+
+  // Circle constants
+  const INNER_R       = 36;
+  const OUTER_R_START = INNER_R * 2.2;
+  const HIT_TOLERANCE = 14;
+
+  // starts at 4, caps at 8
+  function getMaxSimul()      { return Math.min(4 + Math.floor(streak / 4), 8); }
+  function getApproachMs()    { return Math.max(900, 1500 - streak * 10); }
+  function getSpawnInterval() { return Math.max(300, 900 - streak * 20); }
+
+  // ---- highscore ----
+  function updateHighscore(val) {
+    if (val > highscore) {
+      highscore = val;
+      try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
+    }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function setStatus(text, color) {
+    if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; }
+  }
+
+  // ---- canvas sizing ----
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    canvas.width  = Math.min(wrap.clientWidth - 40 || 800, 900);
+    canvas.height = Math.min(Math.round(canvas.width * 0.38), 340);
+  }
+
+  // ---- spawn ----
+  function spawnCircle(now) {
+    const margin  = OUTER_R_START + 10;
+    const minDist = INNER_R * 2 + 20; // minimum center-to-center gap
+    const active  = circles.filter(c => !c.hit && !c.missed);
+    let x, y, attempts = 0;
+    do {
+      x = margin + Math.random() * (canvas.width  - margin * 2);
+      y = margin + Math.random() * (canvas.height - margin * 2);
+      attempts++;
+    } while (
+      attempts < 30 &&
+      active.some(c => Math.hypot(x - c.x, y - c.y) < minDist)
+    );
+    circles.push({ x, y, spawnTime: now, duration: getApproachMs(),
+                   hit: false, missed: false, alpha: 1, fadeStart: 0 });
+  }
+
+  // ---- draw ----
+  function drawFrame(now) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = circles.length - 1; i >= 0; i--) {
+      const c = circles[i];
+      const elapsed  = now - c.spawnTime;
+      const progress = Math.min(elapsed / c.duration, 1);
+      const outerR   = INNER_R + (OUTER_R_START - INNER_R) * (1 - progress);
+
+      if (c.hit || c.missed) {
+        if (!c.fadeStart) c.fadeStart = now;
+        c.alpha = Math.max(0, 1 - (now - c.fadeStart) / 280);
+        if (c.alpha <= 0) { circles.splice(i, 1); continue; }
+      } else if (progress >= 1 && !c.missed) {
+        c.missed = true;
+        triggerMiss('Miss! Too slow.');
+      }
+
+      ctx.save();
+      ctx.globalAlpha = c.alpha;
+
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, INNER_R, 0, Math.PI * 2);
+      if (c.hit) {
+        ctx.fillStyle   = 'rgba(100,230,120,0.25)';
+        ctx.strokeStyle = '#66ee88';
+      } else if (c.missed) {
+        ctx.fillStyle   = 'rgba(230,80,80,0.25)';
+        ctx.strokeStyle = '#ee6666';
+      } else {
+        ctx.fillStyle   = 'rgba(160,160,255,0.12)';
+        ctx.strokeStyle = '#aaaaff';
+      }
+      ctx.lineWidth = 3;
+      ctx.fill();
+      ctx.stroke();
+
+      if (!c.hit && !c.missed) {
+        const nearness  = 1 - (outerR - INNER_R) / (OUTER_R_START - INNER_R);
+        const r = Math.round(180 + nearness * 75);
+        const g = Math.round(120 - nearness * 60);
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, outerR, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(${r},${g},40,0.9)`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  // ---- miss/fail ----
+  function triggerMiss(msg) {
+    const now = Date.now();
+    if (now - lastMissGuard < 120) return;
+    lastMissGuard = now;
+    if (!running) return;
+    running = false;
+    paused  = false;
+    updateHighscore(streak);
+    setStatus(msg, '#ee6666');
+    streakEl.textContent = '';
+    setTimeout(resetToStart, 850);
+  }
+
+  // ---- reset to start screen ----
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running     = false;
+    gameStarted = false;
+    paused      = false;
+    circles     = [];
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+  }
+
+  // ---- game loop ----
+  function gameLoop(now) {
+    if (!running) return;
+    const active = circles.filter(c => !c.hit && !c.missed).length;
+    if (now >= nextSpawn && active < getMaxSimul()) {
+      spawnCircle(now);
+      nextSpawn = now + getSpawnInterval();
+    }
+    drawFrame(now);
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // ---- start ----
+  function startGame() {
+    streak        = 0;
+    running       = true;
+    gameStarted   = true;
+    paused        = false;
+    circles       = [];
+    lastMissGuard = 0;
+    resizeCanvas();
+    canvas.style.display = '';
+    nextSpawn = performance.now() + 300;
+    setStatus('Click when the ring reaches the circle!', '#aaaaff');
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // ---- resume ----
+  function resumeGame() {
+    if (!paused) return;
+    // Shift all circle timestamps forward by how long we were paused
+    const pausedFor = performance.now() - pauseTime;
+    circles.forEach(c => { c.spawnTime += pausedFor; if (c.fadeStart) c.fadeStart += pausedFor; });
+    nextSpawn += pausedFor;
+    paused  = false;
+    running = true;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Go!', '#aaaaff');
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // ---- click handler ----
+  canvas.addEventListener('click', e => {
+    if (!running) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx   = e.clientX - rect.left;
+    const my   = e.clientY - rect.top;
+    const now  = performance.now();
+
+    for (const c of circles) {
+      if (c.hit || c.missed) continue;
+      const dist = Math.hypot(mx - c.x, my - c.y);
+      if (dist > INNER_R + HIT_TOLERANCE + 6) continue;
+
+      const elapsed  = now - c.spawnTime;
+      const progress = elapsed / c.duration;
+      const outerR   = INNER_R + (OUTER_R_START - INNER_R) * (1 - progress);
+
+      if (outerR > INNER_R + HIT_TOLERANCE) {
+        c.missed = true;
+        triggerMiss('Too early!');
+        return;
+      }
+
+      c.hit = true;
+      streak++;
+      streakEl.textContent = `Streak: ${streak}`;
+      setStatus('Hit!', '#88ee88');
+      updateHighscore(streak);
+      return;
+    }
+  });
+
+  if (startBtn)  startBtn.addEventListener('click',  startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click',  resumeGame);
+
+  // ---- tab hooks ----
+  window._onSpearQteHide = function () {
+    if (paused) return; // already paused
+    if (gameStarted && running) {
+      // mid-run — pause
+      cancelAnimationFrame(animFrame);
+      running   = false;
+      paused    = true;
+      pauseTime = performance.now();
+    } else {
+      // failed, pending restart, or not started — full reset
+      resetToStart();
+      streak = 0;
+    }
+  };
+
+  window._onSpearQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+    } else {
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      ctx.fillStyle = '#12121e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      setStatus('', '#888');
+      streakEl.textContent = '';
+    }
+  };
+
+  // Hide canvas until Start is pressed
+  canvas.style.display = 'none';
+})();
+
+// === SWORD QTE TRAINER ===
+(function () {
+  const canvas    = document.getElementById('sword-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('sword-qte-status');
+  const streakEl  = document.getElementById('sword-qte-streak');
+  const hsEl      = document.getElementById('sword-qte-highscore');
+  const startBtn  = document.getElementById('sword-qte-start-btn');
+  const resumeBtn = document.getElementById('sword-qte-resume-btn');
+
+  const HS_KEY  = 'alb:sword-hs';
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  let running     = false;
+  let gameStarted = false;
+  let paused      = false;
+  let streak      = 0;
+  let animFrame   = null;
+  let lastTime    = 0;
+  let bars        = [];
+  let currentBar  = 0;
+  let roundPending = false; // waiting to start next round
+
+  const TRACK_H     = 26;
+  const BAR_W       = 10;
+  const BAR_SPACING = 170; // px gap between bars at launch
+
+  let trackX, trackY, trackW, zoneX, zoneW;
+
+  function getSpeed()      { return Math.min(190 + streak * 14, 430); } // px/s, capped at 430
+  function getBarCount()   { return Math.min(4 + Math.floor(streak / 2), 8); }
+  function getZoneStart()  { return Math.min(0.62 + streak * 0.015, 0.78); } // drifts right
+  function getZoneWidth()  { return Math.max(0.12 - streak * 0.005, 0.05); } // shrinks, min 5%
+
+  function updateHighscore(v) {
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    canvas.width  = Math.min(wrap.clientWidth - 40 || 800, 900);
+    canvas.height = Math.min(Math.round(canvas.width * 0.38), 340);
+    computeLayout();
+  }
+
+  function computeLayout() {
+    const pad = 50;
+    trackX = pad;
+    trackW = canvas.width - pad * 2;
+    trackY = canvas.height / 2 - TRACK_H / 2;
+  }
+
+  function computeZone() {
+    zoneX = trackX + trackW * getZoneStart();
+    zoneW = trackW * getZoneWidth();
+  }
+
+  function startRound() {
+    roundPending = false;
+    computeZone();
+    const count = getBarCount();
+    bars = [];
+    currentBar = 0;
+    // Bars stagger from left: bar 0 is furthest right (leads), bar N is furthest left
+    for (let i = 0; i < count; i++) {
+      bars.push({ x: trackX - BAR_W - i * BAR_SPACING, stopped: false, inZone: false });
+    }
+    setStatus('Press SPACE to stop each bar in the zone!', '#aaaaff');
+  }
+
+  function drawFrame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Track
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(trackX, trackY, trackW, TRACK_H);
+
+    // Zone
+    ctx.fillStyle = 'rgba(150,150,175,0.28)';
+    ctx.fillRect(zoneX, trackY, zoneW, TRACK_H);
+    ctx.strokeStyle = 'rgba(190,190,220,0.65)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(zoneX, trackY, zoneW, TRACK_H);
+
+    // Stopped markers
+    for (let i = 0; i < currentBar; i++) {
+      const b = bars[i];
+      ctx.fillStyle = b.inZone ? '#66ee88' : '#ee5555';
+      ctx.fillRect(b.x, trackY, BAR_W, TRACK_H);
+    }
+
+    // Moving bars
+    for (let i = currentBar; i < bars.length; i++) {
+      const b = bars[i];
+      if (b.stopped) continue;
+      ctx.fillStyle = i === currentBar ? '#ffffff' : 'rgba(200,200,255,0.4)';
+      ctx.fillRect(b.x, trackY, BAR_W, TRACK_H);
+    }
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    if (!roundPending) {
+      const speed = getSpeed();
+      for (const b of bars) {
+        if (!b.stopped) b.x += speed * dt;
+      }
+
+      // Check if lead bar flew off the right
+      const cur = bars[currentBar];
+      if (cur && !cur.stopped && cur.x > trackX + trackW + BAR_W) {
+        triggerFail('Too slow!');
+        return;
+      }
+    }
+
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onSpacePress() {
+    if (!running || paused || roundPending) return;
+    const cur = bars[currentBar];
+    if (!cur || cur.stopped) return;
+
+    cur.stopped = true;
+    cur.inZone  = cur.x >= zoneX - 2 && cur.x + BAR_W <= zoneX + zoneW + 2;
+
+    if (!cur.inZone) {
+      triggerFail('Outside the zone!');
+      return;
+    }
+
+    currentBar++;
+    if (currentBar >= bars.length) {
+      onRoundSuccess();
+    }
+  }
+
+  function onRoundSuccess() {
+    streak++;
+    streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    setStatus(`✓ All in zone! Next: ${getBarCount()} bars`, '#88ee88');
+    roundPending = true;
+    setTimeout(() => {
+      if (running) startRound();
+    }, 800);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    running     = false;
+    paused      = false;
+    roundPending = false;
+    updateHighscore(streak);
+    drawFrame();
+    setStatus(msg, '#ee5555');
+    streakEl.textContent = '';
+    setTimeout(resetToStart, 900);
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running      = false;
+    gameStarted  = false;
+    paused       = false;
+    roundPending = false;
+    bars         = [];
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('', '#888');
+  }
+
+  function startGame() {
+    streak       = 0;
+    running      = true;
+    gameStarted  = true;
+    paused       = false;
+    roundPending = false;
+    resizeCanvas();
+    canvas.style.display = '';
+    lastTime = performance.now();
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startRound();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused   = false;
+    running  = true;
+    lastTime = performance.now();
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Press SPACE to stop each bar in the zone!', '#aaaaff');
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space') return;
+    const panel = document.getElementById('qte-panel-sword');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    onSpacePress();
+  });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  window._onSwordQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame);
+      running  = false;
+      paused   = true;
+    } else {
+      resetToStart();
+      streak = 0;
+    }
+  };
+
+  window._onSwordQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+      drawFrame();
+    } else {
+      canvas.style.display = 'none';
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888');
+      streakEl.textContent = '';
+    }
+  };
+
+  canvas.style.display = 'none';
+})();
+
+// === DAGGER QTE TRAINER (spinning rings) ===
+(function () {
+  const canvas    = document.getElementById('dagger-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('dagger-qte-status');
+  const timerEl   = document.getElementById('dagger-qte-timer');
+  const streakEl  = document.getElementById('dagger-qte-streak');
+  const hsEl      = document.getElementById('dagger-qte-highscore');
+  const avgEl     = document.getElementById('dagger-qte-avgtime');
+  const startBtn  = document.getElementById('dagger-qte-start-btn');
+  const resumeBtn = document.getElementById('dagger-qte-resume-btn');
+
+  const HS_KEY  = 'alb:dagger-hs';
+  const AVG_KEY = 'alb:dagger-avg';
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let _avgData  = (() => { try { return JSON.parse(localStorage.getItem(AVG_KEY)) || { total: 0, count: 0 }; } catch(e) { return { total: 0, count: 0 }; } })();
+  let roundStart = 0;
+
+  function recordRoundTime() {
+    if (!roundStart) return;
+    const elapsed = (performance.now() - roundStart) / 1000;
+    _avgData.total += elapsed;
+    _avgData.count++;
+    try { localStorage.setItem(AVG_KEY, JSON.stringify(_avgData)); } catch(e) {}
+    if (avgEl) avgEl.textContent = `Avg: ${(_avgData.total / _avgData.count).toFixed(1)}s`;
+  }
+
+  if (avgEl && _avgData.count > 0) avgEl.textContent = `Avg: ${(_avgData.total / _avgData.count).toFixed(1)}s`;
+
+  let running      = false;
+  let gameStarted  = false;
+  let paused       = false;
+  let streak       = 0;
+  let animFrame    = null;
+  let lastTime     = 0;
+  let rings        = [];
+  let currentRing  = 0;
+  let roundPending = false;
+  let arrowRadius  = 0;
+  let roundEndTime = 0; // performance.now() when the round expires
+
+  const RING_THICK = 16;
+  const RING_GAP   = 12;
+  const BASE_R     = 48;
+  const RING_STEP  = RING_THICK + RING_GAP;
+
+  function getRingCount()  { return Math.min(2 + streak, 8); }
+  function getGapSize()    { return Math.max((52 - streak * 1.8) * Math.PI / 180, 22 * Math.PI / 180); }
+  function getHitExtra()   { return 7 * Math.PI / 180; }
+  function getRingSpeed(i, total) {
+    const base = Math.min(3.2 + streak * 0.25, 7.0); // scales fast, capped at 7 rad/s
+    const spd  = base + (total - 1 - i) * 0.5;
+    return spd * (i % 2 === 0 ? 1 : -1);
+  }
+
+  function updateHighscore(v) {
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    const size = Math.min(wrap.clientWidth - 40, wrap.clientHeight - 90, 440);
+    canvas.width = canvas.height = Math.max(size, 280);
+    // Fixed outer radius regardless of ring count — active ring always draws here
+    arrowRadius = Math.floor(canvas.width / 4) - RING_THICK;
+  }
+
+  function startRound() {
+    roundPending = false;
+    const count  = getRingCount();
+    rings = [];
+    for (let i = 0; i < count; i++) {
+      const spd      = getRingSpeed(i, count);
+      const startGap = Math.PI * (0.6 + Math.random() * 0.8);
+      rings.push({ gapAngle: startGap, vel: spd });
+    }
+    currentRing  = count - 1;
+    roundEndTime = performance.now() + 8000;
+    roundStart   = performance.now();
+    setStatus('Press SPACE when the arrow enters the gap!', '#aaaaff');
+  }
+
+  function drawFrame() {
+    const cx = canvas.width / 2, cy = canvas.height / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const gapSize    = getGapSize();
+    const activeR    = arrowRadius - RING_THICK / 2; // stroke center for active ring
+    const previewMax = activeR * 0.55;               // outermost preview radius
+    const previewMin = RING_THICK * 1.5;             // innermost preview radius
+
+    for (let i = 0; i < rings.length; i++) {
+      const ring     = rings[i];
+      const isTarget = (i === currentRing);
+
+      let drawR, lw, color;
+      if (isTarget) {
+        drawR = activeR;
+        lw    = RING_THICK;
+        color = '#ffffff';
+      } else {
+        // Preview rings: map i (0..currentRing-1) to radii inside the active ring
+        const n    = currentRing; // number of previews
+        const frac = n <= 1 ? 0.5 : i / (n - 1); // 0 = innermost, 1 = outermost preview
+        drawR = previewMin + frac * (previewMax - previewMin);
+        lw    = Math.max(RING_THICK * 0.45, 5);
+        color = `rgba(150,150,220,${0.25 + frac * 0.3})`;
+      }
+
+      const ca = ring.gapAngle - Math.PI / 2;
+      ctx.beginPath();
+      ctx.arc(cx, cy, drawR, ca + gapSize / 2, ca - gapSize / 2, false);
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = lw;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+    }
+
+    // Arrow fixed at 12 o'clock
+    const arrowTip = cy - arrowRadius - 8;
+    const arrowTop = cy - arrowRadius - 30;
+    ctx.beginPath();
+    ctx.moveTo(cx, arrowTip);
+    ctx.lineTo(cx - 11, arrowTop);
+    ctx.lineTo(cx + 11, arrowTop);
+    ctx.closePath();
+    ctx.fillStyle = '#ffcc44';
+    ctx.fill();
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    if (!roundPending) {
+      for (const ring of rings) ring.gapAngle += ring.vel * dt;
+
+      // Countdown timer
+      const secsLeft = Math.max(0, (roundEndTime - now) / 1000);
+      if (timerEl) {
+        timerEl.textContent = secsLeft > 0 ? secsLeft.toFixed(1) + 's' : '';
+        timerEl.style.color = secsLeft <= 2 ? '#ee8888' : '#aaaaff';
+      }
+      if (secsLeft <= 0) { triggerFail("Time's up!"); return; }
+    }
+
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onSpacePress() {
+    if (!running || paused || roundPending) return;
+    const ring = rings[currentRing];
+    if (!ring) return;
+
+    const gapSize = getGapSize();
+    const norm = ((ring.gapAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    const dist = Math.min(norm, Math.PI * 2 - norm);
+    const hit  = dist < gapSize / 2 + getHitExtra();
+
+    if (!hit) { triggerFail('Missed the gap!'); return; }
+
+    // Remove the hit ring; remaining rings auto-reposition via drawFrame index mapping
+    rings.splice(currentRing, 1);
+    currentRing = rings.length - 1;
+
+    if (rings.length === 0) onRoundSuccess();
+    else setStatus('Hit! Next ring...', '#88ee88');
+  }
+
+  function onRoundSuccess() {
+    recordRoundTime();
+    streak++;
+    streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    if (timerEl) timerEl.textContent = '';
+    setStatus(`✓ All rings! Next: ${getRingCount()} rings`, '#88ee88');
+    roundPending = true;
+    setTimeout(() => { if (running) startRound(); }, 800);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    running = paused = roundPending = false;
+    updateHighscore(streak);
+    drawFrame();
+    setStatus(msg, '#ee5555');
+    streakEl.textContent = '';
+    if (timerEl) timerEl.textContent = '';
+    setTimeout(resetToStart, 900);
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running = gameStarted = paused = roundPending = false;
+    rings = [];
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('', '#888');
+    if (timerEl) timerEl.textContent = '';
+  }
+
+  function startGame() {
+    streak = 0;
+    running = gameStarted = true;
+    paused = roundPending = false;
+    resizeCanvas();
+    canvas.style.display = '';
+    lastTime = performance.now();
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startRound();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused = false; running = true;
+    lastTime = performance.now();
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Press SPACE when the arrow enters the gap!', '#aaaaff');
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space') return;
+    const panel = document.getElementById('qte-panel-dagger');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    onSpacePress();
+  });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  window._onDaggerQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame);
+      running = false; paused = true;
+    } else { resetToStart(); streak = 0; }
+  };
+
+  window._onDaggerQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+      drawFrame();
+    } else {
+      canvas.style.display = 'none';
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888');
+      streakEl.textContent = '';
+    }
+  };
+
+  canvas.style.display = 'none';
+})();
