@@ -1285,6 +1285,28 @@ h2 {
   opacity: 0.85;
 }
 
+.dc-avg-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #aad4ff;
+}
+.dc-avg-line b {
+  color: #7dbfff;
+  font-size: 14px;
+}
+
+.dc-crit-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #ff6b6b;
+}
+.dc-crit-line b {
+  color: #ff4444;
+  font-size: 14px;
+}
+
 /* ============================================================
    DMG BONUS SECTION
    ============================================================ */
