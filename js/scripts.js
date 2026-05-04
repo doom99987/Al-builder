@@ -8375,6 +8375,225 @@ function autoSave() {
   canvas.style.display = 'none';
 })();
 
+// === DODGE QTE TRAINER (moving yellow target) ===
+(function () {
+  const canvas    = document.getElementById('dodge-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('dodge-qte-status');
+  const streakEl  = document.getElementById('dodge-qte-streak');
+  const hsEl      = document.getElementById('dodge-qte-highscore');
+  const startBtn  = document.getElementById('dodge-qte-start-btn');
+  const resumeBtn = document.getElementById('dodge-qte-resume-btn');
+
+  const HS_KEY  = 'alb:dodge-hs';
+  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  let running      = false;
+  let gameStarted  = false;
+  let paused       = false;
+  let streak       = 0;
+  let animFrame    = null;
+  let lastTime     = 0;
+  let whiteX       = 0;    // current x of white bar
+  let inFlight      = false; // white bar currently moving
+  let yellowCenter  = 0.70; // fraction of track (fixed per round, randomised after each hit)
+  let yellowWidth   = 0;    // px, shrinks with streak
+
+  const TRACK_H = 26;
+  const BAR_W   = 10;
+  const PAD     = 50;
+
+  let trackX, trackW, trackY;
+
+  function getWhiteSpeed()  { return Math.min(280 + streak * 12, 500); } // px/s
+  function calcYellowWidth(){ return Math.max(trackW * (0.09 - streak * 0.008), BAR_W * 0.5); }
+  function getYellowX()     { return trackX + trackW * yellowCenter; }
+
+  function randomiseYellow() {
+    // Pick a new random centre in the 62–80% range, different from current
+    let next;
+    do { next = 0.62 + Math.random() * 0.18; } while (Math.abs(next - yellowCenter) < 0.06);
+    yellowCenter = next;
+    yellowWidth  = calcYellowWidth();
+  }
+
+  function updateHighscore(v) {
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+  }
+  updateHighscore(0);
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    canvas.width  = Math.min(wrap.clientWidth - 40 || 800, 900);
+    canvas.height = Math.min(Math.round(canvas.width * 0.38), 340);
+    trackX = PAD;
+    trackW = canvas.width - PAD * 2;
+    trackY = canvas.height / 2 - TRACK_H / 2;
+  }
+
+  function launchBar() {
+    whiteX   = trackX - BAR_W;
+    inFlight = true;
+    setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
+  }
+
+  function drawFrame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Track
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(trackX, trackY, trackW, TRACK_H);
+
+    // Yellow target bar (fixed position until next round)
+    const yw  = yellowWidth;
+    const yx  = getYellowX() - yw / 2;
+    ctx.fillStyle   = '#ffcc00';
+    ctx.fillRect(yx, trackY, yw, TRACK_H);
+
+    // White flying bar
+    if (inFlight) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(whiteX, trackY, BAR_W, TRACK_H);
+    }
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    if (inFlight) {
+      whiteX += getWhiteSpeed() * dt;
+      // Missed — bar exited right side
+      if (whiteX > trackX + trackW + BAR_W) {
+        inFlight = false;
+        triggerFail('Too slow!');
+        return;
+      }
+    }
+
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onSpacePress() {
+    if (!running || paused || !inFlight) return;
+    inFlight = false;
+
+    const yw      = yellowWidth;
+    const yx      = getYellowX() - yw / 2;
+    const tolerance = 8; // px buffer — any part of white bar touching yellow counts
+    const overlap = whiteX < yx + yw + tolerance && whiteX + BAR_W > yx - tolerance;
+
+    if (!overlap) {
+      triggerFail('Missed the target!');
+      return;
+    }
+
+    streak++;
+    streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    setStatus('Hit!', '#88ee88');
+    randomiseYellow(); // new position + smaller width for next round
+    setTimeout(() => { if (running) launchBar(); }, 550);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    running = paused = false;
+    inFlight = false;
+    updateHighscore(streak);
+    drawFrame();
+    setStatus(msg, '#ee5555');
+    streakEl.textContent = '';
+    setTimeout(resetToStart, 900);
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running = gameStarted = paused = false;
+    inFlight = false;
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('', '#888');
+  }
+
+  function startGame() {
+    streak = 0;
+    running = gameStarted = true;
+    paused = false;
+    inFlight = false;
+    resizeCanvas();
+    yellowCenter = 0.70;
+    yellowWidth  = calcYellowWidth();
+    canvas.style.display = '';
+    lastTime = performance.now();
+    streakEl.textContent = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    animFrame = requestAnimationFrame(gameLoop);
+    setTimeout(launchBar, 400);
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused   = false;
+    running  = true;
+    lastTime = performance.now();
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space') return;
+    const panel = document.getElementById('qte-panel-dodge');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    onSpacePress();
+  });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  window._onDodgeQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame);
+      running = false; paused = true;
+    } else { resetToStart(); streak = 0; }
+  };
+
+  window._onDodgeQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+      drawFrame();
+    } else {
+      canvas.style.display = 'none';
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888');
+      streakEl.textContent = '';
+    }
+  };
+
+  canvas.style.display = 'none';
+})();
+
 // === DAGGER QTE TRAINER (spinning rings) ===
 (function () {
   const canvas    = document.getElementById('dagger-qte-canvas');
