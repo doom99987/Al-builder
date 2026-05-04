@@ -811,28 +811,61 @@ const artifactDescSection = document.getElementById("artifact-desc-section");
 const artifactDesc = document.getElementById("artifact-desc");
 
 // --- Shards ---
-// To add: "Shard Name": {}
 const shardItems = {
-  "Striking (R)": {},
-  "Striking (P)": {},
-  "Shattering (R)": {},
-  "Shattering (P)": {},
-  "Regenerative (R)": {},
-  "Regenerative (P)": {},
-  "Voltaic (R)": {},
-  "Voltaic (P)": {},
-  "Executing (R)": {},
-  "Executing (P)": {},
-  "Reversing (R)": {},
-  "Reversing (P)": {},
-  "Empowering (R)": {},
-  "Empowering (P)": {}
+  "Striking (R)":    { effect: "Hitting an enemy above 80% of their max HP will increase the damage of your hit.\n\nRadiant: ~8.2%", rVal: 8.2,  pVal: null, bonusType: "conditional-hp-above" },
+  "Striking (P)":    { effect: "Hitting an enemy above 80% of their max HP will increase the damage of your hit.\n\nPure: ~7.5%",    rVal: null, pVal: 7.5,  bonusType: "conditional-hp-above" },
+  "Shattering (R)":  { effect: "Increases your damage for every negative status effect currently applied to your target.\n\nRadiant: ~3% per debuff",  rVal: 3.0,  pVal: null, bonusType: "per-debuff-target" },
+  "Shattering (P)":  { effect: "Increases your damage for every negative status effect currently applied to your target.\n\nPure: ~2.5% per debuff",    rVal: null, pVal: 2.5,  bonusType: "per-debuff-target" },
+  "Regenerative (R)":{ effect: "Grants lifesteal to all your attacks.\n\nRadiant: 0.75%", rVal: 0.75, pVal: null, bonusType: "lifesteal" },
+  "Regenerative (P)":{ effect: "Grants lifesteal to all your attacks.\n\nPure: 0.7%",     rVal: null, pVal: 0.7,  bonusType: "lifesteal" },
+  "Voltaic (R)":     { effect: "Hitting an enemy has a small chance of granting you one energy.\n\nRadiant: Unknown", rVal: null, pVal: null, bonusType: "energy-chance" },
+  "Voltaic (P)":     { effect: "Hitting an enemy has a small chance of granting you one energy.\n\nPure: ~10% chance", rVal: null, pVal: null, bonusType: "energy-chance" },
+  "Executing (R)":   { effect: "Hitting an enemy below ~25% of their max HP increases the damage of your hit.\n\nRadiant: ~10%", rVal: 10.0, pVal: null, bonusType: "conditional-hp-below" },
+  "Executing (P)":   { effect: "Hitting an enemy below ~25% of their max HP increases the damage of your hit.\n\nPure: Unknown",  rVal: null, pVal: null, bonusType: "conditional-hp-below" },
+  "Reversing (R)":   { effect: "Increases your damage for each negative status effect currently applied to you.\n\nRadiant: ~5.12% per debuff", rVal: 5.12, pVal: null, bonusType: "per-debuff-self" },
+  "Reversing (P)":   { effect: "Increases your damage for each negative status effect currently applied to you.\n\nPure: ~4.5% per debuff",  rVal: null, pVal: 4.5,  bonusType: "per-debuff-self" },
+  "Empowering (R)":  { effect: "Passively increases the damage of your attacks.\n\nRadiant: ~4.1%", rVal: 4.1, pVal: null, bonusType: "passive-dmg" },
+  "Empowering (P)":  { effect: "Passively increases the damage of your attacks.\n\nPure: ~3.5%",   rVal: null, pVal: 3.5, bonusType: "passive-dmg" },
 };
 
 const shardPickers = document.querySelectorAll(".shard-picker");
 
+function getShardBonusEntries() {
+  const typeCounts = {};
+  const entries = [];
+  document.querySelectorAll('.shard-picker').forEach(p => {
+    const name = p.value;
+    if (!name || !shardItems[name]) return;
+    const baseType = name.replace(/ \([RP]\)$/, '');
+    typeCounts[baseType] = (typeCounts[baseType] || 0) + 1;
+    const drMult = typeCounts[baseType] <= 2 ? 1.0 : 0.25;
+    const shard = shardItems[name];
+    const rawVal = name.endsWith('(R)') ? shard.rVal : shard.pVal;
+    entries.push({ name, baseType, drMult, rawVal, bonusType: shard.bonusType });
+  });
+  return entries;
+}
+
+function updateShardDRDisplay() {
+  const typeCounts = {};
+  document.querySelectorAll('.shard-picker').forEach(p => {
+    const name = p.value;
+    const slot = p.closest('.shard-slot');
+    if (!slot) return;
+    if (!name) { slot.classList.remove('shard-dr'); return; }
+    const baseType = name.replace(/ \([RP]\)$/, '');
+    typeCounts[baseType] = (typeCounts[baseType] || 0) + 1;
+    slot.classList.toggle('shard-dr', typeCounts[baseType] > 2);
+  });
+}
+
 shardPickers.forEach(picker => {
-  buildSimpleDropdown(picker, Object.keys(shardItems), () => {});
+  buildSimpleDropdown(picker, Object.keys(shardItems), () => {
+    renderMoves();
+    collectDmgBonusPassives();
+    renderDmgBonusSection();
+    updateShardDRDisplay();
+  });
 });
 
 
@@ -4911,6 +4944,20 @@ function renderMoves() {
     html += `</div>`;
   }
 
+  const equippedShards = [...document.querySelectorAll('.shard-picker')]
+    .map(p => p.value).filter(Boolean);
+  if (equippedShards.length) {
+    html += `<div class="moves-col">`;
+    html += `<div class="moves-entity-label">Shards</div>`;
+    equippedShards.forEach((name, i) => {
+      const shard = shardItems[name];
+      if (!shard) return;
+      html += `<h2 class="moves-race-title">S${i+1}: ${name}</h2>`;
+      html += `<div class="move-card passive-card"><div class="move-effect">${shard.effect.replace(/\n/g, '<br>')}</div></div>`;
+    });
+    html += `</div>`;
+  }
+
   html += `</div>`; // end .moves-columns
 
   // --- Summons section ---
@@ -4975,6 +5022,9 @@ let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
+let shatteringDebuffCount = 1; // debuffs on target for Shattering
+let reversingDebuffCount  = 1; // debuffs on self for Reversing
+const shardToggleActive = { striking: false, executing: false };
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -5236,6 +5286,19 @@ function collectDmgBonusPassives() {
     }
   });
 
+  // Shards — passive-dmg and conditional with DR applied
+  getShardBonusEntries().forEach(entry => {
+    const { name, drMult, rawVal, bonusType } = entry;
+    if (bonusType === 'energy-chance' || bonusType === 'lifesteal') return;
+    if (rawVal === null) return;
+    const key = `shard:${name}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const drTag = drMult < 1 ? ' (DR 25%)' : '';
+    // For per-debuff types, store rawVal per debuff; actual total computed in getActiveDmgBonus
+    rawEntries.push({ key, name: name + drTag, bonus: rawVal * drMult, kind: 'shard', bonusType, drMult, perDebuffVal: rawVal * drMult });
+  });
+
   // --- Merge pass ---
   // Mastery entries that are "[X] Proficiency" get merged into the base "[X]" entry if it exists.
   // Any two entries sharing the same display-name get merged too.
@@ -5267,13 +5330,18 @@ function collectDmgBonusPassives() {
       const displayName = baseName ?? e.name;
       const idx = merged.length;
       nameIdx.set(displayName.toLowerCase(), idx);
-      merged.push({
+      const entry = {
         key:   e.key,
         name:  displayName,
         bonus: e.bonus,
         kinds: [e.kind],
         descs: [{ kind: e.kind, text: e.desc }],
-      });
+      };
+      // Preserve shard-specific fields so getActiveDmgBonus can use them
+      if (e.bonusType !== undefined) entry.bonusType = e.bonusType;
+      if (e.perDebuffVal !== undefined) entry.perDebuffVal = e.perDebuffVal;
+      if (e.drMult !== undefined) entry.drMult = e.drMult;
+      merged.push(entry);
     }
   });
 
@@ -5287,6 +5355,12 @@ function getActiveDmgBonus() {
     if (p.name === "Bulk Up") return sum + bulkUpStacks * 20;
     if (p.name === "Sands Of Time") return sum + hourglassStacks * 20;
     if (p.name === "Oppression") return sum + oppressionCount * 5;
+    if (p.bonusType === 'per-debuff-target') return sum + p.perDebuffVal * shatteringDebuffCount;
+    if (p.bonusType === 'per-debuff-self')   return sum + p.perDebuffVal * reversingDebuffCount;
+    if (p.bonusType === 'conditional-hp-above' && !shardToggleActive.striking)  return sum;
+    if (p.bonusType === 'conditional-hp-above' && shardToggleActive.striking)   return sum + p.bonus;
+    if (p.bonusType === 'conditional-hp-below' && !shardToggleActive.executing) return sum;
+    if (p.bonusType === 'conditional-hp-below' && shardToggleActive.executing)  return sum + p.bonus;
     return sum + p.bonus;
   }, 0);
   if (statusEffectsActive.overheat) total += overheatStacks * 8;
@@ -5370,6 +5444,21 @@ function changeOppressionCount(delta) {
   renderDmgBonusSection();
 }
 
+function changeShatteringDebuffs(delta) {
+  shatteringDebuffCount = Math.min(15, Math.max(1, shatteringDebuffCount + delta));
+  renderDmgBonusSection();
+}
+
+function changeReversingDebuffs(delta) {
+  reversingDebuffCount = Math.min(10, Math.max(1, reversingDebuffCount + delta));
+  renderDmgBonusSection();
+}
+
+function toggleShardCondition(key) {
+  shardToggleActive[key] = !shardToggleActive[key];
+  renderDmgBonusSection();
+}
+
 function getStatusMultiplier(moveType) {
   let mult = 1;
   const labels = [];
@@ -5416,10 +5505,17 @@ function renderDmgBonusSection() {
   function kindBadge(k) {
     if (k === "buff")    return `<span class="dc-bonus-kind dc-bonus-kind-buff">Buff</span>`;
     if (k === "mastery") return `<span class="dc-bonus-kind dc-bonus-kind-mastery">Mastery</span>`;
+    if (k === "shard")   return `<span class="dc-bonus-kind dc-bonus-kind-passive">Shard</span>`;
     return `<span class="dc-bonus-kind dc-bonus-kind-passive">Passive</span>`;
   }
 
+  let _shardSectionOpen = false;
   dmgBonusPassives.forEach((p, fullIdx) => {
+    const isShard = p.kinds?.includes('shard');
+    if (isShard && !_shardSectionOpen) {
+      html += `</div><h3 class="dc-bonus-title" style="margin-top:12px">Shards</h3><div class="dc-bonus-list">`;
+      _shardSectionOpen = true;
+    }
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
@@ -5433,6 +5529,8 @@ function renderDmgBonusSection() {
                          : isBulkUp      ? bulkUpStacks * 20
                          : isHourglass   ? hourglassStacks * 20
                          : isOppression  ? oppressionCount * 5
+                         : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
+                         : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
@@ -5487,6 +5585,42 @@ function renderDmgBonusSection() {
         </div>
       </div>`;
     }
+    if (p.bonusType === 'per-debuff-target') {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Debuffs on target</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeShatteringDebuffs(-1)">−</button>
+          <span class="dc-energy-val">${shatteringDebuffCount}</span>
+          <button class="dc-energy-btn" onclick="changeShatteringDebuffs(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (p.bonusType === 'per-debuff-self') {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Debuffs on self</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeReversingDebuffs(-1)">−</button>
+          <span class="dc-energy-val">${reversingDebuffCount}</span>
+          <button class="dc-energy-btn" onclick="changeReversingDebuffs(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (p.bonusType === 'conditional-hp-above') {
+      const active = shardToggleActive.striking;
+      html += `<div class="dc-bonus-row${active ? " dc-bonus-on" : ""}" data-shard-toggle="striking" style="margin:2px 0 6px 0" title="Toggle: enemy above 80% HP">
+        <div class="dc-bonus-check">${active ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Enemy &gt; 80% HP</span>
+        <span class="dc-bonus-pct">${active ? "ON" : "OFF"}</span>
+      </div>`;
+    }
+    if (p.bonusType === 'conditional-hp-below') {
+      const active = shardToggleActive.executing;
+      html += `<div class="dc-bonus-row${active ? " dc-bonus-on" : ""}" data-shard-toggle="executing" style="margin:2px 0 6px 0" title="Toggle: enemy below 25% HP">
+        <div class="dc-bonus-check">${active ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Enemy &lt; 25% HP</span>
+        <span class="dc-bonus-pct">${active ? "ON" : "OFF"}</span>
+      </div>`;
+    }
   });
 
   html += `</div>`;
@@ -5533,6 +5667,10 @@ function renderDmgBonusSection() {
   container.querySelectorAll(".dc-bonus-row").forEach(row => {
     if (row.dataset.skey) {
       row.addEventListener("click", () => toggleStatusEffect(row.dataset.skey));
+      return;
+    }
+    if (row.dataset.shardToggle) {
+      row.addEventListener("click", () => toggleShardCondition(row.dataset.shardToggle));
       return;
     }
     const p = dmgBonusPassives[+row.dataset.bidx];
