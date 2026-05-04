@@ -348,6 +348,25 @@ function updatePoints() {
 }
 
 
+// Cached DOM references for updatePecents — built once, reused every call
+const _pctCache = (() => {
+  const items = [...document.querySelectorAll(".percent-item")].map(el => ({
+    el,
+    stat: el.dataset.stat,
+    valEl: el.querySelector(".percent-val"),
+    statInput: document.querySelector(`.stat-row[data-stat="${el.dataset.stat}"] .stat-val`)
+  }));
+  const statRows = [...document.querySelectorAll(".stat-row[data-stat]")].map(rowEl => ({
+    rowEl,
+    stat: rowEl.dataset.stat,
+    input: rowEl.querySelector(".stat-val"),
+    totalEl: rowEl.querySelector(".stat-total")
+  }));
+  const spdInput = document.querySelector('.stat-row[data-stat="spd"] .stat-val');
+  const lckInput = document.querySelector('.stat-row[data-stat="lck"] .stat-val');
+  return { items, statRows, spdInput, lckInput };
+})();
+
 function updatePecents() {
   const armourEl = document.getElementById("armour-main");
   const armour = armourItems?.[armourEl?.value] || {};
@@ -401,15 +420,20 @@ function updatePecents() {
   const lvlStatBonus = Math.floor(lvl / 5);
 
   const masteryStats = getMasteryStatBonuses();
-  const lckRow = document.querySelector('.stat-row[data-stat="lck"] .stat-val');
+  const lckRow = _pctCache.lckInput;
   const totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
 
-  document.querySelectorAll(".percent-item").forEach(item => {
-    const stat = item.dataset.stat;
-    const row = document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`);
-    const allocated = row ? +row.value : 0;
+  const isStultus = racePicker.value === "Stultus (20%)";
+  let stultusBonus = 0;
+  if (isStultus) {
+    const spdVal = _pctCache.spdInput ? +_pctCache.spdInput.value : 0;
+    stultusBonus = (spdVal + (raceBase.spd ?? 0) + (armour.spd ?? 0) + (masteryStats.spd ?? 0) + (gearStatBonuses.spd ?? 0) + lvlStatBonus) / 10;
+  }
+
+  _pctCache.items.forEach(({ el, stat, valEl, statInput }) => {
+    const allocated = statInput ? +statInput.value : 0;
     const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
-    const levelBonus = row ? lvlStatBonus : 0;
+    const levelBonus = statInput ? lvlStatBonus : 0;
     const isCritStat = stat === "crit-chance" || stat === "crit-dmg";
     const val = isCritStat ? totalLck : allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
     const base = calcPercentage(stat, val);
@@ -429,31 +453,23 @@ function updatePecents() {
         display = `${currentHP} (${shieldHP} Shield)`;
       }
     } else if (stat === "energy") {
-      const total = pctBonus;
-      display = total > 0 ? total.toFixed(1) : "—";
+      display = pctBonus > 0 ? pctBonus.toFixed(1) : "—";
     } else {
       display = (parseFloat(base) + pctBonus).toFixed(stat === "crit-dmg" ? 2 : 1);
     }
-    // Stultus passive: every 10 total speed = +1% crit chance, capped at 100%
-    if (stat === "crit-chance" && racePicker.value === "Stultus (20%)") {
-      const spdRow = document.querySelector('.stat-row[data-stat="spd"] .stat-val');
-      const totalSpd = (spdRow ? +spdRow.value : 0) + (raceBase.spd ?? 0) + (armour.spd ?? 0) + (masteryStats.spd ?? 0) + (gearStatBonuses.spd ?? 0) + lvlStatBonus;
-      const stultusBonus = totalSpd / 10;
+    if (stat === "crit-chance" && isStultus) {
       display = Math.min(100, parseFloat(display) + stultusBonus).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
-    item.querySelector(".percent-val").textContent = display + suffix;
+    valEl.textContent = display + suffix;
   });
 
-  // Update stat total display
-  document.querySelectorAll(".stat-row[data-stat]").forEach(rowEl => {
-    const stat = rowEl.dataset.stat;
-    const input = rowEl.querySelector(".stat-val");
+  // Update stat total display (merged, uses same cached stat rows)
+  _pctCache.statRows.forEach(({ stat, input, totalEl }) => {
+    if (!totalEl) return;
     const allocated = input ? +input.value : 0;
     const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
-    const total = allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus;
-    const totalEl = rowEl.querySelector(".stat-total");
-    if (totalEl) totalEl.textContent = total || "";
+    totalEl.textContent = (allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus) || "";
   });
   autoSave();
 }
@@ -5236,7 +5252,7 @@ function recalcOpenDetails() {
     if (detail.style.display === "none") return;
     const rowEl = detail.previousElementSibling;
     if (!rowEl) return;
-    const idx = rowEl.getAttribute("onclick")?.match(/toggleDmgDetail\(this,(\d+)\)/)?.[1];
+    const idx = rowEl.dataset.idx;
     if (idx === undefined) return;
     // Close then reopen to recalculate
     detail.style.display = "none";
@@ -6017,7 +6033,7 @@ function renderDmgCalc() {
     const summonLabel = m.category === "Summon"
       ? `<span class="dc-stat" style="color:#888">[Summon]</span>`
       : isSummonMove(m) ? `<span class="dc-stat" style="color:#888">[${m.slot}]</span>` : "";
-    html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `onclick="toggleDmgDetail(this,${i})"` : ""}>
+    html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `data-idx="${i}" onclick="toggleDmgDetail(this,${i})"` : ""}>
       <span class="dc-name" style="color:${color}">${m.name}</span>
       <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>${summonLabel}
       <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}${eneStr}</span>
@@ -8787,6 +8803,7 @@ function autoSave() {
     const previewMax = activeR * 0.55;
     const previewMin = RING_THICK * 1.5;
 
+    ctx.lineCap = 'round';
     for (let i = 0; i < rings.length; i++) {
       const ring     = rings[i];
       const isTarget = (i === currentRing);
@@ -8817,7 +8834,6 @@ function autoSave() {
       ctx.arc(cx, cy, drawR, ca + gapSize / 2, ca - gapSize / 2, false);
       ctx.strokeStyle = color;
       ctx.lineWidth   = lw;
-      ctx.lineCap     = 'round';
       ctx.stroke();
     }
 
@@ -8841,11 +8857,14 @@ function autoSave() {
     if (!roundPending) {
       for (const ring of rings) ring.gapAngle += ring.vel * dt;
 
-      // Countdown timer
+      // Countdown timer — only write to DOM when displayed text changes (~10fps)
       const secsLeft = Math.max(0, (roundEndTime - now) / 1000);
       if (timerEl) {
-        timerEl.textContent = secsLeft > 0 ? secsLeft.toFixed(1) + 's' : '';
-        timerEl.style.color = secsLeft <= 2 ? '#ee8888' : '#aaaaff';
+        const timerTxt = secsLeft > 0 ? secsLeft.toFixed(1) + 's' : '';
+        if (timerTxt !== timerEl.textContent) {
+          timerEl.textContent = timerTxt;
+          timerEl.style.color = secsLeft <= 2 ? '#ee8888' : '#aaaaff';
+        }
       }
       if (secsLeft <= 0) { triggerFail("Time's up!"); return; }
     }
@@ -9002,14 +9021,14 @@ function autoSave() {
 
   let running = false, gameStarted = false, paused = false;
   let streak = 0, animFrame = null, lastTime = 0;
-  let holding = false, fillPct = 0;
+  let holding = false, fillPct = 0, inSuccessDelay = false;
   let releaseFlash = null, flashStart = 0;
   const FLASH_MS = 500;
   let zoneMin = 0, zoneMax = 0;
   const BAR_H = 40; // horizontal bar height
   const PAD   = 50; // left/right padding
 
-  function getFillSpeed() { return 0.30; }
+  function getFillSpeed() { return Math.min(0.30 + streak * 0.025, 0.70); }
   function getZoneSize()  { return Math.max(0.10 - streak * 0.006, 0.04); }
 
   function randomiseZone() {
@@ -9090,7 +9109,7 @@ function autoSave() {
   }
 
   function startRound() {
-    fillPct = 0; holding = false; releaseFlash = null;
+    fillPct = 0; holding = false; releaseFlash = null; inSuccessDelay = false;
     randomiseZone();
     setStatus('Hold SPACE to charge, release in the box!', '#aaaaff');
     drawFrame();
@@ -9109,13 +9128,14 @@ function autoSave() {
   }
 
   function onRelease() {
-    if (!running) return;
+    if (!running || inSuccessDelay) return;
     const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
     releaseFlash = inZone ? 'hit' : 'miss';
     flashStart   = performance.now();
     drawFrame(flashStart);
     if (!inZone) { triggerFail(fillPct < zoneMin ? 'Too early!' : 'Too late!'); return; }
     streak++;
+    inSuccessDelay = true;
     streakEl.textContent = `Streak: ${streak}`;
     updateHighscore(streak);
     setStatus('Perfect!', '#88ee88');
@@ -9124,7 +9144,7 @@ function autoSave() {
 
   function triggerFail(msg) {
     if (!running && !gameStarted) return;
-    running = paused = false; holding = false;
+    running = paused = false; holding = false; inSuccessDelay = false;
     updateHighscore(streak);
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
@@ -9133,7 +9153,7 @@ function autoSave() {
 
   function resetToStart() {
     cancelAnimationFrame(animFrame);
-    running = gameStarted = paused = false; holding = false; fillPct = 0;
+    running = gameStarted = paused = false; holding = false; fillPct = 0; inSuccessDelay = false;
     canvas.style.display = 'none';
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
@@ -9222,7 +9242,7 @@ function autoSave() {
   let streak = 0, animFrame = null, lastTime = 0;
   let fillPct = 0;
   let releaseFlash = null, flashStart = 0;
-  let roundEndTime = 0;
+  let roundEndTime = 0, pauseTimeRemaining = 0;
   const FLASH_MS = 600;
   let zoneMin = 0, zoneMax = 0;
 
@@ -9231,8 +9251,8 @@ function autoSave() {
   const DRAIN_RATE  = 0.06;  // fraction lost per second
   const PRESS_AMT   = 0.09;  // fraction added per space press
 
-  function getTimer()    { return Math.max(6 - streak * 0.3, 3); }   // 6s → 3s
-  function getZoneSize() { return Math.max(0.10 - streak * 0.006, 0.04); }
+  function getTimer()    { return Math.max(6 - streak * 0.3, 3); }     // 6s → 3s
+  function getZoneSize() { return Math.max(0.11 - streak * 0.007, 0.03); } // 11% → 3%
 
   function randomiseZone() {
     const size   = getZoneSize();
@@ -9408,10 +9428,10 @@ function autoSave() {
   function resumeGame() {
     if (!paused) return;
     paused = false; running = true; lastTime = performance.now();
-    // Extend round end time by however long we were paused
-    roundEndTime = performance.now() + getTimer() * 1000;
+    // Restore the exact time remaining from before the pause
+    roundEndTime = performance.now() + pauseTimeRemaining;
     if (resumeBtn) resumeBtn.style.display = 'none';
-    startRound();
+    setStatus('Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -9430,6 +9450,7 @@ function autoSave() {
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame); running = false; paused = true;
+      pauseTimeRemaining = Math.max(0, roundEndTime - performance.now());
     } else { resetToStart(); streak = 0; }
   };
 
@@ -9560,11 +9581,12 @@ function autoSave() {
     if (streak > highscore) highscore = streak;
     updateHUD();
     setStatus('Complete!', '#55e09a');
+    drawFrame(); // render all slots green before the loop stops
     setTimeout(function () {
       newRound();
       running = true;
       animFrame = requestAnimationFrame(staffGameLoop);
-    }, 700);
+    }, 1000);
   }
 
   // ── drawing ────────────────────────────────────────────────
@@ -9704,7 +9726,7 @@ function autoSave() {
         if (tile.key === s.targetKey) {
           s.filledTile = tile;
           tile.inBank = false;
-          if (checkWin()) { cancelAnimationFrame(animFrame); triggerSuccess(); }
+          if (checkWin()) { cancelAnimationFrame(animFrame); drawFrame(); triggerSuccess(); }
         } else {
           returnToBank(tile); // wrong rune → back to bank
         }
