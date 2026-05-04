@@ -9450,3 +9450,319 @@ function autoSave() {
 
   canvas.style.display = 'none';
 })();
+
+/* ============================================================
+   STAFF QTE  — runic drag-and-drop matching
+   ============================================================ */
+(function () {
+  var RUNE_MAP = { A:'ᚨ', B:'ᛒ', E:'ᛖ', F:'ᚠ', H:'ᚺ', N:'ᚾ', R:'ᚱ', U:'ᚢ', W:'ᚹ', X:'ᛉ' };
+  var KEYS = Object.keys(RUNE_MAP);
+
+  var canvas    = document.getElementById('staff-qte-canvas');
+  var ctx       = canvas.getContext('2d');
+  var statusEl  = document.getElementById('staff-qte-status');
+  var streakEl  = document.getElementById('staff-qte-streak');
+  var highEl    = document.getElementById('staff-qte-highscore');
+  var startBtn  = document.getElementById('staff-qte-start-btn');
+  var resumeBtn = document.getElementById('staff-qte-resume-btn');
+
+  var streak = 0, highscore = 0;
+  var pattern = [];
+  var bankTiles = [], slots = [];
+  var drag = null; // { tile, curX, curY }
+  var timeLeft = 8, timerStart = 0;
+  var running = false, gameStarted = false, paused = false;
+  var animFrame = null;
+
+  var CW = 520, CH = 310;
+  var TW = 46, TH = 46;   // tile width / height
+  var BANK_Y = 32;         // top of bank tiles
+  var SLOT_Y = 210;        // top of slot tiles
+
+  function resizeCanvas() { canvas.width = CW; canvas.height = CH; }
+
+  function getPatternLen() { return Math.min(2 + streak, 9); }
+  function getTimerDur()   { return streak <= 7 ? 8 : Math.max(8 - (streak - 7), 5); }
+
+  function shuffle(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+    }
+    return a;
+  }
+
+  // Compute evenly-spaced tile X positions for `count` tiles
+  function rowPositions(count, y) {
+    var GAP = 8;
+    var total = count * TW + (count - 1) * GAP;
+    var x0 = (CW - total) / 2;
+    var out = [];
+    for (var i = 0; i < count; i++) out.push({ x: x0 + i * (TW + GAP), y: y });
+    return out;
+  }
+
+  function newRound() {
+    var len = getPatternLen();
+    // Build pattern
+    pattern = [];
+    for (var i = 0; i < len; i++) pattern.push(KEYS[Math.floor(Math.random() * KEYS.length)]);
+
+    // Bank = shuffled copies of the exact tiles needed
+    var shuffled = shuffle(pattern);
+    var bankPos  = rowPositions(len, BANK_Y);
+    bankTiles = shuffled.map(function (key, idx) {
+      return { id: idx, key: key, homeX: bankPos[idx].x, homeY: bankPos[idx].y,
+               x: bankPos[idx].x, y: bankPos[idx].y, inBank: true };
+    });
+
+    // Slots
+    var slotPos = rowPositions(len, SLOT_Y);
+    slots = pattern.map(function (key, idx) {
+      return { index: idx, targetKey: key, filledTile: null, x: slotPos[idx].x, y: slotPos[idx].y };
+    });
+
+    drag = null;
+    timeLeft = getTimerDur();
+    timerStart = performance.now();
+  }
+
+  function setStatus(txt, color) { statusEl.textContent = txt; statusEl.style.color = color || '#a08fd0'; }
+  function updateHUD() {
+    streakEl.textContent = streak    ? 'Streak: ' + streak    : '';
+    highEl.textContent   = highscore ? 'Best: '   + highscore : '';
+  }
+
+  function checkWin() {
+    for (var i = 0; i < slots.length; i++) if (!slots[i].filledTile) return false;
+    return true;
+  }
+
+  function returnToBank(tile) {
+    tile.x = tile.homeX; tile.y = tile.homeY; tile.inBank = true;
+  }
+
+  function triggerFail(msg) {
+    running = false; drag = null;
+    setStatus(msg || 'Failed!', '#e05555');
+    setTimeout(function () {
+      streak = 0; updateHUD();
+      newRound();
+      running = true;
+      animFrame = requestAnimationFrame(staffGameLoop);
+    }, 900);
+  }
+
+  function triggerSuccess() {
+    running = false; drag = null;
+    streak++;
+    if (streak > highscore) highscore = streak;
+    updateHUD();
+    setStatus('Complete!', '#55e09a');
+    setTimeout(function () {
+      newRound();
+      running = true;
+      animFrame = requestAnimationFrame(staffGameLoop);
+    }, 700);
+  }
+
+  // ── drawing ────────────────────────────────────────────────
+  function drawTile(x, y, key, state) {
+    var bg, border, textCol, labelCol;
+    if (state === 'correct') {
+      bg = 'rgba(40,170,100,0.4)'; border = '#4de89a'; textCol = '#b0ffda'; labelCol = 'rgba(150,255,200,0.7)';
+    } else if (state === 'drag') {
+      bg = 'rgba(100,70,200,0.65)'; border = '#c8aaff'; textCol = '#fff'; labelCol = 'rgba(255,255,255,0.75)';
+    } else { // bank
+      bg = 'rgba(70,50,130,0.7)'; border = '#a888e8'; textCol = '#fff'; labelCol = 'rgba(220,200,255,0.8)';
+    }
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.roundRect(x, y, TW, TH, 7); ctx.fill();
+    ctx.strokeStyle = border; ctx.lineWidth = state === 'drag' ? 2.5 : 2; ctx.stroke();
+    // rune glow
+    ctx.shadowColor = state === 'correct' ? '#4de89a' : state === 'drag' ? '#c8aaff' : '#b090ff';
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = textCol; ctx.font = '26px serif'; ctx.textAlign = 'center';
+    ctx.fillText(RUNE_MAP[key], x + TW / 2, y + TH * 0.74);
+    ctx.shadowBlur = 0;
+    // key label
+    ctx.fillStyle = labelCol; ctx.font = 'bold 10px Inter, sans-serif';
+    ctx.fillText(key, x + TW / 2, y + TH - 3);
+  }
+
+  function drawSlot(slot) {
+    if (slot.filledTile) {
+      drawTile(slot.x, slot.y, slot.filledTile.key, 'correct');
+    } else {
+      // darkened slot with a readable dim rune hint
+      ctx.fillStyle = 'rgba(20,14,40,0.9)';
+      ctx.beginPath(); ctx.roundRect(slot.x, slot.y, TW, TH, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(140,105,200,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = 'rgba(180,150,220,0.38)'; ctx.font = '26px serif'; ctx.textAlign = 'center';
+      ctx.fillText(RUNE_MAP[slot.targetKey], slot.x + TW / 2, slot.y + TH * 0.74);
+    }
+  }
+
+  function drawFrame() {
+    ctx.clearRect(0, 0, CW, CH);
+
+    // --- section labels ---
+    ctx.fillStyle = '#c0a8e8'; ctx.font = 'bold 11px Inter, sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('RUNE BANK  —  drag tiles to the matching slots below', CW / 2, BANK_Y - 10);
+    ctx.fillText('TARGET SLOTS', CW / 2, SLOT_Y - 10);
+
+    // --- bank tiles ---
+    for (var i = 0; i < bankTiles.length; i++) {
+      var t = bankTiles[i];
+      if (t.inBank && !(drag && drag.tile === t)) drawTile(t.x, t.y, t.key, 'bank');
+    }
+
+    // --- divider ---
+    var divY = (BANK_Y + TH + SLOT_Y) / 2;
+    ctx.strokeStyle = 'rgba(180,150,240,0.25)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(24, divY); ctx.lineTo(CW - 24, divY); ctx.stroke();
+
+    // --- slots ---
+    for (var j = 0; j < slots.length; j++) drawSlot(slots[j]);
+
+    // --- timer bar ---
+    var elapsed = (performance.now() - timerStart) / 1000;
+    var frac    = Math.max(0, 1 - elapsed / getTimerDur());
+    var barY = SLOT_Y + TH + 18, barW = CW - 56, barX = 28;
+    ctx.fillStyle = 'rgba(60,48,100,0.7)';
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW, 10, 5); ctx.fill();
+    var hue = frac > 0.4 ? 260 + frac * 60 : frac * 30;
+    ctx.fillStyle = 'hsl(' + hue + ',90%,70%)';
+    ctx.shadowColor = 'hsl(' + hue + ',90%,70%)'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.roundRect(barX, barY, barW * frac, 10, 5); ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // --- dragged tile on top ---
+    if (drag) drawTile(drag.curX - TW / 2, drag.curY - TH / 2, drag.tile.key, 'drag');
+  }
+
+  function staffGameLoop() {
+    if (!running) return;
+    animFrame = requestAnimationFrame(staffGameLoop);
+    if ((performance.now() - timerStart) / 1000 >= getTimerDur()) {
+      cancelAnimationFrame(animFrame); triggerFail("Time's up!"); return;
+    }
+    drawFrame();
+  }
+
+  // ── mouse drag-and-drop ────────────────────────────────────
+  function canvasPos(e) {
+    var r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (CW / r.width), y: (e.clientY - r.top) * (CH / r.height) };
+  }
+
+  function hitTest(px, py, tx, ty) {
+    return px >= tx && px <= tx + TW && py >= ty && py <= ty + TH;
+  }
+
+  canvas.addEventListener('mousedown', function (e) {
+    if (!running || !gameStarted) return;
+    var p = canvasPos(e);
+    // pick up from bank
+    for (var i = 0; i < bankTiles.length; i++) {
+      var t = bankTiles[i];
+      if (t.inBank && hitTest(p.x, p.y, t.x, t.y)) {
+        t.inBank = false;
+        drag = { tile: t, curX: p.x, curY: p.y };
+        return;
+      }
+    }
+    // pick up from a filled slot
+    for (var j = 0; j < slots.length; j++) {
+      var s = slots[j];
+      if (s.filledTile && hitTest(p.x, p.y, s.x, s.y)) {
+        var tile = s.filledTile;
+        s.filledTile = null;
+        tile.inBank = false;
+        drag = { tile: tile, curX: p.x, curY: p.y };
+        return;
+      }
+    }
+  });
+
+  canvas.addEventListener('mousemove', function (e) {
+    if (!drag) return;
+    var p = canvasPos(e);
+    drag.curX = p.x; drag.curY = p.y;
+  });
+
+  function dropDrag(e) {
+    if (!drag) return;
+    var p = canvasPos(e);
+    var tile = drag.tile;
+    drag = null;
+    // check slots
+    for (var j = 0; j < slots.length; j++) {
+      var s = slots[j];
+      if (!s.filledTile && hitTest(p.x, p.y, s.x, s.y)) {
+        if (tile.key === s.targetKey) {
+          s.filledTile = tile;
+          tile.inBank = false;
+          if (checkWin()) { cancelAnimationFrame(animFrame); triggerSuccess(); }
+        } else {
+          returnToBank(tile); // wrong rune → back to bank
+        }
+        return;
+      }
+    }
+    // dropped on nothing
+    returnToBank(tile);
+  }
+
+  canvas.addEventListener('mouseup',    dropDrag);
+  canvas.addEventListener('mouseleave', function (e) {
+    if (drag) { returnToBank(drag.tile); drag = null; }
+  });
+
+  // ── start / resume ─────────────────────────────────────────
+  function startGame() {
+    streak = 0; updateHUD(); newRound();
+    gameStarted = true; paused = false; running = true;
+    canvas.style.display = '';
+    startBtn.style.display  = 'none';
+    resumeBtn.style.display = 'none';
+    setStatus('', '#a08fd0');
+    animFrame = requestAnimationFrame(staffGameLoop);
+  }
+
+  function resumeGame() {
+    paused = false; running = true;
+    timerStart = performance.now() - (getTimerDur() - timeLeft) * 1000;
+    resumeBtn.style.display = 'none'; setStatus('', '#a08fd0');
+    animFrame = requestAnimationFrame(staffGameLoop);
+  }
+
+  startBtn.addEventListener('click',  startGame);
+  resumeBtn.addEventListener('click', resumeGame);
+  resizeCanvas();
+
+  window._onStaffQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame);
+      running = false; paused = true;
+      timeLeft = Math.max(0, getTimerDur() - (performance.now() - timerStart) / 1000);
+    } else { streak = 0; gameStarted = false; }
+  };
+
+  window._onStaffQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      resumeBtn.style.display = ''; startBtn.style.display = 'none';
+      setStatus('Paused', '#888'); drawFrame();
+    } else {
+      canvas.style.display = 'none';
+      startBtn.style.display = ''; resumeBtn.style.display = 'none';
+      setStatus('', '#a08fd0'); streakEl.textContent = '';
+    }
+  };
+
+  canvas.style.display = 'none';
+})();
