@@ -5749,7 +5749,7 @@ function renderDmgBonusSection() {
   });
 }
 
-// --- Dmg Calc move list ---
+// --- Dmg Calc move list---
 const MOVE_TYPE_COLORS = {
   "Physical": "#f4a460",
   "Magic":    "#9b7ae8",
