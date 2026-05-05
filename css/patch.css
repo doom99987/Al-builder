@@ -1844,16 +1844,38 @@ h2 {
   /* Content area */
   .content { padding: 10px 12px; overflow-x: hidden; }
 
-  /* Build tab — horizontal scroll within the panel, same layout as desktop, zoomed out to fit */
-  #page-builder #stats { overflow-x: auto; display: block; width: 100%; }
-  #page-builder #stats .stats-columns { zoom: 0.78; }
-  .stats-columns { flex-direction: row; gap: 48px; align-items: flex-start; width: max-content; }
+  /* Build tab — stack columns vertically */
+  .stats-columns { flex-direction: column; gap: 14px; width: 100%; align-items: stretch; }
+  .stats-left { width: 100% !important; max-width: 100% !important; align-items: stretch; }
+  .stats-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
 
   /* Section headers */
   #page-builder .content h2 { font-size: 16px; margin-bottom: 8px; }
 
+  /* Dropdowns/pickers — bigger touch targets */
+  #page-builder .gear-picker,
+  #page-builder .weapon-picker,
+  #page-builder .armour-picker,
+  #page-builder .covenant-picker,
+  #page-builder select {
+    font-size: 15px;
+    padding: 9px 12px;
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
   /* Labels above pickers */
   #page-builder .gear-label { font-size: 13px; }
+
+  /* Level input */
+  #Lvl { font-size: 16px; padding: 6px 8px; width: 56px; }
+
+  /* Stat boxes */
+  #page-builder .box { font-size: 17px; padding: 10px 18px; }
+
+  /* Gear slot spacing */
+  #page-builder .gear-slot { gap: 6px; margin-bottom: 10px; }
 
   /* Level input */
   #Lvl { font-size: 16px; padding: 6px 8px; width: 56px; }
