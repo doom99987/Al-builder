@@ -6,6 +6,7 @@ const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coa
 
 // === GLOBAL DMGCALC STATE (must be early so updatePecents() can reference before dmg-calc section) ===
 var crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
+var frozenDiademIceActive = false; // Frozen Diadem: target has Cold/Ice status (+5% crit chance)
 
 // --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
@@ -462,6 +463,9 @@ function updatePecents() {
     }
     if (stat === "crit-chance" && isStultus) {
       display = Math.min(100, parseFloat(display) + stultusBonus).toFixed(1);
+    }
+    if (stat === "crit-chance" && frozenDiademIceActive && ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Frozen Diadem")) {
+      display = Math.min(100, parseFloat(display) + 5).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
@@ -5721,6 +5725,12 @@ function changeCrystalStarStacks(delta) {
   updatePecents();
 }
 
+function toggleFrozenDiademIce() {
+  frozenDiademIceActive = !frozenDiademIceActive;
+  renderDmgBonusSection(); recalcOpenDetails();
+  updatePecents();
+}
+
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
   renderDmgBonusSection(); recalcOpenDetails();
@@ -5775,6 +5785,16 @@ function renderDmgBonusSection() {
     </div>`;
   } else if (crystalStarStacks > 0) {
     crystalStarStacks = 0;
+  }
+
+  const hasFrozenDiadem = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Frozen Diadem");
+  if (hasFrozenDiadem) {
+    html += `<div class="dc-energy-section">
+      <span class="dc-energy-label">Target has Cold/Ice <span style="color:#aaa;font-size:11px">(+5% crit chance)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${frozenDiademIceActive ? " dc-bonus-on" : ""}" onclick="toggleFrozenDiademIce()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${frozenDiademIceActive ? "✓" : ""}</div>
+    </div>`;
+  } else if (frozenDiademIceActive) {
+    frozenDiademIceActive = false;
   }
 
   if (dmgBonusPassives.length) {
