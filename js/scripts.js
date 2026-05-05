@@ -7371,7 +7371,7 @@ function getBuildState() {
     sc2:  scroll2Picker.value,
     msty: mastery,
     soul,
-    summ:  (document.getElementById('summary-textarea')?.value || ''),
+    summ:  (document.getElementById('summary-textarea')?.innerHTML || ''),
     summc: (document.getElementById('summary-color-picker')?.value || '#dddddd')
   };
 }
@@ -7639,8 +7639,8 @@ function loadBuildState(state) {
   // Summary
   const summaryTA = document.getElementById('summary-textarea');
   const summaryCP = document.getElementById('summary-color-picker');
-  if (summaryTA) summaryTA.value = state.summ || '';
-  if (summaryCP) { summaryCP.value = state.summc || '#dddddd'; if (summaryTA) summaryTA.style.color = summaryCP.value; }
+  if (summaryTA) summaryTA.innerHTML = state.summ || '';
+  if (summaryCP) summaryCP.value = state.summc || '#dddddd';
 
   // Final renders
   updatePoints();
@@ -7687,6 +7687,50 @@ if (shareBuildBtn) {
     });
   });
 }
+
+// === SUMMARY COLOR PICKER ===
+(function () {
+  const picker = document.getElementById('summary-color-picker');
+  const editor = document.getElementById('summary-textarea');
+  if (!picker || !editor) return;
+  let savedRange = null;
+
+  function saveSelection() {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+        editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      savedRange = sel.getRangeAt(0).cloneRange();
+    }
+    // else keep last savedRange so keyboard/drag scenarios still work
+  }
+
+  function applyColor() {
+    // Prefer a live non-collapsed selection inside the editor
+    const sel = window.getSelection();
+    let rangeToUse = null;
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed &&
+        editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+      rangeToUse = sel.getRangeAt(0);
+    } else if (savedRange) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange);
+      rangeToUse = savedRange;
+    }
+    if (!rangeToUse) return;
+    document.execCommand('foreColor', false, picker.value);
+    savedRange = sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+  }
+
+  // Save selection whenever it might be about to be lost
+  editor.addEventListener('mouseup', saveSelection);
+  editor.addEventListener('keyup', saveSelection);
+  picker.addEventListener('mousedown', saveSelection);
+  picker.addEventListener('focus', saveSelection);
+
+  // Apply on both input (dragging color wheel) and change (committing)
+  picker.addEventListener('input', applyColor);
+  picker.addEventListener('change', applyColor);
+})();
 
 // === AUTO-SAVE ===
 // _AUTO_SAVE_KEY and _autoSaveTimer declared at top of file (see below autoSave fn is hoisted)

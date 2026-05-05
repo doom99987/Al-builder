@@ -2229,12 +2229,20 @@ h2 {
   padding: 12px;
   font-size: 14px;
   font-family: inherit;
-  resize: both;
   box-sizing: border-box;
   line-height: 1.5;
   outline: none;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .summary-textarea:focus {
   border-color: #666;
+}
+
+.summary-textarea:empty::before {
+  content: attr(data-placeholder);
+  color: #555;
+  pointer-events: none;
 }
