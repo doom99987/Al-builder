@@ -5616,18 +5616,18 @@ function getActiveDmgMult() {
     let bonus = null;
     if      (p.name === "Rage Empower")          bonus = 30 + rageEmpHpConsumed;
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
-    else if (p.name === "Bulk Up")               { mult *= Math.pow(1.2, bulkUpStacks); return; }
-    else if (p.name === "Frost Stacks")          bonus = boreasStacks * 20;
-    else if (p.name === "Sands Of Time")         bonus = hourglassStacks * 20;
-    else if (p.name === "Oppression")            bonus = oppressionCount * 5;
-    else if (p.bonusType === 'per-debuff-target') bonus = p.perDebuffVal * shatteringDebuffCount;
-    else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
+    else if (p.name === "Bulk Up")               { mult *= Math.pow(1.20, bulkUpStacks); return; }
+    else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
+    else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
+    else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
+    else if (p.bonusType === 'per-debuff-target') { mult *= Math.pow(1 + p.perDebuffVal / 100, shatteringDebuffCount); return; }
+    else if (p.bonusType === 'per-debuff-self')   { mult *= Math.pow(1 + p.perDebuffVal / 100, reversingDebuffCount); return; }
     else if (p.bonusType === 'conditional-hp-above') { if (shardToggleActive.striking)  bonus = p.bonus; else return; }
     else if (p.bonusType === 'conditional-hp-below') { if (shardToggleActive.executing) bonus = p.bonus; else return; }
     else bonus = p.bonus;
     if (bonus !== null) mult *= (1 + bonus / 100);
   });
-  if (statusEffectsActive.overheat) mult *= (1 + overheatStacks * 8 / 100);
+  if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);
   if (weirdAccessoryActive) mult *= 1.5;
   return mult;
 }
@@ -5844,9 +5844,13 @@ function renderDmgBonusSection() {
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
-    const displayBonusStr = isBulkUp
-      ? `×${Math.pow(1.2, bulkUpStacks).toFixed(2)}`
-      : `×${(1 + displayBonus / 100).toFixed(2)}`;
+    const displayBonusStr = isBulkUp      ? `×${Math.pow(1.20, bulkUpStacks).toFixed(2)}`
+                         : isBoreas      ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
+                         : isHourglass   ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
+                         : isOppression  ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
+                         : p.bonusType === 'per-debuff-target' ? `×${Math.pow(1 + (p.perDebuffVal ?? p.bonus) / 100, shatteringDebuffCount).toFixed(2)}`
+                         : p.bonusType === 'per-debuff-self'   ? `×${Math.pow(1 + (p.perDebuffVal ?? p.bonus) / 100, reversingDebuffCount).toFixed(2)}`
+                         : `×${(1 + displayBonus / 100).toFixed(2)}`;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${p.name}</span>
@@ -5966,7 +5970,7 @@ function renderDmgBonusSection() {
     { key: "hexed",      label: "Hexed",        tag: "×2.00",            desc: "Incoming attack(s) deal double damage, removing one stack per hit." },
     { key: "sundered",   label: "Sundered",     tag: "ignores resist",   desc: "Afflicted unit's incoming attacks ignore resistances." },
     { key: "fractured",  label: "Fractured",    tag: "×1.35 Phys/Magic", desc: "Afflicted unit takes 35%+ Physical/Magic damage." },
-    ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `×${(1 + overheatStacks * 0.08).toFixed(2)} dmg, +${overheatStacks * 7.5}% spd`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks." }] : []),
+    ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `×${Math.pow(1.08, overheatStacks).toFixed(2)} dmg, +${overheatStacks * 7.5}% spd`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks." }] : []),
   ];
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Status Effects</h3><div class="dc-bonus-list">`;
   statusDefs.forEach(s => {
