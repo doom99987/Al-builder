@@ -7270,30 +7270,34 @@ function drawMasteryLines() {
 const tabs   = document.querySelectorAll("#page-builder .tabbar .tab");
 const panels = document.querySelectorAll(".panel");
 
+function _switchBuilderTab(target) {
+  if (!target) return;
+  tabs.forEach(t => t.classList.remove("active"));
+  panels.forEach(p => p.classList.remove("active"));
+  const clickedTab = [...tabs].find(t => t.dataset.tab === target);
+  if (clickedTab) clickedTab.classList.add("active");
+  const targetPanel = document.getElementById(target);
+  if (targetPanel) targetPanel.classList.add("active");
+  const summaryTA = document.getElementById('summary-textarea');
+  if (summaryTA) summaryTA.contentEditable = target === 'summary' ? 'true' : 'false';
+  if (target === "mastery") renderMastery();
+  if (target === "dmg-calc") renderDmgCalc();
+}
+
 tabs.forEach(tab => {
-  tab.addEventListener("click", () => {
+  const target = tab.dataset.tab;
+  if (!target) return;
 
-    const target = tab.dataset.tab;
-    if (!target) return; // QTE tabs have data-qte, not data-tab — skip
+  // touchend fires before click — call switchTab immediately and prevent the
+  // subsequent click so it doesn't double-fire. This fixes mobile: click events
+  // are suppressed by the browser when the tab is inside a scrollable container.
+  tab.addEventListener("touchend", e => {
+    e.preventDefault();
+    _switchBuilderTab(target);
+  }, { passive: false });
 
-    // remove active from all
-    tabs.forEach(t => t.classList.remove("active"));
-    panels.forEach(p => p.classList.remove("active"));
-
-    // activate clicked
-    tab.classList.add("active");
-    const targetPanel = document.getElementById(target);
-    if (targetPanel) targetPanel.classList.add("active");
-
-    // Disable contenteditable on summary when not active — prevents mobile
-    // touch/focus interference from the div even when the panel is hidden
-    const summaryTA = document.getElementById('summary-textarea');
-    if (summaryTA) summaryTA.contentEditable = target === 'summary' ? 'true' : 'false';
-
-    if (target === "mastery") renderMastery();
-    if (target === "dmg-calc") renderDmgCalc();
-
-  });
+  // click handles desktop (and mobile browsers where touchend isn't triggered)
+  tab.addEventListener("click", () => _switchBuilderTab(target));
 });
 
 // === BUILD SHARE ===
