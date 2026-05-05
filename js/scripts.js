@@ -7657,6 +7657,23 @@ function loadBuildState(state) {
   if (summaryTA) summaryTA.innerHTML = state.summ || '';
   if (summaryCP) summaryCP.value = state.summc || '#dddddd';
 
+  // Reset dmg-calc state so loaded builds start clean
+  energyCount = 0;
+  rageEmpHpConsumed = 0;
+  absRadTurn = 1;
+  bulkUpStacks = 1;
+  hourglassStacks = 1;
+  boreasStacks = 1;
+  overheatStacks = 1;
+  oppressionCount = 1;
+  shatteringDebuffCount = 1;
+  reversingDebuffCount = 1;
+  crystalStarStacks = 0;
+  frozenDiademIceActive = false;
+  Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
+  Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
+  Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
+
   // Final renders
   updatePoints();
   updatePecents();
@@ -7676,7 +7693,6 @@ if (resetBuildBtn) {
   resetBuildBtn.addEventListener('click', () => {
     if (!confirm('Reset build? This will clear everything.')) return;
     try { localStorage.removeItem(_AUTO_SAVE_KEY); } catch (e) {}
-    frozenDiademIceActive = false;
     loadBuildState({ v: 1, lvl: 1, race: '', cls: '', sup: '', sub: '',
       str: 0, arc: 0, end: 0, spd: 0, lck: 0,
       mark: '', cov: '', covR: 1, ench: '', art: '',
@@ -7746,6 +7762,10 @@ if (shareBuildBtn) {
   // Apply on both input (dragging color wheel) and change (committing)
   picker.addEventListener('input', applyColor);
   picker.addEventListener('change', applyColor);
+
+  // Persist changes
+  editor.addEventListener('input', autoSave);
+  picker.addEventListener('change', autoSave);
 })();
 
 // === AUTO-SAVE ===
