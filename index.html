@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/png" href="content.png">
+  <link rel="icon" type="image/png" href="Logo.png">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/patch.css">
 </head>
@@ -16,7 +16,7 @@
 
 <!-- Top-level navigation -->
 <nav class="site-nav">
-  <img class="site-nav-logo" src="content.png" alt="AL Builder">
+  <img class="site-nav-logo" src="Logo.png" alt="AL Builder">
   <div class="site-nav-tabs">
     <button class="site-nav-btn active" data-page="home">Home</button>
     <button class="site-nav-btn" data-page="builder">Builder</button>
@@ -28,6 +28,7 @@
 <div id="page-home" class="site-page active">
   <div class="home-hero">
     <h1 class="home-title">AL Builder</h1>
+    <img class="home-hero-logo" src="Logo.png" alt="AL Builder Logo">
     <p class="home-subtitle">Plan your build, master your class, calculate your damage, and sharpen your reaction times — all in one place.</p>
     <div class="home-cta-row">
       <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
@@ -214,6 +215,7 @@
       </div>
     </div>
   </div>
+  <img class="qte-logo-watermark" src="Logo.png" alt="">
 </div>
 
 <!-- Builder page -->
@@ -562,6 +564,7 @@
   </div>
 
 </div>
+  <img class="builder-logo-watermark" src="Logo.png" alt="">
 </div><!-- end page-builder -->
 
 <!-- Mastery node instant tooltip -->
@@ -590,6 +593,14 @@
     document.getElementById('page-' + name).classList.add('active');
     document.querySelector('.site-nav-btn[data-page="' + name + '"]').classList.add('active');
     history.replaceState(null, '', '#' + name);
+    // Auto-activate the Build tab if no builder tab is active yet
+    if (name === 'builder') {
+      const activeBuildTab = document.querySelector('.tabbar .tab.active[data-tab]');
+      if (!activeBuildTab) {
+        const buildTab = document.querySelector('.tab[data-tab="stats"]');
+        if (buildTab) buildTab.click();
+      }
+    }
   }
   document.querySelectorAll('.site-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => switchPage(btn.dataset.page));
