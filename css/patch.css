@@ -1841,33 +1841,45 @@ h2 {
   .tabbar::-webkit-scrollbar { display: none; }
   .tab { padding: 9px 13px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 
-  /* Content area */
-  .content { padding: 10px 12px; overflow-x: auto; }
+  /* Content area — allow horizontal scroll so columns aren't clipped */
+  .content { padding: 10px 8px; overflow-x: auto; overflow-y: auto; }
 
-  /* Build tab — keep side-by-side columns (same as desktop), scroll horizontally */
-  .stats-columns { flex-direction: row; gap: 16px; width: max-content; align-items: flex-start; }
-  .stats-left { width: 260px !important; min-width: 0 !important; }
-  .marks-section { width: 150px !important; min-width: 0 !important; }
-  .gear-section { min-width: 0 !important; }
+  /* Panel must be able to grow wider than the viewport */
+  #page-builder #stats {
+    width: auto;
+    min-width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Build tab — keep side-by-side columns, same form as desktop */
+  .stats-columns { flex-direction: row; gap: 12px; align-items: flex-start; width: max-content; }
+  .stats-left { width: 230px !important; }
+  .marks-section { width: 140px !important; }
+  .gear-section { flex-direction: row; gap: 10px; }
 
   /* Section headers */
-  #page-builder .content h2 { font-size: 16px; margin-bottom: 8px; }
+  #page-builder .content h2 { font-size: 15px; margin-bottom: 6px; }
 
-  /* Dropdowns/pickers — bigger touch targets */
+  /* Dropdowns/pickers — fixed width so they don't collapse */
   #page-builder .gear-picker,
   #page-builder .weapon-picker,
   #page-builder .armour-picker,
-  #page-builder .covenant-picker,
-  #page-builder select {
-    font-size: 15px;
-    padding: 9px 12px;
-    width: 100%;
+  #page-builder .covenant-picker {
+    font-size: 13px;
+    padding: 6px 8px;
+    width: 140px;
+    min-width: 140px;
     box-sizing: border-box;
-    min-width: 0;
+  }
+
+  #page-builder select {
+    font-size: 13px;
+    padding: 6px 8px;
+    box-sizing: border-box;
   }
 
   /* Labels above pickers */
-  #page-builder .gear-label { font-size: 13px; }
+  #page-builder .gear-label { font-size: 12px; }
 
   /* Level input */
   #Lvl { font-size: 16px; padding: 6px 8px; width: 56px; }

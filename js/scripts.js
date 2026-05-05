@@ -200,84 +200,84 @@ document.querySelectorAll(".stat-row").forEach(row => {
 // Armour cost = 750 (craft) + cost (material/purchase, fill in below)
 const armourItems = {
   "Paladin Cuirass": {
-    cost: 0, // TODO: add material cost
+    cost: 250,
     endFlat: 20,
     pct: { end: 17.5 }
     // Also grants: +10% Physical Armor, -5% Run Speed, +5% Holy Armor, +5% Magic Armor, +5% Fire Armor
   },
   "Adept Warrior": {
-    cost: 0,
+    cost: 250,
     endFlat: 15,
     pct: { end: 10, str: 5, energy: 16.6 }
     // Also grants: +5% Physical Armor, +20% Fall Resistance, +10% Dark Armor
   },
   "Raging Warrior": {
-    cost: 0,
+    cost: 250,
     endFlat: 16,
     pct: { end: 10, "inc-heal": 10, energy: 10 }
     // Also grants: +5% Physical Armor, +10% Hex Armor, +5% Fire Armor
   },
   "Arcane Robes": {
-    cost: 0,
+    cost: 250,
     arc: 4,
     endFlat: 15,
     pct: { arc: 7.5 }
     // Also grants: +10% Magic Armor, +10% Poison Armor, +10% Holy Armor, +10% Fire Armor
   },
   "Magister Apprentice": {
-    cost: 0,
+    cost: 250,
     arc: 3,
     endFlat: 15,
     pct: { arc: 5 }
     // Also grants: +15% Magic Armor, +10% Poison Armor, +10% Fire Armor, +1 HP Regen
   },
   "Corrupt Caster": {
-    cost: 0,
+    cost: 250,
     arc: 2,
     endFlat: 16,
     pct: { end: 5, arc: 5, energy: 10 }
     // Also grants: +15% Magic Armor, +10% Poison Armor, +10% Holy Armor
   },
   "Lifebound Archer": {
-    cost: 0,
+    cost: 250,
     arc: 3,
     endFlat: 15,
     pct: { end: 5, arc: 5 }
     // Also grants: +10% Magic Armor, +10% Poison Armor, +10% Nature Armor, +1 HP Regen, +15% Run Speed
   },
   "Rogue Hunter": {
-    cost: 0,
+    cost: 250,
     endFlat: 15,
     pct: { end: 7.5, spd: 10, energy: 10 }
     // Also grants: +5% Physical Armor, +20% Run Speed, +5% Fire Armor, +1 HP Regen, +25% Fall Resistance
   },
   "Shadow Cloak": {
-    cost: 0,
+    cost: 250,
     endFlat: 13,
     pct: { end: 7.5, energy: 12.5 }
     // Also grants: +5% Physical Armor, +30% Run Speed, +5% Dark Armor, +1 HP Regen, +30% Fall Resistance
   },
   "Traveling Pasmark": {
-    cost: 0,
+    cost: 250,
     str: 5,
     endFlat: 16,
     pct: { end: 7.5, str: 5 }
     // Also grants: +5% Physical Armor, +5% Holy Armor, +1 HP Regen, +10% Fall Resistance, +5% Fire Armor, +5% Dark Armor
   },
   "Wandering Practitioner": {
-    cost: 0,
+    cost: 250,
     endFlat: 18,
     pct: { end: 7.5, str: 10, energy: 16.6 }
     // Also grants: +5% Physical Armor, +10% Fall Damage Resistance, +10% Fire Armor
   },
   "Shade Walker": {
-    cost: 0,
+    cost: 250,
     endFlat: 18,
     pct: { end: 7.5, arc: 5 }
     // Also grants: +5% Physical Armor, +10% Hex Armor, +10% Fall Resistance, +20% Dark Armor
   },
   "Pathfinder Martyr": {
-    cost: 0,
+    cost: 250,
     arc: 3,
     spd: 1,
     endFlat: 20,
@@ -285,25 +285,25 @@ const armourItems = {
     // Also grants: +5% Physical Armor, +15% Holy Armor, +1 HP Regen
   },
   "Armored Lancer": {
-    cost: 0,
+    cost: 250,
     endFlat: 20,
     pct: { end: 15, energy: 12.5 }
     // Also grants: +10% Physical Armor, -5% Run Speed, +10% Magic Armor, +5% Fire Armor
   },
   "Bloody Menace": {
-    cost: 0,
+    cost: 250,
     endFlat: 22,
     pct: { end: 10, "inc-heal": 20 }
     // Also grants: +10% Physical Armor, +5% Hex Armor, +5% Poison Armor
   },
   "Venerated Legionnaire": {
-    cost: 0,
+    cost: 250,
     endFlat: 17,
     pct: { end: 12.5 }
     // Also grants: +15% Physical Armor, +15% Fire Armor, +10% Ice Armor, +10% Nature Armor, +5% Dark Armor, +5% Magic Armor
   },
   "Fortified Seer": {
-    cost: 0,
+    cost: 250,
     endFlat: 35,
     pct: { end: 5 }
     // Also grants: +15% Dark Armor, +15% Hex Armor, +10% Holy Armor, +10% Ice Armor, +10% Fire Armor, +10% Physical Armor
