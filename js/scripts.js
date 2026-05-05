@@ -8310,10 +8310,10 @@ function autoSave() {
 
   let trackX, trackY, trackW, zoneX, zoneW;
 
-  function getSpeed()      { return Math.min(440 + streak * 14, 660); } // px/s, capped at 660
-  function getBarCount()   { return Math.min(4 + Math.floor(streak / 2), 8); }
-  function getZoneStart()  { return 0.70; } // fixed position, further right
-  function getZoneWidth()  { return 0.10; } // fixed size
+  function getSpeed()     { return IS_MOBILE ? Math.min(200 + streak * 8, 380) : Math.min(440 + streak * 14, 660); }
+  function getBarCount()  { return IS_MOBILE ? Math.min(2 + Math.floor(streak / 3), 6) : Math.min(4 + Math.floor(streak / 2), 8); }
+  function getZoneStart() { return 0.70; }
+  function getZoneWidth() { return IS_MOBILE ? Math.max(0.24 - streak * 0.008, 0.12) : 0.10; }
 
   function updateHighscore(v) {
     if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
