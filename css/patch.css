@@ -1749,3 +1749,55 @@ h2 {
   pointer-events: none;
   z-index: 10;
 }
+
+/* ============================================================
+   MOBILE QTE CONTROLS
+   ============================================================ */
+
+/* Fist QTE D-pad */
+.fist-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 12px auto 4px;
+}
+.fist-dpad-row {
+  display: flex;
+  gap: 6px;
+}
+.fist-dpad-btn {
+  width: 64px;
+  height: 64px;
+  font-size: 26px;
+  background: #2a2150;
+  color: #c8a8ff;
+  border: 2px solid #7c5cbb;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fist-dpad-btn:active {
+  background: #5a3a9a;
+  color: #fff;
+}
+
+/* Canvas QTE tap hint on mobile */
+@media (pointer: coarse) {
+  .hammer-qte-canvas,
+  #sword-qte-canvas,
+  #dodge-qte-canvas,
+  #dagger-qte-canvas,
+  #axe-qte-canvas {
+    cursor: pointer;
+    touch-action: none;
+  }
+  #staff-qte-canvas {
+    touch-action: none;
+  }
+}
