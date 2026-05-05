@@ -339,7 +339,7 @@ function calcPercentage(stat, val){
     end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
     "crit-chance": v => 19.8 + v * 0.25,
-    "crit-dmg":    v => 1.74781 + v * 0.00654682,
+    "crit-dmg":    v => 1.5 + v * 0.00654682,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
     "energy":      () => 0,
@@ -1913,6 +1913,8 @@ buildSimpleDropdown(armourPicker, Object.keys(armourItems), () => {
   updateArmourGold(prevArmourSelection, newVal);
   prevArmourSelection = newVal;
   updatePecents();
+  renderDmgBonusSection();
+  recalcOpenDetails();
 });
 
 // --- Scrolls ---
@@ -5230,6 +5232,15 @@ let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
+const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
+const TEAM_BUFFS = [
+  { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
+  { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
+  { key: 'lesserEmp',  label: "Lesser Empower", mult: 1.15, desc: "+15% damage buff for 2 turns." },
+  { key: 'castAmplify',label: "Cast Amplify",   mult: 1.20, desc: "+20% damage buff to magic/holy/fire/nature/ice/dark moves for 3 turns." },
+  { key: 'blizzard',   label: "Blizzard",       mult: 1.20, desc: "+20% ice damage for the team for 4 turns." },
+  { key: 'arcaneRitual',label: "Arcane Ritual", mult: 1.40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
+];
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
@@ -5297,6 +5308,21 @@ function getArmourDmgTypePct(moveType) {
   return 0;
 }
 
+const _gearSlotIds = ["gear-1","gear-2","gear-3","gear-4"];
+function hasGearEquipped(name) {
+  return _gearSlotIds.some(id => document.getElementById(id)?.value === name);
+}
+
+function getEffectiveMoveType(moveType) {
+  if (moveType === 'Physical' && hasGearEquipped('Wicked Crown')) return 'Dark';
+  return moveType;
+}
+
+function getShardOfBlightMult(effectiveMoveType) {
+  if (effectiveMoveType !== 'Dark') return 1;
+  return hasGearEquipped('Shard of Blight') ? 1.25 : 1;
+}
+
 function toggleDmgDetail(rowEl, idx) {
   const detail = rowEl.nextElementSibling;
   if (!detail || !detail.classList.contains("dc-detail")) return;
@@ -5336,18 +5362,21 @@ function toggleDmgDetail(rowEl, idx) {
   }
 
   if (!scalings) {
-    const activeMult   = getActiveDmgMult();
-    const energyBonus  = getEnergyBonusPct(m);
-    const armourDmgPct = getArmourDmgTypePct(m.moveType);
-    const energyMult   = 1 + energyBonus / 100;
-    const armourMult   = 1 + armourDmgPct / 100;
-    const totalMult    = activeMult * energyMult * armourMult;
+    const activeMult        = getActiveDmgMult();
+    const energyBonus       = getEnergyBonusPct(m);
+    const effectiveMoveType = getEffectiveMoveType(m.moveType);
+    const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
+    const darkMult          = getShardOfBlightMult(effectiveMoveType);
+    const energyMult        = 1 + energyBonus / 100;
+    const armourMult        = 1 + armourDmgPct / 100;
+    const totalMult         = activeMult * energyMult * armourMult * darkMult;
+    const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
     let formula; let currentDmg;
     if (totalMult > 1) {
       const boosted = baseDmgNum * totalMult;
       currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-      formula = `${baseDmgNum} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult, energyMult)}</span> = <b>${boosted.toFixed(2)}</b>`;
-      if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(2)}</b>`;
+      formula = `${typeTag}${baseDmgNum} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult)}</span> = <b>${boosted.toFixed(1)}</b>`;
+      if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(1)}</b>`;
     } else {
       currentDmg = hitCount > 1 ? baseDmgNum * hitCount : baseDmgNum;
       formula = hitCount > 1
@@ -5355,16 +5384,16 @@ function toggleDmgDetail(rowEl, idx) {
         : `Base damage: <b>${baseDmgNum}</b>`;
     }
     const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
-    if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(2)}</b>`;
+    if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
     const _finalDmg0 = sMult !== 1 ? currentDmg * sMult : currentDmg;
     const _critMult0 = getCritDmgMult();
     if (hitCount > 1) {
       const _avgHit0 = _finalDmg0 / hitCount;
-      formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit0.toFixed(2)}</b>`;
-      if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(2)}</b>`;
+      formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit0.toFixed(1)}</b>`;
+      if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(1)}</b>`;
       formula += `</span>`;
     }
-    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg0.toFixed(2)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_finalDmg0 * _critMult0).toFixed(2)}</b></span>`;
+    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_finalDmg0 * _critMult0).toFixed(1)}</b></span>`;
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -5378,37 +5407,40 @@ function toggleDmgDetail(rowEl, idx) {
   const dmgPerHit = baseDmgNum * (1 + totalContrib);
   const totalDmg  = dmgPerHit * hitCount;
 
-  const activeMult   = getActiveDmgMult();
-  const energyBonus  = getEnergyBonusPct(m);
-  const armourDmgPct = getArmourDmgTypePct(m.moveType);
-  const energyMult   = 1 + energyBonus / 100;
-  const armourMult   = 1 + armourDmgPct / 100;
-  const totalMult    = activeMult * energyMult * armourMult;
-  const scalingStr   = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
-  let formula = `${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(2)}</b>`;
+  const activeMult        = getActiveDmgMult();
+  const energyBonus       = getEnergyBonusPct(m);
+  const effectiveMoveType = getEffectiveMoveType(m.moveType);
+  const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
+  const darkMult          = getShardOfBlightMult(effectiveMoveType);
+  const energyMult        = 1 + energyBonus / 100;
+  const armourMult        = 1 + armourDmgPct / 100;
+  const totalMult         = activeMult * energyMult * armourMult * darkMult;
+  const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
+  const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
+  let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
   let currentDmg;
   if (totalMult > 1) {
     const boosted = dmgPerHit * totalMult;
-    formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult, energyMult)}</span> = <b>${boosted.toFixed(2)}</b>`;
+    formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult)}</span> = <b>${boosted.toFixed(1)}</b>`;
     currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-    if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(2)}</b>`;
+    if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(1)}</b>`;
   } else if (hitCount > 1) {
     currentDmg = totalDmg;
-    formula += ` × ${hitCount} hits = <b>${totalDmg.toFixed(2)}</b>`;
+    formula += ` × ${hitCount} hits = <b>${totalDmg.toFixed(1)}</b>`;
   } else {
     currentDmg = dmgPerHit;
   }
   const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
-  if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(2)}</b>`;
+  if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
   const _critMult = getCritDmgMult();
   if (hitCount > 1) {
     const _avgHit = _finalDmg / hitCount;
-    formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit.toFixed(2)}</b>`;
-    if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(2)}</b>`;
+    formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit.toFixed(1)}</b>`;
+    if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(1)}</b>`;
     formula += `</span>`;
   }
-  if (_critMult !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg.toFixed(2)}</b> × ${_critMult.toFixed(2)}x = <b>${(_finalDmg * _critMult).toFixed(2)}</b></span>`;
+  if (_critMult !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_finalDmg * _critMult).toFixed(1)}</b></span>`;
 
   detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
   detail.style.display = "block"; rowEl.classList.add("dc-row-open");
@@ -5422,6 +5454,8 @@ function parseDmgBonus(text) {
   if (!text) return null;
   // Exclude damage bonuses that apply only to DoT (poison/bleed/burn ticks, not hits)
   if (/\bfor\s+do[t]\b|\bdo[t]\s+(?:effects?|damage)\b|\bdamage\s+over\s+time\b/i.test(text)) return null;
+  // Exclude per-energy bonuses (Corealloy) — handled separately by energy system
+  if (/\bper\s+energy\b/i.test(text)) return null;
   const patterns = [
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+buff/i,
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+bonus/i,
@@ -5629,7 +5663,18 @@ function getActiveDmgMult() {
   });
   if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);
   if (weirdAccessoryActive) mult *= 1.5;
+  const _mgEquipped = lostScrollPicker.value === "Metrom's Grasp";
+  TEAM_BUFFS.forEach(b => {
+    if (!teamBuffsActive[b.key]) return;
+    if (b.key === 'mg' && _mgEquipped) return;
+    mult *= b.mult;
+  });
   return mult;
+}
+
+function toggleTeamBuff(key) {
+  teamBuffsActive[key] = !teamBuffsActive[key];
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 let _dmgBonusFilter = "";
@@ -6000,6 +6045,29 @@ function renderDmgBonusSection() {
   </div>`;
   html += `</div>`;
 
+  // --- Team Buffs (always shown) ---
+  const mgEquipped = lostScrollPicker.value === "Metrom's Grasp";
+  if (mgEquipped && teamBuffsActive.mg) { teamBuffsActive.mg = false; }
+  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Team Buffs</h3><div class="dc-bonus-list">`;
+  TEAM_BUFFS.forEach(b => {
+    const blocked = b.key === 'mg' && mgEquipped;
+    if (blocked) {
+      html += `<div class="dc-bonus-row" style="opacity:0.4;cursor:not-allowed" title="Already equipped as your scroll">
+        <div class="dc-bonus-check"></div>
+        <span class="dc-bonus-name">${b.label} <span style="font-size:11px">(equipped)</span></span>
+        <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+      </div>`;
+      return;
+    }
+    const on = teamBuffsActive[b.key];
+    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-team-key="${b.key}" title="${b.desc}">
+      <div class="dc-bonus-check">${on ? "✓" : ""}</div>
+      <span class="dc-bonus-name">${b.label}</span>
+      <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+    </div>`;
+  });
+  html += `</div>`;
+
   container.innerHTML = html;
 
   document.getElementById("dmg-bonus-search")?.addEventListener("input", e => {
@@ -6018,6 +6086,10 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.accKey) {
       row.addEventListener("click", () => toggleWeirdAccessory());
+      return;
+    }
+    if (row.dataset.teamKey) {
+      row.addEventListener("click", () => toggleTeamBuff(row.dataset.teamKey));
       return;
     }
     const p = dmgBonusPassives[+row.dataset.bidx];
@@ -7699,6 +7771,7 @@ function loadBuildState(state) {
   frozenDiademIceActive = false;
   weirdAccessoryActive = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
+  Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
 
