@@ -338,7 +338,7 @@ function calcPercentage(stat, val){
     end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
     "crit-chance": v => 19.8 + v * 0.25,
-    "crit-dmg":    v => 1.5 + v * 0.00248,
+    "crit-dmg":    v => 1.74781 + v * 0.00654682,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
     "energy":      () => 0,
@@ -7268,19 +7268,7 @@ function drawMasteryLines() {
 
 // --- Tabs ---
 const tabs   = document.querySelectorAll("#page-builder .tabbar .tab");
-const panels = document.querySelectorAll("#page-builder .content .panel");
-
-// On mobile: insert a flex line-break before the tabs so utility controls
-// (Reset / Name / Share) sit on row 1 and tabs scroll on row 2.
-if (IS_MOBILE) {
-  const builderTabbar = document.querySelector('#page-builder .tabbar');
-  const firstTab = builderTabbar && builderTabbar.querySelector('.tab');
-  if (firstTab) {
-    const br = document.createElement('div');
-    br.className = 'tabbar-linebreak';
-    builderTabbar.insertBefore(br, firstTab);
-  }
-}
+const panels = document.querySelectorAll(".panel");
 
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
