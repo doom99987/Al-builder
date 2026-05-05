@@ -5327,25 +5327,26 @@ function toggleDmgDetail(rowEl, idx) {
     return extra * move.energyScaling.perEnergy;
   }
 
-  function buildBonusTag(activePct, energyPct) {
-    if (activePct > 0 && energyPct > 0)
-      return `[+${activePct}% bonus, +${energyPct}% energy (${energyCount}E)]`;
-    if (energyPct > 0)
-      return `[+${energyPct}% energy (${energyCount}E)]`;
-    return `[+${activePct}% bonus]`;
+  function buildBonusTag(activeMult, energyMult) {
+    if (activeMult > 1 && energyMult > 1)
+      return `[×${activeMult.toFixed(2)} bonus, ×${energyMult.toFixed(2)} energy (${energyCount}E)]`;
+    if (energyMult > 1)
+      return `[×${energyMult.toFixed(2)} energy (${energyCount}E)]`;
+    return `[×${activeMult.toFixed(2)} bonus]`;
   }
 
   if (!scalings) {
-    const activeBonus  = getActiveDmgBonus();
+    const activeMult   = getActiveDmgMult();
     const energyBonus  = getEnergyBonusPct(m);
     const armourDmgPct = getArmourDmgTypePct(m.moveType);
-    const totalBonus   = activeBonus + energyBonus + armourDmgPct;
-    const bonusMult    = 1 + totalBonus / 100;
-    const boosted      = baseDmgNum * bonusMult;
+    const energyMult   = 1 + energyBonus / 100;
+    const armourMult   = 1 + armourDmgPct / 100;
+    const totalMult    = activeMult * energyMult * armourMult;
     let formula; let currentDmg;
-    if (totalBonus > 0) {
+    if (totalMult > 1) {
+      const boosted = baseDmgNum * totalMult;
       currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-      formula = `${baseDmgNum} × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus + armourDmgPct, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
+      formula = `${baseDmgNum} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult, energyMult)}</span> = <b>${boosted.toFixed(2)}</b>`;
       if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(2)}</b>`;
     } else {
       currentDmg = hitCount > 1 ? baseDmgNum * hitCount : baseDmgNum;
@@ -5377,18 +5378,19 @@ function toggleDmgDetail(rowEl, idx) {
   const dmgPerHit = baseDmgNum * (1 + totalContrib);
   const totalDmg  = dmgPerHit * hitCount;
 
-  const activeBonus = getActiveDmgBonus();
-  const energyBonus = getEnergyBonusPct(m);
+  const activeMult   = getActiveDmgMult();
+  const energyBonus  = getEnergyBonusPct(m);
   const armourDmgPct = getArmourDmgTypePct(m.moveType);
-  const totalBonus  = activeBonus + energyBonus + armourDmgPct;
-  const bonusMult   = 1 + totalBonus / 100;
-  const scalingStr  = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
+  const energyMult   = 1 + energyBonus / 100;
+  const armourMult   = 1 + armourDmgPct / 100;
+  const totalMult    = activeMult * energyMult * armourMult;
+  const scalingStr   = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(2)}</b>`;
   let currentDmg;
-  if (totalBonus > 0) {
-    const boosted = dmgPerHit * bonusMult;
+  if (totalMult > 1) {
+    const boosted = dmgPerHit * totalMult;
+    formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult, energyMult)}</span> = <b>${boosted.toFixed(2)}</b>`;
     currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-    formula += ` × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus + armourDmgPct, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
     if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(2)}</b>`;
   } else if (hitCount > 1) {
     currentDmg = totalDmg;
@@ -5608,25 +5610,26 @@ function collectDmgBonusPassives() {
   return merged;
 }
 
-function getActiveDmgBonus() {
-  let total = dmgBonusPassives.filter(p => dmgBonusActive[p.key]).reduce((sum, p) => {
-    if (p.name === "Rage Empower") return sum + 30 + rageEmpHpConsumed;
-    if (p.name === "Absolute Radiance") return sum + ABS_RAD_BONUSES[absRadTurn - 1];
-    if (p.name === "Bulk Up") return sum + bulkUpStacks * 20;
-    if (p.name === "Frost Stacks") return sum + boreasStacks * 20;
-    if (p.name === "Sands Of Time") return sum + hourglassStacks * 20;
-    if (p.name === "Oppression") return sum + oppressionCount * 5;
-    if (p.bonusType === 'per-debuff-target') return sum + p.perDebuffVal * shatteringDebuffCount;
-    if (p.bonusType === 'per-debuff-self')   return sum + p.perDebuffVal * reversingDebuffCount;
-    if (p.bonusType === 'conditional-hp-above' && !shardToggleActive.striking)  return sum;
-    if (p.bonusType === 'conditional-hp-above' && shardToggleActive.striking)   return sum + p.bonus;
-    if (p.bonusType === 'conditional-hp-below' && !shardToggleActive.executing) return sum;
-    if (p.bonusType === 'conditional-hp-below' && shardToggleActive.executing)  return sum + p.bonus;
-    return sum + p.bonus;
-  }, 0);
-  if (statusEffectsActive.overheat) total += overheatStacks * 8;
-  if (weirdAccessoryActive) total += 50;
-  return total;
+function getActiveDmgMult() {
+  let mult = 1;
+  dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
+    let bonus = null;
+    if      (p.name === "Rage Empower")          bonus = 30 + rageEmpHpConsumed;
+    else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
+    else if (p.name === "Bulk Up")               { mult *= Math.pow(1.2, bulkUpStacks); return; }
+    else if (p.name === "Frost Stacks")          bonus = boreasStacks * 20;
+    else if (p.name === "Sands Of Time")         bonus = hourglassStacks * 20;
+    else if (p.name === "Oppression")            bonus = oppressionCount * 5;
+    else if (p.bonusType === 'per-debuff-target') bonus = p.perDebuffVal * shatteringDebuffCount;
+    else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
+    else if (p.bonusType === 'conditional-hp-above') { if (shardToggleActive.striking)  bonus = p.bonus; else return; }
+    else if (p.bonusType === 'conditional-hp-below') { if (shardToggleActive.executing) bonus = p.bonus; else return; }
+    else bonus = p.bonus;
+    if (bonus !== null) mult *= (1 + bonus / 100);
+  });
+  if (statusEffectsActive.overheat) mult *= (1 + overheatStacks * 8 / 100);
+  if (weirdAccessoryActive) mult *= 1.5;
+  return mult;
 }
 
 let _dmgBonusFilter = "";
@@ -5835,18 +5838,20 @@ function renderDmgBonusSection() {
     const isBoreas       = p.name === "Frost Stacks";
     const displayBonus   = isRageEmp     ? 30 + rageEmpHpConsumed
                          : isAbsRad      ? ABS_RAD_BONUSES[absRadTurn - 1]
-                         : isBulkUp      ? bulkUpStacks * 20
                          : isHourglass   ? hourglassStacks * 20
                          : isOppression  ? oppressionCount * 5
                          : isBoreas      ? boreasStacks * 20
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
+    const displayBonusStr = isBulkUp
+      ? `×${Math.pow(1.2, bulkUpStacks).toFixed(2)}`
+      : `×${(1 + displayBonus / 100).toFixed(2)}`;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${p.name}</span>
       <span class="dc-bonus-badges">${badges}</span>
-      <span class="dc-bonus-pct">+${displayBonus}%</span>
+      <span class="dc-bonus-pct">${displayBonusStr}</span>
     </div>`;
     if (isRageEmp) {
       html += `<div class="dc-rage-slider-row">
@@ -5961,7 +5966,7 @@ function renderDmgBonusSection() {
     { key: "hexed",      label: "Hexed",        tag: "×2.00",            desc: "Incoming attack(s) deal double damage, removing one stack per hit." },
     { key: "sundered",   label: "Sundered",     tag: "ignores resist",   desc: "Afflicted unit's incoming attacks ignore resistances." },
     { key: "fractured",  label: "Fractured",    tag: "×1.35 Phys/Magic", desc: "Afflicted unit takes 35%+ Physical/Magic damage." },
-    ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `+${overheatStacks * 8}%`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks." }] : []),
+    ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `×${(1 + overheatStacks * 0.08).toFixed(2)} dmg, +${overheatStacks * 7.5}% spd`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks." }] : []),
   ];
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Status Effects</h3><div class="dc-bonus-list">`;
   statusDefs.forEach(s => {
@@ -5989,7 +5994,7 @@ function renderDmgBonusSection() {
   html += `<div class="dc-bonus-row${weirdAccessoryActive ? " dc-bonus-on" : ""}" data-acc-key="weird-accessory">
     <div class="dc-bonus-check">${weirdAccessoryActive ? "✓" : ""}</div>
     <span class="dc-bonus-name">Weird Accessory</span>
-    <span class="dc-bonus-pct">+50%</span>
+    <span class="dc-bonus-pct">×1.50</span>
   </div>`;
   html += `</div>`;
 
