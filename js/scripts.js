@@ -7214,6 +7214,18 @@ function drawMasteryLines() {
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 
+// On mobile: insert a flex line-break before the tabs so utility controls
+// (Reset / Name / Share) sit on row 1 and tabs scroll on row 2.
+if (IS_MOBILE) {
+  const builderTabbar = document.querySelector('#page-builder .tabbar');
+  const firstTab = builderTabbar && builderTabbar.querySelector('.tab');
+  if (firstTab) {
+    const br = document.createElement('div');
+    br.className = 'tabbar-linebreak';
+    builderTabbar.insertBefore(br, firstTab);
+  }
+}
+
 tabs.forEach(tab => {
   tab.addEventListener("click", () => {
 
