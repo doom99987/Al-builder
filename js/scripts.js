@@ -8508,6 +8508,16 @@ function autoSave() {
   });
   if (IS_MOBILE) {
     canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+
+    const swordTapBtn = document.createElement('button');
+    swordTapBtn.className = 'qte-mobile-action-btn';
+    swordTapBtn.textContent = 'TAP';
+    swordTapBtn.style.display = 'none';
+    swordTapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+    canvas.parentElement.appendChild(swordTapBtn);
+    new MutationObserver(() => {
+      swordTapBtn.style.display = canvas.style.display === 'none' ? 'none' : '';
+    }).observe(canvas, { attributes: true, attributeFilter: ['style'] });
   }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
