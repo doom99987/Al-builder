@@ -2117,11 +2117,19 @@ buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { rend
 const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
 buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => {
-  if (scroll1Picker.value && scroll1Picker.value === scroll2Picker.value) scroll2Picker.value = '';
+  if (scroll1Picker.value && scroll1Picker.value === scroll2Picker.value) {
+    scroll2Picker.value = '';
+    const d2 = scroll2Picker.previousElementSibling?.querySelector?.('.wpick-display');
+    if (d2) d2.textContent = '— None —';
+  }
   renderMoves(); updatePecents();
 }, null, isScrollHidden);
 buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => {
-  if (scroll2Picker.value && scroll2Picker.value === scroll1Picker.value) scroll1Picker.value = '';
+  if (scroll2Picker.value && scroll2Picker.value === scroll1Picker.value) {
+    scroll1Picker.value = '';
+    const d1 = scroll1Picker.previousElementSibling?.querySelector?.('.wpick-display');
+    if (d1) d1.textContent = '— None —';
+  }
   renderMoves(); updatePecents();
 }, null, isScrollHidden);
 
@@ -7301,6 +7309,8 @@ function _buildLists() {
     wm:    flatWeapons(mainWeaponSeries),
     wo:    flatWeapons(offhandSeries),
     arm:   flatList(armourItems),
+    ls:    flatList(lostScrollItems),
+    sc:    flatList(scrollItems),
   };
 }
 const _L = _buildLists();
@@ -7423,8 +7433,13 @@ function _packState(state) {
   wi(_L.wm,  state.wm);
   wi(_L.wo,  state.wo);
   wi(_L.arm, state.arm);
-  masteryNodes.forEach(nd => bw.write(state.msty.includes(nd.id) ? 1 : 0, 1));
+  const mstySet = new Set(state.msty);
+  masteryNodes.forEach(nd => bw.write(mstySet.has(nd.id) ? 1 : 0, 1));
   Object.keys(soulTreeRanks).forEach(id => bw.write(state.soul[id] || 0, 3));
+  // Scrolls appended at end so old links still decode correctly (trailing zeros = empty)
+  wi(_L.ls,  state.ls  || '');
+  wi(_L.sc,  state.sc1 || '');
+  wi(_L.sc,  state.sc2 || '');
   return bw.toB64url();
 }
 
@@ -7453,8 +7468,11 @@ function _unpackState(blob, name) {
   const msty    = masteryNodes.filter(nd => br.read(1) === 1).map(nd => nd.id);
   const soul    = {};
   Object.keys(soulTreeRanks).forEach(id => { const r = br.read(3); if (r > 0) soul[id] = r; });
+  const ls  = ri(_L.ls);
+  const sc1 = ri(_L.sc);
+  const sc2 = ri(_L.sc);
   return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
-           mark, cov, covR, ench, art, sh, g, wm, wo, arm, msty, soul, name };
+           mark, cov, covR, ench, art, sh, g, wm, wo, arm, ls, sc1, sc2, msty, soul, name };
 }
 
 const _CLOUD = 'https://jsonblob.com/api/jsonBlob';

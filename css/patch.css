@@ -1841,32 +1841,29 @@ h2 {
   .tabbar::-webkit-scrollbar { display: none; }
   .tab { padding: 9px 13px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 
-  /* Content area */
-  .content { padding: 10px 12px; overflow-x: hidden; }
+  /* Content area — scrolls both axes so 3-column layout is fully reachable */
+  .content {
+    padding: 10px 12px;
+    overflow-x: auto;
+    overflow-y: auto;
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
 
-  /* Build tab — stack columns vertically */
-  .stats-columns { flex-direction: column; gap: 14px; width: 100%; align-items: stretch; }
-  .stats-left { width: 100% !important; max-width: 100% !important; align-items: stretch; }
-  .stats-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  /* Stats panel expands to its natural width so the 3 columns sit side by side */
+  #page-builder #stats {
+    width: max-content;
+    min-width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+
+  /* Stats columns — same row layout as desktop, no overrides */
+  .stats-columns { flex-direction: row; gap: 48px; align-items: flex-start; }
 
   /* Section headers */
   #page-builder .content h2 { font-size: 16px; margin-bottom: 8px; }
-
-  /* Dropdowns/pickers — bigger touch targets */
-  #page-builder .gear-picker,
-  #page-builder .weapon-picker,
-  #page-builder .armour-picker,
-  #page-builder .covenant-picker,
-  #page-builder select {
-    font-size: 15px;
-    padding: 9px 12px;
-    width: 100%;
-    box-sizing: border-box;
-    min-width: 0;
-  }
-
-  /* Labels above pickers */
-  #page-builder .gear-label { font-size: 13px; }
 
   /* Level input */
   #Lvl { font-size: 16px; padding: 6px 8px; width: 56px; }
