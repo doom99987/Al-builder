@@ -230,6 +230,7 @@
     <button class="tab" data-tab="Moves">Info</button>
     <button class="tab" data-tab="sould-tree">Soul Tree</button>
     <button class="tab" data-tab="dmg-calc">Dmg Calc</button>
+    <button class="tab" data-tab="summary">Summary</button>
     <button class="reset-build-btn" id="reset-build-btn">Reset Build</button>
     <input type="text" id="build-name-input" class="build-name-input" placeholder="Untitled" maxlength="60">
     <button class="share-build-btn" id="share-build-btn">Share</button>
@@ -550,6 +551,18 @@
       </div>
     </div>
 
+    <div class="panel" id="summary">
+      <div class="summary-panel">
+        <div class="summary-header">
+          <h2>Summary</h2>
+          <label class="summary-color-label">Text color
+            <input type="color" id="summary-color-picker" value="#dddddd" oninput="document.getElementById('summary-textarea').style.color=this.value">
+          </label>
+        </div>
+        <textarea id="summary-textarea" class="summary-textarea" placeholder="Write your build notes here..."></textarea>
+      </div>
+    </div>
+
     <div class="panel" id="dmg-calc">
       <div class="dmg-calc-layout">
         <div class="dmg-calc-left">
@@ -586,7 +599,7 @@
   </div>
 </div>
 
-<script src="js/scripts.js?v=22"></script>
+<script src="js/scripts.js?v=23"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
