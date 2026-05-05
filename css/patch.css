@@ -1844,8 +1844,9 @@ h2 {
   /* Content area */
   .content { padding: 10px 12px; overflow-x: hidden; }
 
-  /* Build tab — horizontal scroll within the panel, same layout as desktop */
+  /* Build tab — horizontal scroll within the panel, same layout as desktop, zoomed out to fit */
   #page-builder #stats { overflow-x: auto; display: block; width: 100%; }
+  #page-builder #stats .stats-columns { zoom: 0.78; }
   .stats-columns { flex-direction: row; gap: 48px; align-items: flex-start; width: max-content; }
 
   /* Section headers */
