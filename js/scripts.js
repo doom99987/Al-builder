@@ -7370,7 +7370,9 @@ function getBuildState() {
     sc1:  scroll1Picker.value,
     sc2:  scroll2Picker.value,
     msty: mastery,
-    soul
+    soul,
+    summ:  (document.getElementById('summary-textarea')?.value || ''),
+    summc: (document.getElementById('summary-color-picker')?.value || '#dddddd')
   };
 }
 
@@ -7502,7 +7504,7 @@ const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
 async function encodeState(state) {
   const blob    = _packState(state);
   const name    = state.name || 'Untitled';
-  const payload = JSON.stringify({ d: blob, n: name });
+  const payload = JSON.stringify({ d: blob, n: name, summ: state.summ || '', summc: state.summc || '#dddddd' });
   const base    = window.location.origin +
                   window.location.pathname.replace(/\/[^/]*$/, '/');
   let id;
@@ -7634,6 +7636,12 @@ function loadBuildState(state) {
   const buildNameInput = document.getElementById('build-name-input');
   if (buildNameInput && state.name && state.name !== 'Untitled') buildNameInput.value = state.name;
 
+  // Summary
+  const summaryTA = document.getElementById('summary-textarea');
+  const summaryCP = document.getElementById('summary-color-picker');
+  if (summaryTA) summaryTA.value = state.summ || '';
+  if (summaryCP) { summaryCP.value = state.summc || '#dddddd'; if (summaryTA) summaryTA.style.color = summaryCP.value; }
+
   // Final renders
   updatePoints();
   updatePecents();
@@ -7657,7 +7665,7 @@ if (resetBuildBtn) {
       str: 0, arc: 0, end: 0, spd: 0, lck: 0,
       mark: '', cov: '', covR: 1, ench: '', art: '',
       sh: [], g: [], wm: '', wo: '', arm: '', ls: '', sc1: '', sc2: '',
-      msty: [], soul: {} });
+      msty: [], soul: {}, summ: '', summc: '#dddddd' });
     if (buildNameInput) buildNameInput.value = '';
   });
 }
@@ -7699,7 +7707,11 @@ function autoSave() {
       const nameInput = document.getElementById('build-name-input');
       if (nameInput && payload.n && payload.n !== 'Untitled') nameInput.value = payload.n;
       const state = _unpackState(payload.d, payload.n || 'Untitled');
-      if (state) loadBuildState(state);
+      if (state) {
+        state.summ  = payload.summ  || '';
+        state.summc = payload.summc || '#dddddd';
+        loadBuildState(state);
+      }
     }
     return;
   }
