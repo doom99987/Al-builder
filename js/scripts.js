@@ -9580,7 +9580,19 @@ function autoSave() {
   var BANK_Y = 32;         // top of bank tiles
   var SLOT_Y = 210;        // top of slot tiles
 
-  function resizeCanvas() { canvas.width = CW; canvas.height = CH; }
+  function resizeCanvas() {
+    var wrap = canvas.parentElement;
+    var displayW = wrap ? Math.min(wrap.clientWidth - 20, 600) : 520;
+    var scale = Math.min(displayW / 520, 1);
+    CW = Math.round(520 * scale);
+    CH = Math.round(310 * scale);
+    TW = Math.round(46 * scale);
+    TH = Math.round(46 * scale);
+    BANK_Y = Math.round(32 * scale);
+    SLOT_Y = Math.round(210 * scale);
+    canvas.width = CW;
+    canvas.height = CH;
+  }
 
   function getPatternLen() { return Math.min(2 + streak, 9); }
   function getTimerDur()   { return streak <= 7 ? 8 : Math.max(8 - (streak - 7), 5); }
