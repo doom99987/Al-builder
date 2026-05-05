@@ -1859,8 +1859,8 @@ h2 {
     align-items: flex-start;
   }
 
-  /* 3-column row layout, tighter gap and narrower columns to reduce height */
-  .stats-columns  { flex-direction: row; gap: 20px; align-items: flex-start; }
+  /* 3-column row layout — zoom out so all content is visible and reachable */
+  .stats-columns  { flex-direction: row; gap: 20px; align-items: flex-start; zoom: 0.72; }
   .marks-section  { width: 150px !important; gap: 2px !important; padding-top: 2px !important; }
   .stats-left     { width: 300px !important; }
   .gear-section   { gap: 12px !important; }
@@ -1889,7 +1889,12 @@ h2 {
   #page-builder .stat-base,
   #page-builder .stat-lvl-bonus,
   #page-builder .stat-total           { font-size: 10px; width: 22px; }
-  #page-builder .stat-col-header-label{ font-size: 10px; }
+  /* Realign R/L/T header to match compact stat-row widths:
+     name 40px | spacer = minus(24)+gap(5)+val(40)+gap(5)+plus(24) = 98px | labels 22px */
+  .stat-col-header          { margin-left: 28px; gap: 5px; }
+  .stat-col-header-name     { width: 40px; }
+  .stat-col-header-spacer   { width: 98px; }
+  .stat-col-header-label    { width: 22px; font-size: 9px; }
 
   /* Stat boxes / level */
   #page-builder .box                  { font-size: 13px; padding: 6px 10px; }
