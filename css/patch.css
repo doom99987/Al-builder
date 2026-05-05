@@ -1801,3 +1801,107 @@ h2 {
     touch-action: none;
   }
 }
+
+/* ============================================================
+   MOBILE RESPONSIVE LAYOUT  (max-width: 768px)
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* --- Nav bar --- */
+  .site-nav {
+    padding: 0 10px;
+    gap: 8px;
+    height: 42px;
+  }
+  .site-nav-logo { height: 28px; }
+  .site-nav-tabs { gap: 0; overflow-x: auto; }
+  .site-nav-btn  { padding: 5px 10px; font-size: 12px; white-space: nowrap; }
+
+  /* --- Page heights adjust for shorter nav --- */
+  #page-home.active  { height: calc(100vh - 42px); }
+  #page-builder.active { height: calc(100vh - 42px); }
+  #page-qte.active   { height: calc(100vh - 42px); }
+
+  /* --- Home page --- */
+  .home-hero { padding: 32px 16px 28px; }
+  .home-title { font-size: 36px; }
+  .home-hero-logo { width: 110px; }
+  .home-subtitle { font-size: 14px; }
+  .home-features { grid-template-columns: 1fr; padding: 0 12px; gap: 10px; margin-bottom: 32px; }
+  .home-section-label { padding: 0 12px; }
+
+  /* --- Builder inner tabbar --- */
+  .tabbar { justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab { padding: 10px 14px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+
+  /* --- Builder content area --- */
+  .content { padding: 8px 10px; }
+
+  /* --- Build tab: stack columns vertically --- */
+  .stats-columns {
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+  }
+  .stats-left {
+    width: 100%;
+    max-width: 100%;
+  }
+  /* Stats right (moves list etc.) fills full width */
+  .stats-right, .info-columns, .info-right, .info-left {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+  /* Dmg calc and gear panels scroll horizontally if needed */
+  .panel.active { overflow-x: auto; }
+
+  /* --- QTE page --- */
+  #page-qte.active {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #qte-tabbar { justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; flex-shrink: 0; }
+  #qte-tabbar .tab { padding: 9px 12px; font-size: 12px; flex-shrink: 0; }
+
+  .qte-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .qte-panel   { padding: 8px 0; }
+
+  /* QTE wraps fill screen width */
+  .dagger-qte-wrap,
+  .spear-qte-wrap,
+  .sword-qte-wrap,
+  .dodge-qte-wrap,
+  .axe-qte-wrap,
+  .hammer-qte-wrap,
+  .fist-qte-wrap,
+  .staff-qte-wrap {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+  }
+
+  /* Canvases fill full width */
+  .dagger-qte-canvas,
+  .spear-qte-canvas,
+  #sword-qte-canvas,
+  #dodge-qte-canvas,
+  .hammer-qte-canvas,
+  #axe-qte-canvas,
+  #staff-qte-canvas {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block;
+  }
+
+  /* Staff QTE canvas min-height reduced for mobile */
+  .staff-qte-wrap { min-height: auto; }
+
+  /* Fist D-pad bigger touch targets on mobile */
+  .fist-dpad-btn { width: 72px; height: 72px; font-size: 28px; }
+
+  /* QTE watermark hidden on mobile (saves space) */
+  .qte-logo-watermark, .builder-logo-watermark { display: none; }
+}
