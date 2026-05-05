@@ -5620,8 +5620,8 @@ function getActiveDmgMult() {
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
     else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
-    else if (p.bonusType === 'per-debuff-target') { mult *= Math.pow(1 + p.perDebuffVal / 100, shatteringDebuffCount); return; }
-    else if (p.bonusType === 'per-debuff-self')   { mult *= Math.pow(1 + p.perDebuffVal / 100, reversingDebuffCount); return; }
+    else if (p.bonusType === 'per-debuff-target') bonus = p.perDebuffVal * shatteringDebuffCount;
+    else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
     else if (p.bonusType === 'conditional-hp-above') { if (shardToggleActive.striking)  bonus = p.bonus; else return; }
     else if (p.bonusType === 'conditional-hp-below') { if (shardToggleActive.executing) bonus = p.bonus; else return; }
     else bonus = p.bonus;
@@ -5848,8 +5848,6 @@ function renderDmgBonusSection() {
                          : isBoreas      ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
                          : isHourglass   ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
                          : isOppression  ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
-                         : p.bonusType === 'per-debuff-target' ? `×${Math.pow(1 + (p.perDebuffVal ?? p.bonus) / 100, shatteringDebuffCount).toFixed(2)}`
-                         : p.bonusType === 'per-debuff-self'   ? `×${Math.pow(1 + (p.perDebuffVal ?? p.bonus) / 100, reversingDebuffCount).toFixed(2)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
