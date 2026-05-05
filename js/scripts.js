@@ -309,7 +309,7 @@ const armourItems = {
     // Also grants: +15% Dark Armor, +15% Hex Armor, +10% Holy Armor, +10% Ice Armor, +10% Fire Armor, +10% Physical Armor
   },
   "Deathmantle": {
-    cost: 0,
+    cost: 3000,
     endFlat: 25,
     pct: { end: 2.5, arc: 10 }
     // Also grants: +10% Magic Armor, +5% Physical Armor, +10% Ice Armor, +15% Holy Armor, +20% Dark Armor
