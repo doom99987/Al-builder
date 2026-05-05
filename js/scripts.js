@@ -7267,19 +7267,35 @@ function drawMasteryLines() {
 }
 
 // --- Tabs ---
-const tabs   = document.querySelectorAll("#page-builder .tabbar .tab");
-const panels = document.querySelectorAll(".panel");
+const tabs      = document.querySelectorAll("#page-builder .tabbar .tab");
+const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary"];
 
 function _switchBuilderTab(target) {
   if (!target) return;
+
+  // Hide every panel by inline style — no CSS class fighting
+  panelIds.forEach(id => {
+    const p = document.getElementById(id);
+    if (p) p.style.display = "none";
+  });
+
+  // Show only the target
+  const targetPanel = document.getElementById(target);
+  if (targetPanel) targetPanel.style.display = "flex";
+
+  // Reset content scroll so the new panel is visible from the top-left
+  const content = document.querySelector("#page-builder .content");
+  if (content) { content.scrollLeft = 0; content.scrollTop = 0; }
+
+  // Tab button highlight
   tabs.forEach(t => t.classList.remove("active"));
-  panels.forEach(p => p.classList.remove("active"));
   const clickedTab = [...tabs].find(t => t.dataset.tab === target);
   if (clickedTab) clickedTab.classList.add("active");
-  const targetPanel = document.getElementById(target);
-  if (targetPanel) targetPanel.classList.add("active");
+
+  // Contenteditable toggle
   const summaryTA = document.getElementById('summary-textarea');
   if (summaryTA) summaryTA.contentEditable = target === 'summary' ? 'true' : 'false';
+
   if (target === "mastery") renderMastery();
   if (target === "dmg-calc") renderDmgCalc();
 }
@@ -7288,17 +7304,16 @@ tabs.forEach(tab => {
   const target = tab.dataset.tab;
   if (!target) return;
 
-  // touchend fires before click — call switchTab immediately and prevent the
-  // subsequent click so it doesn't double-fire. This fixes mobile: click events
-  // are suppressed by the browser when the tab is inside a scrollable container.
   tab.addEventListener("touchend", e => {
     e.preventDefault();
     _switchBuilderTab(target);
   }, { passive: false });
 
-  // click handles desktop (and mobile browsers where touchend isn't triggered)
   tab.addEventListener("click", () => _switchBuilderTab(target));
 });
+
+// Init: hide all panels, show only the active one
+_switchBuilderTab("stats");
 
 // === BUILD SHARE ===
 
