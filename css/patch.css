@@ -1986,3 +1986,54 @@ h2 {
   /* D-pad */
   .fist-dpad-btn { width: 74px; height: 74px; font-size: 30px; }
 }
+
+/* Mobile action buttons for Axe (TAP) and Hammer (HOLD) */
+.qte-mobile-action-btn {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  padding: 22px 0;
+  margin: 14px auto 0;
+  font-family: "Rajdhani", Arial, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  background: #131a2e;
+  border: 2px solid #3a5a9a;
+  border-radius: 12px;
+  color: #7aacee;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.qte-mobile-action-btn:active,
+.qte-mobile-action-btn.active {
+  background: #1e3a6a;
+  color: #ffffff;
+  border-color: #66aaee;
+}
+.qte-mobile-hold-btn {
+  background: #1a1a2e;
+  border-color: #5a3a9a;
+  color: #b090ee;
+}
+.qte-mobile-hold-btn:active,
+.qte-mobile-hold-btn.active {
+  background: #3a1a6a;
+  color: #ffffff;
+  border-color: #9966ee;
+}
+
+@media (max-width: 768px) {
+  /* Mobile action buttons inside QTE wraps */
+  .qte-mobile-action-btn {
+    max-width: 100%;
+    padding: 20px 0;
+    font-size: 24px;
+    margin-top: 12px;
+    flex-shrink: 0;
+  }
+}

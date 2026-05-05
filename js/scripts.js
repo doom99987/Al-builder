@@ -8007,9 +8007,9 @@ function autoSave() {
   let lastMissGuard = 0;
   let pauseTime     = 0;
 
-  // Circle constants
-  const INNER_R       = 52;
-  const OUTER_R_START = INNER_R * 2.2;
+  // Circle constants — INNER_R is updated in resizeCanvas for mobile
+  let INNER_R         = 52;
+  let OUTER_R_START   = INNER_R * 2.2;
   const HIT_TOLERANCE = 14;
   const FADE_MS       = 280;
 
@@ -8036,8 +8036,13 @@ function autoSave() {
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     if (!wrap) return;
-    canvas.width  = Math.min(wrap.clientWidth - 40 || 800, 900);
-    canvas.height = Math.min(Math.round(canvas.width * 0.38), 340);
+    canvas.width = Math.min(wrap.clientWidth - 24 || 800, 900);
+    const tall = IS_MOBILE || canvas.width < 480;
+    canvas.height = tall
+      ? Math.min(Math.round(canvas.width * 0.65), 400)
+      : Math.min(Math.round(canvas.width * 0.38), 340);
+    INNER_R      = Math.min(52, Math.round(canvas.height * 0.26));
+    OUTER_R_START = INNER_R * 2.2;
   }
 
   // ---- spawn ----
@@ -8323,8 +8328,11 @@ function autoSave() {
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     if (!wrap) return;
-    canvas.width  = Math.min(wrap.clientWidth - 40 || 800, 900);
-    canvas.height = Math.min(Math.round(canvas.width * 0.38), 340);
+    canvas.width  = Math.min(wrap.clientWidth - 24 || 800, 900);
+    const tall = IS_MOBILE || canvas.width < 480;
+    canvas.height = tall
+      ? Math.min(Math.round(canvas.width * 0.55), 300)
+      : Math.min(Math.round(canvas.width * 0.38), 340);
     computeLayout();
   }
 
@@ -8352,7 +8360,7 @@ function autoSave() {
       bars.push({ x: xPos, stopped: false, inZone: false });
       xPos -= BAR_MIN_GAP + Math.random() * (BAR_MAX_GAP - BAR_MIN_GAP);
     }
-    setStatus('Press SPACE to stop each bar in the zone!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap to stop each bar in the zone!' : 'Press SPACE to stop each bar in the zone!', '#aaaaff');
   }
 
   function drawFrame() {
@@ -8487,7 +8495,7 @@ function autoSave() {
     running  = true;
     lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus('Press SPACE to stop each bar in the zone!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap to stop each bar in the zone!' : 'Press SPACE to stop each bar in the zone!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -8593,8 +8601,11 @@ function autoSave() {
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     if (!wrap) return;
-    canvas.width  = Math.min(wrap.clientWidth - 40 || 800, 900);
-    canvas.height = Math.min(Math.round(canvas.width * 0.38), 340);
+    canvas.width  = Math.min(wrap.clientWidth - 24 || 800, 900);
+    const tall = IS_MOBILE || canvas.width < 480;
+    canvas.height = tall
+      ? Math.min(Math.round(canvas.width * 0.55), 300)
+      : Math.min(Math.round(canvas.width * 0.38), 340);
     trackX = PAD;
     trackW = canvas.width - PAD * 2;
     trackY = canvas.height / 2 - TRACK_H / 2;
@@ -8603,7 +8614,7 @@ function autoSave() {
   function launchBar() {
     whiteX   = trackX;
     inFlight = true;
-    setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap when the bar hits the yellow!' : 'Press SPACE when the bar hits the yellow!', '#aaaaff');
   }
 
   function drawFrame() {
@@ -8715,7 +8726,7 @@ function autoSave() {
     if (resumeBtn) resumeBtn.style.display = 'none';
     animFrame = requestAnimationFrame(gameLoop);
     if (!inFlight) setTimeout(launchBar, 400);
-    else setStatus('Press SPACE when the bar hits the yellow!', '#aaaaff');
+    else setStatus(IS_MOBILE ? 'Tap when the bar hits the yellow!' : 'Press SPACE when the bar hits the yellow!', '#aaaaff');
   }
 
   document.addEventListener('keydown', e => {
@@ -8847,7 +8858,7 @@ function autoSave() {
     currentRing  = count - 1;
     roundEndTime = performance.now() + 8000;
     roundStart   = performance.now();
-    setStatus('Press SPACE when the arrow enters the gap!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap when the arrow enters the gap!' : 'Press SPACE when the arrow enters the gap!', '#aaaaff');
   }
 
   const EXPAND_MS = 220; // zoom-in animation duration
@@ -9023,7 +9034,7 @@ function autoSave() {
     paused = false; running = true;
     lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus('Press SPACE when the arrow enters the gap!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap when the arrow enters the gap!' : 'Press SPACE when the arrow enters the gap!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -9175,7 +9186,7 @@ function autoSave() {
   function startRound() {
     fillPct = 0; holding = false; releaseFlash = null; inSuccessDelay = false;
     randomiseZone();
-    setStatus('Hold SPACE to charge, release in the box!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Hold button to charge, release in the box!' : 'Hold SPACE to charge, release in the box!', '#aaaaff');
     drawFrame();
   }
 
@@ -9271,6 +9282,34 @@ function autoSave() {
       holding = false;
       onRelease();
     }, { passive: false });
+
+    // Dedicated HOLD button
+    const hammerHoldBtn = document.createElement('button');
+    hammerHoldBtn.className = 'qte-mobile-action-btn qte-mobile-hold-btn';
+    hammerHoldBtn.textContent = 'HOLD';
+    hammerHoldBtn.style.display = 'none';
+    hammerHoldBtn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      if (!running || paused) return;
+      holding = true;
+      hammerHoldBtn.classList.add('active');
+    }, { passive: false });
+    hammerHoldBtn.addEventListener('touchend', e => {
+      e.preventDefault();
+      hammerHoldBtn.classList.remove('active');
+      if (!running || paused || !holding) return;
+      holding = false;
+      onRelease();
+    }, { passive: false });
+    canvas.parentElement.appendChild(hammerHoldBtn);
+    new MutationObserver(() => {
+      if (canvas.style.display === 'none') {
+        hammerHoldBtn.style.display = 'none';
+        hammerHoldBtn.classList.remove('active');
+      } else {
+        hammerHoldBtn.style.display = '';
+      }
+    }).observe(canvas, { attributes: true, attributeFilter: ['style'] });
   }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
@@ -9425,7 +9464,7 @@ function autoSave() {
     releaseFlash = null;
     randomiseZone();
     roundEndTime = performance.now() + getTimer() * 1000;
-    setStatus('Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap to fill — land in the zone when time runs out!' : 'Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
     drawFrame();
   }
 
@@ -9508,7 +9547,7 @@ function autoSave() {
     // Restore the exact time remaining from before the pause
     roundEndTime = performance.now() + pauseTimeRemaining;
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus('Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
+    setStatus(IS_MOBILE ? 'Tap to fill — land in the zone when time runs out!' : 'Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -9521,6 +9560,17 @@ function autoSave() {
   });
   if (IS_MOBILE) {
     canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+
+    // Dedicated TAP button — synced to canvas visibility via MutationObserver
+    const axeTapBtn = document.createElement('button');
+    axeTapBtn.className = 'qte-mobile-action-btn';
+    axeTapBtn.textContent = 'TAP';
+    axeTapBtn.style.display = 'none';
+    axeTapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+    canvas.parentElement.appendChild(axeTapBtn);
+    new MutationObserver(() => {
+      axeTapBtn.style.display = canvas.style.display === 'none' ? 'none' : '';
+    }).observe(canvas, { attributes: true, attributeFilter: ['style'] });
   }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
