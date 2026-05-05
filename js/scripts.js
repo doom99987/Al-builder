@@ -2,6 +2,8 @@
 var _AUTO_SAVE_KEY = 'alb:autosave';
 var _autoSaveTimer = null;
 
+const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
+
 // === GLOBAL DMGCALC STATE (must be early so updatePecents() can reference before dmg-calc section) ===
 var crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
 
@@ -7939,6 +7941,41 @@ function autoSave() {
     }
   };
 
+  // Mobile D-pad
+  if (IS_MOBILE) {
+    const dpad = document.createElement('div');
+    dpad.className = 'fist-dpad';
+    dpad.innerHTML =
+      '<div class="fist-dpad-row"><button class="fist-dpad-btn" data-key="ArrowUp">↑</button></div>' +
+      '<div class="fist-dpad-row">' +
+        '<button class="fist-dpad-btn" data-key="ArrowLeft">←</button>' +
+        '<button class="fist-dpad-btn" data-key="ArrowDown">↓</button>' +
+        '<button class="fist-dpad-btn" data-key="ArrowRight">→</button>' +
+      '</div>';
+    dpad.querySelectorAll('.fist-dpad-btn').forEach(btn => {
+      btn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        if (!started || lockout || paused) return;
+        const key = btn.dataset.key;
+        const expected = sequence[current];
+        const matched  = expected.keys.includes(key);
+        if (matched) {
+          flashBox(current, 'correct', () => {});
+          current++;
+          if (current === sequence.length) {
+            onSuccess();
+          } else {
+            const boxes = bar.querySelectorAll('.fist-arrow-box');
+            if (boxes[current]) boxes[current].classList.add('active');
+          }
+        } else {
+          onFail(key);
+        }
+      }, { passive: false });
+    });
+    bar.parentNode.insertBefore(dpad, bar.nextSibling);
+  }
+
   // Bar hidden until Start is pressed
   bar.innerHTML = '';
   setStatus('', '#888');
@@ -8153,12 +8190,12 @@ function autoSave() {
     animFrame = requestAnimationFrame(gameLoop);
   }
 
-  // ---- click handler ----
-  canvas.addEventListener('click', e => {
+  // ---- click / touch handler ----
+  function handleSpearHit(clientX, clientY) {
     if (!running) return;
     const rect = canvas.getBoundingClientRect();
-    const mx   = e.clientX - rect.left;
-    const my   = e.clientY - rect.top;
+    const mx   = clientX - rect.left;
+    const my   = clientY - rect.top;
     const now  = performance.now();
 
     for (let i = 0; i < circles.length; i++) {
@@ -8188,7 +8225,15 @@ function autoSave() {
       updateHighscore(streak);
       return;
     }
-  });
+  }
+  canvas.addEventListener('click', e => handleSpearHit(e.clientX, e.clientY));
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      handleSpearHit(t.clientX, t.clientY);
+    }, { passive: false });
+  }
 
   if (startBtn)  startBtn.addEventListener('click',  startGame);
   if (resumeBtn) resumeBtn.addEventListener('click',  resumeGame);
@@ -8453,6 +8498,9 @@ function autoSave() {
     e.preventDefault();
     onSpacePress();
   });
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+  }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
@@ -8677,6 +8725,9 @@ function autoSave() {
     e.preventDefault();
     onSpacePress();
   });
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+  }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
@@ -8983,6 +9034,9 @@ function autoSave() {
     e.preventDefault();
     onSpacePress();
   });
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+  }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
@@ -9205,6 +9259,19 @@ function autoSave() {
     holding = false;
     onRelease();
   });
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      if (!running || paused) return;
+      holding = true;
+    }, { passive: false });
+    canvas.addEventListener('touchend', e => {
+      e.preventDefault();
+      if (!running || paused || !holding) return;
+      holding = false;
+      onRelease();
+    }, { passive: false });
+  }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
@@ -9452,6 +9519,9 @@ function autoSave() {
     e.preventDefault();
     onSpacePress();
   });
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+  }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
@@ -9686,7 +9756,8 @@ function autoSave() {
   // ── mouse drag-and-drop ────────────────────────────────────
   function canvasPos(e) {
     var r = canvas.getBoundingClientRect();
-    return { x: (e.clientX - r.left) * (CW / r.width), y: (e.clientY - r.top) * (CH / r.height) };
+    var src = (e.touches && e.touches.length) ? e.touches[0] : (e.changedTouches && e.changedTouches.length) ? e.changedTouches[0] : e;
+    return { x: (src.clientX - r.left) * (CW / r.width), y: (src.clientY - r.top) * (CH / r.height) };
   }
 
   function hitTest(px, py, tx, ty) {
@@ -9751,6 +9822,43 @@ function autoSave() {
   canvas.addEventListener('mouseleave', function (e) {
     if (drag) { returnToBank(drag.tile); drag = null; }
   });
+
+  // Touch equivalents for drag-and-drop on mobile
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', function (e) {
+      e.preventDefault();
+      if (!running || !gameStarted) return;
+      var p = canvasPos(e);
+      for (var i = 0; i < bankTiles.length; i++) {
+        var t = bankTiles[i];
+        if (t.inBank && hitTest(p.x, p.y, t.x, t.y)) {
+          t.inBank = false;
+          drag = { tile: t, curX: p.x, curY: p.y };
+          return;
+        }
+      }
+      for (var j = 0; j < slots.length; j++) {
+        var s = slots[j];
+        if (s.filledTile && hitTest(p.x, p.y, s.x, s.y)) {
+          var tile = s.filledTile;
+          s.filledTile = null;
+          tile.inBank = false;
+          drag = { tile: tile, curX: p.x, curY: p.y };
+          return;
+        }
+      }
+    }, { passive: false });
+    canvas.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      if (!drag) return;
+      var p = canvasPos(e);
+      drag.curX = p.x; drag.curY = p.y;
+    }, { passive: false });
+    canvas.addEventListener('touchend', function (e) {
+      e.preventDefault();
+      dropDrag(e);
+    }, { passive: false });
+  }
 
   // ── start / resume ─────────────────────────────────────────
   function startGame() {
