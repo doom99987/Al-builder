@@ -1710,3 +1710,7 @@ h2 {
   transform: translate(-50%, -50%);
   z-index: 2;
 }
+
+.gear-sub-header {
+  border-top: none;
+}
