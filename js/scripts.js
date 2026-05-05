@@ -441,7 +441,7 @@ function updatePecents() {
     const isCritStat = stat === "crit-chance" || stat === "crit-dmg";
     const val = isCritStat ? totalLck : allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
     const base = calcPercentage(stat, val);
-    const armourStatPct = (stat === 'str' || stat === 'arc') ? 0 : (armourPct[stat] ?? 0);
+    const armourStatPct = armourPct[stat] ?? 0;
     const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
     let display;
     if (base === "—") {
@@ -3202,7 +3202,7 @@ const classMoves = {
         quote: "",
         cost: 3,
         cooldown: 5,
-        moveType: "Physical",
+        moveType: "Fire",
         category: "Attack",
         damage: 15,
         scaling: "STR",
@@ -5367,9 +5367,10 @@ function toggleDmgDetail(rowEl, idx) {
     const effectiveMoveType = getEffectiveMoveType(m.moveType);
     const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
     const darkMult          = getShardOfBlightMult(effectiveMoveType);
+    const blizzardMult      = getBlizzardMult(effectiveMoveType);
     const energyMult        = 1 + energyBonus / 100;
     const armourMult        = 1 + armourDmgPct / 100;
-    const totalMult         = activeMult * energyMult * armourMult * darkMult;
+    const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult;
     const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
     let formula; let currentDmg;
     if (totalMult > 1) {
@@ -5412,9 +5413,10 @@ function toggleDmgDetail(rowEl, idx) {
   const effectiveMoveType = getEffectiveMoveType(m.moveType);
   const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
   const darkMult          = getShardOfBlightMult(effectiveMoveType);
+  const blizzardMult      = getBlizzardMult(effectiveMoveType);
   const energyMult        = 1 + energyBonus / 100;
   const armourMult        = 1 + armourDmgPct / 100;
-  const totalMult         = activeMult * energyMult * armourMult * darkMult;
+  const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult;
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
@@ -5456,6 +5458,8 @@ function parseDmgBonus(text) {
   if (/\bfor\s+do[t]\b|\bdo[t]\s+(?:effects?|damage)\b|\bdamage\s+over\s+time\b/i.test(text)) return null;
   // Exclude per-energy bonuses (Corealloy) — handled separately by energy system
   if (/\bper\s+energy\b/i.test(text)) return null;
+  // Exclude damage reduction (defensive effect, not a dmg buff)
+  if (/\bdamage\s+reduction\b/i.test(text)) return null;
   const patterns = [
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+buff/i,
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+bonus/i,
@@ -5582,6 +5586,15 @@ function collectDmgBonusPassives() {
     }
   });
 
+  // Metrom's Grasp — show in dmg bonus when equipped (bypasses DoT filter)
+  if (lostScrollName === "Metrom's Grasp") {
+    const mgKey = "scroll-mg:Metrom's Grasp";
+    if (!seen.has(mgKey)) {
+      seen.add(mgKey);
+      rawEntries.push({ key: mgKey, name: "Metrom's Grasp", bonus: 40, kind: "buff", desc: "Grants 40% more damage for DoT effects over 5 turns." });
+    }
+  }
+
   // Shards — passive-dmg and conditional with DR applied
   getShardBonusEntries().forEach(entry => {
     const { name, drMult, rawVal, bonusType } = entry;
@@ -5663,13 +5676,16 @@ function getActiveDmgMult() {
   });
   if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);
   if (weirdAccessoryActive) mult *= 1.5;
-  const _mgEquipped = lostScrollPicker.value === "Metrom's Grasp";
   TEAM_BUFFS.forEach(b => {
     if (!teamBuffsActive[b.key]) return;
-    if (b.key === 'mg' && _mgEquipped) return;
+    if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
     mult *= b.mult;
   });
   return mult;
+}
+
+function getBlizzardMult(effectiveMoveType) {
+  return (teamBuffsActive.blizzard && effectiveMoveType === 'Ice') ? 1.20 : 1;
 }
 
 function toggleTeamBuff(key) {
@@ -5873,6 +5889,17 @@ function renderDmgBonusSection() {
 
   function renderBonusEntry(p, fullIdx) {
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
+    // MG passive locked when team buff MG is active
+    if (p.key === "scroll-mg:Metrom's Grasp" && teamBuffsActive.mg) {
+      const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
+      html += `<div class="dc-bonus-row" style="opacity:0.4;cursor:not-allowed" data-mg-locked title="Locked — team buff MG is active">
+        <div class="dc-bonus-check"></div>
+        <span class="dc-bonus-name">${p.name} <span style="font-size:11px">(team buff active)</span></span>
+        <span class="dc-bonus-badges">${badges}</span>
+        <span class="dc-bonus-pct">×1.40</span>
+      </div>`;
+      return;
+    }
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
     const isRageEmp      = p.name === "Rage Empower";
@@ -6046,15 +6073,16 @@ function renderDmgBonusSection() {
   html += `</div>`;
 
   // --- Team Buffs (always shown) ---
-  const mgEquipped = lostScrollPicker.value === "Metrom's Grasp";
-  if (mgEquipped && teamBuffsActive.mg) { teamBuffsActive.mg = false; }
+  const _mgPassiveActive = !!dmgBonusActive["scroll-mg:Metrom's Grasp"];
+  // If MG passive is active, ensure team buff MG stays off (and vice versa)
+  if (_mgPassiveActive && teamBuffsActive.mg) { teamBuffsActive.mg = false; }
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Team Buffs</h3><div class="dc-bonus-list">`;
   TEAM_BUFFS.forEach(b => {
-    const blocked = b.key === 'mg' && mgEquipped;
-    if (blocked) {
-      html += `<div class="dc-bonus-row" style="opacity:0.4;cursor:not-allowed" title="Already equipped as your scroll">
+    const blockedByPassive = b.key === 'mg' && _mgPassiveActive;
+    if (blockedByPassive) {
+      html += `<div class="dc-bonus-row" style="opacity:0.4;cursor:not-allowed" title="Locked — your scroll is already active">
         <div class="dc-bonus-check"></div>
-        <span class="dc-bonus-name">${b.label} <span style="font-size:11px">(equipped)</span></span>
+        <span class="dc-bonus-name">${b.label} <span style="font-size:11px">(scroll active)</span></span>
         <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
       </div>`;
       return;
@@ -6095,6 +6123,7 @@ function renderDmgBonusSection() {
     const p = dmgBonusPassives[+row.dataset.bidx];
     if (!p) return;
     row.addEventListener("click", () => {
+      if ('mgLocked' in row.dataset) return; // locked by team buff MG
       dmgBonusActive[p.key] = !dmgBonusActive[p.key];
       renderDmgBonusSection();
       recalcOpenDetails();
