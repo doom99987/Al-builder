@@ -7,6 +7,7 @@ const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coa
 // === GLOBAL DMGCALC STATE (must be early so updatePecents() can reference before dmg-calc section) ===
 var crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
 var frozenDiademIceActive = false; // Frozen Diadem: target has Cold/Ice status (+5% crit chance)
+var weirdAccessoryActive = false;
 
 // --- Race data ---
 // to add race: "Human": { str:, arc:, end:, spd:, lck: },
@@ -5624,6 +5625,7 @@ function getActiveDmgBonus() {
     return sum + p.bonus;
   }, 0);
   if (statusEffectsActive.overheat) total += overheatStacks * 8;
+  if (weirdAccessoryActive) total += 50;
   return total;
 }
 
@@ -5733,6 +5735,11 @@ function toggleFrozenDiademIce() {
 
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function toggleWeirdAccessory() {
+  weirdAccessoryActive = !weirdAccessoryActive;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -5977,6 +5984,15 @@ function renderDmgBonusSection() {
   });
   html += `</div>`;
 
+  // --- Accessories (always shown) ---
+  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Accessories</h3><div class="dc-bonus-list">`;
+  html += `<div class="dc-bonus-row${weirdAccessoryActive ? " dc-bonus-on" : ""}" data-acc-key="weird-accessory">
+    <div class="dc-bonus-check">${weirdAccessoryActive ? "✓" : ""}</div>
+    <span class="dc-bonus-name">Weird Accessory</span>
+    <span class="dc-bonus-pct">+50%</span>
+  </div>`;
+  html += `</div>`;
+
   container.innerHTML = html;
 
   document.getElementById("dmg-bonus-search")?.addEventListener("input", e => {
@@ -5991,6 +6007,10 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.shardToggle) {
       row.addEventListener("click", () => toggleShardCondition(row.dataset.shardToggle));
+      return;
+    }
+    if (row.dataset.accKey) {
+      row.addEventListener("click", () => toggleWeirdAccessory());
       return;
     }
     const p = dmgBonusPassives[+row.dataset.bidx];
@@ -7670,6 +7690,7 @@ function loadBuildState(state) {
   reversingDebuffCount = 1;
   crystalStarStacks = 0;
   frozenDiademIceActive = false;
+  weirdAccessoryActive = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
