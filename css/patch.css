@@ -1841,16 +1841,16 @@ h2 {
   .tabbar::-webkit-scrollbar { display: none; }
   .tab { padding: 9px 13px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 
-  /* Content area — scrolls both axes so 3-column layout is fully reachable */
+  /* Content scrolls both axes — build tab is 3 columns, swipe right to reach gear */
   .content {
-    padding: 10px 12px;
+    padding: 6px 8px;
     overflow-x: auto;
     overflow-y: auto;
     justify-content: flex-start;
     align-items: flex-start;
   }
 
-  /* Stats panel expands to its natural width so the 3 columns sit side by side */
+  /* Stats panel: natural width so columns sit side by side */
   #page-builder #stats {
     width: max-content;
     min-width: 100%;
@@ -1859,29 +1859,48 @@ h2 {
     align-items: flex-start;
   }
 
-  /* Stats columns — same row layout as desktop, no overrides */
-  .stats-columns { flex-direction: row; gap: 48px; align-items: flex-start; }
+  /* 3-column row layout, tighter gap and narrower columns to reduce height */
+  .stats-columns  { flex-direction: row; gap: 20px; align-items: flex-start; }
+  .marks-section  { width: 150px !important; gap: 2px !important; padding-top: 2px !important; }
+  .stats-left     { width: 300px !important; }
+  .gear-section   { gap: 12px !important; }
 
-  /* Section headers */
-  #page-builder .content h2 { font-size: 16px; margin-bottom: 8px; }
+  /* Compact headings */
+  #page-builder .content h2           { font-size: 13px; margin: 2px 0 4px; }
+  #page-builder .gear-sub-header      { margin: 2px 0 1px; padding-top: 3px; font-size: 13px; }
+  #page-builder .class-cost-note      { font-size: 10px; margin-top: -4px; margin-bottom: 3px; }
 
-  /* Level input */
-  #Lvl { font-size: 16px; padding: 6px 8px; width: 56px; }
+  /* Compact pickers */
+  #page-builder .gear-slot            { gap: 2px; margin-bottom: 5px; }
+  #page-builder .gear-label           { font-size: 11px; }
+  #page-builder .race-label           { font-size: 11px; }
+  #page-builder .race-row             { margin-bottom: 5px; gap: 6px; }
 
-  /* Stat boxes */
-  #page-builder .box { font-size: 17px; padding: 10px 18px; }
+  /* Shards compact */
+  .shards-grid   { gap: 2px !important; }
+  .shard-slot    { width: 140px !important; }
+  .shard-label   { font-size: 10px; }
 
-  /* Gear slot spacing */
-  #page-builder .gear-slot { gap: 6px; margin-bottom: 10px; }
+  /* Stat row compact */
+  #page-builder .stat-list            { gap: 4px; }
+  #page-builder .stat-name            { font-size: 12px; width: 40px; }
+  #page-builder .stat-btn             { width: 24px; height: 24px; font-size: 14px; }
+  #page-builder .stat-val             { width: 40px; font-size: 13px; }
+  #page-builder .stat-base,
+  #page-builder .stat-lvl-bonus,
+  #page-builder .stat-total           { font-size: 10px; width: 22px; }
+  #page-builder .stat-col-header-label{ font-size: 10px; }
 
-  /* Level input */
-  #Lvl { font-size: 16px; padding: 6px 8px; width: 56px; }
+  /* Stat boxes / level */
+  #page-builder .box                  { font-size: 13px; padding: 6px 10px; }
+  .box-row                            { margin-bottom: 6px; }
+  #Lvl                                { font-size: 13px; padding: 4px 6px; width: 46px; }
 
-  /* Stat boxes */
-  #page-builder .box { font-size: 17px; padding: 10px 18px; }
-
-  /* Gear slot spacing */
-  #page-builder .gear-slot { gap: 6px; margin-bottom: 10px; }
+  /* Percent bar compact */
+  .stat-percent   { gap: 4px; margin-top: 5px; }
+  .percent-item   { height: 26px; padding: 0 5px; min-width: 44px; }
+  .percent-val    { font-size: 8px; }
+  .percent-label  { font-size: 9px; }
 
   /* Info tab columns */
   .info-columns {
