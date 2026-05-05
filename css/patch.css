@@ -2177,6 +2177,29 @@ h2 {
 }
 
 /* ============================================================
+   DAGGER TAP BUTTON (mobile)
+   ============================================================ */
+.dagger-tap-btn {
+  margin-top: 12px;
+  padding: 18px 48px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: #2a2a4a;
+  color: #aaaaff;
+  border: 2px solid #5555aa;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.dagger-tap-btn:active {
+  background: #3a3a6a;
+  border-color: #8888cc;
+}
+
+/* ============================================================
    SUMMARY TAB
    ============================================================ */
 .summary-panel {

@@ -2123,7 +2123,7 @@ const scroll2Picker = document.getElementById("scroll-2");
 buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => {
   if (scroll1Picker.value && scroll1Picker.value === scroll2Picker.value) {
     scroll2Picker.value = '';
-    const d2 = scroll2Picker.previousElementSibling?.querySelector?.('.wpick-display');
+    const d2 = scroll2Picker.previousElementSibling?.querySelector('.wpick-display');
     if (d2) d2.textContent = '— None —';
   }
   renderMoves(); updatePecents();
@@ -2131,7 +2131,7 @@ buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => {
 buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => {
   if (scroll2Picker.value && scroll2Picker.value === scroll1Picker.value) {
     scroll1Picker.value = '';
-    const d1 = scroll1Picker.previousElementSibling?.querySelector?.('.wpick-display');
+    const d1 = scroll1Picker.previousElementSibling?.querySelector('.wpick-display');
     if (d1) d1.textContent = '— None —';
   }
   renderMoves(); updatePecents();
@@ -5795,6 +5795,7 @@ function renderDmgBonusSection() {
     </div>`;
   } else if (frozenDiademIceActive) {
     frozenDiademIceActive = false;
+    updatePecents();
   }
 
   if (dmgBonusPassives.length) {
@@ -7266,8 +7267,8 @@ function drawMasteryLines() {
 }
 
 // --- Tabs ---
-const tabs = document.querySelectorAll(".tab");
-const panels = document.querySelectorAll(".panel");
+const tabs   = document.querySelectorAll("#page-builder .tabbar .tab");
+const panels = document.querySelectorAll("#page-builder .content .panel");
 
 // On mobile: insert a flex line-break before the tabs so utility controls
 // (Reset / Name / Share) sit on row 1 and tabs scroll on row 2.
@@ -7285,6 +7286,7 @@ tabs.forEach(tab => {
   tab.addEventListener("click", () => {
 
     const target = tab.dataset.tab;
+    if (!target) return; // QTE tabs have data-qte, not data-tab — skip
 
     // remove active from all
     tabs.forEach(t => t.classList.remove("active"));
@@ -7292,7 +7294,13 @@ tabs.forEach(tab => {
 
     // activate clicked
     tab.classList.add("active");
-    document.getElementById(target).classList.add("active");
+    const targetPanel = document.getElementById(target);
+    if (targetPanel) targetPanel.classList.add("active");
+
+    // Disable contenteditable on summary when not active — prevents mobile
+    // touch/focus interference from the div even when the panel is hidden
+    const summaryTA = document.getElementById('summary-textarea');
+    if (summaryTA) summaryTA.contentEditable = target === 'summary' ? 'true' : 'false';
 
     if (target === "mastery") renderMastery();
     if (target === "dmg-calc") renderDmgCalc();
@@ -7661,6 +7669,7 @@ if (resetBuildBtn) {
   resetBuildBtn.addEventListener('click', () => {
     if (!confirm('Reset build? This will clear everything.')) return;
     try { localStorage.removeItem(_AUTO_SAVE_KEY); } catch (e) {}
+    frozenDiademIceActive = false;
     loadBuildState({ v: 1, lvl: 1, race: '', cls: '', sup: '', sub: '',
       str: 0, arc: 0, end: 0, spd: 0, lck: 0,
       mark: '', cov: '', covR: 1, ench: '', art: '',
@@ -8926,6 +8935,7 @@ function autoSave() {
   const avgEl     = document.getElementById('dagger-qte-avgtime');
   const startBtn  = document.getElementById('dagger-qte-start-btn');
   const resumeBtn = document.getElementById('dagger-qte-resume-btn');
+  const tapBtn    = document.getElementById('dagger-tap-btn');
 
   const HS_KEY  = 'alb:dagger-hs';
   const AVG_KEY = 'alb:dagger-avg';
@@ -9154,6 +9164,7 @@ function autoSave() {
     canvas.style.display = 'none';
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = 'none';
     setStatus('', '#888');
     if (timerEl) timerEl.textContent = '';
   }
@@ -9168,6 +9179,7 @@ function autoSave() {
     streakEl.textContent = '';
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn && IS_MOBILE) tapBtn.style.display = '';
     startRound();
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -9177,6 +9189,7 @@ function autoSave() {
     paused = false; running = true;
     lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn && IS_MOBILE) tapBtn.style.display = '';
     setStatus(IS_MOBILE ? 'Tap when the arrow enters the gap!' : 'Press SPACE when the arrow enters the gap!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -9190,10 +9203,12 @@ function autoSave() {
   });
   if (IS_MOBILE) {
     canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+    if (tapBtn) tapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
   }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+  if (tapBtn && IS_MOBILE) tapBtn.addEventListener('click', onSpacePress);
 
   window._onDaggerQteHide = function () {
     if (paused) return;
@@ -9209,12 +9224,14 @@ function autoSave() {
       canvas.style.display = '';
       if (resumeBtn) resumeBtn.style.display = '';
       if (startBtn)  startBtn.style.display  = 'none';
+      if (tapBtn)    tapBtn.style.display     = 'none';
       setStatus('Paused', '#888');
       drawFrame();
     } else {
       canvas.style.display = 'none';
       if (startBtn)  startBtn.style.display  = '';
       if (resumeBtn) resumeBtn.style.display = 'none';
+      if (tapBtn)    tapBtn.style.display    = 'none';
       setStatus('', '#888');
       streakEl.textContent = '';
     }
