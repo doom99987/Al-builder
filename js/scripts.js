@@ -437,7 +437,8 @@ function updatePecents() {
     const isCritStat = stat === "crit-chance" || stat === "crit-dmg";
     const val = isCritStat ? totalLck : allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
     const base = calcPercentage(stat, val);
-    const pctBonus = (armourPct[stat] ?? 0) + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
+    const armourStatPct = (stat === 'str' || stat === 'arc') ? 0 : (armourPct[stat] ?? 0);
+    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
     let display;
     if (base === "—") {
       display = "—";
@@ -5267,6 +5268,13 @@ function getCritDmgMult() {
   return isNaN(v) ? null : v;
 }
 
+function getArmourDmgTypePct(moveType) {
+  const pct = armourItems[armourPicker.value]?.pct || {};
+  if (moveType === 'Physical') return pct.str ?? 0;
+  if (moveType === 'Magic') return pct.arc ?? 0;
+  return 0;
+}
+
 function toggleDmgDetail(rowEl, idx) {
   const detail = rowEl.nextElementSibling;
   if (!detail || !detail.classList.contains("dc-detail")) return;
@@ -5308,13 +5316,14 @@ function toggleDmgDetail(rowEl, idx) {
   if (!scalings) {
     const activeBonus  = getActiveDmgBonus();
     const energyBonus  = getEnergyBonusPct(m);
-    const totalBonus   = activeBonus + energyBonus;
+    const armourDmgPct = getArmourDmgTypePct(m.moveType);
+    const totalBonus   = activeBonus + energyBonus + armourDmgPct;
     const bonusMult    = 1 + totalBonus / 100;
     const boosted      = baseDmgNum * bonusMult;
     let formula; let currentDmg;
     if (totalBonus > 0) {
       currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-      formula = `${baseDmgNum} × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
+      formula = `${baseDmgNum} × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus + armourDmgPct, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
       if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(2)}</b>`;
     } else {
       currentDmg = hitCount > 1 ? baseDmgNum * hitCount : baseDmgNum;
@@ -5348,7 +5357,8 @@ function toggleDmgDetail(rowEl, idx) {
 
   const activeBonus = getActiveDmgBonus();
   const energyBonus = getEnergyBonusPct(m);
-  const totalBonus  = activeBonus + energyBonus;
+  const armourDmgPct = getArmourDmgTypePct(m.moveType);
+  const totalBonus  = activeBonus + energyBonus + armourDmgPct;
   const bonusMult   = 1 + totalBonus / 100;
   const scalingStr  = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(2)}</b>`;
@@ -5356,7 +5366,7 @@ function toggleDmgDetail(rowEl, idx) {
   if (totalBonus > 0) {
     const boosted = dmgPerHit * bonusMult;
     currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-    formula += ` × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
+    formula += ` × ${bonusMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeBonus + armourDmgPct, energyBonus)}</span> = <b>${boosted.toFixed(2)}</b>`;
     if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(2)}</b>`;
   } else if (hitCount > 1) {
     currentDmg = totalDmg;
