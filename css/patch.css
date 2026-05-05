@@ -40,12 +40,11 @@ html, body {
   z-index: 100;
 }
 .site-nav-logo {
-  font-family: 'Rajdhani', Arial, sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  color: #fff;
-  letter-spacing: 1px;
+  height: 36px;
+  width: auto;
+  object-fit: contain;
   margin-right: 8px;
+  display: block;
 }
 .site-nav-tabs { display: flex; gap: 4px; }
 .site-nav-btn {
