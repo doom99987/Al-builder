@@ -1924,7 +1924,7 @@ const lostScrollItems = {
 const lostScrollMoves = {
   "Metrom's Grasp": {
     learns: [
-      { level: 1, type: "Active", name: "Metrom's Grasp", quote: "", cost: 5, cooldown: 18, moveType: "Magic", category: "Buff", duration: 5, effect: "Decreases opponents' defense by 40%, makes them harder to block/dodge. Grants 30% more damage for DoT effects over 5 turns." }
+      { level: 1, type: "Active", name: "Metrom's Grasp", quote: "", cost: 5, cooldown: 18, moveType: "Magic", category: "Buff", duration: 5, effect: "Decreases opponents' defense by 40%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns." }
     ]
   },
   "Absolute Radiance": {
@@ -2116,8 +2116,14 @@ buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { rend
 
 const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
-buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); }, null, isScrollHidden);
-buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => { renderMoves(); updatePecents(); }, null, isScrollHidden);
+buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => {
+  if (scroll1Picker.value && scroll1Picker.value === scroll2Picker.value) scroll2Picker.value = '';
+  renderMoves(); updatePecents();
+}, null, isScrollHidden);
+buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => {
+  if (scroll2Picker.value && scroll2Picker.value === scroll1Picker.value) scroll1Picker.value = '';
+  renderMoves(); updatePecents();
+}, null, isScrollHidden);
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
@@ -5209,6 +5215,7 @@ let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
 const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
+let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
@@ -5398,6 +5405,8 @@ const dmgBonusActive = {};
 
 function parseDmgBonus(text) {
   if (!text) return null;
+  // Exclude damage bonuses that apply only to DoT (poison/bleed/burn ticks, not hits)
+  if (/\bfor\s+do[t]\b|\bdo[t]\s+(?:effects?|damage)\b|\bdamage\s+over\s+time\b/i.test(text)) return null;
   const patterns = [
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+buff/i,
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+bonus/i,
@@ -5591,6 +5600,7 @@ function getActiveDmgBonus() {
     if (p.name === "Rage Empower") return sum + 30 + rageEmpHpConsumed;
     if (p.name === "Absolute Radiance") return sum + ABS_RAD_BONUSES[absRadTurn - 1];
     if (p.name === "Bulk Up") return sum + bulkUpStacks * 20;
+    if (p.name === "Frost Stacks") return sum + boreasStacks * 20;
     if (p.name === "Sands Of Time") return sum + hourglassStacks * 20;
     if (p.name === "Oppression") return sum + oppressionCount * 5;
     if (p.bonusType === 'per-debuff-target') return sum + p.perDebuffVal * shatteringDebuffCount;
@@ -5659,6 +5669,11 @@ function changeAbsRadTurn(delta) {
 
 function changeBulkUpStacks(delta) {
   bulkUpStacks = Math.min(10, Math.max(1, bulkUpStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeBoreasStacks(delta) {
+  boreasStacks = Math.min(10, Math.max(1, boreasStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -5781,11 +5796,13 @@ function renderDmgBonusSection() {
     const isBulkUp       = p.name === "Bulk Up";
     const isHourglass    = p.name === "Sands Of Time";
     const isOppression   = p.name === "Oppression";
+    const isBoreas       = p.name === "Frost Stacks";
     const displayBonus   = isRageEmp     ? 30 + rageEmpHpConsumed
                          : isAbsRad      ? ABS_RAD_BONUSES[absRadTurn - 1]
                          : isBulkUp      ? bulkUpStacks * 20
                          : isHourglass   ? hourglassStacks * 20
                          : isOppression  ? oppressionCount * 5
+                         : isBoreas      ? boreasStacks * 20
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
@@ -5819,6 +5836,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeBulkUpStacks(-1)">−</button>
           <span class="dc-energy-val">${bulkUpStacks}</span>
           <button class="dc-energy-btn" onclick="changeBulkUpStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isBoreas) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Frost Stacks (max 10)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeBoreasStacks(-1)">−</button>
+          <span class="dc-energy-val">${boreasStacks}</span>
+          <button class="dc-energy-btn" onclick="changeBoreasStacks(1)">+</button>
         </div>
       </div>`;
     }
