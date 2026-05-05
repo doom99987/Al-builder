@@ -1842,12 +1842,13 @@ h2 {
   .tab { padding: 9px 13px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 
   /* Content area */
-  .content { padding: 10px 12px; overflow-x: hidden; }
+  .content { padding: 10px 12px; overflow-x: auto; }
 
-  /* Build tab — stack columns vertically */
-  .stats-columns { flex-direction: column; gap: 14px; width: 100%; align-items: stretch; }
-  .stats-left { width: 100% !important; max-width: 100% !important; align-items: stretch; }
-  .stats-right { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  /* Build tab — keep side-by-side columns (same as desktop), scroll horizontally */
+  .stats-columns { flex-direction: row; gap: 16px; width: max-content; align-items: flex-start; }
+  .stats-left { width: 260px !important; min-width: 0 !important; }
+  .marks-section { width: 150px !important; min-width: 0 !important; }
+  .gear-section { min-width: 0 !important; }
 
   /* Section headers */
   #page-builder .content h2 { font-size: 16px; margin-bottom: 8px; }
