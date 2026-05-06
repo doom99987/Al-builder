@@ -4,6 +4,16 @@ var _autoSaveTimer = null;
 
 const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
+// === QTE LEADERBOARD HOOK — intercepts localStorage writes for QTE highscores ===
+(function () {
+  const _origSet = Storage.prototype.setItem;
+  Storage.prototype.setItem = function (key, value) {
+    _origSet.call(this, key, value);
+    const m = key.match(/^alb:([a-z]+)-hs$/);
+    if (m && window._sbSubmitScore) window._sbSubmitScore(m[1], parseInt(value, 10));
+  };
+})();
+
 // === GLOBAL DMGCALC STATE (must be early so updatePecents() can reference before dmg-calc section) ===
 var crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
 var frozenDiademIceActive = false; // Frozen Diadem: target has Cold/Ice status (+5% crit chance)
@@ -10136,7 +10146,7 @@ function autoSave() {
   function triggerSuccess() {
     running = false; drag = null;
     streak++;
-    if (streak > highscore) highscore = streak;
+    if (streak > highscore) { highscore = streak; if (window._sbSubmitScore) window._sbSubmitScore('staff', streak); }
     updateHUD();
     setStatus('Complete!', '#55e09a');
     drawFrame(); // render all slots green before the loop stops
