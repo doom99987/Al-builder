@@ -14,6 +14,7 @@
   // ---- state ----
   let currentUser    = null;
   let currentProfile = null; // { username }
+  let _authLock      = false; // prevents onAuthStateChange from overwriting during signUp
 
   // ---- profile helpers ----
   async function getProfile(userId) {
@@ -29,6 +30,7 @@
   }
 
   sb.auth.onAuthStateChange(async (_event, session) => {
+    if (_authLock) return;
     currentUser    = session?.user ?? null;
     currentProfile = currentUser ? await getProfile(currentUser.id) : null;
     renderAuthBar();
@@ -41,24 +43,26 @@
     if (username.length > 20) throw new Error('Username must be 20 characters or fewer.');
     if (!/^[a-zA-Z0-9_\-]+$/.test(username)) throw new Error('Username: letters, numbers, _ and - only.');
 
-    const { data, error } = await sb.auth.signUp({ email, password });
-    console.log('[sb] signUp', { userId: data?.user?.id, hasSession: !!data?.session, err: error?.message });
-    if (error) throw new Error(error.message);
-    const user = data?.user;
-    if (!user) throw new Error('Registration failed — please try again.');
-    if (!data.session) throw new Error('Check your email to confirm your account, then log in.');
+    _authLock = true;
+    try {
+      const { data, error } = await sb.auth.signUp({ email, password });
+      if (error) throw new Error(error.message);
+      const user = data?.user;
+      if (!user) throw new Error('Registration failed — please try again.');
+      if (!data.session) throw new Error('Check your email to confirm your account, then log in.');
 
-    const { error: pe } = await sb.from('profiles').insert({ id: user.id, username });
-    console.log('[sb] profile insert', { err: pe?.message });
-    if (pe) {
-      // Unique username violation
-      if (pe.code === '23505') throw new Error('Username already taken.');
-      throw new Error(pe.message);
+      const { error: pe } = await sb.from('profiles').insert({ id: user.id, username });
+      if (pe) {
+        if (pe.code === '23505') throw new Error('Username already taken.');
+        throw new Error(pe.message);
+      }
+
+      currentUser    = user;
+      currentProfile = { username };
+      renderAuthBar();
+    } finally {
+      _authLock = false;
     }
-
-    currentUser    = user;
-    currentProfile = { username };
-    renderAuthBar();
   }
 
   // ---- sign in ----
@@ -363,7 +367,6 @@
     const email = (document.getElementById('sb-email')?.value || '').trim();
     const pass  =  document.getElementById('sb-pass')?.value  || '';
     const uname = (document.getElementById('sb-uname')?.value || '').trim();
-    console.log('[sb] submitAuth', mode, { email, uname, passLen: pass.length });
     if (!email || !pass) { if (errEl) errEl.textContent = 'Fill in all fields.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
@@ -375,7 +378,6 @@
       closeModal();
     } catch (e) {
       const msg = e.message || 'Something went wrong.';
-      console.error('[sb] auth error:', msg);
       if (errEl) {
         errEl.textContent = msg;
         errEl.style.color = msg.startsWith('Account created') ? '#88ee88' : '#ff8888';
