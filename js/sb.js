@@ -67,8 +67,14 @@
     if (error) throw new Error(error.message);
     currentUser    = data.user;
     currentProfile = await getProfile(data.user.id);
+    // Profile missing — create one from email prefix
+    if (!currentProfile) {
+      const username = email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
+      await sb.from('profiles').insert({ id: data.user.id, username });
+      currentProfile = { username };
+    }
     renderAuthBar();
-    return currentProfile?.username;
+    return currentProfile.username;
   }
 
   // ---- sign out ----
