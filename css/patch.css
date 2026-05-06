@@ -2406,3 +2406,151 @@ h2 {
 .sb-lb-me td { color: #aaffaa; font-weight: 600; }
 .sb-lb-table td:first-child { text-align: center; width: 28px; }
 .sb-lb-table td:last-child  { text-align: right; }
+
+/* ---- Profile avatar (nav bar) ---- */
+.sb-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition: opacity 0.15s, transform 0.12s;
+  letter-spacing: 0;
+}
+.sb-avatar:hover { opacity: 0.85; transform: scale(1.07); }
+
+/* ---- Profile dropdown menu ---- */
+.sb-profile-menu {
+  position: fixed;
+  background: #1a1a2e;
+  border: 1px solid #3a3a6a;
+  border-radius: 10px;
+  min-width: 190px;
+  z-index: 9100;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  overflow: hidden;
+  padding: 0;
+}
+
+.sb-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+}
+
+.sb-menu-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sb-menu-name {
+  font-weight: 700;
+  color: #ccccff;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-menu-divider {
+  height: 1px;
+  background: #252540;
+  margin: 0;
+}
+
+.sb-menu-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 11px 16px;
+  color: #aaa;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.sb-menu-item:hover { background: #242448; color: #ddd; }
+.sb-menu-item-danger { color: #ff9999; }
+.sb-menu-item-danger:hover { background: #2a1a1a; color: #ffbbbb; }
+
+/* ---- Settings modal extras ---- */
+.sb-field-label {
+  font-size: 11px;
+  color: #666;
+  margin: 0 0 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.sb-btn-full {
+  width: 100%;
+  padding: 9px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ---- Avatar image (inside circle) ---- */
+.sb-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.sb-avatar { position: relative; overflow: hidden; }
+
+/* ---- Avatar upload in settings ---- */
+.sb-avatar-upload-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sb-avatar-upload-label {
+  position: relative;
+  cursor: pointer;
+  display: inline-block;
+  border-radius: 50%;
+}
+.sb-avatar-upload-label:hover .sb-avatar-cam { opacity: 1; }
+
+.sb-avatar-cam {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  opacity: 0;
+  transition: opacity 0.18s;
+  pointer-events: none;
+}
+
+.sb-avatar-hint {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+}
