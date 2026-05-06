@@ -38,6 +38,13 @@
         || currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
       renderAuthBar();
+      // Load full profile from DB to get avatar_url and saved username
+      getProfile(currentUser.id).then(profile => {
+        if (profile && currentUser) {
+          currentProfile = profile;
+          renderAuthBar();
+        }
+      });
     } else {
       currentProfile = null;
       renderAuthBar();
@@ -80,12 +87,14 @@
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
       if (error) throw new Error(error.message);
       currentUser    = data.user;
-      // Get username from auth metadata (set during signUp) — no DB query needed
       const username = data.user.user_metadata?.username
         || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
       renderAuthBar();
       clearLocalScores();
+      // Load full profile to get avatar_url
+      const profile = await getProfile(currentUser.id);
+      if (profile) { currentProfile = profile; renderAuthBar(); }
     } finally {
       _authLock = false;
     }
@@ -121,12 +130,16 @@
   async function fetchLeaderboard(qteType) {
     const { data, error } = await sb
       .from('leaderboard')
-      .select('score, profiles(username)')
+      .select('score, profiles(username, avatar_url)')
       .eq('qte_type', qteType)
       .order('score', { ascending: false })
       .limit(10);
     if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
-    return (data || []).map(r => ({ username: r.profiles?.username || '???', score: r.score }));
+    return (data || []).map(r => ({
+      username:   r.profiles?.username   || '???',
+      avatar_url: r.profiles?.avatar_url || null,
+      score:      r.score,
+    }));
   }
 
   // ---- fetch the current user's rank for a QTE ----
@@ -585,7 +598,7 @@
       <tbody>${rows.map((r, i) => `
         <tr${myName === r.username ? ' class="sb-lb-me"' : ''}>
           <td>${i + 1}</td>
-          <td>${esc(r.username)}</td>
+          <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22)}<span>${esc(r.username)}</span></div></td>
           <td><b>${r.score}</b></td>
         </tr>`).join('')}
       </tbody>
@@ -611,7 +624,7 @@
         ? rows.map((r, i) => `
             <tr${myName && myName === r.username ? ' class="sb-lb-me"' : ''}>
               <td class="all-lb-rank">${i + 1}</td>
-              <td class="all-lb-name">${esc(r.username)}</td>
+              <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20)}<span>${esc(r.username)}</span></div></td>
               <td class="all-lb-score"><b>${r.score}</b></td>
             </tr>`).join('')
         : `<tr><td colspan="3" class="all-lb-empty">No scores yet</td></tr>`;
