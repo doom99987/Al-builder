@@ -61,15 +61,14 @@
       email, password,
       options: { data: { username } }
     });
+    console.log('[sb] signUp result', { user: data?.user?.id, session: !!data?.session, error: error?.message });
     if (error) throw new Error(error.message);
     const user = data?.user;
     if (!user) throw new Error('Registration failed — please try again.');
 
-    // Try to insert profile — may fail if email confirmation is on (user not authed yet),
-    // in that case the trigger or post-login flow will handle it.
     if (data.session) {
-      // Authenticated immediately (email confirmation disabled)
       const { error: pe } = await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+      console.log('[sb] profile upsert', { error: pe?.message });
       if (pe) throw new Error('Profile save failed: ' + pe.message);
       currentUser    = user;
       currentProfile = { username };
@@ -385,6 +384,7 @@
     const email = (document.getElementById('sb-email')?.value || '').trim();
     const pass  =  document.getElementById('sb-pass')?.value  || '';
     const uname = (document.getElementById('sb-uname')?.value || '').trim();
+    console.log('[sb] submitAuth', mode, { email, uname, passLen: pass.length });
     if (!email || !pass) { if (errEl) errEl.textContent = 'Fill in all fields.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
@@ -396,9 +396,12 @@
       closeModal();
     } catch (e) {
       const msg = e.message || 'Something went wrong.';
+      console.error('[sb] auth error:', msg);
       if (errEl) {
         errEl.textContent = msg;
-        errEl.style.color = msg.startsWith('Account created') ? '#88ee88' : '';
+        errEl.style.color = msg.startsWith('Account created') ? '#88ee88' : '#ff8888';
+      } else {
+        alert(msg);
       }
     } finally {
       if (!success && btn && btn.isConnected) {
