@@ -5822,6 +5822,13 @@ function hideDcTooltip() {
   if (_dcTooltip) _dcTooltip.style.display = "none";
 }
 
+// On mobile, mouseleave never fires so the tooltip gets stuck.
+// Close it whenever the user taps/clicks anywhere outside it.
+document.addEventListener('pointerdown', e => {
+  if (!_dcTooltip || _dcTooltip.style.display === 'none') return;
+  if (!_dcTooltip.contains(e.target)) hideDcTooltip();
+}, { capture: true });
+
 function changeEnergy(delta) {
   energyCount = Math.min(6, Math.max(0, energyCount + delta));
   renderDmgBonusSection(); recalcOpenDetails();
