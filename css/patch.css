@@ -1918,23 +1918,23 @@ h2 {
   .percent-label  { font-size: 9px; }
 
   /* === Mastery tree === */
-  /* Remove height+overflow constraints so the panel can scroll naturally */
   #mastery {
-    overflow: visible;
-    height: auto;
-    min-height: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
   }
   .mastery-wrap {
-    overflow: visible;
-    height: auto;
-    padding: 8px 12px;
-    align-items: center;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
   }
   .mastery-tree-container {
     flex: none;
+    min-width: max-content;
     overflow: visible;
   }
-  /* Keep zoom same as desktop (0.82) — tree fits ~347px wide on most phones */
 
   /* Info tab columns */
   .info-columns {
