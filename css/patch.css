@@ -1929,6 +1929,7 @@ h2 {
     overflow: auto;
     -webkit-overflow-scrolling: touch;
     padding: 8px;
+    align-items: flex-start;
   }
   .mastery-tree-container {
     flex: none;
