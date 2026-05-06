@@ -8381,13 +8381,13 @@ function autoSave() {
   // Circle constants — INNER_R is updated in resizeCanvas for mobile
   let INNER_R         = 52;
   let OUTER_R_START   = INNER_R * 2.2;
-  const HIT_TOLERANCE = 14;
+  const HIT_TOLERANCE = 22;
   const FADE_MS       = 280;
 
   // starts at 4, caps at 8
   function getMaxSimul()      { return Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return Math.max(650, 950 - streak * 4); }
-  function getSpawnInterval() { return Math.max(300, 900 - streak * 20); }
+  function getApproachMs()    { return Math.max(700, 1100 - streak * 2); }
+  function getSpawnInterval() { return Math.max(400, 1000 - streak * 10); }
 
   // ---- highscore ----
   function updateHighscore(val) {
@@ -8420,16 +8420,16 @@ function autoSave() {
   function spawnCircle(now) {
     const margin  = OUTER_R_START + 10;
     const minDist = INNER_R * 2 + 20;
-    let x, y, attempts = 0;
+    let x, y, attempts = 0, valid = false;
     do {
       x = margin + Math.random() * (canvas.width  - margin * 2);
       y = margin + Math.random() * (canvas.height - margin * 2);
       attempts++;
-    } while (
-      attempts < 30 &&
-      circles.some(c => Math.hypot(x - c.x, y - c.y) < minDist)
-    );
+      valid = !circles.some(c => Math.hypot(x - c.x, y - c.y) < minDist);
+    } while (!valid && attempts < 30);
+    if (!valid) return false; // no valid position found — skip this spawn
     circles.push({ x, y, spawnTime: now, duration: getApproachMs() });
+    return true;
   }
 
   // ---- draw ----
@@ -8525,8 +8525,8 @@ function autoSave() {
 
     // Spawn new circles
     if (now >= nextSpawn && circles.length < getMaxSimul()) {
-      spawnCircle(now);
-      nextSpawn = now + getSpawnInterval();
+      const spawned = spawnCircle(now);
+      nextSpawn = now + (spawned ? getSpawnInterval() : 120);
     }
 
     drawFrame(now);
