@@ -2418,8 +2418,11 @@ h2 {
 }
 .sb-lb-table tr:last-child td { border-bottom: none; }
 .sb-lb-me td { color: #aaffaa; font-weight: 600; }
+.sb-lb-table th:first-child,
 .sb-lb-table td:first-child { text-align: center; width: 28px; }
+.sb-lb-table th:last-child,
 .sb-lb-table td:last-child  { text-align: right; }
+.sb-my-rank { margin: 10px 0 0; font-size: 13px; color: #aaffaa; text-align: center; }
 
 /* ---- Profile avatar (nav bar) ---- */
 .sb-avatar {

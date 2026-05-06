@@ -8722,10 +8722,10 @@ function autoSave() {
 
   let trackX, trackY, trackW, zoneX, zoneW;
 
-  function getSpeed()     { return IS_MOBILE ? Math.min(200 + streak * 8, 380) : Math.min(440 + streak * 14, 660); }
-  function getBarCount()  { return IS_MOBILE ? Math.min(2 + Math.floor(streak / 3), 6) : Math.min(4 + Math.floor(streak / 2), 8); }
+  function getSpeed()     { return IS_MOBILE ? Math.min(160 + streak * 6, 320) : Math.min(300 + streak * 10, 520); }
+  function getBarCount()  { return IS_MOBILE ? Math.min(2 + Math.floor(streak / 4), 5) : Math.min(3 + Math.floor(streak / 3), 7); }
   function getZoneStart() { return 0.70; }
-  function getZoneWidth() { return IS_MOBILE ? Math.max(0.24 - streak * 0.008, 0.12) : 0.10; }
+  function getZoneWidth() { return IS_MOBILE ? Math.max(0.28 - streak * 0.007, 0.14) : Math.max(0.16 - streak * 0.004, 0.10); }
 
   function updateHighscore(v) {
     if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword', v); }
