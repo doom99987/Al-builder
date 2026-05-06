@@ -50,6 +50,7 @@ window._albPing = 0;
 // === GLOBAL DMGCALC STATE (must be early so updatePecents() can reference before dmg-calc section) ===
 var crystalStarStacks = 0; // 0-5: Crystallized Star LCK stacks (+10 LCK each)
 var frozenDiademIceActive = false; // Frozen Diadem: target has Cold/Ice status (+5% crit chance)
+var vasticLckProcActive = false;   // Vastic Glaive LCK proc: +80% crit chance for next attack
 var weirdAccessoryActive = false;
 
 // --- Race data ---
@@ -531,6 +532,9 @@ function updatePecents() {
     if (stat === "crit-chance" && frozenDiademIceActive && ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Frozen Diadem")) {
       display = Math.min(100, parseFloat(display) + 5).toFixed(1);
     }
+    if (stat === "crit-chance" && vasticLckProcActive) {
+      display = Math.min(100, parseFloat(display) + 80).toFixed(1);
+    }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
   });
@@ -548,6 +552,8 @@ function updatePecents() {
     totalEl.textContent = displayTotal || "";
   });
   autoSave();
+  renderDmgBonusSection();
+  recalcOpenDetails();
 }
 
 // Init
@@ -5382,6 +5388,21 @@ function getCritDmgMult() {
   return isNaN(v) ? null : v;
 }
 
+function getCritChancePct() {
+  const el = document.getElementById("crit-chance-pct");
+  if (!el) return null;
+  const v = parseFloat(el.textContent);
+  return isNaN(v) ? null : Math.min(100, Math.max(0, v));
+}
+
+// Expected total damage for a multi-hit move using binomial expectation:
+//   E[dmg] = totalDmg × (1 + p × (critMult − 1))
+// where p = crit chance fraction. Requires Crystal Sphere (no crit fatigue).
+function getExpectedMultiHitDmg(totalDmg, critMult, critChancePct) {
+  const p = critChancePct / 100;
+  return totalDmg * (1 + p * (critMult - 1));
+}
+
 function getArmourDmgTypePct(_moveType) {
   // Armour stat pcts (str/arc/spd) are now applied as stat multipliers in getTotalStat.
   return 0;
@@ -5474,7 +5495,14 @@ function toggleDmgDetail(rowEl, idx) {
       if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(1)}</b>`;
       formula += `</span>`;
     }
-    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_finalDmg0 * _critMult0).toFixed(1)}</b></span>`;
+    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_finalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_finalDmg0 * _critMult0).toFixed(1)}</b></span>`;
+    if (hitCount > 1 && _critMult0 !== null) {
+      const _cc0 = getCritChancePct();
+      if (_cc0 !== null) {
+        const _exp0 = getExpectedMultiHitDmg(_finalDmg0, _critMult0, _cc0);
+        formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc0.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp0.toFixed(1)}</b></span>`;
+      }
+    }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -5523,7 +5551,14 @@ function toggleDmgDetail(rowEl, idx) {
     if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(1)}</b>`;
     formula += `</span>`;
   }
-  if (_critMult !== null) formula += `<br><span class="dc-crit-line">Crit: <b>${_finalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_finalDmg * _critMult).toFixed(1)}</b></span>`;
+  if (_critMult !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_finalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_finalDmg * _critMult).toFixed(1)}</b></span>`;
+  if (hitCount > 1 && _critMult !== null) {
+    const _cc = getCritChancePct();
+    if (_cc !== null) {
+      const _exp = getExpectedMultiHitDmg(_finalDmg, _critMult, _cc);
+      formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
+    }
+  }
 
   detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
   detail.style.display = "block"; rowEl.classList.add("dc-row-open");
@@ -6215,6 +6250,55 @@ function renderDmgBonusSection() {
     html += `</div>`;
   }
 
+  // --- Vastic Procs (shown when Vastic Glaive equipped & STR or ARC is highest stat) ---
+  const _hasVasticGlaive = document.getElementById("weapon-main")?.value === "Vastic Glaive";
+  if (_hasVasticGlaive) {
+    const _vStr = getTotalStat("str");
+    const _vArc = getTotalStat("arc");
+    const _vEnd = getTotalStat("end");
+    const _vSpd = getTotalStat("spd");
+    const _vLck = getTotalStat("lck");
+    const _vMax = Math.max(_vStr, _vArc, _vEnd, _vSpd, _vLck);
+    const _strMajor = _vStr === _vMax;
+    const _arcMajor = _vArc === _vMax;
+
+    const _lckMajor = _vLck === _vMax;
+    // Reset LCK proc toggle if LCK is no longer the highest stat
+    if (!_lckMajor && vasticLckProcActive) { vasticLckProcActive = false; }
+
+    if (_strMajor || _arcMajor || _lckMajor) {
+      const _strBomb = 10 + Math.floor(_vStr / 40);
+      const _arcBomb = 10 + Math.floor(_vArc / 20);
+      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Vastic Procs</h3>
+      <div class="dc-bonus-list">`;
+
+      if (_strMajor) {
+        html += `<div class="dc-bonus-row dc-vastic-active" style="cursor:default">
+          <span class="dc-bonus-name" style="color:#f4a460">STR Bomb</span>
+          <span class="dc-bonus-pct" style="color:#f4a460"><b>${_strBomb}</b></span>
+        </div>
+        <div class="dc-vastic-formula">Base 10 + STR (${_vStr}) / 40</div>`;
+      }
+      if (_arcMajor) {
+        html += `<div class="dc-bonus-row dc-vastic-active" style="cursor:default">
+          <span class="dc-bonus-name" style="color:#9b7ae8">ARC Bomb</span>
+          <span class="dc-bonus-pct" style="color:#9b7ae8"><b>${_arcBomb}</b></span>
+        </div>
+        <div class="dc-vastic-formula">Base 10 + ARC (${_vArc}) / 20</div>`;
+      }
+      if (_lckMajor) {
+        html += `<div class="dc-bonus-row${vasticLckProcActive ? " dc-bonus-on" : ""}" data-vastic-lck style="cursor:pointer" title="Grants 80% crit chance on your next attack">
+          <div class="dc-bonus-check">${vasticLckProcActive ? "✓" : ""}</div>
+          <span class="dc-bonus-name" style="color:#ffd700">LCK Proc</span>
+          <span class="dc-bonus-pct" style="color:#ffd700">+80% Crit</span>
+        </div>
+        <div class="dc-vastic-formula">Adds 80% to crit chance for next attack</div>`;
+      }
+
+      html += `</div>`;
+    }
+  }
+
   // --- Team Buffs (always shown) ---
   const _mgPassiveActive = !!dmgBonusActive["scroll-mg:Metrom's Grasp"];
   // If MG passive is active, ensure team buff MG stays off (and vice versa)
@@ -6257,6 +6341,14 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.accKey) {
       row.addEventListener("click", () => toggleWeirdAccessory());
+      return;
+    }
+    if ('vasticLck' in row.dataset) {
+      row.addEventListener("click", () => {
+        vasticLckProcActive = !vasticLckProcActive;
+        renderDmgBonusSection();
+        updatePecents();
+      });
       return;
     }
     if (row.dataset.enchKey) {
