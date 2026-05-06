@@ -1401,6 +1401,20 @@ h2 {
   font-size: 14px;
 }
 
+.dc-expected-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #88ccaa;
+}
+.dc-expected-line b {
+  font-size: 14px;
+}
+.dc-expected-note {
+  font-size: 11px;
+  color: #667755;
+}
+
 /* ============================================================
    DMG BONUS SECTION
    ============================================================ */
@@ -2714,6 +2728,16 @@ h2 {
 .all-lb-rank { color: #666; width: 24px; }
 .all-lb-name { color: #ccc; }
 .all-lb-score { color: #e0d8c8; text-align: right; }
+
+.dc-vastic-active {
+  background: rgba(255,255,255,0.04);
+  border-left: 2px solid #666;
+}
+.dc-vastic-formula {
+  font-size: 11px;
+  color: #666;
+  padding: 1px 10px 6px;
+}
 
 .lb-player-cell {
   display: flex;
