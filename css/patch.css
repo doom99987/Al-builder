@@ -1916,6 +1916,28 @@ h2 {
   .percent-val    { font-size: 8px; }
   .percent-label  { font-size: 9px; }
 
+  /* === Mastery tree === */
+  /* Let the content area scroll instead of clipping the tree */
+  #mastery {
+    overflow: visible;
+    height: auto;
+  }
+  .mastery-wrap {
+    overflow: visible;
+    height: auto;
+    padding: 8px 12px;
+  }
+  .mastery-tree-container {
+    flex: none;
+    overflow: visible;
+    width: max-content;
+    margin: 0 auto;
+  }
+  .mastery-trunk,
+  .mastery-branches {
+    zoom: 0.58;
+  }
+
   /* Info tab columns */
   .info-columns {
     flex-direction: column !important;
