@@ -10199,38 +10199,36 @@ function autoSave() {
 
   // ── drawing ────────────────────────────────────────────────
   function drawTile(x, y, key, state) {
-    var bg, border, textCol, labelCol;
+    var textCol, labelCol;
     if (state === 'correct') {
-      bg = 'rgba(40,170,100,0.4)'; border = '#4de89a'; textCol = '#b0ffda'; labelCol = 'rgba(150,255,200,0.7)';
+      textCol = '#4de89a'; labelCol = 'rgba(150,255,200,0.7)';
     } else if (state === 'drag') {
-      bg = 'rgba(100,70,200,0.65)'; border = '#c8aaff'; textCol = '#fff'; labelCol = 'rgba(255,255,255,0.75)';
+      textCol = '#fff'; labelCol = 'rgba(255,255,255,0.75)';
     } else { // bank
-      bg = 'rgba(70,50,130,0.7)'; border = '#a888e8'; textCol = '#fff'; labelCol = 'rgba(220,200,255,0.8)';
+      textCol = '#e0d4ff'; labelCol = 'rgba(220,200,255,0.6)';
     }
-    ctx.fillStyle = bg;
-    ctx.beginPath(); ctx.roundRect(x, y, TW, TH, 7); ctx.fill();
-    ctx.strokeStyle = border; ctx.lineWidth = state === 'drag' ? 2.5 : 2; ctx.stroke();
     // rune glow
     ctx.shadowColor = state === 'correct' ? '#4de89a' : state === 'drag' ? '#c8aaff' : '#b090ff';
-    ctx.shadowBlur = 8;
-    ctx.fillStyle = textCol; ctx.font = '26px serif'; ctx.textAlign = 'center';
-    ctx.fillText(RUNE_MAP[key], x + TW / 2, y + TH * 0.74);
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = textCol; ctx.font = Math.round(TH * 0.78) + 'px serif'; ctx.textAlign = 'center';
+    ctx.fillText(RUNE_MAP[key], x + TW / 2, y + TH * 0.78);
     ctx.shadowBlur = 0;
-    // key label
-    ctx.fillStyle = labelCol; ctx.font = 'bold 10px Inter, sans-serif';
-    ctx.fillText(key, x + TW / 2, y + TH - 3);
   }
 
   function drawSlot(slot) {
     if (slot.filledTile) {
       drawTile(slot.x, slot.y, slot.filledTile.key, 'correct');
     } else {
-      // darkened slot with a readable dim rune hint
-      ctx.fillStyle = 'rgba(20,14,40,0.9)';
-      ctx.beginPath(); ctx.roundRect(slot.x, slot.y, TW, TH, 7); ctx.fill();
-      ctx.strokeStyle = 'rgba(140,105,200,0.6)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = 'rgba(180,150,220,0.38)'; ctx.font = '26px serif'; ctx.textAlign = 'center';
-      ctx.fillText(RUNE_MAP[slot.targetKey], slot.x + TW / 2, slot.y + TH * 0.74);
+      // empty slot — just a faint dashed outline with dim rune hint
+      ctx.strokeStyle = 'rgba(140,105,200,0.35)'; ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.roundRect(slot.x, slot.y, TW, TH, 7); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.shadowColor = '#b090ff'; ctx.shadowBlur = 4;
+      ctx.fillStyle = 'rgba(180,150,220,0.25)';
+      ctx.font = Math.round(TH * 0.78) + 'px serif'; ctx.textAlign = 'center';
+      ctx.fillText(RUNE_MAP[slot.targetKey], slot.x + TW / 2, slot.y + TH * 0.78);
+      ctx.shadowBlur = 0;
     }
   }
 
