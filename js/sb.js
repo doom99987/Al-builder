@@ -22,19 +22,19 @@
     return data || null;
   }
 
-  async function refreshSession() {
-    const { data: { user } } = await sb.auth.getUser();
-    currentUser    = user || null;
-    currentProfile = currentUser ? await getProfile(currentUser.id) : null;
-    renderAuthBar();
+  async function ensureProfile(user) {
+    // Trigger guarantees profile exists; upsert as fallback for pre-trigger accounts
+    const profile = await getProfile(user.id);
+    if (profile) return profile;
+    const username = user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
+    await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+    return await getProfile(user.id);
   }
 
   sb.auth.onAuthStateChange(async (_event, session) => {
-    console.log('[sb] authChange', _event, 'lock=', _authLock);
     if (_authLock) return;
     currentUser    = session?.user ?? null;
-    currentProfile = currentUser ? await getProfile(currentUser.id) : null;
-    console.log('[sb] authChange done', { user: !!currentUser, profile: !!currentProfile });
+    currentProfile = currentUser ? await ensureProfile(currentUser) : null;
     renderAuthBar();
   });
 
@@ -47,18 +47,17 @@
 
     _authLock = true;
     try {
-      const { data, error } = await sb.auth.signUp({ email, password });
+      // Pass username in metadata so the DB trigger creates the profile
+      const { data, error } = await sb.auth.signUp({
+        email, password,
+        options: { data: { username } }
+      });
       if (error) throw new Error(error.message);
       const user = data?.user;
       if (!user) throw new Error('Registration failed — please try again.');
       if (!data.session) throw new Error('Check your email to confirm your account, then log in.');
 
-      const { error: pe } = await sb.from('profiles').insert({ id: user.id, username });
-      if (pe) {
-        if (pe.code === '23505') throw new Error('Username already taken.');
-        throw new Error(pe.message);
-      }
-
+      // Profile is created by DB trigger — just set local state
       currentUser    = user;
       currentProfile = { username };
       renderAuthBar();
@@ -69,18 +68,9 @@
 
   // ---- sign in ----
   async function signIn(email, password) {
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
-    currentUser    = data.user;
-    currentProfile = await getProfile(data.user.id);
-    // Profile missing — create one from email prefix
-    if (!currentProfile) {
-      const username = email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
-      await sb.from('profiles').insert({ id: data.user.id, username });
-      currentProfile = { username };
-    }
-    renderAuthBar();
-    return currentProfile.username;
+    // onAuthStateChange handles setting currentUser/currentProfile and renderAuthBar
   }
 
   // ---- sign out ----
@@ -152,7 +142,6 @@
 
   // ---- auth bar ----
   function renderAuthBar() {
-    console.log('[sb] renderAuthBar', { user: !!currentUser, profile: currentProfile?.username });
     closeProfileMenu();
     const bar = document.getElementById('auth-bar');
     if (!bar) return;
@@ -439,6 +428,5 @@
   window._sendPasswordReset  = sendPasswordReset;
   window._uploadAvatar       = uploadAvatar;
 
-  // Boot
-  refreshSession();
+  // Boot: onAuthStateChange fires INITIAL_SESSION and handles session restoration
 })();
