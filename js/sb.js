@@ -15,6 +15,7 @@
   let currentUser    = null;
   let currentProfile = null; // { username }
   let _authLock      = false; // prevents onAuthStateChange from overwriting during signUp
+  let _dbScores      = {};   // { qteType: bestScore } — cached after login to avoid per-submission SELECT
 
   // ---- profile helpers ----
   async function getProfile(userId) {
@@ -70,6 +71,7 @@
       currentProfile = { username };
       renderAuthBar();
       clearLocalScores();
+      loadDbScores(); // populate cache so submitScore doesn't overwrite higher DB scores
     } finally {
       _authLock = false;
     }
@@ -88,11 +90,19 @@
       currentProfile = { username };
       renderAuthBar();
       clearLocalScores();
+      loadDbScores(); // populate cache so submitScore doesn't overwrite higher DB scores
       // Fetch full profile in background to get avatar_url
       getProfile(data.user.id).then(p => { if (p) { currentProfile = p; renderAuthBar(); } });
     } finally {
       _authLock = false;
     }
+  }
+
+  // ---- load user's DB scores into cache (called once after login) ----
+  async function loadDbScores() {
+    if (!currentUser) return;
+    const { data } = await sb.from('leaderboard').select('qte_type, score').eq('user_id', currentUser.id);
+    if (data) data.forEach(r => { _dbScores[r.qte_type] = r.score; });
   }
 
   // ---- clear local QTE scores (called on login/register) ----
@@ -105,20 +115,15 @@
   // ---- sign out ----
   async function signOut() {
     await sb.auth.signOut();
-    currentUser = null; currentProfile = null;
+    currentUser = null; currentProfile = null; _dbScores = {};
     renderAuthBar();
   }
 
   // ---- submit score (upsert personal best) ----
   async function submitScore(qteType, score) {
     if (!currentUser || !score) return;
-    const { data: existing } = await sb
-      .from('leaderboard')
-      .select('score')
-      .eq('user_id', currentUser.id)
-      .eq('qte_type', qteType)
-      .maybeSingle();
-    if (existing && existing.score >= score) return; // not a new personal best
+    if ((_dbScores[qteType] || 0) >= score) return; // cache says DB already has a better score
+    _dbScores[qteType] = score; // optimistically update cache
     await sb.from('leaderboard').upsert(
       { user_id: currentUser.id, qte_type: qteType, score, achieved_at: new Date().toISOString() },
       { onConflict: 'user_id,qte_type' }
