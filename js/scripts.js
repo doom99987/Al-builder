@@ -16,17 +16,20 @@ window._albPing = 0;
   }
 
   function intercept(type, e) {
+    if (e._albSynthetic) return;          // already delayed — let it through
     const ping = window._albPing || 0;
     if (ping <= 0 || !isQteActive()) return;
     if (!QTE_KEYS.has(e.code) && !['w','a','s','d','W','A','S','D'].includes(e.key)) return;
     e.stopImmediatePropagation();
     e.preventDefault();
     setTimeout(() => {
-      document.dispatchEvent(new KeyboardEvent(type, {
+      const ev = new KeyboardEvent(type, {
         key: e.key, code: e.code, keyCode: e.keyCode, which: e.which,
         shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
         bubbles: true, cancelable: true
-      }));
+      });
+      ev._albSynthetic = true;
+      document.dispatchEvent(ev);
     }, ping);
   }
 
