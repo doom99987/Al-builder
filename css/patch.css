@@ -21,9 +21,22 @@ html, body {
   height: 100%;
   overflow: hidden;
 }
+body {
+  display: flex;
+  flex-direction: column;
+}
+.site-nav { flex-shrink: 0; }
+
+/* Active pages fill whatever space remains after the nav bar */
+.site-page.active {
+  flex: 1;
+  min-height: 0;
+}
+
 #page-home.active {
   overflow-y: auto;
-  height: calc(100vh - 46px);
+  /* safe-area padding for iPhone home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* --- Top nav bar --- */
@@ -67,15 +80,14 @@ html, body {
 .site-page { display: none; }
 .site-page.active { display: block; }
 
-/* Builder page fills remaining viewport height */
+/* Builder page */
 #page-builder.active {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 46px);
 }
 #page-builder .app {
   flex: 1;
-  height: 100%;
+  min-height: 0;
 }
 
 
@@ -280,7 +292,6 @@ html, body {
 #page-qte.active {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 46px);
 }
 
 .qte-content {
@@ -723,7 +734,6 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 46px);
   gap: 12px;
 }
 .wip-title {
@@ -1024,16 +1034,31 @@ h2 {
   color: #88ee88;
 }
 
-/* Build name + share button sit on the right, tabs stay centered */
-.tabbar {
-  position: relative;
+/* Tabbar: tabs on the left, controls on the right */
+#page-builder .tabbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.tabbar-tabs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabbar-tabs::-webkit-scrollbar { display: none; }
+
+.tabbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0 10px;
 }
 
 .build-name-input {
-  position: absolute;
-  right: 90px;
-  top: 50%;
-  transform: translateY(-50%);
   background: #111;
   border: 1px solid #333;
   border-radius: 4px;
@@ -1045,28 +1070,10 @@ h2 {
   outline: none;
 }
 
-.build-name-input::placeholder {
-  color: #555;
-}
-
-.build-name-input:focus {
-  border-color: #555;
-  color: #eee;
-}
-
-.share-build-btn {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  margin: 0;
-}
+.build-name-input::placeholder { color: #555; }
+.build-name-input:focus { border-color: #555; color: #eee; }
 
 .reset-build-btn {
-  position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
   padding: 6px 14px;
   background: #1f1f1f;
   border: 1px solid #3a2a2a;
@@ -1077,6 +1084,7 @@ h2 {
   font-weight: 600;
   letter-spacing: 0.5px;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.15s, color 0.15s;
 }
 
@@ -1811,10 +1819,8 @@ h2 {
   #auth-bar .auth-btn { padding: 3px 8px; font-size: 11px; }
   #auth-bar .auth-username { font-size: 11px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* === Page heights === */
-  #page-home.active    { height: calc(100vh - 44px); }
-  #page-builder.active { height: calc(100vh - 44px); }
-  #page-qte.active     { height: calc(100vh - 44px); overflow: hidden; display: flex; flex-direction: column; }
+  /* === Page heights — flex: 1 from .site-page.active handles this now === */
+  #page-qte.active     { overflow: hidden; display: flex; flex-direction: column; }
 
   /* === Home page === */
   .home-hero { padding: 24px 16px 18px; }
@@ -2123,27 +2129,31 @@ h2 {
     touch-action: manipulation;
   }
 
-  #page-builder .tabbar .reset-build-btn {
-    flex-shrink: 0;
-    padding: 8px 12px;
-    font-size: 13px;
-    margin-left: 8px;
+  /* Controls move to their own row below the tabs */
+  #page-builder .tabbar {
+    flex-direction: column;
+    align-items: stretch;
   }
-
-  #page-builder .tabbar .build-name-input {
-    flex-shrink: 0;
-    width: 120px;
-    font-size: 13px;
-    padding: 7px 8px;
-    margin-left: 6px;
-    margin-right: 6px;
+  .tabbar-tabs {
+    padding: 0 4px;
   }
-
-  #page-builder .tabbar .share-build-btn {
-    flex-shrink: 0;
-    padding: 8px 12px;
+  .tabbar-controls {
+    padding: 4px 8px;
+    border-top: 1px solid #1c1c1c;
+    gap: 6px;
+  }
+  .tabbar-controls .build-name-input {
+    flex: 1;
+    min-width: 0;
+    width: auto;
     font-size: 13px;
-    margin-right: 8px;
+    padding: 6px 8px;
+  }
+  .tabbar-controls .reset-build-btn,
+  .tabbar-controls .share-build-btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
   }
 }
 
@@ -2662,8 +2672,8 @@ h2 {
 
 #page-leaderboards.active {
   overflow-y: auto;
-  height: calc(100vh - 46px);
   padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 /* ============================================================
