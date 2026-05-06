@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="Logo.png">
-  <link rel="stylesheet" href="css/styles.css?v=23">
-  <link rel="stylesheet" href="css/patch.css?v=23">
+  <link rel="stylesheet" href="css/styles.css?v=24">
+  <link rel="stylesheet" href="css/patch.css?v=24">
 </head>
 
 <body>
@@ -260,6 +260,9 @@
 
   <!-- Top tabs -->
   <div class="tabbar">
+    <div class="tabbar-left">
+      <button class="reset-build-btn tabbar-reset" id="reset-build-btn">Reset Build</button>
+    </div>
     <div class="tabbar-tabs">
       <button class="tab active" data-tab="stats">Build</button>
       <button class="tab" data-tab="mastery">Mastery</button>
@@ -269,7 +272,6 @@
       <button class="tab" data-tab="summary">Summary</button>
     </div>
     <div class="tabbar-controls">
-      <button class="reset-build-btn" id="reset-build-btn">Reset Build</button>
       <input type="text" id="build-name-input" class="build-name-input" placeholder="Untitled" maxlength="60">
       <button class="share-build-btn" id="share-build-btn">Share</button>
     </div>
@@ -639,7 +641,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/scripts.js?v=56"></script>
+<script src="js/scripts.js?v=57"></script>
 <script src="js/sb.js"></script>
 <script>
   function switchPage(name) {

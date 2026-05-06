@@ -267,50 +267,183 @@
     `);
   }
 
+  // ---- avatar crop modal ----
+  function showCropModal(file, onApply) {
+    const SIZE   = 280;
+    const EXPORT = 200;
+    const img    = new Image();
+    const url    = URL.createObjectURL(file);
+
+    openModal(`
+      <button class="sb-close" onclick="window._closeModal()">&times;</button>
+      <h3 class="sb-title" style="margin-bottom:10px">Crop Photo</h3>
+      <div style="display:flex;justify-content:center;margin-bottom:10px">
+        <canvas id="crop-cv" width="${SIZE}" height="${SIZE}"
+          style="border-radius:50%;cursor:grab;display:block;touch-action:none;max-width:100%"></canvas>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;justify-content:center;margin-bottom:6px">
+        <span style="font-size:12px;color:#888">Zoom</span>
+        <input type="range" id="crop-zoom" min="1" max="3" step="0.01" value="1"
+          style="flex:1;max-width:180px;accent-color:#66aaff">
+      </div>
+      <p style="font-size:11px;color:#555;text-align:center;margin:0 0 14px">Drag to reposition</p>
+      <div style="display:flex;gap:8px;justify-content:center">
+        <button class="auth-btn" id="crop-apply-btn" onclick="window._cropApply()">Apply</button>
+        <button class="auth-btn auth-btn-out" onclick="window._closeModal()">Cancel</button>
+      </div>
+    `);
+
+    let scale = 1, ox = 0, oy = 0, baseScale = 1;
+    let dragging = false, dragX = 0, dragY = 0, startOx = 0, startOy = 0;
+    let lastDist = 0;
+
+    function clampNum(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+    function clampOff() {
+      const w = img.width  * baseScale * scale;
+      const h = img.height * baseScale * scale;
+      ox = clampNum(ox, SIZE - w, 0);
+      oy = clampNum(oy, SIZE - h, 0);
+    }
+
+    function draw() {
+      const cv = document.getElementById('crop-cv');
+      if (!cv) return;
+      const ctx = cv.getContext('2d');
+      const w = img.width  * baseScale * scale;
+      const h = img.height * baseScale * scale;
+      clampOff();
+      ctx.clearRect(0, 0, SIZE, SIZE);
+      ctx.drawImage(img, ox, oy, w, h);
+      // darken outside circle
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.rect(0, 0, SIZE, SIZE);
+      ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2, 0, Math.PI * 2, true);
+      ctx.fill('evenodd');
+      ctx.restore();
+    }
+
+    img.onload = () => {
+      baseScale = Math.max(SIZE / img.width, SIZE / img.height);
+      ox = (SIZE - img.width  * baseScale) / 2;
+      oy = (SIZE - img.height * baseScale) / 2;
+      draw();
+
+      const cv = document.getElementById('crop-cv');
+      const zs = document.getElementById('crop-zoom');
+      if (!cv) return;
+
+      zs?.addEventListener('input', () => {
+        const ns = parseFloat(zs.value);
+        const ratio = ns / scale;
+        ox = SIZE / 2 + (ox - SIZE / 2) * ratio;
+        oy = SIZE / 2 + (oy - SIZE / 2) * ratio;
+        scale = ns;
+        draw();
+      });
+
+      cv.addEventListener('pointerdown', e => {
+        dragging = true;
+        dragX = e.clientX; dragY = e.clientY;
+        startOx = ox; startOy = oy;
+        cv.setPointerCapture(e.pointerId);
+        cv.style.cursor = 'grabbing';
+      });
+      cv.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        ox = startOx + (e.clientX - dragX);
+        oy = startOy + (e.clientY - dragY);
+        draw();
+      });
+      cv.addEventListener('pointerup',     () => { dragging = false; cv.style.cursor = 'grab'; });
+      cv.addEventListener('pointercancel', () => { dragging = false; cv.style.cursor = 'grab'; });
+
+      cv.addEventListener('touchmove', e => {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();
+        const dx   = e.touches[0].clientX - e.touches[1].clientX;
+        const dy   = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.hypot(dx, dy);
+        if (lastDist) {
+          const ns    = clampNum(scale * (dist / lastDist), 1, 3);
+          const ratio = ns / scale;
+          ox = SIZE / 2 + (ox - SIZE / 2) * ratio;
+          oy = SIZE / 2 + (oy - SIZE / 2) * ratio;
+          scale = ns;
+          if (zs) zs.value = scale;
+          draw();
+        }
+        lastDist = dist;
+      }, { passive: false });
+      cv.addEventListener('touchend', () => { lastDist = 0; });
+    };
+
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+
+    window._cropApply = () => {
+      const btn = document.getElementById('crop-apply-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+      const ec = document.createElement('canvas');
+      ec.width = EXPORT; ec.height = EXPORT;
+      const ectx = ec.getContext('2d');
+      ectx.beginPath();
+      ectx.arc(EXPORT / 2, EXPORT / 2, EXPORT / 2, 0, Math.PI * 2);
+      ectx.clip();
+      const r = EXPORT / SIZE;
+      ectx.drawImage(img, ox * r, oy * r,
+        img.width * baseScale * scale * r,
+        img.height * baseScale * scale * r);
+      ec.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        onApply(blob);
+      }, 'image/jpeg', 0.92);
+    };
+  }
+
   // ---- avatar upload ----
   async function uploadAvatar(input) {
     const file = input.files?.[0];
     if (!file) return;
-    const statusEl = document.getElementById('sb-avatar-status');
-    if (file.size > 3 * 1024 * 1024) {
-      if (statusEl) { statusEl.style.color = '#ff8888'; statusEl.textContent = 'Max 3 MB.'; }
-      return;
-    }
-    if (statusEl) { statusEl.style.color = '#aaa'; statusEl.textContent = 'Uploading…'; }
+    input.value = '';
 
-    const ext  = file.name.split('.').pop().toLowerCase() || 'jpg';
-    const path = `${currentUser.id}/avatar.${ext}`;
-
-    // Remove old avatar files first (other extensions)
-    await sb.storage.from('avatars').remove([
-      `${currentUser.id}/avatar.jpg`,
-      `${currentUser.id}/avatar.jpeg`,
-      `${currentUser.id}/avatar.png`,
-      `${currentUser.id}/avatar.webp`,
-      `${currentUser.id}/avatar.gif`,
-    ]).catch(() => {});
-
-    const { error: upErr } = await sb.storage.from('avatars')
-      .upload(path, file, { upsert: true, contentType: file.type });
-    if (upErr) {
-      if (statusEl) { statusEl.style.color = '#ff8888'; statusEl.textContent = upErr.message; }
+    if (file.size > 10 * 1024 * 1024) {
+      const statusEl = document.getElementById('sb-avatar-status');
+      if (statusEl) { statusEl.style.color = '#ff8888'; statusEl.textContent = 'Max 10 MB.'; }
       return;
     }
 
-    const { data: { publicUrl } } = sb.storage.from('avatars').getPublicUrl(path);
-    const displayUrl = `${publicUrl}?v=${Date.now()}`;
+    showCropModal(file, async (blob) => {
+      openModal(`<h3 class="sb-title" style="padding:28px 0">Uploading…</h3>`);
 
-    await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', currentUser.id);
-    currentProfile.avatar_url = displayUrl;
-    renderAuthBar();
+      const path = `${currentUser.id}/avatar.jpg`;
+      await sb.storage.from('avatars').remove([
+        `${currentUser.id}/avatar.jpg`,
+        `${currentUser.id}/avatar.jpeg`,
+        `${currentUser.id}/avatar.png`,
+        `${currentUser.id}/avatar.webp`,
+        `${currentUser.id}/avatar.gif`,
+      ]).catch(() => {});
 
-    // Refresh the avatar in the settings modal without closing it
-    const label = document.querySelector('.sb-avatar-upload-label');
-    if (label) {
-      const oldAvatar = label.querySelector('.sb-avatar');
-      if (oldAvatar) oldAvatar.outerHTML = renderAvatar(name, displayUrl, 72);
-    }
-    if (statusEl) { statusEl.style.color = '#88ee88'; statusEl.textContent = 'Photo updated!'; }
+      const { error: upErr } = await sb.storage.from('avatars')
+        .upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+      if (upErr) {
+        openModal(`
+          <button class="sb-close" onclick="window._closeModal()">&times;</button>
+          <p style="color:#ff8888;padding:16px 0;text-align:center">${esc(upErr.message)}</p>
+        `);
+        return;
+      }
+
+      const { data: { publicUrl } } = sb.storage.from('avatars').getPublicUrl(path);
+      const displayUrl = `${publicUrl}?v=${Date.now()}`;
+      await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', currentUser.id);
+      currentProfile.avatar_url = publicUrl;
+      renderAuthBar();
+      closeModal();
+    });
   }
 
   async function saveUsername() {
