@@ -23,6 +23,7 @@
     <button class="site-nav-btn" data-page="builder">Builder</button>
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
   </div>
+  <div id="auth-bar"></div>
 </nav>
 
 <!-- Home page -->
@@ -102,6 +103,9 @@
   </div>
 </div>
 
+<!-- Shared Supabase modal (auth + leaderboard) -->
+<div id="sb-modal"></div>
+
 <!-- Qte Trainer page -->
 <div id="page-qte" class="site-page">
   <div class="tabbar" id="qte-tabbar">
@@ -126,6 +130,7 @@
         <button class="fist-qte-start-btn" id="fist-qte-resume-btn" style="display:none">Resume</button>
         <div class="fist-qte-highscore" id="fist-qte-highscore"></div>
         <div class="fist-qte-avgtime" id="fist-qte-avgtime"></div>
+        <button class="lb-open-btn" onclick="window._openLeaderboard('fist')">&#127942; Leaderboard</button>
       </div>
     </div>
     <!-- Other weapons -->
@@ -137,6 +142,7 @@
           <span class="dagger-qte-streak" id="dagger-qte-streak"></span>
           <span class="dagger-qte-highscore" id="dagger-qte-highscore"></span>
           <span class="dagger-qte-avgtime" id="dagger-qte-avgtime"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('dagger')">&#127942; Leaderboard</button>
         </div>
         <canvas id="dagger-qte-canvas" class="dagger-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="dagger-qte-start-btn">Start</button>
@@ -150,6 +156,7 @@
           <span class="spear-qte-status" id="spear-qte-status"></span>
           <span class="spear-qte-streak" id="spear-qte-streak"></span>
           <span class="spear-qte-highscore" id="spear-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('spear')">&#127942; Leaderboard</button>
         </div>
         <canvas id="spear-qte-canvas" class="spear-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="spear-qte-start-btn">Start</button>
@@ -162,6 +169,7 @@
           <span class="sword-qte-status" id="sword-qte-status"></span>
           <span class="sword-qte-streak" id="sword-qte-streak"></span>
           <span class="sword-qte-highscore" id="sword-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('sword')">&#127942; Leaderboard</button>
         </div>
         <canvas id="sword-qte-canvas" class="sword-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="sword-qte-start-btn">Start</button>
@@ -174,6 +182,7 @@
           <span class="staff-qte-status" id="staff-qte-status"></span>
           <span class="staff-qte-streak" id="staff-qte-streak"></span>
           <span class="staff-qte-highscore" id="staff-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('staff')">&#127942; Leaderboard</button>
         </div>
         <canvas id="staff-qte-canvas" class="staff-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="staff-qte-start-btn">Start</button>
@@ -186,6 +195,7 @@
           <span class="hammer-qte-status" id="axe-qte-status"></span>
           <span class="hammer-qte-streak" id="axe-qte-streak"></span>
           <span class="hammer-qte-highscore" id="axe-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('axe')">&#127942; Leaderboard</button>
         </div>
         <canvas id="axe-qte-canvas" class="hammer-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="axe-qte-start-btn">Start</button>
@@ -198,6 +208,7 @@
           <span class="hammer-qte-status" id="hammer-qte-status"></span>
           <span class="hammer-qte-streak" id="hammer-qte-streak"></span>
           <span class="hammer-qte-highscore" id="hammer-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('hammer')">&#127942; Leaderboard</button>
         </div>
         <canvas id="hammer-qte-canvas" class="hammer-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="hammer-qte-start-btn">Start</button>
@@ -210,6 +221,7 @@
           <span class="dodge-qte-status" id="dodge-qte-status"></span>
           <span class="dodge-qte-streak" id="dodge-qte-streak"></span>
           <span class="dodge-qte-highscore" id="dodge-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('dodge')">&#127942; Leaderboard</button>
         </div>
         <canvas id="dodge-qte-canvas" class="dodge-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="dodge-qte-start-btn">Start</button>
@@ -600,7 +612,9 @@
   </div>
 </div>
 
-<script src="js/scripts.js?v=53"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="js/scripts.js?v=54"></script>
+<script src="js/sb.js"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));

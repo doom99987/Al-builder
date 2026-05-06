@@ -1807,6 +1807,9 @@ h2 {
   }
   .site-nav-tabs::-webkit-scrollbar { display: none; }
   .site-nav-btn { padding: 5px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+  #auth-bar { padding: 0 4px; gap: 4px; }
+  #auth-bar .auth-btn { padding: 3px 8px; font-size: 11px; }
+  #auth-bar .auth-username { font-size: 11px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* === Page heights === */
   #page-home.active    { height: calc(100vh - 44px); }
@@ -2237,3 +2240,169 @@ h2 {
   color: #555;
   pointer-events: none;
 }
+
+/* ============================================================
+   Supabase Auth + Leaderboard UI
+   ============================================================ */
+
+/* Auth bar — sits in the site nav, pushed to the right */
+#auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.auth-username {
+  color: #aaaaff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.auth-btn {
+  background: #2a2a5a;
+  color: #ccccff;
+  border: 1px solid #4444aa;
+  border-radius: 5px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.auth-btn:hover  { background: #3a3a7a; }
+.auth-btn-sm { padding: 3px 9px; font-size: 11px; }
+.auth-btn-out { border-color: #664444; color: #ffaaaa; }
+.auth-btn-out:hover { background: #3a2a2a; }
+
+/* Leaderboard button inside QTE panel headers */
+.lb-open-btn {
+  background: none;
+  border: none;
+  color: #aaaaff;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.lb-open-btn:hover { background: #2a2a5a; }
+
+/* Shared modal overlay */
+#sb-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sb-modal-box {
+  background: #1a1a2e;
+  border: 1px solid #3a3a6a;
+  border-radius: 10px;
+  padding: 28px 24px 22px;
+  min-width: 280px;
+  max-width: 400px;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sb-close {
+  position: absolute;
+  top: 10px; right: 14px;
+  background: none; border: none;
+  color: #888; font-size: 20px;
+  cursor: pointer; line-height: 1;
+}
+.sb-close:hover { color: #ccc; }
+
+.sb-title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #ccccff;
+  text-align: center;
+}
+
+.sb-input {
+  background: #12121e;
+  border: 1px solid #3a3a6a;
+  border-radius: 5px;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.sb-input:focus { border-color: #6666cc; }
+
+.sb-err {
+  color: #ff8888;
+  font-size: 12px;
+  min-height: 16px;
+  text-align: center;
+}
+
+.sb-submit {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sb-switch {
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+.sb-link {
+  background: none; border: none;
+  color: #aaaaff; cursor: pointer;
+  font-size: 12px; text-decoration: underline;
+  padding: 0; font-family: inherit;
+}
+
+/* Leaderboard table */
+.sb-loading, .sb-empty {
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+  padding: 12px 0;
+  margin: 0;
+}
+
+.sb-lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #ccc;
+}
+.sb-lb-table th {
+  color: #888;
+  font-weight: 600;
+  border-bottom: 1px solid #2a2a4a;
+  padding: 4px 8px;
+  text-align: left;
+}
+.sb-lb-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #1e1e38;
+}
+.sb-lb-table tr:last-child td { border-bottom: none; }
+.sb-lb-me td { color: #aaffaa; font-weight: 600; }
+.sb-lb-table td:first-child { text-align: center; width: 28px; }
+.sb-lb-table td:last-child  { text-align: right; }
