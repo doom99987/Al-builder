@@ -121,21 +121,12 @@
   async function fetchLeaderboard(qteType) {
     const { data, error } = await sb
       .from('leaderboard')
-      .select('user_id, score')
+      .select('score, profiles(username)')
       .eq('qte_type', qteType)
       .order('score', { ascending: false })
       .limit(10);
     if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
-    if (!data || !data.length) { console.log('[sb] fetchLeaderboard: no rows for', qteType); return []; }
-    console.log('[sb] fetchLeaderboard rows', qteType, data);
-
-    // Fetch usernames separately (leaderboard FK is to auth.users, not profiles)
-    const ids = data.map(r => r.user_id);
-    const { data: profiles } = await sb.from('profiles').select('id, username').in('id', ids);
-    const nameMap = {};
-    if (profiles) profiles.forEach(p => { nameMap[p.id] = p.username; });
-
-    return data.map(r => ({ username: nameMap[r.user_id] || '???', score: r.score }));
+    return (data || []).map(r => ({ username: r.profiles?.username || '???', score: r.score }));
   }
 
   // ================================================================
