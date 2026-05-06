@@ -10408,8 +10408,11 @@ function autoSave() {
   }
 
   function resumeGame() {
-    paused = false; running = true;
+    var savedTime = timeLeft;
+    newRound();                   // re-randomize runes
+    timeLeft   = savedTime;       // but keep the time that was left
     timerStart = performance.now() - (getTimerDur() - timeLeft) * 1000;
+    paused = false; running = true;
     resumeBtn.style.display = 'none'; setStatus('', '#a08fd0');
     animFrame = requestAnimationFrame(staffGameLoop);
   }
