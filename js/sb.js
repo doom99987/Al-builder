@@ -29,20 +29,8 @@
   }
 
   sb.auth.onAuthStateChange(async (_event, session) => {
-    currentUser = session?.user ?? null;
-    if (currentUser) {
-      currentProfile = await getProfile(currentUser.id);
-      // Auto-create profile for OAuth users (e.g. Discord) on first login
-      if (!currentProfile) {
-        const meta = currentUser.user_metadata || {};
-        const username = (meta.full_name || meta.name || meta.username || currentUser.email || 'user')
-          .replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
-        await sb.from('profiles').upsert({ id: currentUser.id, username }, { onConflict: 'id' });
-        currentProfile = { username };
-      }
-    } else {
-      currentProfile = null;
-    }
+    currentUser    = session?.user ?? null;
+    currentProfile = currentUser ? await getProfile(currentUser.id) : null;
     renderAuthBar();
   });
 
@@ -53,49 +41,34 @@
     if (username.length > 20) throw new Error('Username must be 20 characters or fewer.');
     if (!/^[a-zA-Z0-9_\-]+$/.test(username)) throw new Error('Username: letters, numbers, _ and - only.');
 
-    const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
-    if (taken) throw new Error('Username already taken.');
-
-    // Store username in auth metadata so a trigger can create the profile
-    const { data, error } = await sb.auth.signUp({
-      email, password,
-      options: { data: { username } }
-    });
-    console.log('[sb] signUp result', { user: data?.user?.id, session: !!data?.session, error: error?.message });
+    const { data, error } = await sb.auth.signUp({ email, password });
+    console.log('[sb] signUp', { userId: data?.user?.id, hasSession: !!data?.session, err: error?.message });
     if (error) throw new Error(error.message);
     const user = data?.user;
     if (!user) throw new Error('Registration failed — please try again.');
+    if (!data.session) throw new Error('Check your email to confirm your account, then log in.');
 
-    if (data.session) {
-      const { error: pe } = await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
-      console.log('[sb] profile upsert', { error: pe?.message });
-      if (pe) throw new Error('Profile save failed: ' + pe.message);
-      currentUser    = user;
-      currentProfile = { username };
-      renderAuthBar();
-    } else {
-      // Email confirmation required — profile will be created by trigger or on first login
-      throw new Error('Account created! Check your email to confirm, then log in.');
+    const { error: pe } = await sb.from('profiles').insert({ id: user.id, username });
+    console.log('[sb] profile insert', { err: pe?.message });
+    if (pe) {
+      // Unique username violation
+      if (pe.code === '23505') throw new Error('Username already taken.');
+      throw new Error(pe.message);
     }
 
-    return username;
+    currentUser    = user;
+    currentProfile = { username };
+    renderAuthBar();
   }
 
   // ---- sign in ----
   async function signIn(email, password) {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
-    currentUser = data.user;
+    currentUser    = data.user;
     currentProfile = await getProfile(data.user.id);
-    // If profile missing (e.g. created before trigger was set up), create it now
-    if (!currentProfile) {
-      const meta = data.user.user_metadata || {};
-      const username = meta.username || data.user.email.split('@')[0];
-      await sb.from('profiles').upsert({ id: data.user.id, username }, { onConflict: 'id' });
-      currentProfile = { username };
-    }
     renderAuthBar();
-    return currentProfile.username;
+    return currentProfile?.username;
   }
 
   // ---- sign out ----
