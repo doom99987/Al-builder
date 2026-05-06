@@ -44,23 +44,28 @@
     const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
     if (taken) throw new Error('Username already taken.');
 
-    const { data, error } = await sb.auth.signUp({ email, password });
+    // Store username in auth metadata so a trigger can create the profile
+    const { data, error } = await sb.auth.signUp({
+      email, password,
+      options: { data: { username } }
+    });
     if (error) throw new Error(error.message);
     const user = data?.user;
     if (!user) throw new Error('Registration failed — please try again.');
 
-    // Insert profile before auth state change can try to fetch it
-    const { error: pe } = await sb.from('profiles').insert({ id: user.id, username });
-    if (pe) throw new Error(pe.message);
-
-    if (!data.session) {
-      // Email confirmation required — not logged in yet
+    // Try to insert profile — may fail if email confirmation is on (user not authed yet),
+    // in that case the trigger or post-login flow will handle it.
+    if (data.session) {
+      // Authenticated immediately (email confirmation disabled)
+      await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+      currentUser    = user;
+      currentProfile = { username };
+      renderAuthBar();
+    } else {
+      // Email confirmation required — profile will be created by trigger or on first login
       throw new Error('Account created! Check your email to confirm, then log in.');
     }
 
-    currentUser    = user;
-    currentProfile = { username };
-    renderAuthBar();
     return username;
   }
 
@@ -68,9 +73,17 @@
   async function signIn(email, password) {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
-    currentUser    = data.user;
+    currentUser = data.user;
     currentProfile = await getProfile(data.user.id);
-    return currentProfile?.username;
+    // If profile missing (e.g. created before trigger was set up), create it now
+    if (!currentProfile) {
+      const meta = data.user.user_metadata || {};
+      const username = meta.username || data.user.email.split('@')[0];
+      await sb.from('profiles').upsert({ id: data.user.id, username }, { onConflict: 'id' });
+      currentProfile = { username };
+    }
+    renderAuthBar();
+    return currentProfile.username;
   }
 
   // ---- sign out ----
@@ -362,9 +375,11 @@
     if (!email || !pass) { if (errEl) errEl.textContent = 'Fill in all fields.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    let success = false;
     try {
       if (mode === 'register') await signUp(email, pass, uname);
       else                     await signIn(email, pass);
+      success = true;
       closeModal();
     } catch (e) {
       const msg = e.message || 'Something went wrong.';
@@ -372,7 +387,11 @@
         errEl.textContent = msg;
         errEl.style.color = msg.startsWith('Account created') ? '#88ee88' : '';
       }
-      if (btn) { btn.disabled = false; btn.textContent = mode === 'register' ? 'Register' : 'Login'; }
+    } finally {
+      if (!success && btn && btn.isConnected) {
+        btn.disabled = false;
+        btn.textContent = mode === 'register' ? 'Register' : 'Login';
+      }
     }
   }
 
