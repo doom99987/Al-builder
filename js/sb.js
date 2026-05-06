@@ -30,9 +30,11 @@
   }
 
   sb.auth.onAuthStateChange(async (_event, session) => {
+    console.log('[sb] authChange', _event, 'lock=', _authLock);
     if (_authLock) return;
     currentUser    = session?.user ?? null;
     currentProfile = currentUser ? await getProfile(currentUser.id) : null;
+    console.log('[sb] authChange done', { user: !!currentUser, profile: !!currentProfile });
     renderAuthBar();
   });
 
@@ -150,6 +152,7 @@
 
   // ---- auth bar ----
   function renderAuthBar() {
+    console.log('[sb] renderAuthBar', { user: !!currentUser, profile: currentProfile?.username });
     closeProfileMenu();
     const bar = document.getElementById('auth-bar');
     if (!bar) return;
