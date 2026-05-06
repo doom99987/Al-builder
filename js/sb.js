@@ -101,8 +101,10 @@
   // ---- load user's DB scores into cache (called once after login) ----
   async function loadDbScores() {
     if (!currentUser) return;
-    const { data } = await sb.from('leaderboard').select('qte_type, score').eq('user_id', currentUser.id);
+    const { data, error } = await sb.from('leaderboard').select('qte_type, score').eq('user_id', currentUser.id);
+    if (error) { console.error('[sb] loadDbScores error', error.message); return; }
     if (data) data.forEach(r => { _dbScores[r.qte_type] = r.score; });
+    console.log('[sb] loadDbScores', _dbScores);
   }
 
   // ---- clear local QTE scores (called on login/register) ----
@@ -124,10 +126,12 @@
     if (!currentUser || !score) return;
     if ((_dbScores[qteType] || 0) >= score) return; // cache says DB already has a better score
     _dbScores[qteType] = score; // optimistically update cache
-    await sb.from('leaderboard').upsert(
+    const { error } = await sb.from('leaderboard').upsert(
       { user_id: currentUser.id, qte_type: qteType, score, achieved_at: new Date().toISOString() },
       { onConflict: 'user_id,qte_type' }
     );
+    if (error) console.error('[sb] submitScore error', qteType, score, error.message);
+    else console.log('[sb] submitScore ok', qteType, score);
   }
 
   // ---- fetch top-10 for a QTE ----
