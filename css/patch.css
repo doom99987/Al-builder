@@ -1935,6 +1935,13 @@ h2 {
     min-width: max-content;
     overflow: visible;
   }
+  /* Remove zoom on mobile — lines are drawn in unzoomed SVG space so
+     any zoom on trunk/branches causes a coordinate mismatch. Let the
+     scrollable wrap handle navigation instead. */
+  .mastery-trunk,
+  .mastery-branches {
+    zoom: 1;
+  }
 
   /* Info tab columns */
   .info-columns {
