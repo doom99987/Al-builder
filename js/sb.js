@@ -17,7 +17,7 @@
 
   // ---- profile helpers ----
   async function getProfile(userId) {
-    const { data } = await sb.from('profiles').select('username, avatar_url').eq('id', userId).single();
+    const { data } = await sb.from('profiles').select('username, avatar_url').eq('id', userId).maybeSingle();
     return data || null;
   }
 
@@ -29,8 +29,20 @@
   }
 
   sb.auth.onAuthStateChange(async (_event, session) => {
-    currentUser    = session?.user ?? null;
-    currentProfile = currentUser ? await getProfile(currentUser.id) : null;
+    currentUser = session?.user ?? null;
+    if (currentUser) {
+      currentProfile = await getProfile(currentUser.id);
+      // Auto-create profile for OAuth users (e.g. Discord) on first login
+      if (!currentProfile) {
+        const meta = currentUser.user_metadata || {};
+        const username = (meta.full_name || meta.name || meta.username || currentUser.email || 'user')
+          .replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
+        await sb.from('profiles').upsert({ id: currentUser.id, username }, { onConflict: 'id' });
+        currentProfile = { username };
+      }
+    } else {
+      currentProfile = null;
+    }
     renderAuthBar();
   });
 
@@ -57,7 +69,8 @@
     // in that case the trigger or post-login flow will handle it.
     if (data.session) {
       // Authenticated immediately (email confirmation disabled)
-      await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+      const { error: pe } = await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+      if (pe) throw new Error('Profile save failed: ' + pe.message);
       currentUser    = user;
       currentProfile = { username };
       renderAuthBar();

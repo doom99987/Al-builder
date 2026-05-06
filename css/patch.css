@@ -2363,6 +2363,20 @@ h2 {
   font-weight: 600;
 }
 
+.sb-divider {
+  display: flex; align-items: center; gap: 8px;
+  margin: 8px 0; color: #666; font-size: 12px;
+}
+.sb-divider::before, .sb-divider::after {
+  content: ''; flex: 1; height: 1px; background: #444;
+}
+.sb-discord-btn {
+  width: 100%; background: #5865f2; color: #fff;
+  border: none; border-radius: 6px; padding: 8px 12px;
+  font-size: 14px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+.sb-discord-btn:hover { background: #4752c4; }
 .sb-switch {
   text-align: center;
   font-size: 12px;
