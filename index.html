@@ -22,6 +22,7 @@
     <button class="site-nav-btn active" data-page="home">Home</button>
     <button class="site-nav-btn" data-page="builder">Builder</button>
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
+    <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
   </div>
   <div id="auth-bar">
     <button class="auth-btn" onclick="window._openAuthModal && window._openAuthModal('login')">Login</button>
@@ -233,6 +234,19 @@
     </div>
   </div>
   <img class="qte-logo-watermark" src="Logo.png" alt="">
+</div>
+
+<!-- Leaderboards page -->
+<div id="page-leaderboards" class="site-page">
+  <div class="all-lb-wrap">
+    <div class="all-lb-header">
+      <h2 class="all-lb-title">Leaderboards</h2>
+      <button class="all-lb-refresh-btn" onclick="window._loadAllLeaderboards()">&#8635; Refresh</button>
+    </div>
+    <div class="all-lb-grid" id="all-lb-grid">
+      <div class="sb-loading">Loading&hellip;</div>
+    </div>
+  </div>
 </div>
 
 <!-- Builder page -->
@@ -625,6 +639,7 @@
     document.getElementById('page-' + name).classList.add('active');
     document.querySelector('.site-nav-btn[data-page="' + name + '"]').classList.add('active');
     history.replaceState(null, '', '#' + name);
+    if (name === 'leaderboards' && typeof window._loadAllLeaderboards === 'function') window._loadAllLeaderboards();
     // Auto-activate the Build tab if no builder tab is active yet
     if (name === 'builder') {
       const activeBuildTab = document.querySelector('.tabbar .tab.active[data-tab]');
@@ -640,7 +655,7 @@
 
   // On load, navigate to the page in the URL hash
   const _initPage = location.hash.replace('#', '') || 'home';
-  const _validPages = ['home', 'builder', 'qte'];
+  const _validPages = ['home', 'builder', 'qte', 'leaderboards'];
   switchPage(_validPages.includes(_initPage) ? _initPage : 'home');
 
   function switchQteTab(name) {

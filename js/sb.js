@@ -461,6 +461,38 @@
     ${currentUser ? '' : '<p class="sb-empty">Login to submit your scores!</p>'}`;
   }
 
+  // ---- all leaderboards view ----
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge'];
+
+  async function loadAllLeaderboards() {
+    const grid = document.getElementById('all-lb-grid');
+    if (!grid) return;
+    grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
+
+    const results = await Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t)));
+
+    grid.innerHTML = QTE_TYPES.map((type, idx) => {
+      const rows = results[idx];
+      const myName = currentProfile?.username || null;
+      const rowsHtml = rows.length
+        ? rows.map((r, i) => `
+            <tr${myName && myName === r.username ? ' class="sb-lb-me"' : ''}>
+              <td class="all-lb-rank">${i + 1}</td>
+              <td class="all-lb-name">${esc(r.username)}</td>
+              <td class="all-lb-score"><b>${r.score}</b></td>
+            </tr>`).join('')
+        : `<tr><td colspan="3" class="all-lb-empty">No scores yet</td></tr>`;
+      return `
+        <div class="all-lb-card">
+          <div class="all-lb-card-title">${cap(type)}</div>
+          <table class="sb-lb-table all-lb-table">
+            <thead><tr><th>#</th><th>Player</th><th>Streak</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+  }
+
   // ================================================================
   //  Globals (called from HTML onclick and from scripts.js)
   // ================================================================
@@ -476,6 +508,7 @@
   window._saveUsername       = saveUsername;
   window._sendPasswordReset  = sendPasswordReset;
   window._uploadAvatar       = uploadAvatar;
+  window._loadAllLeaderboards = loadAllLeaderboards;
 
   // Boot: onAuthStateChange fires INITIAL_SESSION and handles session restoration
 })();
