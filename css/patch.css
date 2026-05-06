@@ -1857,6 +1857,7 @@ h2 {
     overflow-y: auto;
     justify-content: flex-start;
     align-items: flex-start;
+    min-height: 0;
   }
 
   /* Stats panel: natural width so columns sit side by side */
@@ -1917,26 +1918,23 @@ h2 {
   .percent-label  { font-size: 9px; }
 
   /* === Mastery tree === */
-  /* Let the content area scroll instead of clipping the tree */
+  /* Remove height+overflow constraints so the panel can scroll naturally */
   #mastery {
     overflow: visible;
     height: auto;
+    min-height: 0;
   }
   .mastery-wrap {
     overflow: visible;
     height: auto;
     padding: 8px 12px;
+    align-items: center;
   }
   .mastery-tree-container {
     flex: none;
     overflow: visible;
-    width: max-content;
-    margin: 0 auto;
   }
-  .mastery-trunk,
-  .mastery-branches {
-    zoom: 0.58;
-  }
+  /* Keep zoom same as desktop (0.82) — tree fits ~347px wide on most phones */
 
   /* Info tab columns */
   .info-columns {
