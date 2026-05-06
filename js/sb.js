@@ -451,8 +451,14 @@
       }
 
       const { data: { publicUrl } } = sb.storage.from('avatars').getPublicUrl(path);
-      const displayUrl = `${publicUrl}?v=${Date.now()}`;
-      await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', currentUser.id);
+      const { error: profErr } = await sb.from('profiles').update({ avatar_url: publicUrl }).eq('id', currentUser.id);
+      if (profErr) {
+        openModal(`
+          <button class="sb-close" onclick="window._closeModal()">&times;</button>
+          <p style="color:#ff8888;padding:16px 0;text-align:center">Saved photo but couldn't update profile:<br>${esc(profErr.message)}</p>
+        `);
+        return;
+      }
       currentProfile.avatar_url = publicUrl;
       renderAuthBar();
       closeModal();
