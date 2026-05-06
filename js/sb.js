@@ -47,13 +47,20 @@
     const { data, error } = await sb.auth.signUp({ email, password });
     if (error) throw new Error(error.message);
     const user = data?.user;
-    if (!user) throw new Error('Sign-up successful — check your email to confirm your account.');
+    if (!user) throw new Error('Registration failed — please try again.');
 
+    // Insert profile before auth state change can try to fetch it
     const { error: pe } = await sb.from('profiles').insert({ id: user.id, username });
     if (pe) throw new Error(pe.message);
 
+    if (!data.session) {
+      // Email confirmation required — not logged in yet
+      throw new Error('Account created! Check your email to confirm, then log in.');
+    }
+
     currentUser    = user;
     currentProfile = { username };
+    renderAuthBar();
     return username;
   }
 
@@ -360,7 +367,11 @@
       else                     await signIn(email, pass);
       closeModal();
     } catch (e) {
-      if (errEl) errEl.textContent = e.message || 'Something went wrong.';
+      const msg = e.message || 'Something went wrong.';
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.style.color = msg.startsWith('Account created') ? '#88ee88' : '';
+      }
       if (btn) { btn.disabled = false; btn.textContent = mode === 'register' ? 'Register' : 'Login'; }
     }
   }
