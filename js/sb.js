@@ -15,7 +15,6 @@
   let currentUser    = null;
   let currentProfile = null; // { username }
   let _authLock      = false; // prevents onAuthStateChange from overwriting during signUp
-  let _dbScores      = {};   // { qteType: bestScore } — cached after login to avoid per-submission SELECT
 
   // ---- profile helpers ----
   async function getProfile(userId) {
@@ -39,8 +38,6 @@
         || currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
       renderAuthBar();
-      // Fetch full profile in background for avatar_url
-      getProfile(currentUser.id).then(p => { if (p) { currentProfile = p; renderAuthBar(); } });
     } else {
       currentProfile = null;
       renderAuthBar();
@@ -71,7 +68,6 @@
       currentProfile = { username };
       renderAuthBar();
       clearLocalScores();
-      loadDbScores(); // populate cache so submitScore doesn't overwrite higher DB scores
     } finally {
       _authLock = false;
     }
@@ -90,21 +86,9 @@
       currentProfile = { username };
       renderAuthBar();
       clearLocalScores();
-      loadDbScores(); // populate cache so submitScore doesn't overwrite higher DB scores
-      // Fetch full profile in background to get avatar_url
-      getProfile(data.user.id).then(p => { if (p) { currentProfile = p; renderAuthBar(); } });
     } finally {
       _authLock = false;
     }
-  }
-
-  // ---- load user's DB scores into cache (called once after login) ----
-  async function loadDbScores() {
-    if (!currentUser) return;
-    const { data, error } = await sb.from('leaderboard').select('qte_type, score').eq('user_id', currentUser.id);
-    if (error) { console.error('[sb] loadDbScores error', error.message); return; }
-    if (data) data.forEach(r => { _dbScores[r.qte_type] = r.score; });
-    console.log('[sb] loadDbScores', _dbScores);
   }
 
   // ---- clear local QTE scores (called on login/register) ----
@@ -117,19 +101,18 @@
   // ---- sign out ----
   async function signOut() {
     await sb.auth.signOut();
-    currentUser = null; currentProfile = null; _dbScores = {};
+    currentUser = null; currentProfile = null;
     renderAuthBar();
   }
 
-  // ---- submit score (upsert personal best) ----
+  // ---- submit score — server decides if it's a new best ----
   async function submitScore(qteType, score) {
     if (!currentUser || !score) return;
-    if ((_dbScores[qteType] || 0) >= score) return; // cache says DB already has a better score
-    _dbScores[qteType] = score; // optimistically update cache
-    const { error } = await sb.from('leaderboard').upsert(
-      { user_id: currentUser.id, qte_type: qteType, score, achieved_at: new Date().toISOString() },
-      { onConflict: 'user_id,qte_type' }
-    );
+    const { error } = await sb.rpc('submit_score', {
+      p_user_id: currentUser.id,
+      p_qte_type: qteType,
+      p_score: score
+    });
     if (error) console.error('[sb] submitScore error', qteType, score, error.message);
     else console.log('[sb] submitScore ok', qteType, score);
   }
@@ -138,15 +121,21 @@
   async function fetchLeaderboard(qteType) {
     const { data, error } = await sb
       .from('leaderboard')
-      .select('score, achieved_at, profiles(username)')
+      .select('user_id, score')
       .eq('qte_type', qteType)
       .order('score', { ascending: false })
       .limit(10);
-    if (error) return [];
-    return (data || []).map(r => ({
-      username: r.profiles?.username || '???',
-      score: r.score,
-    }));
+    if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
+    if (!data || !data.length) { console.log('[sb] fetchLeaderboard: no rows for', qteType); return []; }
+    console.log('[sb] fetchLeaderboard rows', qteType, data);
+
+    // Fetch usernames separately (leaderboard FK is to auth.users, not profiles)
+    const ids = data.map(r => r.user_id);
+    const { data: profiles } = await sb.from('profiles').select('id, username').in('id', ids);
+    const nameMap = {};
+    if (profiles) profiles.forEach(p => { nameMap[p.id] = p.username; });
+
+    return data.map(r => ({ username: nameMap[r.user_id] || '???', score: r.score }));
   }
 
   // ================================================================
