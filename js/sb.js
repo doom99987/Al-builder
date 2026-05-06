@@ -23,7 +23,6 @@
   }
 
   async function ensureProfile(user) {
-    // Trigger guarantees profile exists; upsert as fallback for pre-trigger accounts
     const profile = await getProfile(user.id);
     if (profile) return profile;
     const username = user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
@@ -31,11 +30,20 @@
     return await getProfile(user.id);
   }
 
-  sb.auth.onAuthStateChange(async (_event, session) => {
+  sb.auth.onAuthStateChange((_event, session) => {
     if (_authLock) return;
-    currentUser    = session?.user ?? null;
-    currentProfile = currentUser ? await ensureProfile(currentUser) : null;
-    renderAuthBar();
+    currentUser = session?.user ?? null;
+    if (currentUser) {
+      const username = currentUser.user_metadata?.username
+        || currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
+      currentProfile = { username };
+      renderAuthBar();
+      // Fetch full profile in background for avatar_url
+      getProfile(currentUser.id).then(p => { if (p) { currentProfile = p; renderAuthBar(); } });
+    } else {
+      currentProfile = null;
+      renderAuthBar();
+    }
   });
 
   // ---- sign up ----
@@ -68,9 +76,21 @@
 
   // ---- sign in ----
   async function signIn(email, password) {
-    const { error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) throw new Error(error.message);
-    // onAuthStateChange handles setting currentUser/currentProfile and renderAuthBar
+    _authLock = true;
+    try {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) throw new Error(error.message);
+      currentUser    = data.user;
+      // Get username from auth metadata (set during signUp) — no DB query needed
+      const username = data.user.user_metadata?.username
+        || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
+      currentProfile = { username };
+      renderAuthBar();
+      // Fetch full profile in background to get avatar_url
+      getProfile(data.user.id).then(p => { if (p) { currentProfile = p; renderAuthBar(); } });
+    } finally {
+      _authLock = false;
+    }
   }
 
   // ---- sign out ----

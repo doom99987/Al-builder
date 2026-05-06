@@ -344,8 +344,8 @@ const covenantBonuses = {
 
 function calcPercentage(stat, val){
   const formulas = {
-    str:           v => 100 + v * 1.65,
-    arc:           v => 100 + v * 1.65,
+    str:           v => v * 1.65,
+    arc:           v => v * 1.65,
     end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
     "crit-chance": v => 19.8 + v * 0.25,
