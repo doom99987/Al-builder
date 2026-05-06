@@ -8095,10 +8095,12 @@ function autoSave() {
     if (val > highscore) {
       highscore = val;
       try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
+      if (window._sbSubmitScore) window._sbSubmitScore('fist', val);
     }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function recordRoundTime() {
     if (!roundStart) return;
@@ -8431,10 +8433,12 @@ function autoSave() {
     if (val > highscore) {
       highscore = val;
       try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
+      if (window._sbSubmitScore) window._sbSubmitScore('spear', val);
     }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function setStatus(text, color) {
     if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; }
@@ -8724,10 +8728,11 @@ function autoSave() {
   function getZoneWidth() { return IS_MOBILE ? Math.max(0.24 - streak * 0.008, 0.12) : 0.10; }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword', v); }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function setStatus(t, c) {
     if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
@@ -9007,10 +9012,11 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge', v); }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function setStatus(t, c) {
     if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
@@ -9247,10 +9253,11 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger', v); }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function setStatus(t, c) {
     if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
@@ -9541,10 +9548,11 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer', v); }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
 
@@ -9805,10 +9813,11 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} }
+    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe', v); }
     if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
 
@@ -10044,6 +10053,7 @@ function autoSave() {
   var resumeBtn = document.getElementById('staff-qte-resume-btn');
 
   var streak = 0, highscore = 0;
+  window.addEventListener('alb-scores-reset', function() { streak = 0; highscore = 0; if (highEl) highEl.textContent = ''; });
   var pattern = [];
   var bankTiles = [], slots = [];
   var drag = null; // { tile, curX, curY }
