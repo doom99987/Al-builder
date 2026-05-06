@@ -1034,27 +1034,35 @@ h2 {
   color: #88ee88;
 }
 
-/* Tabbar: tabs on the left, controls on the right */
+/* Tabbar: reset on left, tabs centered, controls on right */
 #page-builder .tabbar {
   display: flex;
   align-items: center;
   gap: 0;
 }
 
+/* Left and right sides each take equal flex so tabs end up centered */
+.tabbar-left {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 6px 0 10px;
+}
+
 .tabbar-tabs {
   display: flex;
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
   overflow-x: auto;
   scrollbar-width: none;
 }
 .tabbar-tabs::-webkit-scrollbar { display: none; }
 
 .tabbar-controls {
+  flex: 1;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
-  flex-shrink: 0;
   padding: 0 10px;
 }
 
@@ -2159,15 +2167,32 @@ h2 {
 
   /* Controls move to their own row below the tabs */
   #page-builder .tabbar {
-    flex-direction: column;
-    align-items: stretch;
+    flex-wrap: wrap;
+    align-items: center;
   }
   .tabbar-tabs {
+    order: 1;
+    width: 100%;
+    flex: 0 0 100%;
     padding: 0 4px;
   }
-  .tabbar-controls {
-    padding: 4px 8px;
+  .tabbar-left {
+    order: 2;
+    flex: 0 0 auto;
+    padding: 0;
     border-top: 1px solid #1c1c1c;
+  }
+  .tabbar-reset {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .tabbar-controls {
+    order: 2;
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    border-top: 1px solid #1c1c1c;
+    padding: 4px 8px;
     gap: 6px;
   }
   .tabbar-controls .build-name-input {
@@ -2177,7 +2202,6 @@ h2 {
     font-size: 13px;
     padding: 6px 8px;
   }
-  .tabbar-controls .reset-build-btn,
   .tabbar-controls .share-build-btn {
     flex-shrink: 0;
     padding: 6px 12px;
