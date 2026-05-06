@@ -69,6 +69,7 @@
       currentUser    = user;
       currentProfile = { username };
       renderAuthBar();
+      clearLocalScores();
     } finally {
       _authLock = false;
     }
@@ -86,11 +87,19 @@
         || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
       renderAuthBar();
+      clearLocalScores();
       // Fetch full profile in background to get avatar_url
       getProfile(data.user.id).then(p => { if (p) { currentProfile = p; renderAuthBar(); } });
     } finally {
       _authLock = false;
     }
+  }
+
+  // ---- clear local QTE scores (called on login/register) ----
+  function clearLocalScores() {
+    Object.keys(localStorage).filter(k => /^alb:[a-z]+-hs$/.test(k))
+      .forEach(k => localStorage.removeItem(k));
+    window.dispatchEvent(new Event('alb-scores-reset'));
   }
 
   // ---- sign out ----
