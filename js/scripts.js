@@ -7378,7 +7378,7 @@ function renderMastery() {
 
   container.innerHTML = html;
   updateMasteryDisplay();
-  drawMasteryLines();
+  requestAnimationFrame(() => drawMasteryLines());
 }
 
 function updateMasteryDisplay() {
