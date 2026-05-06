@@ -477,9 +477,8 @@ function updatePecents() {
     if (!totalEl) return;
     const allocated = input ? +input.value : 0;
     const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
-    const armourPctVal = armourPct[stat] ?? 0;
     const flatTotal = allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus;
-    totalEl.textContent = (flatTotal + armourPctVal) || "";
+    totalEl.textContent = flatTotal || "";
   });
   autoSave();
 }
