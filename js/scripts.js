@@ -427,21 +427,41 @@ function updatePecents() {
   const lckRow = _pctCache.lckInput;
   const totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
 
+  // Armour stat pct keys that boost the actual stat (not a direct % output bonus)
+  const STAT_PCT_KEYS = new Set(["str", "arc", "spd"]);
+  // Innate stat % bonuses applied to (invested + race base + level bonus) portion only
+  const INNATE_STAT_PCT = { str: 15, arc: 15 };
+
   const isStultus = racePicker.value === "Stultus (20%)";
   let stultusBonus = 0;
   if (isStultus) {
     const spdVal = _pctCache.spdInput ? +_pctCache.spdInput.value : 0;
-    stultusBonus = (spdVal + (raceBase.spd ?? 0) + (armour.spd ?? 0) + (masteryStats.spd ?? 0) + (gearStatBonuses.spd ?? 0) + lvlStatBonus) / 10;
+    // pct only boosts: invested + race base + level bonus
+    const spdPctBase = spdVal + (raceBase.spd ?? 0) + lvlStatBonus;
+    const spdOther   = (armour.spd ?? 0) + (masteryStats.spd ?? 0) + (gearStatBonuses.spd ?? 0);
+    const spdTotalPct = (INNATE_STAT_PCT.spd ?? 0) + (armourPct.spd ?? 0);
+    stultusBonus = (spdPctBase * (1 + spdTotalPct / 100) + spdOther) / 10;
   }
 
   _pctCache.items.forEach(({ el, stat, valEl, statInput }) => {
     const allocated = statInput ? +statInput.value : 0;
-    const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
+    const otherFlat = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
     const levelBonus = statInput ? lvlStatBonus : 0;
     const isCritStat = stat === "crit-chance" || stat === "crit-dmg";
-    const val = isCritStat ? totalLck : allocated + (raceBase[stat] ?? 0) + flatBonus + levelBonus;
+    // Combined pct for this stat: innate + armour. Applied only to (invested + race base + level bonus).
+    const totalStatPct = (INNATE_STAT_PCT[stat] ?? 0) + (STAT_PCT_KEYS.has(stat) ? (armourPct[stat] ?? 0) : 0);
+    const isStatMult = !isCritStat && totalStatPct > 0;
+    let val;
+    if (isCritStat) {
+      val = totalLck;
+    } else if (isStatMult) {
+      const pctBase = allocated + (raceBase[stat] ?? 0) + levelBonus;
+      val = pctBase * (1 + totalStatPct / 100) + otherFlat;
+    } else {
+      val = allocated + (raceBase[stat] ?? 0) + otherFlat + levelBonus;
+    }
     const base = calcPercentage(stat, val);
-    const armourStatPct = armourPct[stat] ?? 0;
+    const armourStatPct = isStatMult ? 0 : (armourPct[stat] ?? 0); // pct already in val for stat-mult stats
     const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
     let display;
     if (base === "—") {
@@ -476,9 +496,13 @@ function updatePecents() {
   _pctCache.statRows.forEach(({ stat, input, totalEl }) => {
     if (!totalEl) return;
     const allocated = input ? +input.value : 0;
-    const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
-    const flatTotal = allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus;
-    totalEl.textContent = flatTotal || "";
+    const crystalBonus = stat === "lck" ? crystalStarStacks * 10 : 0;
+    const otherFlat = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0) + crystalBonus;
+    const totalStatPct = (INNATE_STAT_PCT[stat] ?? 0) + (STAT_PCT_KEYS.has(stat) ? (armourPct[stat] ?? 0) : 0);
+    // pct only boosts: invested + race base + level bonus
+    const pctBase = allocated + (raceBase[stat] ?? 0) + lvlStatBonus;
+    const displayTotal = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+    totalEl.textContent = displayTotal || "";
   });
   autoSave();
 }
@@ -5286,7 +5310,13 @@ function getTotalStat(statKey) {
     if (g) Object.entries(g).forEach(([k, v]) => { if (v) gearBonuses[k] = (gearBonuses[k] || 0) + v; });
   });
   const crystalBonus = statKey === "lck" ? crystalStarStacks * 10 : 0;
-  return allocated + (raceBase[statKey] ?? 0) + (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + lvlBonus + crystalBonus;
+  // Combined pct: innate (str/arc +15%) + armour stat pct. Applied only to (invested + race base + level bonus).
+  const INNATE_PCT = { str: 15, arc: 15 };
+  const armourStatPct = (armourData.pct || {})[statKey] ?? 0;
+  const totalStatPct  = (INNATE_PCT[statKey] ?? 0) + armourStatPct;
+  const pctBase   = allocated + (raceBase[statKey] ?? 0) + lvlBonus;
+  const otherFlat = (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + crystalBonus;
+  return Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
 }
 
 function recalcOpenDetails() {
@@ -5309,10 +5339,8 @@ function getCritDmgMult() {
   return isNaN(v) ? null : v;
 }
 
-function getArmourDmgTypePct(moveType) {
-  const pct = armourItems[armourPicker.value]?.pct || {};
-  if (moveType === 'Physical') return pct.str ?? 0;
-  if (moveType === 'Magic') return pct.arc ?? 0;
+function getArmourDmgTypePct(_moveType) {
+  // Armour stat pcts (str/arc/spd) are now applied as stat multipliers in getTotalStat.
   return 0;
 }
 
