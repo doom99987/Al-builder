@@ -129,6 +129,21 @@
     return (data || []).map(r => ({ username: r.profiles?.username || '???', score: r.score }));
   }
 
+  // ---- fetch the current user's rank for a QTE ----
+  async function fetchMyRank(qteType) {
+    if (!currentUser) return null;
+    // Get own score first
+    const { data: mine } = await sb.from('leaderboard')
+      .select('score').eq('user_id', currentUser.id).eq('qte_type', qteType).maybeSingle();
+    if (!mine) return null;
+    // Count how many players have a strictly higher score
+    const { count } = await sb.from('leaderboard')
+      .select('*', { count: 'exact', head: true })
+      .eq('qte_type', qteType)
+      .gt('score', mine.score);
+    return { rank: (count || 0) + 1, score: mine.score };
+  }
+
   // ================================================================
   //  UI helpers
   // ================================================================
@@ -409,24 +424,40 @@
       <h3 class="sb-title">${cap(qteType)} Leaderboard</h3>
       <div id="sb-lb-body"><div class="sb-loading">Loading&hellip;</div></div>
     `);
-    const rows = await fetchLeaderboard(qteType);
+
+    const [rows, myRank] = await Promise.all([
+      fetchLeaderboard(qteType),
+      currentUser ? fetchMyRank(qteType) : Promise.resolve(null)
+    ]);
+
     const body = document.getElementById('sb-lb-body');
     if (!body) return;
     if (!rows.length) {
       body.innerHTML = '<p class="sb-empty">No scores yet — be the first!</p>';
       return;
     }
+
     const myName = currentProfile?.username || null;
+    const inTop10 = myName && rows.some(r => r.username === myName);
+
+    let myRankHtml = '';
+    if (currentUser && !inTop10 && myRank) {
+      myRankHtml = `<p class="sb-my-rank">Your rank: <b>#${myRank.rank}</b> &mdash; streak <b>${myRank.score}</b></p>`;
+    } else if (currentUser && !inTop10 && !myRank) {
+      myRankHtml = `<p class="sb-my-rank">You have no score yet for this QTE.</p>`;
+    }
+
     body.innerHTML = `<table class="sb-lb-table">
       <thead><tr><th>#</th><th>Player</th><th>Streak</th></tr></thead>
       <tbody>${rows.map((r, i) => `
         <tr${myName === r.username ? ' class="sb-lb-me"' : ''}>
-          <td>${i === 0 ? '&#127881;' : i + 1}</td>
+          <td>${i + 1}</td>
           <td>${esc(r.username)}</td>
           <td><b>${r.score}</b></td>
         </tr>`).join('')}
       </tbody>
     </table>
+    ${myRankHtml}
     ${currentUser ? '' : '<p class="sb-empty">Login to submit your scores!</p>'}`;
   }
 
