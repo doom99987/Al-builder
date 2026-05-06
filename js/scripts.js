@@ -477,7 +477,9 @@ function updatePecents() {
     if (!totalEl) return;
     const allocated = input ? +input.value : 0;
     const flatBonus = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
-    totalEl.textContent = (allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus) || "";
+    const armourPctVal = armourPct[stat] ?? 0;
+    const flatTotal = allocated + (raceBase[stat] ?? 0) + flatBonus + lvlStatBonus;
+    totalEl.textContent = (flatTotal + armourPctVal) || "";
   });
   autoSave();
 }
@@ -954,7 +956,12 @@ function updateEnchantDesc() {
   enchantDescSection.style.display = "";
 }
 
-buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), updateEnchantDesc);
+buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), () => {
+  updateEnchantDesc();
+  Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
+  enchantReaperEnemyHp = 100;
+  renderDmgBonusSection(); recalcOpenDetails();
+});
 buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); updatePecents(); });
 
 function renderArtifactDesc() {
@@ -5242,6 +5249,8 @@ const TEAM_BUFFS = [
   { key: 'arcaneRitual',label: "Arcane Ritual", mult: 1.40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
 ];
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
+const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false };
+let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -5368,9 +5377,10 @@ function toggleDmgDetail(rowEl, idx) {
     const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
     const darkMult          = getShardOfBlightMult(effectiveMoveType);
     const blizzardMult      = getBlizzardMult(effectiveMoveType);
+    const enchantMult       = getEnchantMult();
     const energyMult        = 1 + energyBonus / 100;
     const armourMult        = 1 + armourDmgPct / 100;
-    const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult;
+    const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult;
     const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
     let formula; let currentDmg;
     if (totalMult > 1) {
@@ -5414,9 +5424,10 @@ function toggleDmgDetail(rowEl, idx) {
   const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
   const darkMult          = getShardOfBlightMult(effectiveMoveType);
   const blizzardMult      = getBlizzardMult(effectiveMoveType);
+  const enchantMult       = getEnchantMult();
   const energyMult        = 1 + energyBonus / 100;
   const armourMult        = 1 + armourDmgPct / 100;
-  const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult;
+  const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult;
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
@@ -5688,6 +5699,15 @@ function getBlizzardMult(effectiveMoveType) {
   return (teamBuffsActive.blizzard && effectiveMoveType === 'Ice') ? 1.20 : 1;
 }
 
+function getEnchantMult() {
+  const ench = enchantPicker.value;
+  if (ench === 'Cursed'  && enchantCondActive.cursed)    return 1.30;
+  if (ench === 'Inferno' && enchantCondActive.inferno)   return 1.20;
+  if (ench === 'Midas'   && enchantCondActive.midasProc) return 1.15;
+  if (ench === 'Reaper'  && enchantCondActive.reaperProc) return 1 + 0.25 * enchantReaperEnemyHp / 100;
+  return 1;
+}
+
 function toggleTeamBuff(key) {
   teamBuffsActive[key] = !teamBuffsActive[key];
   renderDmgBonusSection(); recalcOpenDetails();
@@ -5804,6 +5824,16 @@ function toggleShardCondition(key) {
 
 function toggleWeirdAccessory() {
   weirdAccessoryActive = !weirdAccessoryActive;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function toggleEnchantCond(key) {
+  enchantCondActive[key] = !enchantCondActive[key];
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function setEnchantReaperHp(val) {
+  enchantReaperEnemyHp = +val;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6072,6 +6102,42 @@ function renderDmgBonusSection() {
   </div>`;
   html += `</div>`;
 
+  // --- Enchant (shown only when a damage-boosting enchant is equipped) ---
+  const _enchantName = enchantPicker.value;
+  const _enchantDefs = {
+    'Cursed':  [{ key: 'cursed',    label: 'Enemy is Cursed',  desc: '+30% damage against Cursed enemies.' }],
+    'Inferno': [{ key: 'inferno',   label: 'Enemy is Burning', desc: '+20% damage when Burn is applied.' }],
+    'Midas':   [{ key: 'midasProc', label: 'Midas Proc',       desc: '16.6% chance — +15% extra damage.' }],
+    'Reaper':  [{ key: 'reaperProc',label: 'Reaper Proc',      desc: 'On proc: up to +25% damage based on enemy current HP.' }],
+  };
+  const _enchTogs = _enchantDefs[_enchantName];
+  if (_enchTogs) {
+    // Reset inactive enchant conditions when enchant changes
+    ['cursed','inferno','midasProc','reaperProc'].forEach(k => {
+      if (!_enchantDefs[_enchantName].find(t => t.key === k)) enchantCondActive[k] = false;
+    });
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
+    _enchTogs.forEach(tog => {
+      const on = enchantCondActive[tog.key];
+      const multVal = tog.key === 'reaperProc'
+        ? (1 + 0.25 * enchantReaperEnemyHp / 100).toFixed(2)
+        : tog.key === 'cursed' ? '1.30' : tog.key === 'inferno' ? '1.20' : '1.15';
+      html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-ench-key="${tog.key}" title="${tog.desc}">
+        <div class="dc-bonus-check">${on ? "✓" : ""}</div>
+        <span class="dc-bonus-name">${tog.label}</span>
+        <span class="dc-bonus-pct">×${multVal}</span>
+      </div>`;
+      if (tog.key === 'reaperProc') {
+        html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+          <span class="dc-energy-label">Enemy HP%: <span>${enchantReaperEnemyHp}</span></span>
+          <input type="range" class="dc-rage-slider" min="0" max="100" value="${enchantReaperEnemyHp}" oninput="setEnchantReaperHp(this.value)">
+          <span class="dc-rage-slider-hint">0% → 25% bonus</span>
+        </div>`;
+      }
+    });
+    html += `</div>`;
+  }
+
   // --- Team Buffs (always shown) ---
   const _mgPassiveActive = !!dmgBonusActive["scroll-mg:Metrom's Grasp"];
   // If MG passive is active, ensure team buff MG stays off (and vice versa)
@@ -6114,6 +6180,10 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.accKey) {
       row.addEventListener("click", () => toggleWeirdAccessory());
+      return;
+    }
+    if (row.dataset.enchKey) {
+      row.addEventListener("click", () => toggleEnchantCond(row.dataset.enchKey));
       return;
     }
     if (row.dataset.teamKey) {
@@ -7801,6 +7871,8 @@ function loadBuildState(state) {
   weirdAccessoryActive = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
+  Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
+  enchantReaperEnemyHp = 100;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
 
