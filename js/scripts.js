@@ -4,6 +4,36 @@ var _autoSaveTimer = null;
 
 const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
+// === QTE PING SIMULATOR ===
+// Delays keydown/keyup events by window._albPing ms when a QTE panel is active.
+// Uses capture phase so it fires before every bubble-phase handler in the game code.
+window._albPing = 0;
+(function () {
+  const QTE_KEYS = new Set(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
+
+  function isQteActive() {
+    return !!document.querySelector('#page-qte.active');
+  }
+
+  function intercept(type, e) {
+    const ping = window._albPing || 0;
+    if (ping <= 0 || !isQteActive()) return;
+    if (!QTE_KEYS.has(e.code) && !['w','a','s','d','W','A','S','D'].includes(e.key)) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    setTimeout(() => {
+      document.dispatchEvent(new KeyboardEvent(type, {
+        key: e.key, code: e.code, keyCode: e.keyCode, which: e.which,
+        shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
+        bubbles: true, cancelable: true
+      }));
+    }, ping);
+  }
+
+  document.addEventListener('keydown', e => intercept('keydown', e), true);
+  document.addEventListener('keyup',   e => intercept('keyup',   e), true);
+})();
+
 // === QTE LEADERBOARD HOOK — intercepts localStorage writes for QTE highscores ===
 (function () {
   const _origSet = Storage.prototype.setItem;
