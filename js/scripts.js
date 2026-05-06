@@ -8455,8 +8455,8 @@ function autoSave() {
 
   // starts at 4, caps at 8
   function getMaxSimul()      { return Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return Math.max(700, 1100 - streak * 2); }
-  function getSpawnInterval() { return Math.max(400, 1000 - streak * 10); }
+  function getApproachMs()    { return Math.max(850, 1100 - streak * 2); }
+  function getSpawnInterval() { return Math.max(550, 1000 - streak * 10); }
 
   // ---- highscore ----
   function updateHighscore(val) {
