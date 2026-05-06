@@ -216,6 +216,8 @@ document.querySelectorAll(".stat-row").forEach(row => {
     spent++;
     updatePoints();
     updatePecents();
+    renderDmgBonusSection();
+    recalcOpenDetails();
   });
 
   minus.addEventListener("click", () => {
@@ -225,6 +227,8 @@ document.querySelectorAll(".stat-row").forEach(row => {
     spent--;
     updatePoints();
     updatePecents();
+    renderDmgBonusSection();
+    recalcOpenDetails();
   });
 
   val.dataset.prev = 0;
@@ -240,6 +244,8 @@ document.querySelectorAll(".stat-row").forEach(row => {
     val.dataset.prev = newVal;
     updatePoints();
     updatePecents();
+    renderDmgBonusSection();
+    recalcOpenDetails();
   });
 });
 
@@ -552,8 +558,6 @@ function updatePecents() {
     totalEl.textContent = displayTotal || "";
   });
   autoSave();
-  renderDmgBonusSection();
-  recalcOpenDetails();
 }
 
 // Init
@@ -6250,8 +6254,9 @@ function renderDmgBonusSection() {
     html += `</div>`;
   }
 
-  // --- Vastic Procs (shown when Vastic Glaive equipped & STR or ARC is highest stat) ---
+  // --- Vastic Procs (shown when Vastic Glaive equipped & STR/ARC/LCK is highest stat) ---
   const _hasVasticGlaive = document.getElementById("weapon-main")?.value === "Vastic Glaive";
+  if (!_hasVasticGlaive && vasticLckProcActive) { vasticLckProcActive = false; }
   if (_hasVasticGlaive) {
     const _vStr = getTotalStat("str");
     const _vArc = getTotalStat("arc");
