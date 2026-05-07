@@ -8410,6 +8410,10 @@ function autoSave() {
     const isArrow = ARROWS.some(a => a.keys.includes(e.key));
     if (!isArrow) return;
 
+    // Don't capture keys while the user is typing in an input / textarea
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
     // Prevent page scroll on arrow keys only when QTE panel is visible
     const panel = document.getElementById('qte-panel-fist');
     if (panel && panel.style.display !== 'none') e.preventDefault();
