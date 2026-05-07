@@ -7802,7 +7802,8 @@ function getBuildState() {
     msty: mastery,
     soul,
     summ:  (document.getElementById('summary-textarea')?.innerHTML || ''),
-    summc: (document.getElementById('summary-color-picker')?.value || '#dddddd')
+    summc: (document.getElementById('summary-color-picker')?.value || '#dddddd'),
+    name:  (document.getElementById('build-name-input')?.value.trim() || '')
   };
 }
 
@@ -7954,7 +7955,14 @@ async function encodeState(state) {
     return base + '?id=' + id;
   }
   // Fallback: encode build state directly into the id param (no external service needed)
-  return base + '?id=b_' + _scrambleBlob(blob);
+  let _fbUrl = base + '?id=b_' + _scrambleBlob(blob);
+  const _summ  = state.summ  || '';
+  const _summc = state.summc || '#dddddd';
+  const _name  = state.name  || '';
+  if (_summ)                    _fbUrl += '&sm=' + encodeURIComponent(_summ);
+  if (_summc !== '#dddddd')     _fbUrl += '&sc=' + encodeURIComponent(_summc);
+  if (_name && _name !== 'Untitled') _fbUrl += '&n='  + encodeURIComponent(_name);
+  return _fbUrl;
 }
 
 // Load payload by ID — handles b_ (direct-encoded), localStorage, then JSONBlob
@@ -8204,11 +8212,12 @@ function autoSave() {
     const payload = await _loadById(id);
     if (payload) {
       const nameInput = document.getElementById('build-name-input');
-      if (nameInput && payload.n && payload.n !== 'Untitled') nameInput.value = payload.n;
-      const state = _unpackState(payload.d, payload.n || 'Untitled');
+      const resolvedN = (payload.n && payload.n !== 'Untitled') ? payload.n : (params.get('n') || 'Untitled');
+      if (nameInput && resolvedN !== 'Untitled') nameInput.value = resolvedN;
+      const state = _unpackState(payload.d, resolvedN);
       if (state) {
-        state.summ  = payload.summ  || '';
-        state.summc = payload.summc || '#dddddd';
+        state.summ  = payload.summ  != null ? payload.summ  : (params.get('sm')  || '');
+        state.summc = payload.summc != null ? payload.summc : (params.get('sc') || '#dddddd');
         loadBuildState(state);
         setTimeout(() => { if (typeof switchPage === 'function') switchPage('builder'); }, 0);
       }
@@ -8218,7 +8227,7 @@ function autoSave() {
 
   // Legacy hash-based links
   const hash = window.location.hash.slice(1);
-  const hashPages = ['home', 'builder', 'qte'];
+  const hashPages = ['home', 'builder', 'qte', 'leaderboards'];
   if (hash && !hashPages.includes(hash)) {
     try {
       if (hash.includes('/')) {
