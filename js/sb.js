@@ -30,10 +30,17 @@
     return await getProfile(user.id);
   }
 
-  // Fallback: detect recovery token in URL hash directly on page load
+  // Fallback: if PASSWORD_RECOVERY event never fires, open modal after 4s
+  // (long delay ensures Supabase has time to establish the session first)
   (function () {
     const p = new URLSearchParams(window.location.hash.slice(1));
-    if (p.get('type') === 'recovery') setTimeout(openSetNewPasswordModal, 300);
+    if (p.get('type') === 'recovery') {
+      let _handled = false;
+      const _unsub = sb.auth.onAuthStateChange((evt) => {
+        if (evt === 'PASSWORD_RECOVERY') { _handled = true; _unsub.data.subscription.unsubscribe(); }
+      });
+      setTimeout(() => { if (!_handled) openSetNewPasswordModal(); }, 4000);
+    }
   })();
 
   sb.auth.onAuthStateChange((_event, session) => {
@@ -574,6 +581,21 @@
     if (!pass || pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    // Wait up to 4s for session to be established before updating password
+    let session = (await sb.auth.getSession()).data.session;
+    if (!session) {
+      errEl.textContent = 'Verifying session…';
+      for (let i = 0; i < 8 && !session; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        session = (await sb.auth.getSession()).data.session;
+      }
+    }
+    if (!session) {
+      errEl.textContent = 'Session expired — please request a new reset link.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
+      return;
+    }
+    errEl.textContent = '';
     const { error } = await sb.auth.updateUser({ password: pass });
     if (error) {
       errEl.textContent = error.message;
