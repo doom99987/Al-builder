@@ -9,9 +9,7 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcW9oYWdsam12d2Z0d3F1bW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzg1NzEsImV4cCI6MjA5MzYxNDU3MX0.WfU88Ell1Q6jCcef2YiohxIeTHBNfruIxYWoa1QRCUc';
 
   if (!window.supabase) { console.warn('sb.js: Supabase CDN not loaded'); return; }
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { flowType: 'implicit' }
-  });
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   // ---- state ----
   let currentUser    = null;
@@ -32,16 +30,19 @@
     return await getProfile(user.id);
   }
 
-  // Fallback: if PASSWORD_RECOVERY event never fires, open modal after 4s
-  // (long delay ensures Supabase has time to establish the session first)
+  // Fallback: detect recovery link (hash implicit OR PKCE ?code=) and open modal
+  // if PASSWORD_RECOVERY event doesn't fire on its own within 3s
   (function () {
-    const p = new URLSearchParams(window.location.hash.slice(1));
-    if (p.get('type') === 'recovery') {
+    const hash   = new URLSearchParams(window.location.hash.slice(1));
+    const search = new URLSearchParams(window.location.search);
+    const mightBeRecovery = hash.get('type') === 'recovery'
+      || (search.has('code') && !search.has('error'));
+    if (mightBeRecovery) {
       let _handled = false;
       const _unsub = sb.auth.onAuthStateChange((evt) => {
         if (evt === 'PASSWORD_RECOVERY') { _handled = true; _unsub.data.subscription.unsubscribe(); }
       });
-      setTimeout(() => { if (!_handled) openSetNewPasswordModal(); }, 800);
+      setTimeout(() => { if (!_handled) openSetNewPasswordModal(); }, 3000);
     }
   })();
 
@@ -585,22 +586,6 @@
     if (!pass || pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
-    errEl.textContent = '';
-    // Wait up to 10s for session if not yet established
-    let session = (await sb.auth.getSession()).data.session;
-    if (!session) {
-      errEl.textContent = 'Verifying session…';
-      for (let i = 0; i < 20 && !session; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        session = (await sb.auth.getSession()).data.session;
-      }
-    }
-    if (!session) {
-      errEl.style.color = '#ff8888';
-      errEl.textContent = 'Reset link expired or invalid — please request a new one.';
-      if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
-      return;
-    }
     errEl.textContent = '';
     const { error } = await sb.auth.updateUser({ password: pass });
     if (error) {
