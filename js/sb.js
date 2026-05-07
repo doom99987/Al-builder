@@ -584,6 +584,22 @@
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
     errEl.textContent = '';
+    // Wait up to 10s for Supabase to finish processing the recovery token
+    let session = (await sb.auth.getSession()).data.session;
+    if (!session) {
+      errEl.textContent = 'Connecting…';
+      for (let i = 0; i < 20 && !session; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        session = (await sb.auth.getSession()).data.session;
+      }
+      errEl.textContent = '';
+    }
+    if (!session) {
+      errEl.style.color = '#ff8888';
+      errEl.textContent = 'Reset link expired — please request a new one.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
+      return;
+    }
     const { error } = await sb.auth.updateUser({ password: pass });
     if (error) {
       errEl.style.color = '#ff8888';
