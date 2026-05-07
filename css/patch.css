@@ -816,7 +816,8 @@ h2 {
 /* Make the mastery panel use the full available height */
 #mastery {
   overflow: hidden;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .mastery-wrap {
@@ -845,10 +846,10 @@ h2 {
   transform-origin: top center;
 }
 
-/* Auto-scale the tree to fit viewport using a CSS zoom trick */
+/* Zoom is set dynamically by scaleMasteryTree() in scripts.js */
 .mastery-trunk,
 .mastery-branches {
-  zoom: 0.82;
+  zoom: 0.82; /* fallback until JS runs */
 }
 
 /* ============================================================
