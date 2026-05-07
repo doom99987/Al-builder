@@ -397,6 +397,11 @@ function calcPercentage(stat, val){
   return formulas[stat] ? formulas[stat](val).toFixed(stat === "crit-dmg" ? 2 : 1) : "—";
 }
 
+const _gearSlotIds = ["gear-1","gear-2","gear-3","gear-4"];
+function hasGearEquipped(name) {
+  return _gearSlotIds.some(id => document.getElementById(id)?.value === name);
+}
+
 function updatePoints() {
   document.getElementById("points-left").textContent = getEffectiveTotal() - spent;
 }
@@ -418,7 +423,8 @@ const _pctCache = (() => {
   }));
   const spdInput = document.querySelector('.stat-row[data-stat="spd"] .stat-val');
   const lckInput = document.querySelector('.stat-row[data-stat="lck"] .stat-val');
-  return { items, statRows, spdInput, lckInput };
+  const artifactPicker = document.getElementById("artifact-picker");
+  return { items, statRows, spdInput, lckInput, artifactPicker };
 })();
 
 function updatePecents() {
@@ -455,7 +461,7 @@ function updatePecents() {
   // Collect flat stat bonuses and pct bonuses from equipped gear
   const gearStatBonuses = {};
   const gearPct = {};
-  ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
+  _gearSlotIds.forEach(id => {
     const name = document.getElementById(id)?.value;
     const g = name ? gearItems[name] : null;
     if (g) {
@@ -521,7 +527,7 @@ function updatePecents() {
       const flatHP = (soulTreeBonuses.endFlat ?? 0) + (armour.endFlat ?? 0) + (gearStatBonuses.endFlat ?? 0);
       const hpPct = (armourPct.end ?? 0) + (gearPct.end ?? 0);
       display = (hpBase * (1 + hpPct / 100) + flatHP).toFixed(1);
-      if (document.getElementById("artifact-picker")?.value === "Paranoxian Crux") {
+      if (_pctCache.artifactPicker?.value === "Paranoxian Crux") {
         const fullHP = parseFloat(display);
         const currentHP = (fullHP * 0.15).toFixed(1);
         const shieldHP = (fullHP - fullHP * 0.15).toFixed(1);
@@ -535,7 +541,7 @@ function updatePecents() {
     if (stat === "crit-chance" && isStultus) {
       display = Math.min(100, parseFloat(display) + stultusBonus).toFixed(1);
     }
-    if (stat === "crit-chance" && frozenDiademIceActive && ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Frozen Diadem")) {
+    if (stat === "crit-chance" && frozenDiademIceActive && hasGearEquipped("Frozen Diadem")) {
       display = Math.min(100, parseFloat(display) + 5).toFixed(1);
     }
     if (stat === "crit-chance" && vasticLckProcActive) {
@@ -5410,11 +5416,6 @@ function getExpectedMultiHitDmg(totalDmg, critMult, critChancePct) {
 function getArmourDmgTypePct(_moveType) {
   // Armour stat pcts (str/arc/spd) are now applied as stat multipliers in getTotalStat.
   return 0;
-}
-
-const _gearSlotIds = ["gear-1","gear-2","gear-3","gear-4"];
-function hasGearEquipped(name) {
-  return _gearSlotIds.some(id => document.getElementById(id)?.value === name);
 }
 
 function getEffectiveMoveType(moveType) {
