@@ -3027,6 +3027,29 @@ h2 {
   color: #aaeaaa;
 }
 
+.saved-builds-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  color: #ccc;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 3px;
+  margin-bottom: 16px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.saved-builds-search:focus {
+  border-color: #444;
+}
+
+.saved-builds-search::placeholder {
+  color: #444;
+}
+
 .saved-builds-empty {
   color: #555;
   font-size: 14px;
@@ -3106,4 +3129,32 @@ h2 {
 .saved-build-del-btn:hover {
   background: #3e2a2a;
   color: #eaaaaa;
+}
+
+.saved-build-star {
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid #2a2a2a;
+  border-radius: 3px;
+  color: #444;
+  font-size: 15px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.saved-build-star:hover {
+  color: #c8a84b;
+  border-color: #6a5a2a;
+  background: #1e1a0e;
+}
+
+.saved-build-star.fav {
+  color: #e8c250;
+  border-color: #6a5a2a;
+  background: #1e1a0e;
+}
+
+.saved-build-card.is-fav {
+  border-color: #3a3020;
 }

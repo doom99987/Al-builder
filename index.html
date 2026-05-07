@@ -636,6 +636,7 @@
           <h2>Saved Builds</h2>
           <button class="save-current-btn" id="save-current-btn">Save Current Build</button>
         </div>
+        <input type="text" id="saved-builds-search" class="saved-builds-search" placeholder="Search builds...">
         <div class="saved-builds-list" id="saved-builds-list"></div>
       </div>
     </div>
@@ -678,7 +679,7 @@
 
 <script src="js/supabase.min.js"></script>
 <script src="js/sb.js?v=43"></script>
-<script src="js/scripts.js?v=88"></script>
+<script src="js/scripts.js?v=89"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
