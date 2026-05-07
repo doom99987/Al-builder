@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="Logo.png">
-  <link rel="stylesheet" href="css/styles.css?v=25">
-  <link rel="stylesheet" href="css/patch.css?v=25">
+  <link rel="stylesheet" href="css/styles.css?v=27">
+  <link rel="stylesheet" href="css/patch.css?v=27">
 </head>
 
 <body>
@@ -274,6 +274,24 @@
     <div class="tabbar-controls">
       <input type="text" id="build-name-input" class="build-name-input" placeholder="Untitled" maxlength="60">
       <button class="share-build-btn" id="share-build-btn">Share</button>
+    </div>
+  </div>
+
+  <!-- Accuracy disclaimer -->
+  <div class="builder-disclaimer" id="builder-disclaimer">
+    ⚠ Displayed numbers may differ slightly from in-game values — the calculations are accurate and reflect true game mechanics.
+    <button class="builder-disclaimer-close" onclick="showDisclaimerConfirm()" title="Dismiss">✕</button>
+  </div>
+
+  <!-- Disclaimer confirm overlay -->
+  <div class="disclaimer-confirm-overlay" id="disclaimer-confirm" style="display:none">
+    <div class="disclaimer-confirm-box">
+      <p>Hide this disclaimer permanently?</p>
+      <div class="disclaimer-confirm-btns">
+        <button onclick="dismissDisclaimer(true)">Yes, don't show again</button>
+        <button onclick="dismissDisclaimer(false)">Just hide for now</button>
+        <button onclick="document.getElementById('disclaimer-confirm').style.display='none'">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -641,7 +659,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/scripts.js?v=59"></script>
+<script src="js/scripts.js?v=61"></script>
 <script src="js/sb.js"></script>
 <script>
   function switchPage(name) {
@@ -696,6 +714,23 @@
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));
   });
   switchQteTab('dagger');
+
+  // Disclaimer logic
+  (function () {
+    const banner  = document.getElementById('builder-disclaimer');
+    const overlay = document.getElementById('disclaimer-confirm');
+    if (localStorage.getItem('alb-disclaimer-hidden') === '1') {
+      if (banner) banner.style.display = 'none';
+    }
+    window.showDisclaimerConfirm = function () {
+      if (overlay) overlay.style.display = 'flex';
+    };
+    window.dismissDisclaimer = function (permanent) {
+      if (banner)  banner.style.display  = 'none';
+      if (overlay) overlay.style.display = 'none';
+      if (permanent) localStorage.setItem('alb-disclaimer-hidden', '1');
+    };
+  })();
 
   // Ping simulator control
   const _pingSlider  = document.getElementById('qte-ping-slider');
