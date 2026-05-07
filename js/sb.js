@@ -919,13 +919,14 @@
       const id = Array.from({length: 6}, () => _SB_CHARS[Math.floor(Math.random() * 62)]).join('');
       const { error } = await sb.from('shared_builds').insert({ id, payload: payloadObj });
       if (!error) return id;
-      if (error.code !== '23505') return null; // non-collision error
+      if (error.code !== '23505') { console.error('[sb] saveSharedBuild error:', error); return null; }
     }
     return null;
   }
   async function loadSharedBuild(id) {
     const { data, error } = await sb.from('shared_builds').select('payload').eq('id', id).maybeSingle();
-    if (error || !data) return null;
+    if (error) { console.error('[sb] loadSharedBuild error:', error); return null; }
+    if (!data) return null;
     return data.payload;
   }
   window._saveSharedBuild = saveSharedBuild;
