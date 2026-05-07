@@ -8430,8 +8430,9 @@ function autoSave() {
     if (!isArrow) return;
 
     // Don't capture keys while the user is typing in an input / textarea
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
 
     // Prevent page scroll on arrow keys only when QTE panel is visible
     const panel = document.getElementById('qte-panel-fist');
@@ -9095,8 +9096,9 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-sword');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9346,8 +9348,9 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-dodge');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9672,8 +9675,9 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-dagger');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9902,8 +9906,9 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-hammer');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -10211,8 +10216,9 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-axe');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
