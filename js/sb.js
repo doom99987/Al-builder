@@ -30,8 +30,13 @@
   async function ensureProfile(user) {
     const profile = await getProfile(user.id);
     if (profile) return profile;
-    const username = user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
-    await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+    const base = user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 17);
+    for (let i = 0; i <= 9; i++) {
+      const username = i === 0 ? base : base + i;
+      const { error } = await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
+      if (!error) break;
+      if (error.code !== '23505') break; // unexpected error, stop retrying
+    }
     return await getProfile(user.id);
   }
 
@@ -78,6 +83,10 @@
     if (username.length < 3)  throw new Error('Username must be at least 3 characters.');
     if (username.length > 20) throw new Error('Username must be 20 characters or fewer.');
     if (!/^[a-zA-Z0-9_\-]+$/.test(username)) throw new Error('Username: letters, numbers, _ and - only.');
+
+    // Check uniqueness before creating auth account
+    const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
+    if (taken) throw new Error('Username already taken.');
 
     _authLock = true;
     try {
