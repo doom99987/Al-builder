@@ -910,5 +910,26 @@
   window._submitForgotPassword = submitForgotPassword;
   window._submitNewPassword    = submitNewPassword;
 
+  // ================================================================
+  //  Shared build storage (short URLs)
+  // ================================================================
+  const _SB_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  async function saveSharedBuild(payloadObj) {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const id = Array.from({length: 6}, () => _SB_CHARS[Math.floor(Math.random() * 62)]).join('');
+      const { error } = await sb.from('shared_builds').insert({ id, payload: payloadObj });
+      if (!error) return id;
+      if (error.code !== '23505') return null; // non-collision error
+    }
+    return null;
+  }
+  async function loadSharedBuild(id) {
+    const { data, error } = await sb.from('shared_builds').select('payload').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    return data.payload;
+  }
+  window._saveSharedBuild = saveSharedBuild;
+  window._loadSharedBuild = loadSharedBuild;
+
   // Boot: onAuthStateChange fires INITIAL_SESSION and handles session restoration
 })();
