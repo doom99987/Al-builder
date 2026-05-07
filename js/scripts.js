@@ -6574,7 +6574,7 @@ const ROMAN = ["—", "I", "II", "III", "IV", "V"];
 
 const soulTreeData = {
   "Path of Destruction": [
-    { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125],                              dmgBonus: true },
+    { id: "denature",      name: "Denature",                 desc: "DoT Damage +{v}%",                                               perRank: 2,   maxRank: 5, costs: [25,50,75,100,125] },
     { id: "crit_point",   name: "Critical Point",            desc: "Base crit damage +{v}%",                                         perRank: 5,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-dmg": 0.05} },
     { id: "strike_first", name: "Strike First, No Mercy",    desc: "First attack +{v}% damage (expires after 2 turns)",              perRank: 5,   maxRank: 5, costs: [100,200,300,400,500],                                       dmgBonus: true },
     { id: "lil_crit",     name: "Lil Bit of Crit",           desc: "Base crit chance +{v}%",                                         perRank: 1,   maxRank: 5, costs: [50,100,150,200,250],  bonus: {"crit-chance": 1} },
