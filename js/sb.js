@@ -593,24 +593,30 @@
       if (btn) btn.remove();
     }
 
-    // Register listener SYNCHRONOUSLY before any async work so PASSWORD_RECOVERY isn't missed
+    // Listen for PASSWORD_RECOVERY or SIGNED_IN (different Supabase versions fire different events)
     const _unsub = sb.auth.onAuthStateChange((evt) => {
-      if (evt === 'PASSWORD_RECOVERY') {
+      if (evt === 'PASSWORD_RECOVERY' || evt === 'SIGNED_IN') {
         _unsub.data.subscription.unsubscribe();
-        clearTimeout(_timeout);
+        clearInterval(_poll);
         _enable();
       }
     });
 
-    const _timeout = setTimeout(() => {
-      _unsub.data.subscription.unsubscribe();
-      _fail();
-    }, 30000);
-
-    // Also handle case where session was already established before modal opened
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session) { clearTimeout(_timeout); _unsub.data.subscription.unsubscribe(); _enable(); }
-    });
+    // Also poll getSession every 500ms — covers cases where event already fired or is delayed
+    let _attempts = 0;
+    const _poll = setInterval(async () => {
+      _attempts++;
+      const { data } = await sb.auth.getSession();
+      if (data.session) {
+        clearInterval(_poll);
+        _unsub.data.subscription.unsubscribe();
+        _enable();
+      } else if (_attempts >= 20) { // 10s max
+        clearInterval(_poll);
+        _unsub.data.subscription.unsubscribe();
+        _fail();
+      }
+    }, 500);
   }
 
   async function submitNewPassword() {
