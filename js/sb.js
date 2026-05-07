@@ -31,6 +31,10 @@
   }
 
   sb.auth.onAuthStateChange((_event, session) => {
+    if (_event === 'PASSWORD_RECOVERY') {
+      openSetNewPasswordModal();
+      return;
+    }
     if (_authLock) return;
     currentUser = session?.user ?? null;
     if (currentUser) {
@@ -160,10 +164,9 @@
   // ================================================================
   //  UI helpers
   // ================================================================
+  const _ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, c =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
-    );
+    return String(s).replace(/[&<>"']/g, c => _ESC_MAP[c]);
   }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
@@ -504,7 +507,7 @@
     }
   }
 
-  async function openForgotPasswordModal() {
+  function openForgotPasswordModal() {
     openModal(`
       <h2 class="sb-title">Reset Password</h2>
       <p style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Enter your account email and we'll send a reset link.</p>
@@ -536,6 +539,45 @@
       errEl.textContent = 'Reset email sent! Check your inbox.';
       emailEl.disabled = true;
       document.querySelector('.sb-submit') && (document.querySelector('.sb-submit').disabled = true);
+    }
+  }
+
+  // ---- set new password (after clicking reset link) ----
+  function openSetNewPasswordModal() {
+    openModal(`
+      <h2 class="sb-title">Set New Password</h2>
+      <p style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Enter your new password below.</p>
+      <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" />
+      <div class="sb-err" id="np-err"></div>
+      <button class="auth-btn sb-submit" onclick="window._submitNewPassword()">Set Password</button>
+    `);
+    setTimeout(() => {
+      const el = document.getElementById('np-pass');
+      if (el) {
+        el.focus();
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
+      }
+    }, 50);
+  }
+
+  async function submitNewPassword() {
+    const passEl = document.getElementById('np-pass');
+    const errEl  = document.getElementById('np-err');
+    if (!passEl || !errEl) return;
+    const pass = passEl.value;
+    if (!pass || pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+    const btn = document.querySelector('.sb-submit');
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    const { error } = await sb.auth.updateUser({ password: pass });
+    if (error) {
+      errEl.textContent = error.message;
+      if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
+    } else {
+      errEl.style.color = '#88ee88';
+      errEl.textContent = 'Password updated! You are now logged in.';
+      passEl.disabled = true;
+      if (btn) btn.disabled = true;
+      setTimeout(() => closeModal(), 2000);
     }
   }
 
@@ -701,8 +743,9 @@
   window._sendPasswordReset  = sendPasswordReset;
   window._uploadAvatar       = uploadAvatar;
   window._loadAllLeaderboards  = loadAllLeaderboards;
-  window._openForgotPassword  = openForgotPasswordModal;
+  window._openForgotPassword   = openForgotPasswordModal;
   window._submitForgotPassword = submitForgotPassword;
+  window._submitNewPassword    = submitNewPassword;
 
   // Boot: onAuthStateChange fires INITIAL_SESSION and handles session restoration
 })();
