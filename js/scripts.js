@@ -9880,7 +9880,7 @@ function autoSave() {
     const panel = document.getElementById('qte-panel-hammer');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
-    if (!running || paused) return;
+    if (!running || paused || inSuccessDelay) return;
     holding = true;
   });
 
@@ -9895,7 +9895,7 @@ function autoSave() {
   if (IS_MOBILE) {
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
-      if (!running || paused) return;
+      if (!running || paused || inSuccessDelay) return;
       holding = true;
     }, { passive: false });
     canvas.addEventListener('touchend', e => {
@@ -9912,7 +9912,7 @@ function autoSave() {
     hammerHoldBtn.style.display = 'none';
     hammerHoldBtn.addEventListener('touchstart', e => {
       e.preventDefault();
-      if (!running || paused) return;
+      if (!running || paused || inSuccessDelay) return;
       holding = true;
       hammerHoldBtn.classList.add('active');
     }, { passive: false });
