@@ -657,28 +657,27 @@
   }
 
   // ---- leaderboard modal ----
-  async function openLeaderboard(qteType) {
-    openModal(`
-      <button class="sb-close" onclick="window._closeModal()">&times;</button>
-      <h3 class="sb-title">${cap(qteType)} Leaderboard</h3>
-      <div id="sb-lb-body"><div class="sb-loading">Loading&hellip;</div></div>
-    `);
-
-    const [rows, myRank] = await Promise.all([
-      fetchLeaderboard(qteType),
-      currentUser ? fetchMyRank(qteType) : Promise.resolve(null)
-    ]);
-
+  async function _renderLbContent(qteType, mode) {
+    const type = mode === 'comp' ? qteType + '-comp' : qteType;
     const body = document.getElementById('sb-lb-body');
     if (!body) return;
+    body.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
+
+    const [rows, myRank] = await Promise.all([
+      fetchLeaderboard(type),
+      currentUser ? fetchMyRank(type) : Promise.resolve(null)
+    ]);
+
+    if (!document.getElementById('sb-lb-body')) return; // modal closed
     if (!rows.length) {
-      body.innerHTML = '<p class="sb-empty">No scores yet — be the first!</p>';
+      body.innerHTML = mode === 'comp'
+        ? '<p class="sb-empty">No competitive scores yet — be the first!</p>'
+        : '<p class="sb-empty">No scores yet — be the first!</p>';
       return;
     }
 
     const myName = currentProfile?.username || null;
     const inTop10 = myName && rows.some(r => r.username === myName);
-
     let myRankHtml = '';
     if (currentUser && !inTop10 && myRank) {
       myRankHtml = `<p class="sb-my-rank">Your rank: <b>#${myRank.rank}</b> &mdash; streak <b>${myRank.score}</b></p>`;
@@ -700,15 +699,36 @@
     ${currentUser ? '' : '<p class="sb-empty">Login to submit your scores!</p>'}`;
   }
 
+  async function openLeaderboard(qteType) {
+    const initMode = window._qteCompMode ? 'comp' : 'casual';
+    openModal(`
+      <button class="sb-close" onclick="window._closeModal()">&times;</button>
+      <h3 class="sb-title">${cap(qteType)} Leaderboard</h3>
+      <div class="sb-lb-tabs">
+        <button class="sb-lb-tab${initMode === 'casual' ? ' active' : ''}" onclick="window._lbShowTab('${qteType}','casual',this)">Casual</button>
+        <button class="sb-lb-tab comp-tab${initMode === 'comp' ? ' active' : ''}" onclick="window._lbShowTab('${qteType}','comp',this)">Competitive</button>
+      </div>
+      <div id="sb-lb-body"><div class="sb-loading">Loading&hellip;</div></div>
+    `);
+    await _renderLbContent(qteType, initMode);
+  }
+
   // ---- all leaderboards view ----
   const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge'];
 
-  async function loadAllLeaderboards() {
+  async function loadAllLeaderboards(mode) {
     const grid = document.getElementById('all-lb-grid');
     if (!grid) return;
-    grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
 
-    const results = await Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t)));
+    // Determine mode from arg or active tab
+    if (!mode) {
+      const activeTab = document.querySelector('.all-lb-mode-tab.active');
+      mode = activeTab?.dataset.mode || 'casual';
+    }
+    const suffix = mode === 'comp' ? '-comp' : '';
+
+    grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
+    const results = await Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t + suffix)));
 
     grid.innerHTML = QTE_TYPES.map((type, idx) => {
       const rows = results[idx];
@@ -749,6 +769,16 @@
   window._sendPasswordReset  = sendPasswordReset;
   window._uploadAvatar       = uploadAvatar;
   window._loadAllLeaderboards  = loadAllLeaderboards;
+  window._switchLbMode = function (btn) {
+    document.querySelectorAll('.all-lb-mode-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    loadAllLeaderboards(btn.dataset.mode);
+  };
+  window._lbShowTab = async (qteType, mode, btn) => {
+    document.querySelectorAll('.sb-lb-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    await _renderLbContent(qteType, mode);
+  };
   window._openForgotPassword   = openForgotPasswordModal;
   window._submitForgotPassword = submitForgotPassword;
   window._submitNewPassword    = submitNewPassword;
