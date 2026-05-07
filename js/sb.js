@@ -30,25 +30,19 @@
     return await getProfile(user.id);
   }
 
-  // Fallback: detect recovery link (hash implicit OR PKCE ?code=) and open modal
-  // if PASSWORD_RECOVERY event doesn't fire on its own within 3s
+  // Open modal immediately if recovery link detected in URL
   (function () {
     const hash   = new URLSearchParams(window.location.hash.slice(1));
     const search = new URLSearchParams(window.location.search);
-    const mightBeRecovery = hash.get('type') === 'recovery'
-      || (search.has('code') && !search.has('error'));
-    if (mightBeRecovery) {
-      let _handled = false;
-      const _unsub = sb.auth.onAuthStateChange((evt) => {
-        if (evt === 'PASSWORD_RECOVERY') { _handled = true; _unsub.data.subscription.unsubscribe(); }
-      });
-      setTimeout(() => { if (!_handled) openSetNewPasswordModal(); }, 3000);
+    if (hash.get('type') === 'recovery' || (search.has('code') && !search.has('error'))) {
+      openSetNewPasswordModal();
     }
   })();
 
   sb.auth.onAuthStateChange((_event, session) => {
     if (_event === 'PASSWORD_RECOVERY') {
-      openSetNewPasswordModal();
+      // Only open if user hasn't already started typing (modal not yet shown)
+      if (!document.getElementById('np-pass')) openSetNewPasswordModal();
       return;
     }
     if (_authLock) return;
