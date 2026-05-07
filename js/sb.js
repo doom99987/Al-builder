@@ -560,12 +560,25 @@
 
   // ---- set new password (after clicking reset link) ----
   function openSetNewPasswordModal() {
+    const _hsh   = new URLSearchParams(window.location.hash.slice(1));
+    const _srch  = new URLSearchParams(window.location.search);
+    const _tokenHash   = _srch.get('token_hash');
+    const _code        = _srch.get('code');
+    const _accessToken = _hsh.get('access_token');
+    // Debug line — shown in modal so user can report URL format (remove once fixed)
+    const _dbg = 'th:' + (_tokenHash ? 'Y' : 'N')
+               + ' code:' + (_code ? 'Y' : 'N')
+               + ' at:' + (_accessToken ? 'Y' : 'N')
+               + ' ht:' + (_hsh.get('type') || '-')
+               + ' st:' + (_srch.get('type') || '-');
+
     openModal(`
       <h2 class="sb-title">Set New Password</h2>
       <p id="np-status" style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Verifying reset link…</p>
       <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" disabled />
       <div class="sb-err" id="np-err"></div>
       <button class="auth-btn sb-submit" id="np-btn" onclick="window._submitNewPassword()" disabled>Verifying…</button>
+      <p style="font-size:0.65rem;color:#555;margin-top:8px">${_dbg}</p>
     `);
 
     let _done = false;
@@ -582,32 +595,41 @@
       if (statusEl) statusEl.textContent = 'Enter your new password below.';
     }
 
-    function _fail() {
+    function _fail(msg) {
       if (_done) return; _done = true;
       const statusEl = document.getElementById('np-status');
       const btn      = document.getElementById('np-btn');
       if (!statusEl) return;
       statusEl.style.color = '#ff8888';
-      statusEl.textContent = 'Reset link expired — please request a new one.';
+      statusEl.textContent = (msg || 'Reset link expired — please request a new one.');
       if (btn) btn.remove();
     }
 
-    // Newer Supabase projects send ?token_hash=xxx&type=recovery in the query string.
-    // The client with flowType:'implicit' only processes #access_token hash, so we must
-    // exchange token_hash explicitly via verifyOtp.
-    const _sq = new URLSearchParams(window.location.search);
-    const _tokenHash = _sq.get('token_hash');
+    // Path 1: token_hash format (?token_hash=xxx&type=recovery) — newer Supabase
     if (_tokenHash) {
       sb.auth.verifyOtp({ token_hash: _tokenHash, type: 'recovery' })
-        .then(({ error }) => {
-          if (error) _fail();
-          else _enable();
-        });
+        .then(({ data, error }) => {
+          if (error) _fail('Link error: ' + error.message);
+          else if (data?.session) _enable();
+          else _fail();
+        })
+        .catch(e => _fail('Error: ' + e.message));
       return;
     }
 
-    // Fallback for implicit flow (#access_token=...&type=recovery in hash):
-    // Listen for PASSWORD_RECOVERY or SIGNED_IN events
+    // Path 2: PKCE code (?code=xxx)
+    if (_code) {
+      sb.auth.exchangeCodeForSession(window.location.href)
+        .then(({ error }) => {
+          if (error) _fail('Code error: ' + error.message);
+          else _enable();
+        })
+        .catch(e => _fail('Error: ' + e.message));
+      return;
+    }
+
+    // Path 3: implicit hash tokens (#access_token=...&type=recovery)
+    // Supabase client processes these automatically — listen for events + poll
     const _unsub = sb.auth.onAuthStateChange((evt) => {
       if (evt === 'PASSWORD_RECOVERY' || evt === 'SIGNED_IN') {
         _unsub.data.subscription.unsubscribe();
@@ -616,7 +638,6 @@
       }
     });
 
-    // Also poll getSession every 500ms — covers cases where event already fired or is delayed
     let _attempts = 0;
     const _poll = setInterval(async () => {
       _attempts++;
@@ -625,7 +646,7 @@
         clearInterval(_poll);
         _unsub.data.subscription.unsubscribe();
         _enable();
-      } else if (_attempts >= 20) { // 10s max
+      } else if (_attempts >= 20) {
         clearInterval(_poll);
         _unsub.data.subscription.unsubscribe();
         _fail();
