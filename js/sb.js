@@ -38,14 +38,17 @@
   // Open modal immediately if this looks like a recovery redirect.
   // With flowType:'implicit', Supabase puts tokens in the hash (#access_token=...&type=recovery).
   // Keep fallbacks for token_hash and ?code= in case the project setting ever changes.
-  (function () {
+  function _checkRecoveryURL() {
     const hash   = new URLSearchParams(window.location.hash.slice(1));
     const search = new URLSearchParams(window.location.search);
     const isRecovery = hash.get('type') === 'recovery'
       || search.get('type') === 'recovery'
       || (search.has('code') && !search.has('error'));
     if (isRecovery) openSetNewPasswordModal();
-  })();
+  }
+  _checkRecoveryURL();
+  // Also handle same-page hash navigation (e.g. email link opens in an already-loaded tab)
+  window.addEventListener('hashchange', _checkRecoveryURL);
 
   sb.auth.onAuthStateChange((_event, session) => {
     if (_event === 'PASSWORD_RECOVERY') return; // handled inside openSetNewPasswordModal
@@ -514,7 +517,9 @@
   async function sendPasswordReset() {
     if (!currentUser?.email) return;
     const errEl = document.getElementById('sb-settings-err');
-    const { error } = await sb.auth.resetPasswordForEmail(currentUser.email);
+    const { error } = await sb.auth.resetPasswordForEmail(currentUser.email, {
+      redirectTo: window.location.origin + '/'
+    });
     if (errEl) {
       if (error) { errEl.textContent = error.message; }
       else        { errEl.style.color = '#88ee88'; errEl.textContent = 'Reset email sent!'; }
