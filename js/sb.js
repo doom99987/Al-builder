@@ -563,36 +563,18 @@
   function openSetNewPasswordModal() {
     openModal(`
       <h2 class="sb-title">Set New Password</h2>
-      <p id="np-status" style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Verifying reset link…</p>
-      <div id="np-form" style="display:none">
-        <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" />
-        <div class="sb-err" id="np-err"></div>
-        <button class="auth-btn sb-submit" onclick="window._submitNewPassword()">Set Password</button>
-      </div>
+      <p style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Enter your new password below.</p>
+      <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" />
+      <div class="sb-err" id="np-err"></div>
+      <button class="auth-btn sb-submit" onclick="window._submitNewPassword()">Set Password</button>
     `);
-    // Poll for session — show form once confirmed, error if not established
-    (async () => {
-      let session = (await sb.auth.getSession()).data.session;
-      for (let i = 0; i < 12 && !session; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        session = (await sb.auth.getSession()).data.session;
+    setTimeout(() => {
+      const el = document.getElementById('np-pass');
+      if (el) {
+        el.focus();
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
       }
-      const statusEl = document.getElementById('np-status');
-      const formEl   = document.getElementById('np-form');
-      if (!statusEl || !formEl) return; // modal closed
-      if (session) {
-        statusEl.textContent = 'Enter your new password below.';
-        formEl.style.display = '';
-        const el = document.getElementById('np-pass');
-        if (el) {
-          el.focus();
-          el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
-        }
-      } else {
-        statusEl.style.color = '#ff8888';
-        statusEl.textContent = 'Reset link expired or invalid — please request a new one.';
-      }
-    })();
+    }, 50);
   }
 
   async function submitNewPassword() {
@@ -603,6 +585,22 @@
     if (!pass || pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    errEl.textContent = '';
+    // Wait up to 10s for session if not yet established
+    let session = (await sb.auth.getSession()).data.session;
+    if (!session) {
+      errEl.textContent = 'Verifying session…';
+      for (let i = 0; i < 20 && !session; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        session = (await sb.auth.getSession()).data.session;
+      }
+    }
+    if (!session) {
+      errEl.style.color = '#ff8888';
+      errEl.textContent = 'Reset link expired or invalid — please request a new one.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
+      return;
+    }
     errEl.textContent = '';
     const { error } = await sb.auth.updateUser({ password: pass });
     if (error) {
