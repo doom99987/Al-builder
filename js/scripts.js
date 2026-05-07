@@ -3582,6 +3582,7 @@ const classMoves = {
         cooldown: 5,
         moveType: "Holy",
         category: "Utility",
+        healing: 4,
         scaling: "STR/ARC",
         effect: "Removes the target's status effects before the heal.",
         image: "https://trello.com/1/cards/67b32965d4aec03ba93fe899/attachments/697fc2c1ed1609ee1feed8a2/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202021615.png"
@@ -3611,6 +3612,7 @@ const classMoves = {
         cooldown: 5,
         moveType: "Holy",
         category: "Utility",
+        healing: 15,
         scaling: "STR/ARC",
         effect: "Heals more than Cleansing Prayer.",
         image: "https://trello.com/1/cards/67b32965d4aec03ba93fe899/attachments/697fc2be8f54b204bf5b4134/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202021422.png"
@@ -6449,7 +6451,11 @@ function renderDmgCalc() {
     ..._sheeaExtraMoves.filter(m => m.damage !== undefined && /^\d/.test(String(m.damage)))
   ];
 
-  if (!allMoves.length) {
+  const healMoves = allData.flatMap(d => (d.learns || []).filter(m =>
+    m.type === "Active" && m.healing !== undefined
+  ));
+
+  if (!allMoves.length && !healMoves.length) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     renderDmgBonusSection();
     return;
@@ -6476,6 +6482,23 @@ function renderDmgCalc() {
     </div>
     <div class="dc-detail" style="display:none"></div>`;
   });
+
+  if (healMoves.length) {
+    html += `<h3 class="dc-support-title">Support</h3>`;
+    healMoves.forEach(m => {
+      const color = MOVE_TYPE_COLORS[m.moveType] || "#cccccc";
+      const healStr  = `<span class="dc-stat dc-heal-val">Heal: <b>${m.healing}</b></span>`;
+      const sclStr   = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
+      const costStr  = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
+      const cdStr    = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
+      html += `<div class="dc-row" style="border-left:3px solid ${color}">
+        <span class="dc-name" style="color:${color}">${m.name}</span>
+        <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>
+        <span class="dc-stats">${healStr}${sclStr}${costStr}${cdStr}</span>
+      </div>`;
+    });
+  }
+
   html += `</div>`;
   container.innerHTML = html;
   renderDmgBonusSection();
@@ -8408,7 +8431,7 @@ function autoSave() {
 
     // Don't capture keys while the user is typing in an input / textarea
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
 
     // Prevent page scroll on arrow keys only when QTE panel is visible
     const panel = document.getElementById('qte-panel-fist');
@@ -9073,7 +9096,7 @@ function autoSave() {
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
     const panel = document.getElementById('qte-panel-sword');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9324,7 +9347,7 @@ function autoSave() {
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
     const panel = document.getElementById('qte-panel-dodge');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9650,7 +9673,7 @@ function autoSave() {
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
     const panel = document.getElementById('qte-panel-dagger');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9880,7 +9903,7 @@ function autoSave() {
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
     const panel = document.getElementById('qte-panel-hammer');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -10189,7 +10212,7 @@ function autoSave() {
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
     const tag = document.activeElement?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON') return;
     const panel = document.getElementById('qte-panel-axe');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
