@@ -189,6 +189,9 @@
   // ---- auth bar ----
   function renderAuthBar() {
     closeProfileMenu();
+    if (typeof window._updateDisclaimerForUser === 'function') {
+      window._updateDisclaimerForUser(currentUser?.id ?? null);
+    }
     const bar = document.getElementById('auth-bar');
     if (!bar) return;
     if (currentUser && currentProfile) {
@@ -505,7 +508,7 @@
     openModal(`
       <h2 class="sb-title">Reset Password</h2>
       <p style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Enter your account email and we'll send a reset link.</p>
-      <input class="auth-input" id="fp-email" type="email" placeholder="Email" autocomplete="email" />
+      <input class="sb-input" id="fp-email" type="email" placeholder="Email" autocomplete="email" />
       <div class="sb-err" id="fp-err"></div>
       <button class="auth-btn sb-submit" onclick="window._submitForgotPassword()">Send Reset Email</button>
       <p class="sb-switch"><button class="sb-link" onclick="window._openAuthModal('login')">Back to Login</button></p>
@@ -691,6 +694,7 @@
   window._submitAuth         = submitAuth;
   window._sbSubmitScore      = submitScore;
   window._sbGetUsername      = () => currentProfile?.username || null;
+  window._sbGetUserId        = () => currentUser?.id ?? null;
   window._toggleProfileMenu  = toggleProfileMenu;
   window._openSettings       = openSettings;
   window._saveUsername       = saveUsername;
