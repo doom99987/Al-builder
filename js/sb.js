@@ -30,11 +30,14 @@
     return await getProfile(user.id);
   }
 
-  // Open modal immediately if recovery link detected in URL
+  // Open modal immediately if recovery link detected in URL (all Supabase formats)
   (function () {
     const hash   = new URLSearchParams(window.location.hash.slice(1));
     const search = new URLSearchParams(window.location.search);
-    if (hash.get('type') === 'recovery' || (search.has('code') && !search.has('error'))) {
+    const isRecovery = hash.get('type') === 'recovery'   // implicit flow: #type=recovery
+      || search.get('type') === 'recovery'                // token_hash flow: ?type=recovery
+      || (search.has('code') && !search.has('error'));    // PKCE flow: ?code=...
+    if (isRecovery) {
       openSetNewPasswordModal();
     }
   })();
