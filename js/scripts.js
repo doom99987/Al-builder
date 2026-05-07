@@ -7993,28 +7993,38 @@ function _unpackState(blob, name) {
 
 const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
 
-// Save to JSONBlob (cross-device) + localStorage (local cache)
+// Save build to Supabase (short 6-char ID) or fall back to JSONBlob, then client-side encoding
 // Returns the share URL
 async function encodeState(state) {
   const blob    = _packState(state);
   const name    = state.name || 'Untitled';
-  const payload = JSON.stringify({ d: blob, n: name, summ: state.summ || '', summc: state.summc || '#dddddd' });
+  const payloadObj = { d: blob, n: name, summ: state.summ || '', summc: state.summc || '#dddddd' };
   const base    = window.location.origin +
                   window.location.pathname.replace(/\/[^/]*$/, '/');
   let id;
-  try {
-    const res = await fetch(_CLOUD, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: payload
-    });
-    if (!res.ok) throw new Error();
-    const loc = res.headers.get('Location') || '';
-    id = loc.split('/').pop();
-  } catch (e) { id = ''; }
+
+  // Try Supabase first (true short IDs)
+  if (typeof window._saveSharedBuild === 'function') {
+    try { id = await window._saveSharedBuild(payloadObj); } catch (e) { id = null; }
+  }
+
+  // Fall back to JSONBlob
+  if (!id) {
+    const payload = JSON.stringify(payloadObj);
+    try {
+      const res = await fetch(_CLOUD, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: payload
+      });
+      if (!res.ok) throw new Error();
+      const loc = res.headers.get('Location') || '';
+      id = loc.split('/').pop();
+    } catch (e) { id = ''; }
+    if (id) localStorage.setItem('alb:' + id, payload);
+  }
 
   if (id) {
-    localStorage.setItem('alb:' + id, payload);
     return base + '?id=' + id;
   }
   // Fallback: if no extra data, keep the short plain b_ format.
@@ -8108,6 +8118,17 @@ async function _loadById(id) {
       return { d: cached, n: 'Untitled' };
     }
   }
+  // Try Supabase (short 6-char IDs)
+  if (typeof window._loadSharedBuild === 'function') {
+    try {
+      const data = await window._loadSharedBuild(id);
+      if (data) {
+        localStorage.setItem('alb:' + id, JSON.stringify(data));
+        return data;
+      }
+    } catch (e) {}
+  }
+  // Fall back to JSONBlob
   try {
     const res = await fetch(_CLOUD + '/' + id);
     if (!res.ok) throw new Error();
