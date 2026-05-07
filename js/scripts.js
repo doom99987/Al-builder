@@ -7860,6 +7860,69 @@ function _unscrambleBlob(s) {
     return idx < 0 ? c : _B64U[((idx - 13 - i * 7) % 64 + 640) % 64];
   }).join('');
 }
+// UTF-8-safe base64url encode/decode (kept for backward-compat with old b_~ share URLs)
+function _b64uEncode(str) {
+  return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+function _b64uDecode(str) {
+  const b64 = str.replace(/-/g,'+').replace(/_/g,'/');
+  const pad = b64.length % 4 ? '===='.slice(b64.length % 4) : '';
+  return decodeURIComponent(escape(atob(b64 + pad)));
+}
+// Raw byte helpers for the bz_ compressed format
+function _b64uToBytes(b64url) {
+  const b64 = b64url.replace(/-/g,'+').replace(/_/g,'/');
+  const pad = b64.length % 4 ? '===='.slice(b64.length % 4) : '';
+  const bin = atob(b64 + pad);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function _bytesToB64u(bytes) {
+  let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+// Compress a string with deflate-raw and return ':'+base64url (shorter for long strings).
+// Falls back to plain _b64uEncode if CompressionStream unavailable or compression doesn't help.
+// ':' is not in the base64url alphabet, so it unambiguously flags a compressed value.
+async function _compressB64u(str) {
+  if (typeof CompressionStream === 'undefined') return _b64uEncode(str);
+  try {
+    const input = new TextEncoder().encode(str);
+    const cs = new CompressionStream('deflate-raw');
+    const w = cs.writable.getWriter(); w.write(input); w.close();
+    const reader = cs.readable.getReader();
+    const chunks = [];
+    for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+    let len = 0; for (const c of chunks) len += c.length;
+    const buf = new Uint8Array(len); let off = 0;
+    for (const c of chunks) { buf.set(c, off); off += c.length; }
+    let s = ''; for (let i = 0; i < buf.length; i++) s += String.fromCharCode(buf[i]);
+    const cmp = ':' + btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+    const raw = _b64uEncode(str);
+    return cmp.length < raw.length ? cmp : raw;
+  } catch (e) { return _b64uEncode(str); }
+}
+async function _decompressB64u(s) {
+  if (!s.startsWith(':')) return _b64uDecode(s);
+  if (typeof DecompressionStream === 'undefined') return '';
+  try {
+    const b64 = s.slice(1).replace(/-/g,'+').replace(/_/g,'/');
+    const pad = b64.length % 4 ? '===='.slice(b64.length % 4) : '';
+    const bin = atob(b64 + pad);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const ds = new DecompressionStream('deflate-raw');
+    const w = ds.writable.getWriter(); w.write(bytes); w.close();
+    const reader = ds.readable.getReader();
+    const chunks = [];
+    for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+    let len = 0; for (const c of chunks) len += c.length;
+    const buf = new Uint8Array(len); let off = 0;
+    for (const c of chunks) { buf.set(c, off); off += c.length; }
+    return new TextDecoder().decode(buf);
+  } catch (e) { return ''; }
+}
 
 // Pack build data into binary build (base64url), no name included
 function _packState(state) {
@@ -7954,22 +8017,89 @@ async function encodeState(state) {
     localStorage.setItem('alb:' + id, payload);
     return base + '?id=' + id;
   }
-  // Fallback: encode build state directly into the id param (no external service needed)
-  let _fbUrl = base + '?id=b_' + _scrambleBlob(blob);
+  // Fallback: if no extra data, keep the short plain b_ format.
   const _summ  = state.summ  || '';
   const _summc = state.summc || '#dddddd';
-  const _name  = state.name  || '';
-  if (_summ)                    _fbUrl += '&sm=' + encodeURIComponent(_summ);
-  if (_summc !== '#dddddd')     _fbUrl += '&sc=' + encodeURIComponent(_summc);
-  if (_name && _name !== 'Untitled') _fbUrl += '&n='  + encodeURIComponent(_name);
-  return _fbUrl;
+  const _name  = (state.name || '') === 'Untitled' ? '' : (state.name || '');
+  if (!_summ && _summc === '#dddddd' && !_name) return base + '?id=b_' + _scrambleBlob(blob);
+
+  // bz_ format: pack everything into one deflate-raw compressed binary buffer.
+  // Layout: [uint16 LE: summLen][uint8: nameLen][uint8 r,g,b][summBytes][nameBytes][buildBytes]
+  // This lets deflate find patterns across all fields and avoids double-encoding the blob.
+  if (typeof CompressionStream !== 'undefined') {
+    try {
+      const enc = new TextEncoder();
+      const summBytes  = enc.encode(_summ);
+      const nameBytes  = enc.encode(_name);
+      const hex = _summc.replace('#', '');
+      const cr = parseInt(hex.slice(0,2),16), cg = parseInt(hex.slice(2,4),16), cb = parseInt(hex.slice(4,6),16);
+      const buildBytes = _b64uToBytes(blob);
+      const buf = new Uint8Array(2 + 1 + 3 + summBytes.length + nameBytes.length + buildBytes.length);
+      let p = 0;
+      buf[p++] = summBytes.length & 0xFF; buf[p++] = (summBytes.length >> 8) & 0xFF;
+      buf[p++] = nameBytes.length;
+      buf[p++] = cr; buf[p++] = cg; buf[p++] = cb;
+      buf.set(summBytes, p); p += summBytes.length;
+      buf.set(nameBytes, p); p += nameBytes.length;
+      buf.set(buildBytes, p);
+      const cs = new CompressionStream('deflate-raw');
+      const w = cs.writable.getWriter(); w.write(buf); w.close();
+      const reader = cs.readable.getReader();
+      const chunks = []; for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+      let clen = 0; for (const c of chunks) clen += c.length;
+      const cBuf = new Uint8Array(clen); let cOff = 0;
+      for (const c of chunks) { cBuf.set(c, cOff); cOff += c.length; }
+      return base + '?id=bz_' + _bytesToB64u(cBuf);
+    } catch (e) {}
+  }
+  // CompressionStream unavailable — fall back to plain b_~ format
+  const _b64summ   = _summ ? _b64uEncode(_summ) : '';
+  const _colorPart = _summc !== '#dddddd' ? _summc.replace('#', '') : '';
+  const _b64name   = _name ? _b64uEncode(_name) : '';
+  return base + '?id=b_' + _scrambleBlob(blob) + '~' + _b64summ + '~' + _colorPart + '~' + _b64name;
 }
 
 // Load payload by ID — handles b_ (direct-encoded), localStorage, then JSONBlob
 async function _loadById(id) {
+  // bz_ = deflate-raw compressed binary: [uint16 summLen][uint8 nameLen][uint8 r,g,b][summ][name][build]
+  if (id.startsWith('bz_')) {
+    if (typeof DecompressionStream === 'undefined') return null;
+    try {
+      const compressed = _b64uToBytes(id.slice(3));
+      const ds = new DecompressionStream('deflate-raw');
+      const w = ds.writable.getWriter(); w.write(compressed); w.close();
+      const reader = ds.readable.getReader();
+      const chunks = []; for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+      let len = 0; for (const c of chunks) len += c.length;
+      const buf = new Uint8Array(len); let bOff = 0;
+      for (const c of chunks) { buf.set(c, bOff); bOff += c.length; }
+      let p = 0;
+      const summLen = buf[p] | (buf[p+1] << 8); p += 2;
+      const nameLen = buf[p++];
+      const r = buf[p++], g = buf[p++], b = buf[p++];
+      const dec = new TextDecoder();
+      const summ  = summLen ? dec.decode(buf.slice(p, p + summLen)) : ''; p += summLen;
+      const n     = nameLen ? dec.decode(buf.slice(p, p + nameLen)) : 'Untitled'; p += nameLen;
+      const summc = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+      const d     = _bytesToB64u(buf.slice(p));
+      return { d, n, summ, summc };
+    } catch (e) { return null; }
+  }
   // b_ prefix = build state encoded directly in the id param (scrambled)
+  // New format: b_<blob>~<b64summ>~<colorHex>~<b64name>  (extra parts optional)
+  // Old format: b_<blob>  (no ~)
   if (id.startsWith('b_')) {
-    return { d: _unscrambleBlob(id.slice(2)), n: 'Untitled' };
+    const tIdx = id.indexOf('~');
+    if (tIdx === -1) return { d: _unscrambleBlob(id.slice(2)), n: 'Untitled' };
+    const parts = id.slice(2).split('~');
+    const d = _unscrambleBlob(parts[0]);
+    let summ = '', summc = '#dddddd', n = 'Untitled';
+    if (parts.length >= 4) {
+      try { summ  = parts[1] ? await _decompressB64u(parts[1]) : ''; } catch (e) {}
+      summc = parts[2] ? '#' + parts[2] : '#dddddd';
+      try { n     = parts[3] ? _b64uDecode(parts[3]) : 'Untitled'; } catch (e) {}
+    }
+    return { d, n, summ, summc };
   }
   const cached = localStorage.getItem('alb:' + id);
   if (cached) {
