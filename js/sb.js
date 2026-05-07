@@ -591,10 +591,9 @@
       if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
     } else {
       errEl.style.color = '#88ee88';
-      errEl.textContent = 'Password updated! You are now logged in.';
+      errEl.textContent = 'Password updated! You are now logged in. Click anywhere outside to close.';
       passEl.disabled = true;
       if (btn) btn.disabled = true;
-      setTimeout(() => closeModal(), 2000);
     }
   }
 
