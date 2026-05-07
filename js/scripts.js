@@ -7,7 +7,19 @@ const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coa
 // === QTE PING SIMULATOR ===
 // Delays keydown/keyup events by window._albPing ms when a QTE panel is active.
 // Uses capture phase so it fires before every bubble-phase handler in the game code.
-window._albPing = 0;
+window._albPing     = 0;
+window._qteCompMode = false;
+window._toggleQteMode = function () {
+  window._qteCompMode = !window._qteCompMode;
+  const btn = document.getElementById('qte-mode-btn');
+  if (btn) {
+    btn.textContent = window._qteCompMode ? 'Competitive' : 'Casual';
+    btn.classList.toggle('comp',   window._qteCompMode);
+    btn.classList.toggle('casual', !window._qteCompMode);
+  }
+  window.dispatchEvent(new Event('alb-mode-changed'));
+};
+
 (function () {
   const QTE_KEYS = new Set(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight']);
 
@@ -486,7 +498,7 @@ function updatePecents() {
   // Armour stat pct keys that boost the actual stat (not a direct % output bonus)
   const STAT_PCT_KEYS = new Set(["str", "arc", "spd"]);
   // Innate stat % bonuses applied to (invested + race base + level bonus) portion only
-  const INNATE_STAT_PCT = { str: 15, arc: 15 };
+  const INNATE_STAT_PCT = { str: 10, arc: 10 };
 
   const isStultus = racePicker.value === "Stultus (20%)";
   let stultusBonus = 0;
@@ -8218,11 +8230,13 @@ function autoSave() {
   const hsEl     = document.getElementById('fist-qte-highscore');
   if (!bar) return;
 
-  const HS_KEY  = 'alb:fist-hs';
+  const HS_KEY      = 'alb:fist-hs';
+  const HS_KEY_COMP = 'alb:fist-hs-comp';
   const AVG_KEY = 'alb:fist-avg';
   const avgEl   = document.getElementById('fist-qte-avgtime');
 
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   let _avgData = (() => {
     try { return JSON.parse(localStorage.getItem(AVG_KEY)) || { total: 0, count: 0 }; } catch (e) { return { total: 0, count: 0 }; }
@@ -8230,15 +8244,17 @@ function autoSave() {
   let roundStart = 0;
 
   function updateHighscore(val) {
-    if (val > highscore) {
-      highscore = val;
-      try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
-      if (window._sbSubmitScore) window._sbSubmitScore('fist', val);
+    if (window._qteCompMode) {
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('fist-comp', val); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('fist', val); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function recordRoundTime() {
     if (!roundStart) return;
@@ -8269,7 +8285,7 @@ function autoSave() {
   let timeLeft       = 0;
   let restartTimeout = null;
 
-  function getTimeLimit() { return length >= 8 ? 5 : 8; }
+  function getTimeLimit() { return window._qteCompMode ? (length >= 6 ? 4 : 6) : (length >= 8 ? 5 : 8); }
 
   function startTimer() {
     clearInterval(timerInterval);
@@ -8540,8 +8556,10 @@ function autoSave() {
   const startBtn   = document.getElementById('spear-qte-start-btn');
   const resumeBtn  = document.getElementById('spear-qte-resume-btn');
 
-  const HS_KEY  = 'alb:spear-hs';
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  const HS_KEY      = 'alb:spear-hs';
+  const HS_KEY_COMP = 'alb:spear-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   // Game state
   let running       = false;
@@ -8562,21 +8580,23 @@ function autoSave() {
   const FADE_MS       = 280;
 
   // starts at 4, caps at 8
-  function getMaxSimul()      { return Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return Math.max(850, 1100 - streak * 2); }
-  function getSpawnInterval() { return Math.max(550, 1000 - streak * 10); }
+  function getMaxSimul()      { return window._qteCompMode ? Math.min(5 + Math.floor(streak / 3), 10) : Math.min(4 + Math.floor(streak / 4), 8); }
+  function getApproachMs()    { return window._qteCompMode ? Math.max(700, 950 - streak * 3)            : Math.max(850, 1100 - streak * 2); }
+  function getSpawnInterval() { return window._qteCompMode ? Math.max(400, 850 - streak * 12)           : Math.max(550, 1000 - streak * 10); }
 
   // ---- highscore ----
   function updateHighscore(val) {
-    if (val > highscore) {
-      highscore = val;
-      try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
-      if (window._sbSubmitScore) window._sbSubmitScore('spear', val);
+    if (window._qteCompMode) {
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('spear-comp', val); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('spear', val); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function setStatus(text, color) {
     if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; }
@@ -8840,8 +8860,10 @@ function autoSave() {
   const startBtn  = document.getElementById('sword-qte-start-btn');
   const resumeBtn = document.getElementById('sword-qte-resume-btn');
 
-  const HS_KEY  = 'alb:sword-hs';
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  const HS_KEY      = 'alb:sword-hs';
+  const HS_KEY_COMP = 'alb:sword-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   let running     = false;
   let gameStarted = false;
@@ -8860,17 +8882,29 @@ function autoSave() {
 
   let trackX, trackY, trackW, zoneX, zoneW;
 
-  function getSpeed()     { return IS_MOBILE ? Math.min(160 + streak * 6, 320) : Math.min(300 + streak * 10, 520); }
-  function getBarCount()  { return IS_MOBILE ? Math.min(2 + Math.floor(streak / 4), 5) : Math.min(3 + Math.floor(streak / 3), 7); }
+  function getSpeed()     { return window._qteCompMode
+    ? (IS_MOBILE ? Math.min(220 + streak * 8, 420)  : Math.min(420 + streak * 14, 640))
+    : (IS_MOBILE ? Math.min(160 + streak * 6, 320)  : Math.min(300 + streak * 10, 520)); }
+  function getBarCount()  { return window._qteCompMode
+    ? (IS_MOBILE ? Math.min(3 + Math.floor(streak / 3), 6) : Math.min(4 + Math.floor(streak / 2), 8))
+    : (IS_MOBILE ? Math.min(2 + Math.floor(streak / 4), 5) : Math.min(3 + Math.floor(streak / 3), 7)); }
   function getZoneStart() { return 0.70; }
-  function getZoneWidth() { return IS_MOBILE ? Math.max(0.28 - streak * 0.007, 0.14) : Math.max(0.16 - streak * 0.004, 0.10); }
+  function getZoneWidth() { return window._qteCompMode
+    ? (IS_MOBILE ? Math.max(0.21 - streak * 0.007, 0.10) : Math.max(0.12 - streak * 0.004, 0.06))
+    : (IS_MOBILE ? Math.max(0.28 - streak * 0.007, 0.14) : Math.max(0.16 - streak * 0.004, 0.10)); }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword', v); }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    if (window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword-comp', v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword', v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function setStatus(t, c) {
     if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
@@ -9117,8 +9151,10 @@ function autoSave() {
   const startBtn  = document.getElementById('dodge-qte-start-btn');
   const resumeBtn = document.getElementById('dodge-qte-resume-btn');
 
-  const HS_KEY  = 'alb:dodge-hs';
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  const HS_KEY      = 'alb:dodge-hs';
+  const HS_KEY_COMP = 'alb:dodge-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   let running      = false;
   let gameStarted  = false;
@@ -9137,8 +9173,8 @@ function autoSave() {
 
   let trackX, trackW, trackY;
 
-  function getWhiteSpeed()  { return Math.min(370 + streak * 12, 580); } // px/s
-  function calcYellowWidth(){ return Math.max(trackW * (0.09 - streak * 0.008), BAR_W * 0.5); }
+  function getWhiteSpeed()  { return window._qteCompMode ? Math.min(480 + streak * 16, 720) : Math.min(370 + streak * 12, 580); }
+  function calcYellowWidth(){ return window._qteCompMode ? Math.max(trackW * (0.065 - streak * 0.007), BAR_W * 0.5) : Math.max(trackW * (0.09 - streak * 0.008), BAR_W * 0.5); }
   function getYellowX()     { return trackX + trackW * yellowCenter; }
 
   function randomiseYellow() {
@@ -9150,11 +9186,17 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge', v); }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    if (window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge-comp', v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge', v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function setStatus(t, c) {
     if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
@@ -9347,9 +9389,11 @@ function autoSave() {
   const resumeBtn = document.getElementById('dagger-qte-resume-btn');
   const tapBtn    = document.getElementById('dagger-tap-btn');
 
-  const HS_KEY  = 'alb:dagger-hs';
+  const HS_KEY      = 'alb:dagger-hs';
+  const HS_KEY_COMP = 'alb:dagger-hs-comp';
   const AVG_KEY = 'alb:dagger-avg';
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
   let _avgData  = (() => { try { return JSON.parse(localStorage.getItem(AVG_KEY)) || { total: 0, count: 0 }; } catch(e) { return { total: 0, count: 0 }; } })();
   let roundStart = 0;
 
@@ -9381,21 +9425,29 @@ function autoSave() {
   const BASE_R     = 48;
   const RING_STEP  = RING_THICK + RING_GAP;
 
-  function getRingCount()  { return Math.min(2 + streak, 8); }
-  function getGapSize()    { return Math.max((52 - streak * 1.8) * Math.PI / 180, 22 * Math.PI / 180); }
+  function getRingCount()  { return window._qteCompMode ? Math.min(3 + streak, 9) : Math.min(2 + streak, 8); }
+  function getGapSize()    { return window._qteCompMode
+    ? Math.max((40 - streak * 1.8) * Math.PI / 180, 16 * Math.PI / 180)
+    : Math.max((52 - streak * 1.8) * Math.PI / 180, 22 * Math.PI / 180); }
   function getHitExtra()   { return 7 * Math.PI / 180; }
   function getRingSpeed(i, total) {
-    const base = Math.min(3.2 + streak * 0.25, 7.0); // scales fast, capped at 7 rad/s
+    const base = window._qteCompMode ? Math.min(4.2 + streak * 0.32, 9.0) : Math.min(3.2 + streak * 0.25, 7.0);
     const spd  = base + (total - 1 - i) * 0.5;
     return spd * (Math.random() < 0.5 ? 1 : -1);
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger', v); }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    if (window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-comp', v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger', v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function setStatus(t, c) {
     if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
@@ -9662,8 +9714,10 @@ function autoSave() {
   const startBtn  = document.getElementById('hammer-qte-start-btn');
   const resumeBtn = document.getElementById('hammer-qte-resume-btn');
 
-  const HS_KEY  = 'alb:hammer-hs';
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  const HS_KEY      = 'alb:hammer-hs';
+  const HS_KEY_COMP = 'alb:hammer-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   let running = false, gameStarted = false, paused = false;
   let streak = 0, animFrame = null, lastTime = 0;
@@ -9674,8 +9728,8 @@ function autoSave() {
   const BAR_H = 40; // horizontal bar height
   const PAD   = 50; // left/right padding
 
-  function getFillSpeed() { return Math.min(0.30 + streak * 0.025, 0.70); }
-  function getZoneSize()  { return Math.max(0.10 - streak * 0.006, 0.04); }
+  function getFillSpeed() { return window._qteCompMode ? Math.min(0.42 + streak * 0.030, 0.85) : Math.min(0.30 + streak * 0.025, 0.70); }
+  function getZoneSize()  { return window._qteCompMode ? Math.max(0.07 - streak * 0.005, 0.025) : Math.max(0.10 - streak * 0.006, 0.04); }
 
   function randomiseZone() {
     const size   = getZoneSize();
@@ -9686,11 +9740,17 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer', v); }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    if (window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer-comp', v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer', v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
 
@@ -9923,8 +9983,10 @@ function autoSave() {
   const startBtn  = document.getElementById('axe-qte-start-btn');
   const resumeBtn = document.getElementById('axe-qte-resume-btn');
 
-  const HS_KEY  = 'alb:axe-hs';
-  let highscore = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  const HS_KEY      = 'alb:axe-hs';
+  const HS_KEY_COMP = 'alb:axe-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   let running = false, gameStarted = false, paused = false;
   let streak = 0, animFrame = null, lastTime = 0;
@@ -9939,8 +10001,8 @@ function autoSave() {
   const DRAIN_RATE  = 0.06;  // fraction lost per second
   const PRESS_AMT   = 0.09;  // fraction added per space press
 
-  function getTimer()    { return Math.max(6 - streak * 0.3, 3); }     // 6s → 3s
-  function getZoneSize() { return Math.max(0.11 - streak * 0.007, 0.03); } // 11% → 3%
+  function getTimer()    { return window._qteCompMode ? Math.max(5 - streak * 0.3, 2.5) : Math.max(6 - streak * 0.3, 3); }
+  function getZoneSize() { return window._qteCompMode ? Math.max(0.08 - streak * 0.006, 0.02) : Math.max(0.11 - streak * 0.007, 0.03); }
 
   function randomiseZone() {
     const size   = getZoneSize();
@@ -9951,11 +10013,17 @@ function autoSave() {
   }
 
   function updateHighscore(v) {
-    if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, v); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe', v); }
-    if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    if (window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe-comp', v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe', v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
   }
   updateHighscore(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHighscore(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
 
@@ -10190,8 +10258,9 @@ function autoSave() {
   var startBtn  = document.getElementById('staff-qte-start-btn');
   var resumeBtn = document.getElementById('staff-qte-resume-btn');
 
-  var streak = 0, highscore = 0;
-  window.addEventListener('alb-scores-reset', function() { streak = 0; highscore = 0; if (highEl) highEl.textContent = ''; });
+  var streak = 0, highscore = 0, highscoreComp = 0;
+  window.addEventListener('alb-scores-reset', function() { streak = 0; highscore = 0; highscoreComp = 0; if (highEl) highEl.textContent = ''; });
+  window.addEventListener('alb-mode-changed', function() { if (highEl) highEl.textContent = (window._qteCompMode ? highscoreComp : highscore) > 0 ? 'Best: ' + (window._qteCompMode ? highscoreComp : highscore) : ''; });
   var pattern = [];
   var bankTiles = [], slots = [];
   var drag = null; // { tile, curX, curY }
@@ -10218,8 +10287,8 @@ function autoSave() {
     canvas.height = CH;
   }
 
-  function getPatternLen() { return Math.min(2 + streak, 9); }
-  function getTimerDur()   { return streak <= 7 ? 8 : Math.max(8 - (streak - 7), 5); }
+  function getPatternLen() { return window._qteCompMode ? Math.min(3 + streak, 9) : Math.min(2 + streak, 9); }
+  function getTimerDur()   { return window._qteCompMode ? (streak <= 5 ? 7 : Math.max(7 - (streak - 5), 4)) : (streak <= 7 ? 8 : Math.max(8 - (streak - 7), 5)); }
 
   function shuffle(arr) {
     var a = arr.slice();
@@ -10267,8 +10336,9 @@ function autoSave() {
 
   function setStatus(txt, color) { statusEl.textContent = txt; statusEl.style.color = color || '#a08fd0'; }
   function updateHUD() {
-    streakEl.textContent = streak    ? 'Streak: ' + streak    : '';
-    highEl.textContent   = highscore ? 'Best: '   + highscore : '';
+    streakEl.textContent = streak ? 'Streak: ' + streak : '';
+    var hs = window._qteCompMode ? highscoreComp : highscore;
+    highEl.textContent = hs ? 'Best: ' + hs : '';
   }
 
   function checkWin() {
@@ -10294,7 +10364,11 @@ function autoSave() {
   function triggerSuccess() {
     running = false; drag = null;
     streak++;
-    if (streak > highscore) { highscore = streak; if (window._sbSubmitScore) window._sbSubmitScore('staff', streak); }
+    if (window._qteCompMode) {
+      if (streak > highscoreComp) { highscoreComp = streak; if (window._sbSubmitScore) window._sbSubmitScore('staff-comp', streak); }
+    } else {
+      if (streak > highscore) { highscore = streak; if (window._sbSubmitScore) window._sbSubmitScore('staff', streak); }
+    }
     updateHUD();
     setStatus('Complete!', '#55e09a');
     drawFrame(); // render all slots green before the loop stops

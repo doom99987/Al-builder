@@ -2893,3 +2893,79 @@ h2 {
   min-width: 42px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   COMPETITIVE / CASUAL MODE
+   ============================================================ */
+.qte-mode-toggle {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+.qte-mode-btn {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 4px 22px;
+  border-radius: 20px;
+  border: 1.5px solid #3a5a8a;
+  background: #0e1620;
+  color: #7aaddd;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.qte-mode-btn.comp {
+  border-color: #8a3a3a;
+  background: #200e0e;
+  color: #dd8888;
+}
+.qte-mode-btn:hover { opacity: 0.85; }
+
+/* Leaderboard tabs – inside modals */
+.sb-lb-tabs {
+  display: flex;
+  gap: 6px;
+  margin: -4px 0 12px;
+}
+.sb-lb-tab {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  background: #111120;
+  border: 1.5px solid #2a2a5a;
+  border-radius: 6px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sb-lb-tab.active          { background: #1e1e45; border-color: #5555aa; color: #aaaaff; }
+.sb-lb-tab.comp-tab.active { background: #200e0e; border-color: #aa5555; color: #ff9999; }
+
+/* Leaderboard mode tabs – on leaderboards page */
+.all-lb-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.all-lb-mode-tab {
+  padding: 6px 20px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: #111120;
+  border: 1.5px solid #2a2a5a;
+  border-radius: 8px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.all-lb-mode-tab.active          { background: #1e1e45; border-color: #5555aa; color: #aaaaff; }
+.all-lb-mode-tab.comp-tab.active { background: #200e0e; border-color: #aa5555; color: #ff9999; }

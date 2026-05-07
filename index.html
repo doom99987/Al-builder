@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="Logo.png">
   <link rel="stylesheet" href="css/styles.css?v=28">
-  <link rel="stylesheet" href="css/patch.css?v=28">
+  <link rel="stylesheet" href="css/patch.css?v=29">
 </head>
 
 <body>
@@ -126,6 +126,9 @@
     <label class="qte-ping-label">Ping</label>
     <input type="range" id="qte-ping-slider" class="qte-ping-slider" min="0" max="500" step="5" value="0">
     <span class="qte-ping-display" id="qte-ping-display">0 ms</span>
+  </div>
+  <div class="qte-mode-toggle">
+    <button id="qte-mode-btn" class="qte-mode-btn casual" onclick="window._toggleQteMode()">Casual</button>
   </div>
   <div class="qte-content">
     <!-- Fist QTE -->
@@ -247,6 +250,10 @@
     <div class="all-lb-header">
       <h2 class="all-lb-title">Leaderboards</h2>
       <button class="all-lb-refresh-btn" onclick="window._loadAllLeaderboards()">&#8635; Refresh</button>
+    </div>
+    <div class="all-lb-mode-tabs">
+      <button class="all-lb-mode-tab active" data-mode="casual" onclick="window._switchLbMode(this)">Casual</button>
+      <button class="all-lb-mode-tab comp-tab" data-mode="comp" onclick="window._switchLbMode(this)">Competitive</button>
     </div>
     <div class="all-lb-grid" id="all-lb-grid">
       <div class="sb-loading">Loading&hellip;</div>
@@ -659,8 +666,8 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/scripts.js?v=64"></script>
-<script src="js/sb.js?v=16"></script>
+<script src="js/scripts.js?v=66"></script>
+<script src="js/sb.js?v=17"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
