@@ -2226,17 +2226,13 @@ const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
 buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => {
   if (scroll1Picker.value && scroll1Picker.value === scroll2Picker.value) {
-    scroll2Picker.value = '';
-    const d2 = scroll2Picker.previousElementSibling?.querySelector('.wpick-display');
-    if (d2) d2.textContent = '— None —';
+    setPickerDisplay(scroll2Picker, '');
   }
   renderMoves(); updatePecents();
 }, null, isScrollHidden);
 buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => {
   if (scroll2Picker.value && scroll2Picker.value === scroll1Picker.value) {
-    scroll1Picker.value = '';
-    const d1 = scroll1Picker.previousElementSibling?.querySelector('.wpick-display');
-    if (d1) d1.textContent = '— None —';
+    setPickerDisplay(scroll1Picker, '');
   }
   renderMoves(); updatePecents();
 }, null, isScrollHidden);
@@ -9076,6 +9072,8 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const panel = document.getElementById('qte-panel-sword');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9325,6 +9323,8 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const panel = document.getElementById('qte-panel-dodge');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9649,6 +9649,8 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const panel = document.getElementById('qte-panel-dagger');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -9877,6 +9879,8 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const panel = document.getElementById('qte-panel-hammer');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
@@ -10184,6 +10188,8 @@ function autoSave() {
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     const panel = document.getElementById('qte-panel-axe');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
