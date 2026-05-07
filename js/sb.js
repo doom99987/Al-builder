@@ -9,7 +9,12 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcW9oYWdsam12d2Z0d3F1bW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzg1NzEsImV4cCI6MjA5MzYxNDU3MX0.WfU88Ell1Q6jCcef2YiohxIeTHBNfruIxYWoa1QRCUc';
 
   if (!window.supabase) { console.warn('sb.js: Supabase CDN not loaded'); return; }
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // flowType: 'implicit' is required for password reset links clicked from email clients on mobile.
+  // PKCE stores a verifier in sessionStorage of the requesting tab — clicking the link in a different
+  // browser/tab (the email app) loses that verifier and the code exchange silently fails.
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { flowType: 'implicit' }
+  });
 
   // ---- state ----
   let currentUser    = null;
@@ -30,22 +35,16 @@
     return await getProfile(user.id);
   }
 
-  // Open modal immediately if recovery link detected in URL (all Supabase formats)
+  // Open modal immediately if this looks like a recovery redirect.
+  // With flowType:'implicit', Supabase puts tokens in the hash (#access_token=...&type=recovery).
+  // Keep fallbacks for token_hash and ?code= in case the project setting ever changes.
   (function () {
-    const hash      = new URLSearchParams(window.location.hash.slice(1));
-    const search    = new URLSearchParams(window.location.search);
-    const tokenHash = search.get('token_hash');
-    const typeParam = search.get('type') || hash.get('type');
-
-    if (tokenHash && typeParam === 'recovery') {
-      // Current Supabase email format: ?token_hash=...&type=recovery
-      // Must explicitly exchange the token — Supabase does NOT auto-process this format
-      openSetNewPasswordModal();
-      sb.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' }).catch(() => {});
-    } else if (hash.get('type') === 'recovery' || (search.has('code') && !search.has('error'))) {
-      // Implicit flow (#type=recovery) or PKCE (?code=) — Supabase handles automatically
-      openSetNewPasswordModal();
-    }
+    const hash   = new URLSearchParams(window.location.hash.slice(1));
+    const search = new URLSearchParams(window.location.search);
+    const isRecovery = hash.get('type') === 'recovery'
+      || search.get('type') === 'recovery'
+      || (search.has('code') && !search.has('error'));
+    if (isRecovery) openSetNewPasswordModal();
   })();
 
   sb.auth.onAuthStateChange((_event, session) => {
