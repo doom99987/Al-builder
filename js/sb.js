@@ -30,6 +30,12 @@
     return await getProfile(user.id);
   }
 
+  // Fallback: detect recovery token in URL hash directly on page load
+  (function () {
+    const p = new URLSearchParams(window.location.hash.slice(1));
+    if (p.get('type') === 'recovery') setTimeout(openSetNewPasswordModal, 300);
+  })();
+
   sb.auth.onAuthStateChange((_event, session) => {
     if (_event === 'PASSWORD_RECOVERY') {
       openSetNewPasswordModal();
