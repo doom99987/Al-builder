@@ -565,12 +565,6 @@
     const _tokenHash   = _srch.get('token_hash');
     const _code        = _srch.get('code');
     const _accessToken = _hsh.get('access_token');
-    // Debug line — shown in modal so user can report URL format (remove once fixed)
-    const _dbg = 'th:' + (_tokenHash ? 'Y' : 'N')
-               + ' code:' + (_code ? 'Y' : 'N')
-               + ' at:' + (_accessToken ? 'Y' : 'N')
-               + ' ht:' + (_hsh.get('type') || '-')
-               + ' st:' + (_srch.get('type') || '-');
 
     openModal(`
       <h2 class="sb-title">Set New Password</h2>
@@ -578,7 +572,6 @@
       <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" disabled />
       <div class="sb-err" id="np-err"></div>
       <button class="auth-btn sb-submit" id="np-btn" onclick="window._submitNewPassword()" disabled>Verifying…</button>
-      <p style="font-size:0.65rem;color:#555;margin-top:8px">${_dbg}</p>
     `);
 
     let _done = false;
