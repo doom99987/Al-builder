@@ -569,45 +569,47 @@
       <button class="auth-btn sb-submit" id="np-btn" onclick="window._submitNewPassword()" disabled>Verifying…</button>
     `);
 
+    let _done = false;
+
     function _enable() {
+      if (_done) return; _done = true;
       const passEl   = document.getElementById('np-pass');
       const btn      = document.getElementById('np-btn');
       const statusEl = document.getElementById('np-status');
-      if (!passEl) return; // modal was closed
-      passEl.disabled = false;
-      passEl.focus();
+      if (!passEl) return;
+      passEl.disabled = false; passEl.focus();
       passEl.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
       if (btn)      { btn.disabled = false; btn.textContent = 'Set Password'; }
       if (statusEl) statusEl.textContent = 'Enter your new password below.';
     }
 
     function _fail() {
+      if (_done) return; _done = true;
       const statusEl = document.getElementById('np-status');
       const btn      = document.getElementById('np-btn');
       if (!statusEl) return;
       statusEl.style.color = '#ff8888';
-      statusEl.textContent = 'Reset link expired or invalid — please request a new one.';
+      statusEl.textContent = 'Reset link expired — please request a new one.';
       if (btn) btn.remove();
     }
 
-    // Check if session already exists (e.g. implicit flow already processed)
-    sb.auth.getSession().then(({ data }) => {
-      if (data.session) { _enable(); return; }
-
-      // Otherwise wait for PASSWORD_RECOVERY event
-      const _unsub = sb.auth.onAuthStateChange((evt) => {
-        if (evt === 'PASSWORD_RECOVERY') {
-          _unsub.data.subscription.unsubscribe();
-          clearTimeout(_timeout);
-          _enable();
-        }
-      });
-
-      // Give up after 30s
-      const _timeout = setTimeout(() => {
+    // Register listener SYNCHRONOUSLY before any async work so PASSWORD_RECOVERY isn't missed
+    const _unsub = sb.auth.onAuthStateChange((evt) => {
+      if (evt === 'PASSWORD_RECOVERY') {
         _unsub.data.subscription.unsubscribe();
-        _fail();
-      }, 30000);
+        clearTimeout(_timeout);
+        _enable();
+      }
+    });
+
+    const _timeout = setTimeout(() => {
+      _unsub.data.subscription.unsubscribe();
+      _fail();
+    }, 30000);
+
+    // Also handle case where session was already established before modal opened
+    sb.auth.getSession().then(({ data }) => {
+      if (data.session) { clearTimeout(_timeout); _unsub.data.subscription.unsubscribe(); _enable(); }
     });
   }
 

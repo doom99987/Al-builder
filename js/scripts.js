@@ -10244,8 +10244,15 @@ function autoSave() {
   var startBtn  = document.getElementById('staff-qte-start-btn');
   var resumeBtn = document.getElementById('staff-qte-resume-btn');
 
-  var streak = 0, highscore = 0, highscoreComp = 0;
-  window.addEventListener('alb-scores-reset', function() { streak = 0; highscore = 0; highscoreComp = 0; if (highEl) highEl.textContent = ''; });
+  var HS_KEY = 'alb:staff-hs', HS_KEY_COMP = 'alb:staff-hs-comp';
+  var streak = 0;
+  var highscore     = parseInt(localStorage.getItem(HS_KEY)      || '0', 10);
+  var highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+  window.addEventListener('alb-scores-reset', function() {
+    streak = 0; highscore = 0; highscoreComp = 0;
+    try { localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); } catch(e) {}
+    if (highEl) highEl.textContent = '';
+  });
   window.addEventListener('alb-mode-changed', function() { if (highEl) highEl.textContent = (window._qteCompMode ? highscoreComp : highscore) > 0 ? 'Best: ' + (window._qteCompMode ? highscoreComp : highscore) : ''; });
   var pattern = [];
   var bankTiles = [], slots = [];
@@ -10351,9 +10358,17 @@ function autoSave() {
     running = false; drag = null;
     streak++;
     if (window._qteCompMode) {
-      if (streak > highscoreComp) { highscoreComp = streak; if (window._sbSubmitScore) window._sbSubmitScore('staff-comp', streak); }
+      if (streak > highscoreComp) {
+        highscoreComp = streak;
+        try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('staff-comp', streak);
+      }
     } else {
-      if (streak > highscore) { highscore = streak; if (window._sbSubmitScore) window._sbSubmitScore('staff', streak); }
+      if (streak > highscore) {
+        highscore = streak;
+        try { localStorage.setItem(HS_KEY, highscore); } catch(e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('staff', streak);
+      }
     }
     updateHUD();
     setStatus('Complete!', '#55e09a');
