@@ -660,7 +660,7 @@
 
 <script src="js/supabase.min.js"></script>
 <script src="js/scripts.js?v=62"></script>
-<script src="js/sb.js?v=10"></script>
+<script src="js/sb.js?v=12"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
@@ -715,20 +715,39 @@
   });
   switchQteTab('dagger');
 
-  // Disclaimer logic
+  // Disclaimer logic — permanent dismissal is per-user; logged-out users always see it
   (function () {
     const banner  = document.getElementById('builder-disclaimer');
     const overlay = document.getElementById('disclaimer-confirm');
-    if (localStorage.getItem('alb-disclaimer-hidden') === '1') {
-      if (banner) banner.style.display = 'none';
+
+    function disclaimerKey(userId) {
+      return userId ? 'alb-disclaimer-hidden-' + userId : null;
     }
+
+    // Called by sb.js whenever auth state changes
+    window._updateDisclaimerForUser = function (userId) {
+      if (!banner) return;
+      const key = disclaimerKey(userId);
+      if (key && localStorage.getItem(key) === '1') {
+        banner.style.display = 'none';
+      } else {
+        banner.style.display = '';
+      }
+    };
+
     window.showDisclaimerConfirm = function () {
       if (overlay) overlay.style.display = 'flex';
     };
+
     window.dismissDisclaimer = function (permanent) {
       if (banner)  banner.style.display  = 'none';
       if (overlay) overlay.style.display = 'none';
-      if (permanent) localStorage.setItem('alb-disclaimer-hidden', '1');
+      if (permanent) {
+        const userId = typeof window._sbGetUserId === 'function' ? window._sbGetUserId() : null;
+        const key = disclaimerKey(userId);
+        if (key) localStorage.setItem(key, '1');
+        // If logged out, just hide for this session — no persistent save
+      }
     };
   })();
 
