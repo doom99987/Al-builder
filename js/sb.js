@@ -9,7 +9,9 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcW9oYWdsam12d2Z0d3F1bW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzg1NzEsImV4cCI6MjA5MzYxNDU3MX0.WfU88Ell1Q6jCcef2YiohxIeTHBNfruIxYWoa1QRCUc';
 
   if (!window.supabase) { console.warn('sb.js: Supabase CDN not loaded'); return; }
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { flowType: 'implicit' }
+  });
 
   // ---- state ----
   let currentUser    = null;
@@ -544,7 +546,9 @@
     if (!emailEl || !errEl) return;
     const email = emailEl.value.trim();
     if (!email) { errEl.textContent = 'Please enter your email.'; return; }
-    const { error } = await sb.auth.resetPasswordForEmail(email);
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/'
+    });
     if (error) {
       errEl.textContent = error.message;
     } else {
@@ -559,18 +563,36 @@
   function openSetNewPasswordModal() {
     openModal(`
       <h2 class="sb-title">Set New Password</h2>
-      <p style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Enter your new password below.</p>
-      <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" />
-      <div class="sb-err" id="np-err"></div>
-      <button class="auth-btn sb-submit" onclick="window._submitNewPassword()">Set Password</button>
+      <p id="np-status" style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Verifying reset link…</p>
+      <div id="np-form" style="display:none">
+        <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" />
+        <div class="sb-err" id="np-err"></div>
+        <button class="auth-btn sb-submit" onclick="window._submitNewPassword()">Set Password</button>
+      </div>
     `);
-    setTimeout(() => {
-      const el = document.getElementById('np-pass');
-      if (el) {
-        el.focus();
-        el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
+    // Poll for session — show form once confirmed, error if not established
+    (async () => {
+      let session = (await sb.auth.getSession()).data.session;
+      for (let i = 0; i < 12 && !session; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        session = (await sb.auth.getSession()).data.session;
       }
-    }, 50);
+      const statusEl = document.getElementById('np-status');
+      const formEl   = document.getElementById('np-form');
+      if (!statusEl || !formEl) return; // modal closed
+      if (session) {
+        statusEl.textContent = 'Enter your new password below.';
+        formEl.style.display = '';
+        const el = document.getElementById('np-pass');
+        if (el) {
+          el.focus();
+          el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
+        }
+      } else {
+        statusEl.style.color = '#ff8888';
+        statusEl.textContent = 'Reset link expired or invalid — please request a new one.';
+      }
+    })();
   }
 
   async function submitNewPassword() {
@@ -581,23 +603,10 @@
     if (!pass || pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
-    // Wait up to 4s for session to be established before updating password
-    let session = (await sb.auth.getSession()).data.session;
-    if (!session) {
-      errEl.textContent = 'Verifying session…';
-      for (let i = 0; i < 8 && !session; i++) {
-        await new Promise(r => setTimeout(r, 500));
-        session = (await sb.auth.getSession()).data.session;
-      }
-    }
-    if (!session) {
-      errEl.textContent = 'Session expired — please request a new reset link.';
-      if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
-      return;
-    }
     errEl.textContent = '';
     const { error } = await sb.auth.updateUser({ password: pass });
     if (error) {
+      errEl.style.color = '#ff8888';
       errEl.textContent = error.message;
       if (btn) { btn.disabled = false; btn.textContent = 'Set Password'; }
     } else {
