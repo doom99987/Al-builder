@@ -916,10 +916,13 @@
   const _SB_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   async function saveSharedBuild(payloadObj) {
     const rawName = (payloadObj.n && payloadObj.n !== 'Untitled') ? payloadObj.n : 'Untitled';
-    const slug = rawName.replace(/[^A-Za-z0-9]/g, '').slice(0, 16) || 'Untitled';
+    const nameSlug = rawName.replace(/[^A-Za-z0-9]/g, '').slice(0, 16) || 'Untitled';
+    const rawUser = currentProfile?.username || '';
+    const userSlug = rawUser.replace(/[^A-Za-z0-9]/g, '').slice(0, 16);
+    const prefix = userSlug ? userSlug + '-' + nameSlug : nameSlug;
     for (let attempt = 0; attempt < 5; attempt++) {
       const suffix = Array.from({length: 4}, () => _SB_CHARS[Math.floor(Math.random() * 62)]).join('');
-      const id = slug + '-' + suffix;
+      const id = prefix + '-' + suffix;
       const { error } = await sb.from('shared_builds').insert({ id, payload: payloadObj });
       if (!error) return id;
       if (error.code !== '23505') { console.error('[sb] saveSharedBuild error:', error); return null; }
