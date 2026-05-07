@@ -4953,8 +4953,11 @@ const raceMoves = {
 
 function activeCardHtml(m, opts) {
   const isAll = opts && typeof opts === 'object' && opts.isAll;
-  const idAttr = isAll ? ` id="allmv-${_moveSlug(m.name)}"` : '';
-  const clickAttr = !isAll ? ` onclick="scrollToMove('${_moveSlug(m.name)}')" style="cursor:pointer"` : '';
+  const slug = _moveSlug(m.name);
+  const idAttr = isAll ? ` id="allmv-${slug}"` : ` id="colmv-${slug}"`;
+  const clickAttr = isAll
+    ? ` onclick="scrollToCol('${slug}')" style="cursor:pointer"`
+    : ` onclick="scrollToMove('${slug}')" style="cursor:pointer"`;
   return `
     <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Lv${m.level})</span></div>
     <div class="move-card active-move"${idAttr}${clickAttr}>
@@ -4977,8 +4980,11 @@ function activeCardHtml(m, opts) {
 
 function innateCardHtml(p, opts) {
   const isAll = opts && typeof opts === 'object' && opts.isAll;
-  const idAttr = isAll ? ` id="allmv-${_moveSlug(p.name)}"` : '';
-  const clickAttr = !isAll ? ` onclick="scrollToMove('${_moveSlug(p.name)}')" style="cursor:pointer"` : '';
+  const slug = _moveSlug(p.name);
+  const idAttr = isAll ? ` id="allmv-${slug}"` : ` id="colmv-${slug}"`;
+  const clickAttr = isAll
+    ? ` onclick="scrollToCol('${slug}')" style="cursor:pointer"`
+    : ` onclick="scrollToMove('${slug}')" style="cursor:pointer"`;
   return `
     <div class="move-card passive"${idAttr}${clickAttr}>
       <div class="move-header">
@@ -4992,8 +4998,11 @@ function innateCardHtml(p, opts) {
 
 function passiveCardHtml(m, opts) {
   const isAll = opts && typeof opts === 'object' && opts.isAll;
-  const idAttr = isAll ? ` id="allmv-${_moveSlug(m.name)}"` : '';
-  const clickAttr = !isAll ? ` onclick="scrollToMove('${_moveSlug(m.name)}')" style="cursor:pointer"` : '';
+  const slug = _moveSlug(m.name);
+  const idAttr = isAll ? ` id="allmv-${slug}"` : ` id="colmv-${slug}"`;
+  const clickAttr = isAll
+    ? ` onclick="scrollToCol('${slug}')" style="cursor:pointer"`
+    : ` onclick="scrollToMove('${slug}')" style="cursor:pointer"`;
   return `
     <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Lv${m.level})</span></div>
     <div class="move-card passive"${idAttr}${clickAttr}>
@@ -5029,6 +5038,17 @@ function scrollToMove(slug) {
   setTimeout(() => el.classList.remove('move-card-ping'), 1400);
 }
 window.scrollToMove = scrollToMove;
+
+function scrollToCol(slug) {
+  const el = document.getElementById('colmv-' + slug);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('move-card-ping');
+  void el.offsetWidth;
+  el.classList.add('move-card-ping');
+  setTimeout(() => el.classList.remove('move-card-ping'), 1400);
+}
+window.scrollToCol = scrollToCol;
 
 function entityMovesHtml(data, lvl) {
   const actives = (data.learns || []).filter(m => m.type === "Active" && !isSummonMove(m));
