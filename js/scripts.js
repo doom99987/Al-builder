@@ -8185,6 +8185,7 @@ function autoSave() {
         state.summ  = payload.summ  || '';
         state.summc = payload.summc || '#dddddd';
         loadBuildState(state);
+        if (typeof switchPage === 'function') switchPage('builder');
       }
     }
     return;
@@ -8199,12 +8200,12 @@ function autoSave() {
         const parts = hash.split('/');
         if (parts.length === 2) {
           const state = _unpackState(parts[1], decodeURIComponent(parts[0]));
-          if (state) loadBuildState(state);
+          if (state) { loadBuildState(state); if (typeof switchPage === 'function') switchPage('builder'); }
         }
         return;
       }
       const state = JSON.parse(atob(hash));
-      if (state && state.v === 1) { loadBuildState(state); return; }
+      if (state && state.v === 1) { loadBuildState(state); if (typeof switchPage === 'function') switchPage('builder'); return; }
     } catch (e) {}
   }
 
