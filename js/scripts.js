@@ -2244,7 +2244,7 @@ const covenantItems = {
   "Blades of the World": {},
   "Way of Life": {},
   "Church of Raphion": {},
-  "Cult of Thanasiu": {}
+  "Cult of Thanasius": {}
 };
 
 const covenantMoves = {
@@ -2279,7 +2279,7 @@ const covenantMoves = {
       { level: 20, type: "Passive", name: "N/A",              quote: "", effect: "Grants the ability to teleport/host and fight Seraphon." }
     ]
   },
-  "Cult of Thanasiu": {
+  "Cult of Thanasius": {
     learns: [
       { level: 1,  type: "Active",  name: "Soul Absorb",        quote: "", cost: 1, cooldown: 4, moveType: "Dark", category: "Attack", damage: 2, scaling: "N/A", effect: "Deal 2 damage, but instantly kill enemy if they have 5% (2.5% of max hp for bosses) or less of max hp and the attack hits them. Will not kill if the enemy blocks or dodges it; being immune to dark damage also prevents the kill." },
       { level: 5,  type: "Passive", name: "Internal Corruption", quote: "", effect: "Killing enemies gives you +2 energy. Summons get only +1 energy from killing." },
