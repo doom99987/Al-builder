@@ -2990,3 +2990,120 @@ h2 {
 .move-card-ping {
   animation: move-card-ping 1.4s ease-out forwards;
 }
+
+/* === SAVED BUILDS PANEL === */
+.saved-builds-wrap {
+  width: 100%;
+  max-width: 820px;
+  padding: 24px 20px;
+  box-sizing: border-box;
+}
+
+.saved-builds-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.saved-builds-header h2 {
+  margin: 0;
+}
+
+.save-current-btn {
+  background: #1e2a1e;
+  color: #7ec87e;
+  border: 1px solid #3a5a3a;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 3px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.save-current-btn:hover {
+  background: #2a3e2a;
+  color: #aaeaaa;
+}
+
+.saved-builds-empty {
+  color: #555;
+  font-size: 14px;
+  text-align: center;
+  margin-top: 48px;
+}
+
+.saved-build-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #141414;
+  border: 1px solid #252525;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  transition: border-color 0.15s;
+}
+
+.saved-build-card:hover {
+  border-color: #3a3a3a;
+}
+
+.saved-build-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 4px;
+}
+
+.saved-build-meta {
+  font-size: 13px;
+  color: #888;
+}
+
+.saved-build-date {
+  font-size: 12px;
+  color: #494949;
+  margin-top: 3px;
+}
+
+.saved-build-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+
+.saved-build-load-btn,
+.saved-build-del-btn {
+  padding: 6px 14px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: 3px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.saved-build-load-btn {
+  background: #1e2a1e;
+  color: #7ec87e;
+  border: 1px solid #3a5a3a;
+}
+
+.saved-build-load-btn:hover {
+  background: #2a3e2a;
+  color: #aaeaaa;
+}
+
+.saved-build-del-btn {
+  background: #2a1e1e;
+  color: #c87e7e;
+  border: 1px solid #5a3a3a;
+}
+
+.saved-build-del-btn:hover {
+  background: #3e2a2a;
+  color: #eaaaaa;
+}
