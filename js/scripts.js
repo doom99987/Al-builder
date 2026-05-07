@@ -7993,80 +7993,16 @@ function _unpackState(blob, name) {
 
 const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
 
-// Save build to Supabase (short 6-char ID) or fall back to JSONBlob, then client-side encoding
-// Returns the share URL
+// Save build to Supabase — returns short share URL or null on failure
 async function encodeState(state) {
-  const blob    = _packState(state);
-  const name    = state.name || 'Untitled';
-  const payloadObj = { d: blob, n: name, summ: state.summ || '', summc: state.summc || '#dddddd' };
-  const base    = window.location.origin +
-                  window.location.pathname.replace(/\/[^/]*$/, '/');
-  let id;
-
-  // Try Supabase first (true short IDs)
-  if (typeof window._saveSharedBuild === 'function') {
-    try { id = await window._saveSharedBuild(payloadObj); } catch (e) { id = null; }
-  }
-
-  // Fall back to JSONBlob
-  if (!id) {
-    const payload = JSON.stringify(payloadObj);
-    try {
-      const res = await fetch(_CLOUD, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: payload
-      });
-      if (!res.ok) throw new Error();
-      const loc = res.headers.get('Location') || '';
-      id = loc.split('/').pop();
-    } catch (e) { id = ''; }
-    if (id) localStorage.setItem('alb:' + id, payload);
-  }
-
-  if (id) {
-    return base + '?id=' + id;
-  }
-  // Fallback: if no extra data, keep the short plain b_ format.
-  const _summ  = state.summ  || '';
-  const _summc = state.summc || '#dddddd';
-  const _name  = (state.name || '') === 'Untitled' ? '' : (state.name || '');
-  if (!_summ && _summc === '#dddddd' && !_name) return base + '?id=b_' + _scrambleBlob(blob);
-
-  // bz_ format: pack everything into one deflate-raw compressed binary buffer.
-  // Layout: [uint16 LE: summLen][uint8: nameLen][uint8 r,g,b][summBytes][nameBytes][buildBytes]
-  // This lets deflate find patterns across all fields and avoids double-encoding the blob.
-  if (typeof CompressionStream !== 'undefined') {
-    try {
-      const enc = new TextEncoder();
-      const summBytes  = enc.encode(_summ);
-      const nameBytes  = enc.encode(_name);
-      const hex = _summc.replace('#', '');
-      const cr = parseInt(hex.slice(0,2),16), cg = parseInt(hex.slice(2,4),16), cb = parseInt(hex.slice(4,6),16);
-      const buildBytes = _b64uToBytes(blob);
-      const buf = new Uint8Array(2 + 1 + 3 + summBytes.length + nameBytes.length + buildBytes.length);
-      let p = 0;
-      buf[p++] = summBytes.length & 0xFF; buf[p++] = (summBytes.length >> 8) & 0xFF;
-      buf[p++] = nameBytes.length;
-      buf[p++] = cr; buf[p++] = cg; buf[p++] = cb;
-      buf.set(summBytes, p); p += summBytes.length;
-      buf.set(nameBytes, p); p += nameBytes.length;
-      buf.set(buildBytes, p);
-      const cs = new CompressionStream('deflate-raw');
-      const w = cs.writable.getWriter(); w.write(buf); w.close();
-      const reader = cs.readable.getReader();
-      const chunks = []; for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
-      let clen = 0; for (const c of chunks) clen += c.length;
-      const cBuf = new Uint8Array(clen); let cOff = 0;
-      for (const c of chunks) { cBuf.set(c, cOff); cOff += c.length; }
-      return base + '?id=bz_' + _bytesToB64u(cBuf);
-    } catch (e) {}
-  }
-  // CompressionStream unavailable — fall back to plain b_~ format
-  const _b64summ   = _summ ? _b64uEncode(_summ) : '';
-  const _colorPart = _summc !== '#dddddd' ? _summc.replace('#', '') : '';
-  const _b64name   = _name ? _b64uEncode(_name) : '';
-  return base + '?id=b_' + _scrambleBlob(blob) + '~' + _b64summ + '~' + _colorPart + '~' + _b64name;
+  if (typeof window._saveSharedBuild !== 'function') return null;
+  const blob       = _packState(state);
+  const payloadObj = { d: blob, n: state.name || 'Untitled', summ: state.summ || '', summc: state.summc || '#dddddd' };
+  const base       = window.location.origin + window.location.pathname.replace(/\/[^/]*$/, '/');
+  try {
+    const id = await window._saveSharedBuild(payloadObj);
+    return id ? base + '?id=' + id : null;
+  } catch (e) { return null; }
 }
 
 // Load payload by ID — handles b_ (direct-encoded), localStorage, then JSONBlob
@@ -8288,6 +8224,11 @@ if (shareBuildBtn) {
     shareBuildBtn.disabled = true;
     const url = await encodeState(state);
     shareBuildBtn.disabled = false;
+    if (!url) {
+      shareBuildBtn.textContent = 'Error!';
+      setTimeout(() => { shareBuildBtn.textContent = 'Share'; }, 2000);
+      return;
+    }
     navigator.clipboard.writeText(url).then(() => {
       shareBuildBtn.textContent = 'Copied!';
       setTimeout(() => { shareBuildBtn.textContent = 'Share'; }, 2000);
