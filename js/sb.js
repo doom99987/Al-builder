@@ -41,7 +41,7 @@
       const _unsub = sb.auth.onAuthStateChange((evt) => {
         if (evt === 'PASSWORD_RECOVERY') { _handled = true; _unsub.data.subscription.unsubscribe(); }
       });
-      setTimeout(() => { if (!_handled) openSetNewPasswordModal(); }, 4000);
+      setTimeout(() => { if (!_handled) openSetNewPasswordModal(); }, 800);
     }
   })();
 
