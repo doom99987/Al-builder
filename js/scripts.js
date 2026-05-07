@@ -3518,20 +3518,6 @@ const classMoves = {
         effect: "On your next hit, apply 3 Pressure and 2 Vulnerable."
       },
       {
-        slot: "Class Active",
-        level: 5,
-        type: "Active",
-        name: "Lookout",
-        quote: "Prepare yourself to defend a target of your choice.",
-        cost: 2,
-        cooldown: 5,
-        moveType: "Physical",
-        category: "Attack",
-        damage: 9,
-        scaling: "STR/75",
-        effect: "Single-target melee sure-hit sentry attack."
-      },
-      {
         slot: "1st Learn",
         level: 5,
         type: "Passive",
