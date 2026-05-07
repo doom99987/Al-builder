@@ -2980,3 +2980,12 @@ h2 {
 }
 .all-lb-mode-tab.active          { background: #1e1e45; border-color: #5555aa; color: #aaaaff; }
 .all-lb-mode-tab.comp-tab.active { background: #200e0e; border-color: #aa5555; color: #ff9999; }
+
+@keyframes move-card-ping {
+  0%   { box-shadow: 0 0 0 0 rgba(120, 180, 255, 0.8), 0 0 0 0 rgba(120, 180, 255, 0.4); border-color: #78b4ff; }
+  50%  { box-shadow: 0 0 0 6px rgba(120, 180, 255, 0.3), 0 0 12px 4px rgba(120, 180, 255, 0.2); border-color: #aad4ff; }
+  100% { box-shadow: none; border-color: inherit; }
+}
+.move-card-ping {
+  animation: move-card-ping 1.4s ease-out forwards;
+}
