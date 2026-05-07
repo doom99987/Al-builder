@@ -389,7 +389,7 @@ function calcPercentage(stat, val){
     end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
     "crit-chance": v => 19.8 + v * 0.25,
-    "crit-dmg":    v => 1.5 + v * 0.00654682,
+    "crit-dmg":    v => -2.01492e-10 * v**4 + 7.19885e-8 * v**3 - 7.82057e-6 * v**2 + 0.00694835 * v + 1.805,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
     "energy":      () => 0,
