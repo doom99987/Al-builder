@@ -7518,6 +7518,29 @@ function masteryBranchHtml(branch) {
   return html;
 }
 
+function scaleMasteryTree() {
+  const container = document.getElementById("mastery-tree-container");
+  if (!container) return;
+  const trunk = container.querySelector(".mastery-trunk");
+  const branches = container.querySelector(".mastery-branches");
+  if (!trunk || !branches) return;
+
+  // Remove zoom to measure natural (unscaled) height
+  trunk.style.zoom = '';
+  branches.style.zoom = '';
+
+  const availH = container.clientHeight;
+  const trunkR = trunk.getBoundingClientRect();
+  const branchR = branches.getBoundingClientRect();
+  const naturalH = branchR.bottom - trunkR.top;
+
+  if (availH <= 0 || naturalH <= 0) return;
+
+  const scale = Math.min(0.92, availH / naturalH);
+  trunk.style.zoom = scale;
+  branches.style.zoom = scale;
+}
+
 function renderMastery() {
   const container = document.getElementById("mastery-tree-container");
   if (!container) return;
@@ -7541,7 +7564,20 @@ function renderMastery() {
 
   container.innerHTML = html;
   updateMasteryDisplay();
-  requestAnimationFrame(() => requestAnimationFrame(() => drawMasteryLines()));
+  requestAnimationFrame(() => requestAnimationFrame(() => { scaleMasteryTree(); drawMasteryLines(); }));
+}
+
+// Re-scale whenever the mastery panel changes size (banner shown/hidden, window resize)
+{
+  const _masteryPanel = document.getElementById("mastery");
+  if (_masteryPanel && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => {
+      const container = document.getElementById("mastery-tree-container");
+      if (!container || !container.querySelector(".mastery-trunk")) return;
+      scaleMasteryTree();
+      drawMasteryLines();
+    }).observe(_masteryPanel);
+  }
 }
 
 function updateMasteryDisplay() {
