@@ -8657,9 +8657,12 @@ function autoSave() {
       if (!paused) return;
       paused  = false;
       lockout = false;
+      // Re-randomize arrows but keep remaining time
+      buildSequence();
+      current = 0;
+      renderBar();
       if (resumeBtn) resumeBtn.style.display = 'none';
       setStatus('Go!', '#aaaaff');
-      // Restart timer from remaining time
       updateTimerDisplay();
       timerInterval = setInterval(() => {
         timeLeft--;
