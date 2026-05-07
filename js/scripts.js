@@ -4009,13 +4009,13 @@ const classMoves = {
     innatePassives: [],
     learns: [
       {
-        slot: 1, level: 5, type: "Passive", name: "Iron Gut",
+        slot: "", level: 5, type: "Passive", name: "Iron Gut",
         requireItem: "Small Heal Potion",
         effect: "+1 potion use for all potion tiers in battle.",
         image: ""
       },
       {
-        slot: 2, level: 5, type: "Active", name: "Dangerous Mixture",
+        slot: "", level: 5, type: "Active", name: "Dangerous Mixture",
         requireItem: "Ferrus Skin Potion",
         cost: 2, cooldown: 6, moveType: "Poison", category: "Utility",
         damage: "5", scaling: "STR/ARC",
@@ -4023,13 +4023,13 @@ const classMoves = {
         image: "https://trello.com/1/cards/67b6913c063ca71f8358c48f/attachments/697ccfd34fae77ea20108ebd/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260130203535.png"
       },
       {
-        slot: 3, level: 5, type: "Passive", name: "Create Cauldron",
+        slot: "", level: 5, type: "Passive", name: "Create Cauldron",
         requireItem: "Invisibility Potion",
         effect: "Utility item, spawn cauldron to brew potions.",
         image: ""
       },
       {
-        slot: 4, level: 5, type: "Passive", name: "Certified",
+        slot: "", level: 5, type: "Passive", name: "Certified",
         effect: "Allows you to sell potions and ingredients to Apothecarian. (Doesn't count for midas enchant)",
         image: ""
       }
@@ -4951,10 +4951,13 @@ const raceMoves = {
   }
 };
 
-function activeCardHtml(m) {
+function activeCardHtml(m, opts) {
+  const isAll = opts && typeof opts === 'object' && opts.isAll;
+  const idAttr = isAll ? ` id="allmv-${_moveSlug(m.name)}"` : '';
+  const clickAttr = !isAll ? ` onclick="scrollToMove('${_moveSlug(m.name)}')" style="cursor:pointer"` : '';
   return `
     <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Lv${m.level})</span></div>
-    <div class="move-card active-move">
+    <div class="move-card active-move"${idAttr}${clickAttr}>
       <div class="move-header"><span class="move-badge active-badge">Active</span></div>
       <div class="move-name">${m.name}</div>
       ${m.quote ? `<div class="move-quote">"${m.quote}"</div>` : ""}
@@ -4972,9 +4975,12 @@ function activeCardHtml(m) {
     </div>`;
 }
 
-function innateCardHtml(p) {
+function innateCardHtml(p, opts) {
+  const isAll = opts && typeof opts === 'object' && opts.isAll;
+  const idAttr = isAll ? ` id="allmv-${_moveSlug(p.name)}"` : '';
+  const clickAttr = !isAll ? ` onclick="scrollToMove('${_moveSlug(p.name)}')" style="cursor:pointer"` : '';
   return `
-    <div class="move-card passive">
+    <div class="move-card passive"${idAttr}${clickAttr}>
       <div class="move-header">
         <span class="move-badge passive-badge">Innate</span>
         <span class="move-level">Lv${p.level}</span>
@@ -4984,10 +4990,13 @@ function innateCardHtml(p) {
     </div>`;
 }
 
-function passiveCardHtml(m) {
+function passiveCardHtml(m, opts) {
+  const isAll = opts && typeof opts === 'object' && opts.isAll;
+  const idAttr = isAll ? ` id="allmv-${_moveSlug(m.name)}"` : '';
+  const clickAttr = !isAll ? ` onclick="scrollToMove('${_moveSlug(m.name)}')" style="cursor:pointer"` : '';
   return `
     <div class="move-learn-header">${m.slot} <span class="move-learn-level">(Lv${m.level})</span></div>
-    <div class="move-card passive">
+    <div class="move-card passive"${idAttr}${clickAttr}>
       <div class="move-header"><span class="move-badge passive-badge">Passive</span></div>
       <div class="move-name">${m.name}</div>
       ${m.quote ? `<div class="move-quote">"${m.quote}"</div>` : ""}
@@ -5000,10 +5009,26 @@ function isSummonMove(m) {
   const s = m.slot || "";
   if (!s) return false;
   if (/^Active$/i.test(s) || /^Passive$/i.test(s)) return false;
+  if (/^\d+$/.test(s)) return false; // plain numeric slot = ordering, not a summon
   return !/^\d+(st|nd|rd|th)\s+Learn$/i.test(s)
       && !/^Class\s+Active$/i.test(s)
       && !/^Tier\s+\d+$/i.test(s);
 }
+
+function _moveSlug(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+function scrollToMove(slug) {
+  const el = document.getElementById('allmv-' + slug);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('move-card-ping');
+  void el.offsetWidth; // force reflow to restart animation
+  el.classList.add('move-card-ping');
+  setTimeout(() => el.classList.remove('move-card-ping'), 1400);
+}
+window.scrollToMove = scrollToMove;
 
 function entityMovesHtml(data, lvl) {
   const actives = (data.learns || []).filter(m => m.type === "Active" && !isSummonMove(m));
@@ -5285,7 +5310,7 @@ function renderMoves() {
     if (allActives.length) {
       html += `<div class="moves-combined-section">`;
       html += `<h2 class="moves-combined-title">All Moves</h2>`;
-      allActives.forEach(m => html += activeCardHtml(m));
+      allActives.forEach(m => html += activeCardHtml(m, {isAll: true}));
       html += `</div>`;
     }
 
@@ -5294,8 +5319,8 @@ function renderMoves() {
     if (allInnates.length || allPassives.length) {
       html += `<div class="moves-combined-section">`;
       html += `<h2 class="moves-combined-title">All Passives</h2>`;
-      allInnates.forEach(p => html += innateCardHtml(p));
-      allPassives.forEach(m => html += passiveCardHtml(m));
+      allInnates.forEach(p => html += innateCardHtml(p, {isAll: true}));
+      allPassives.forEach(m => html += passiveCardHtml(m, {isAll: true}));
       html += `</div>`;
     }
 
@@ -8185,7 +8210,7 @@ function autoSave() {
         state.summ  = payload.summ  || '';
         state.summc = payload.summc || '#dddddd';
         loadBuildState(state);
-        if (typeof switchPage === 'function') switchPage('builder');
+        setTimeout(() => { if (typeof switchPage === 'function') switchPage('builder'); }, 0);
       }
     }
     return;
@@ -8200,12 +8225,12 @@ function autoSave() {
         const parts = hash.split('/');
         if (parts.length === 2) {
           const state = _unpackState(parts[1], decodeURIComponent(parts[0]));
-          if (state) { loadBuildState(state); if (typeof switchPage === 'function') switchPage('builder'); }
+          if (state) { loadBuildState(state); setTimeout(() => { if (typeof switchPage === 'function') switchPage('builder'); }, 0); }
         }
         return;
       }
       const state = JSON.parse(atob(hash));
-      if (state && state.v === 1) { loadBuildState(state); if (typeof switchPage === 'function') switchPage('builder'); return; }
+      if (state && state.v === 1) { loadBuildState(state); setTimeout(() => { if (typeof switchPage === 'function') switchPage('builder'); }, 0); return; }
     } catch (e) {}
   }
 
