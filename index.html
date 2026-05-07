@@ -666,7 +666,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/scripts.js?v=80"></script>
+<script src="js/scripts.js?v=82"></script>
 <script src="js/sb.js?v=38"></script>
 <script>
   function switchPage(name) {
@@ -690,9 +690,11 @@
   });
 
   // On load, navigate to the page in the URL hash
+  // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
   const _validPages = ['home', 'builder', 'qte', 'leaderboards'];
-  switchPage(_validPages.includes(_initPage) ? _initPage : 'home');
+  const _hasSharedBuild = new URLSearchParams(location.search).has('id');
+  switchPage(_hasSharedBuild ? 'builder' : (_validPages.includes(_initPage) ? _initPage : 'home'));
 
   function switchQteTab(name) {
     if (typeof window._onFistQteHide === 'function') window._onFistQteHide();
