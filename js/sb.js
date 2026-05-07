@@ -32,12 +32,18 @@
 
   // Open modal immediately if recovery link detected in URL (all Supabase formats)
   (function () {
-    const hash   = new URLSearchParams(window.location.hash.slice(1));
-    const search = new URLSearchParams(window.location.search);
-    const isRecovery = hash.get('type') === 'recovery'   // implicit flow: #type=recovery
-      || search.get('type') === 'recovery'                // token_hash flow: ?type=recovery
-      || (search.has('code') && !search.has('error'));    // PKCE flow: ?code=...
-    if (isRecovery) {
+    const hash      = new URLSearchParams(window.location.hash.slice(1));
+    const search    = new URLSearchParams(window.location.search);
+    const tokenHash = search.get('token_hash');
+    const typeParam = search.get('type') || hash.get('type');
+
+    if (tokenHash && typeParam === 'recovery') {
+      // Current Supabase email format: ?token_hash=...&type=recovery
+      // Must explicitly exchange the token — Supabase does NOT auto-process this format
+      openSetNewPasswordModal();
+      sb.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' }).catch(() => {});
+    } else if (hash.get('type') === 'recovery' || (search.has('code') && !search.has('error'))) {
+      // Implicit flow (#type=recovery) or PKCE (?code=) — Supabase handles automatically
       openSetNewPasswordModal();
     }
   })();
