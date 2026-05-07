@@ -501,6 +501,41 @@
     }
   }
 
+  async function openForgotPasswordModal() {
+    openModal(`
+      <h2 class="sb-title">Reset Password</h2>
+      <p style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Enter your account email and we'll send a reset link.</p>
+      <input class="auth-input" id="fp-email" type="email" placeholder="Email" autocomplete="email" />
+      <div class="sb-err" id="fp-err"></div>
+      <button class="auth-btn sb-submit" onclick="window._submitForgotPassword()">Send Reset Email</button>
+      <p class="sb-switch"><button class="sb-link" onclick="window._openAuthModal('login')">Back to Login</button></p>
+    `);
+    setTimeout(() => {
+      const el = document.getElementById('fp-email');
+      if (el) {
+        el.focus();
+        el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitForgotPassword(); });
+      }
+    }, 50);
+  }
+
+  async function submitForgotPassword() {
+    const emailEl = document.getElementById('fp-email');
+    const errEl   = document.getElementById('fp-err');
+    if (!emailEl || !errEl) return;
+    const email = emailEl.value.trim();
+    if (!email) { errEl.textContent = 'Please enter your email.'; return; }
+    const { error } = await sb.auth.resetPasswordForEmail(email);
+    if (error) {
+      errEl.textContent = error.message;
+    } else {
+      errEl.style.color = '#88ee88';
+      errEl.textContent = 'Reset email sent! Check your inbox.';
+      emailEl.disabled = true;
+      document.querySelector('.sb-submit') && (document.querySelector('.sb-submit').disabled = true);
+    }
+  }
+
   // ---- shared modal ----
   function getModal() { return document.getElementById('sb-modal'); }
 
@@ -530,6 +565,7 @@
       <button class="auth-btn sb-submit" onclick="window._submitAuth('${mode}')">${isReg ? 'Register' : 'Login'}</button>
       <p class="sb-switch">${isReg ? 'Already have an account?' : "Don't have an account?"}
         <button class="sb-link" onclick="window._openAuthModal('${isReg ? 'login' : 'register'}')">${isReg ? 'Login' : 'Register'}</button></p>
+      ${!isReg ? `<p class="sb-switch" style="margin-top:4px"><button class="sb-link" onclick="window._openForgotPassword()">Forgot password?</button></p>` : ''}
     `);
     // Allow Enter to submit
     setTimeout(() => {
@@ -660,7 +696,9 @@
   window._saveUsername       = saveUsername;
   window._sendPasswordReset  = sendPasswordReset;
   window._uploadAvatar       = uploadAvatar;
-  window._loadAllLeaderboards = loadAllLeaderboards;
+  window._loadAllLeaderboards  = loadAllLeaderboards;
+  window._openForgotPassword  = openForgotPasswordModal;
+  window._submitForgotPassword = submitForgotPassword;
 
   // Boot: onAuthStateChange fires INITIAL_SESSION and handles session restoration
 })();
