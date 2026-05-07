@@ -7739,7 +7739,7 @@ function drawMasteryLines() {
 
 // --- Tabs ---
 const tabs      = document.querySelectorAll("#page-builder .tabbar .tab");
-const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary"];
+const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary", "saved-builds"];
 
 function _switchBuilderTab(target) {
   if (!target) return;
@@ -7769,6 +7769,7 @@ function _switchBuilderTab(target) {
 
   if (target === "mastery") renderMastery();
   if (target === "dmg-calc") renderDmgCalc();
+  if (target === "saved-builds") renderSavedBuilds();
 }
 
 tabs.forEach(tab => {
@@ -10839,4 +10840,79 @@ function autoSave() {
   };
 
   canvas.style.display = 'none';
+})();
+
+// === SAVED BUILDS ===
+var _SAVED_BUILDS_KEY = 'alb:saved-builds';
+
+function _getSavedBuilds() {
+  try { return JSON.parse(localStorage.getItem(_SAVED_BUILDS_KEY)) || []; } catch (e) { return []; }
+}
+
+function _setSavedBuilds(builds) {
+  try { localStorage.setItem(_SAVED_BUILDS_KEY, JSON.stringify(builds)); } catch (e) {}
+}
+
+function _escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderSavedBuilds() {
+  const list = document.getElementById('saved-builds-list');
+  if (!list) return;
+  const builds = _getSavedBuilds();
+  if (!builds.length) {
+    list.innerHTML = '<p class="saved-builds-empty">No saved builds yet. Click "Save Current Build" to save your current build.</p>';
+    return;
+  }
+  list.innerHTML = builds.map((b, i) => {
+    const date = new Date(b.ts).toLocaleDateString();
+    const cls = [b.state && b.state.cls, b.state && b.state.sup, b.state && b.state.sub].filter(Boolean).join(' / ') || '&mdash;';
+    const race = (b.state && b.state.race) || '&mdash;';
+    const lvl  = (b.state && b.state.lvl)  || 1;
+    return `<div class="saved-build-card">
+      <div class="saved-build-info">
+        <div class="saved-build-name">${_escHtml(b.name || 'Untitled')}</div>
+        <div class="saved-build-meta">Lvl ${lvl} &middot; ${_escHtml(b.state && b.state.race || '')||'&mdash;'} &middot; ${_escHtml([b.state&&b.state.cls,b.state&&b.state.sup,b.state&&b.state.sub].filter(Boolean).join(' / '))||'&mdash;'}</div>
+        <div class="saved-build-date">${date}</div>
+      </div>
+      <div class="saved-build-actions">
+        <button class="saved-build-load-btn" onclick="loadSavedBuild(${i})">Load</button>
+        <button class="saved-build-del-btn" onclick="deleteSavedBuild(${i})">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function loadSavedBuild(index) {
+  const builds = _getSavedBuilds();
+  const b = builds[index];
+  if (!b || !b.state) return;
+  loadBuildState(b.state);
+  const nameInput = document.getElementById('build-name-input');
+  if (nameInput) nameInput.value = b.name || '';
+  _switchBuilderTab('stats');
+}
+
+function deleteSavedBuild(index) {
+  if (!confirm('Delete this saved build?')) return;
+  const builds = _getSavedBuilds();
+  builds.splice(index, 1);
+  _setSavedBuilds(builds);
+  renderSavedBuilds();
+}
+
+(function () {
+  const btn = document.getElementById('save-current-btn');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const state = getBuildState();
+    const name = (document.getElementById('build-name-input')?.value.trim()) || 'Untitled';
+    const builds = _getSavedBuilds();
+    builds.unshift({ id: Date.now(), name, ts: Date.now(), state });
+    _setSavedBuilds(builds);
+    btn.textContent = 'Saved!';
+    setTimeout(() => { btn.textContent = 'Save Current Build'; }, 1500);
+    renderSavedBuilds();
+  });
 })();

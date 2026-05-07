@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="Logo.png">
   <link rel="stylesheet" href="css/styles.css?v=29">
-  <link rel="stylesheet" href="css/patch.css?v=33">
+  <link rel="stylesheet" href="css/patch.css?v=34">
 </head>
 
 <body>
@@ -277,6 +277,7 @@
       <button class="tab" data-tab="sould-tree">Soul Tree</button>
       <button class="tab" data-tab="dmg-calc">Dmg Calc</button>
       <button class="tab" data-tab="summary">Summary</button>
+      <button class="tab" data-tab="saved-builds">Saved Builds</button>
     </div>
     <div class="tabbar-controls">
       <input type="text" id="build-name-input" class="build-name-input" placeholder="Untitled" maxlength="60">
@@ -629,6 +630,16 @@
       </div>
     </div>
 
+    <div class="panel" id="saved-builds">
+      <div class="saved-builds-wrap">
+        <div class="saved-builds-header">
+          <h2>Saved Builds</h2>
+          <button class="save-current-btn" id="save-current-btn">Save Current Build</button>
+        </div>
+        <div class="saved-builds-list" id="saved-builds-list"></div>
+      </div>
+    </div>
+
     <div class="panel" id="dmg-calc">
       <div class="dmg-calc-layout">
         <div class="dmg-calc-left">
@@ -667,7 +678,7 @@
 
 <script src="js/supabase.min.js"></script>
 <script src="js/sb.js?v=43"></script>
-<script src="js/scripts.js?v=87"></script>
+<script src="js/scripts.js?v=88"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
