@@ -297,7 +297,12 @@
       <div class="sb-err" id="sb-settings-err"></div>
       <button class="auth-btn sb-submit" onclick="window._saveUsername()">Save Username</button>
       <div class="sb-menu-divider" style="margin:16px 0 12px"></div>
-      <button class="auth-btn sb-btn-full" onclick="window._sendPasswordReset()">Send Password Reset Email</button>
+      <p class="sb-field-label">Change Password</p>
+      <input class="sb-input" id="sb-old-pass" type="password" placeholder="Current password" autocomplete="current-password">
+      <input class="sb-input" id="sb-new-pass" type="password" placeholder="New password" autocomplete="new-password">
+      <input class="sb-input" id="sb-conf-pass" type="password" placeholder="Confirm new password" autocomplete="new-password">
+      <div class="sb-err" id="sb-pw-err"></div>
+      <button class="auth-btn sb-btn-full" id="sb-pw-btn" onclick="window._changePassword()">Change Password</button>
       <div class="sb-menu-divider" style="margin:12px 0"></div>
       <button class="auth-btn auth-btn-out sb-btn-full" onclick="window._sbSignOut();window._closeModal()">Logout</button>
     `);
@@ -514,16 +519,37 @@
     closeModal();
   }
 
-  async function sendPasswordReset() {
-    if (!currentUser?.email) return;
-    const errEl = document.getElementById('sb-settings-err');
-    const { error } = await sb.auth.resetPasswordForEmail(currentUser.email, {
-      redirectTo: window.location.origin + '/'
-    });
-    if (errEl) {
-      if (error) { errEl.textContent = error.message; }
-      else        { errEl.style.color = '#88ee88'; errEl.textContent = 'Reset email sent!'; }
+  async function changePassword() {
+    const errEl  = document.getElementById('sb-pw-err');
+    const btn    = document.getElementById('sb-pw-btn');
+    const oldVal = document.getElementById('sb-old-pass')?.value || '';
+    const newVal = document.getElementById('sb-new-pass')?.value || '';
+    const confVal= document.getElementById('sb-conf-pass')?.value || '';
+    if (!errEl) return;
+    errEl.style.color = '#ff8888';
+    if (!oldVal) { errEl.textContent = 'Enter your current password.'; return; }
+    if (newVal.length < 6) { errEl.textContent = 'New password must be at least 6 characters.'; return; }
+    if (newVal !== confVal) { errEl.textContent = 'Passwords do not match.'; return; }
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+    // Re-authenticate to verify current password
+    const { error: authErr } = await sb.auth.signInWithPassword({ email: currentUser.email, password: oldVal });
+    if (authErr) {
+      errEl.textContent = 'Current password is incorrect.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Change Password'; }
+      return;
     }
+    const { error: updateErr } = await sb.auth.updateUser({ password: newVal });
+    if (updateErr) {
+      errEl.textContent = updateErr.message;
+      if (btn) { btn.disabled = false; btn.textContent = 'Change Password'; }
+      return;
+    }
+    errEl.style.color = '#88ee88';
+    errEl.textContent = 'Password changed!';
+    if (btn) { btn.disabled = true; btn.textContent = 'Changed'; }
+    document.getElementById('sb-old-pass').value  = '';
+    document.getElementById('sb-new-pass').value  = '';
+    document.getElementById('sb-conf-pass').value = '';
   }
 
   function openForgotPasswordModal() {
@@ -867,7 +893,7 @@
   window._toggleProfileMenu  = toggleProfileMenu;
   window._openSettings       = openSettings;
   window._saveUsername       = saveUsername;
-  window._sendPasswordReset  = sendPasswordReset;
+  window._changePassword     = changePassword;
   window._uploadAvatar       = uploadAvatar;
   window._loadAllLeaderboards  = loadAllLeaderboards;
   window._switchLbMode = function (btn) {
