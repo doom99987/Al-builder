@@ -592,7 +592,22 @@
       if (btn) btn.remove();
     }
 
-    // Listen for PASSWORD_RECOVERY or SIGNED_IN (different Supabase versions fire different events)
+    // Newer Supabase projects send ?token_hash=xxx&type=recovery in the query string.
+    // The client with flowType:'implicit' only processes #access_token hash, so we must
+    // exchange token_hash explicitly via verifyOtp.
+    const _sq = new URLSearchParams(window.location.search);
+    const _tokenHash = _sq.get('token_hash');
+    if (_tokenHash) {
+      sb.auth.verifyOtp({ token_hash: _tokenHash, type: 'recovery' })
+        .then(({ error }) => {
+          if (error) _fail();
+          else _enable();
+        });
+      return;
+    }
+
+    // Fallback for implicit flow (#access_token=...&type=recovery in hash):
+    // Listen for PASSWORD_RECOVERY or SIGNED_IN events
     const _unsub = sb.auth.onAuthStateChange((evt) => {
       if (evt === 'PASSWORD_RECOVERY' || evt === 'SIGNED_IN') {
         _unsub.data.subscription.unsubscribe();
