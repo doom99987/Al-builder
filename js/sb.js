@@ -629,7 +629,21 @@
     }
 
     // Path 3: implicit hash tokens (#access_token=...&type=recovery)
-    // Supabase client processes these automatically — listen for events + poll
+    // Do NOT wait for Supabase to process the hash internally — extract the tokens
+    // ourselves and call setSession directly to avoid initialization timing issues.
+    if (_accessToken) {
+      const _refreshToken = _hsh.get('refresh_token') || '';
+      sb.auth.setSession({ access_token: _accessToken, refresh_token: _refreshToken })
+        .then(({ data, error }) => {
+          if (error) _fail('Session error: ' + error.message);
+          else if (data?.session) _enable();
+          else _fail();
+        })
+        .catch(e => _fail('Error: ' + e.message));
+      return;
+    }
+
+    // Path 4: fallback — shouldn't reach here, but listen + poll just in case
     const _unsub = sb.auth.onAuthStateChange((evt) => {
       if (evt === 'PASSWORD_RECOVERY' || evt === 'SIGNED_IN') {
         _unsub.data.subscription.unsubscribe();
