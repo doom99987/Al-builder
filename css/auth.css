@@ -1,0 +1,462 @@
+/*
+ * auth.css — AL Builder
+ * Supabase auth modal, leaderboard tables, profile avatar/dropdown,
+ * settings modal, and the all-leaderboards tab.
+ */
+
+/* ============================================================
+   AUTH + LEADERBOARD UI
+   ============================================================ */
+
+/* Auth bar — sits in the site nav, pushed to the right */
+#auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 8px;
+  flex-shrink: 0;
+}
+
+.auth-username {
+  color: #aaaaff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.auth-btn {
+  background: #2a2a5a;
+  color: #ccccff;
+  border: 1px solid #4444aa;
+  border-radius: 5px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.auth-btn:hover  { background: #3a3a7a; }
+.auth-btn-sm { padding: 3px 9px; font-size: 11px; }
+.auth-btn-out { border-color: #664444; color: #ffaaaa; }
+.auth-btn-out:hover { background: #3a2a2a; }
+
+/* Leaderboard button inside QTE panel headers */
+.lb-open-btn {
+  background: none;
+  border: none;
+  color: #aaaaff;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+.lb-open-btn:hover { background: #2a2a5a; }
+
+/* Shared modal overlay */
+#sb-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sb-modal-box {
+  background: #1a1a2e;
+  border: 1px solid #3a3a6a;
+  border-radius: 10px;
+  padding: 28px 24px 22px;
+  min-width: 280px;
+  max-width: 400px;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sb-close {
+  position: absolute;
+  top: 10px; right: 14px;
+  background: none; border: none;
+  color: #888; font-size: 20px;
+  cursor: pointer; line-height: 1;
+}
+.sb-close:hover { color: #ccc; }
+
+.sb-title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #ccccff;
+  text-align: center;
+}
+
+.sb-input {
+  background: #12121e;
+  border: 1px solid #3a3a6a;
+  border-radius: 5px;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+.sb-input:focus { border-color: #6666cc; }
+
+.sb-err {
+  color: #ff8888;
+  font-size: 12px;
+  min-height: 16px;
+  text-align: center;
+}
+
+.sb-submit {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sb-divider {
+  display: flex; align-items: center; gap: 8px;
+  margin: 8px 0; color: #666; font-size: 12px;
+}
+.sb-divider::before, .sb-divider::after {
+  content: ''; flex: 1; height: 1px; background: #444;
+}
+.sb-discord-btn {
+  width: 100%; background: #5865f2; color: #fff;
+  border: none; border-radius: 6px; padding: 8px 12px;
+  font-size: 14px; cursor: pointer; display: flex;
+  align-items: center; justify-content: center;
+}
+.sb-discord-btn:hover { background: #4752c4; }
+.sb-switch {
+  text-align: center;
+  font-size: 12px;
+  color: #888;
+  margin: 0;
+}
+.sb-link {
+  background: none; border: none;
+  color: #aaaaff; cursor: pointer;
+  font-size: 12px; text-decoration: underline;
+  padding: 0; font-family: inherit;
+}
+
+/* Leaderboard table */
+.sb-loading, .sb-empty {
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+  padding: 12px 0;
+  margin: 0;
+}
+
+.sb-lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #ccc;
+}
+.sb-lb-table th {
+  color: #888;
+  font-weight: 600;
+  border-bottom: 1px solid #2a2a4a;
+  padding: 4px 8px;
+  text-align: left;
+}
+.sb-lb-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #1e1e38;
+}
+.sb-lb-table tr:last-child td { border-bottom: none; }
+.sb-lb-me td { color: #aaffaa; font-weight: 600; }
+.sb-lb-table th:first-child,
+.sb-lb-table td:first-child { text-align: center; width: 28px; }
+.sb-lb-table th:last-child,
+.sb-lb-table td:last-child  { text-align: right; }
+.sb-my-rank { margin: 10px 0 0; font-size: 13px; color: #aaffaa; text-align: center; }
+
+/* ---- Profile avatar (nav bar) ---- */
+.sb-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition: opacity 0.15s, transform 0.12s;
+  letter-spacing: 0;
+}
+.sb-avatar:hover { opacity: 0.85; transform: scale(1.07); }
+
+/* ---- Profile dropdown menu ---- */
+.sb-profile-menu {
+  position: fixed;
+  background: #1a1a2e;
+  border: 1px solid #3a3a6a;
+  border-radius: 10px;
+  min-width: 190px;
+  z-index: 9100;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+  overflow: hidden;
+  padding: 0;
+}
+
+.sb-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 12px;
+}
+
+.sb-menu-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.sb-menu-name {
+  font-weight: 700;
+  color: #ccccff;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-menu-divider {
+  height: 1px;
+  background: #252540;
+  margin: 0;
+}
+
+.sb-menu-item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 11px 16px;
+  color: #aaa;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.sb-menu-item:hover { background: #242448; color: #ddd; }
+.sb-menu-item-danger { color: #ff9999; }
+.sb-menu-item-danger:hover { background: #2a1a1a; color: #ffbbbb; }
+
+/* ---- Settings modal extras ---- */
+.sb-field-label {
+  font-size: 11px;
+  color: #666;
+  margin: 0 0 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.sb-btn-full {
+  width: 100%;
+  padding: 9px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* ---- Avatar image (inside circle) ---- */
+.sb-avatar-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.sb-avatar { position: relative; overflow: hidden; }
+
+/* ---- Avatar upload in settings ---- */
+.sb-avatar-upload-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sb-avatar-upload-label {
+  position: relative;
+  cursor: pointer;
+  display: inline-block;
+  border-radius: 50%;
+}
+.sb-avatar-upload-label:hover .sb-avatar-cam { opacity: 1; }
+
+.sb-avatar-cam {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  opacity: 0;
+  transition: opacity 0.18s;
+  pointer-events: none;
+}
+
+.sb-avatar-hint {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+}
+
+/* ============================================================
+   ALL LEADERBOARDS TAB
+   ============================================================ */
+
+#qte-panel-leaderboards {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.all-lb-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.all-lb-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.all-lb-title {
+  margin: 0;
+  font-size: 20px;
+  font-family: 'Rajdhani', sans-serif;
+  color: #e0d8c8;
+  letter-spacing: 0.04em;
+}
+
+.all-lb-refresh-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid #333;
+  color: #aaa;
+  border-radius: 5px;
+  padding: 4px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+.all-lb-refresh-btn:hover {
+  background: rgba(255,255,255,0.13);
+  color: #e0d8c8;
+}
+
+.all-lb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.all-lb-card {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.all-lb-card-title {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  color: #c8a96e;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #2a2a2a;
+  padding-bottom: 6px;
+}
+
+.all-lb-table {
+  width: 100%;
+  font-size: 12px;
+}
+
+.all-lb-rank { color: #666; width: 24px; }
+.all-lb-name { color: #ccc; }
+.all-lb-score { color: #e0d8c8; text-align: right; }
+
+.dc-vastic-active {
+  background: rgba(255,255,255,0.04);
+  border-left: 2px solid #666;
+}
+.dc-vastic-formula {
+  font-size: 11px;
+  color: #666;
+  padding: 1px 10px 6px;
+}
+
+.lb-player-cell {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.lb-player-cell .sb-avatar {
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lb-player-cell .sb-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.all-lb-empty {
+  color: #555;
+  text-align: center;
+  font-style: italic;
+  padding: 6px 0;
+}
+
+#page-leaderboards.active {
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+

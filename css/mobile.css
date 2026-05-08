@@ -1,0 +1,472 @@
+/*
+ * mobile.css — AL Builder
+ * All responsive / mobile overrides: QTE on-screen d-pad, builder
+ * tabbar, and max-width:768px media queries for every major panel.
+ */
+
+/* ============================================================
+   MOBILE QTE CONTROLS & RESPONSIVE LAYOUT
+   ============================================================ */
+
+/* ----- Fist QTE D-pad ----- */
+.fist-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 8px auto 0;
+  flex-shrink: 0;
+}
+.fist-dpad-row { display: flex; gap: 6px; }
+.fist-dpad-btn {
+  width: 68px;
+  height: 68px;
+  font-size: 28px;
+  background: #2a2150;
+  color: #c8a8ff;
+  border: 2px solid #7c5cbb;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.fist-dpad-btn:active { background: #5a3a9a; color: #fff; }
+
+/* Disable text selection on canvas QTEs during touch */
+@media (pointer: coarse) {
+  .hammer-qte-canvas, #sword-qte-canvas, #dodge-qte-canvas,
+  #dagger-qte-canvas, #axe-qte-canvas, #staff-qte-canvas,
+  .spear-qte-canvas { touch-action: none; cursor: pointer; }
+}
+
+/* ============================================================
+   MOBILE RESPONSIVE — max-width: 768px
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* === Global === */
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+
+  /* === Top nav === */
+  .site-nav { padding: 0 8px; gap: 6px; height: 44px; }
+  .site-nav-logo { height: 26px; flex-shrink: 0; }
+  .site-nav-tabs {
+    overflow-x: auto; gap: 0; flex-shrink: 1; min-width: 0;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .site-nav-tabs::-webkit-scrollbar { display: none; }
+  .site-nav-btn { padding: 5px 12px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+  #auth-bar { padding: 0 4px; gap: 4px; }
+  #auth-bar .auth-btn { padding: 3px 8px; font-size: 11px; }
+  #auth-bar .auth-username { font-size: 11px; max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* === Page heights — flex: 1 from .site-page.active handles this now === */
+  #page-qte.active     { overflow: hidden; display: flex; flex-direction: column; }
+
+  /* === Home page === */
+  .home-hero { padding: 24px 16px 18px; }
+  .home-title { font-size: 30px; letter-spacing: 1px; }
+  .home-hero-logo { width: 80px; margin: 8px auto 10px; }
+  .home-subtitle { font-size: 13px; margin-bottom: 18px; }
+  .home-cta-row { gap: 10px; }
+  .home-cta { padding: 10px 24px; font-size: 14px; }
+  .home-section-label { padding: 0 12px; margin-top: 12px; }
+  .home-features { grid-template-columns: 1fr; padding: 0 12px; gap: 8px; margin-bottom: 20px; }
+  .home-card { padding: 14px; }
+  .home-card-title { font-size: 14px; }
+  .home-card-body { font-size: 12px; }
+
+  /* === Builder === */
+  #page-builder.active { display: flex; flex-direction: column; }
+  #page-builder .app { flex: 1; min-height: 0; display: flex; flex-direction: column; height: 100%; }
+
+  /* Builder inner tabbar */
+  .tabbar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  .tabbar::-webkit-scrollbar { display: none; }
+  .tab { padding: 9px 13px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+
+  /* Content scrolls both axes — build tab is 3 columns, swipe right to reach gear */
+  .content {
+    padding: 6px 8px;
+    overflow-x: auto;
+    overflow-y: auto;
+    justify-content: flex-start;
+    align-items: flex-start;
+    min-height: 0;
+  }
+
+  /* Stats panel: natural width so columns sit side by side */
+  #page-builder #stats {
+    width: max-content;
+    min-width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+  }
+
+  /* 3-column row layout — zoom out so all content is visible and reachable */
+  .stats-columns  { flex-direction: row; gap: 20px; align-items: flex-start; zoom: 0.72; }
+  .marks-section  { width: 150px !important; gap: 2px !important; padding-top: 2px !important; }
+  .stats-left     { width: 300px !important; }
+  .gear-section   { gap: 12px !important; }
+
+  /* Compact headings */
+  #page-builder .content h2           { font-size: 13px; margin: 2px 0 4px; }
+  #page-builder .gear-sub-header      { margin: 2px 0 1px; padding-top: 3px; font-size: 13px; }
+  #page-builder .class-cost-note      { font-size: 10px; margin-top: -4px; margin-bottom: 3px; }
+
+  /* Compact pickers */
+  #page-builder .gear-slot            { gap: 2px; margin-bottom: 5px; }
+  #page-builder .gear-label           { font-size: 11px; }
+  #page-builder .race-label           { font-size: 11px; }
+  #page-builder .race-row             { margin-bottom: 5px; gap: 6px; }
+
+  /* Shards compact */
+  .shards-grid   { gap: 2px !important; }
+  .shard-slot    { width: 140px !important; }
+  .shard-label   { font-size: 10px; }
+
+  /* Stat row compact */
+  #page-builder .stat-list            { gap: 4px; }
+  #page-builder .stat-name            { font-size: 12px; width: 40px; }
+  #page-builder .stat-btn             { width: 24px; height: 24px; font-size: 14px; }
+  #page-builder .stat-val             { width: 40px; font-size: 13px; }
+  #page-builder .stat-base,
+  #page-builder .stat-lvl-bonus,
+  #page-builder .stat-total           { font-size: 10px; width: 22px; }
+  /* Realign R/L/T header to match compact stat-row widths:
+     name 40px | spacer = minus(24)+gap(5)+val(40)+gap(5)+plus(24) = 98px | labels 22px */
+  .stat-col-header          { margin-left: 28px; gap: 5px; }
+  .stat-col-header-name     { width: 40px; }
+  .stat-col-header-spacer   { width: 98px; }
+  .stat-col-header-label    { width: 22px; font-size: 9px; }
+
+  /* Stat boxes / level */
+  #page-builder .box                  { font-size: 13px; padding: 6px 10px; }
+  .box-row                            { margin-bottom: 6px; }
+  #Lvl                                { font-size: 13px; padding: 4px 6px; width: 46px; }
+
+  /* Percent bar compact */
+  .stat-percent   { gap: 4px; margin-top: 5px; }
+  .percent-item   { height: 26px; padding: 0 5px; min-width: 44px; }
+  .percent-val    { font-size: 8px; }
+  .percent-label  { font-size: 9px; }
+
+  /* === Mastery tree === */
+  #mastery {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  .mastery-wrap {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 8px;
+    align-items: flex-start;
+  }
+  .mastery-tree-container {
+    flex: none;
+    min-width: max-content;
+    overflow: visible;
+  }
+  /* Remove zoom on mobile — lines are drawn in unzoomed SVG space so
+     any zoom on trunk/branches causes a coordinate mismatch. Let the
+     scrollable wrap handle navigation instead. */
+  .mastery-trunk,
+  .mastery-branches {
+    zoom: 1;
+  }
+
+  /* Info tab columns */
+  .info-columns {
+    flex-direction: column !important;
+    width: 100% !important; max-width: 100% !important;
+  }
+  .info-right, .info-left {
+    width: 100% !important; max-width: 100% !important; min-width: 0 !important;
+  }
+
+  /* Dmg calc horizontal scroll */
+  #dmg-calc { overflow-x: auto; }
+
+  /* Watermarks hidden */
+  .qte-logo-watermark, .builder-logo-watermark { display: none; }
+
+  /* === QTE Page === */
+
+  /* QTE tabbar */
+  #qte-tabbar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-shrink: 0;
+  }
+  #qte-tabbar::-webkit-scrollbar { display: none; }
+  #qte-tabbar .tab { padding: 9px 13px; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+
+  /* QTE content — keep height-constrained so flex:1 children get real height */
+  .qte-content {
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* QTE panel */
+  .qte-panel { overflow: hidden; min-height: 0; }
+
+  /* All QTE wraps */
+  .fist-qte-wrap,
+  .dagger-qte-wrap,
+  .spear-qte-wrap,
+  .sword-qte-wrap,
+  .dodge-qte-wrap,
+  .hammer-qte-wrap,
+  .axe-qte-wrap,
+  .staff-qte-wrap {
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 12px 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  /* Fist wrap — scroll since it has bar + dpad */
+  .fist-qte-wrap { overflow-y: auto; gap: 10px; }
+
+  /* QTE headers — wrap on small screens */
+  .dagger-qte-header,
+  .spear-qte-header,
+  .sword-qte-header,
+  .dodge-qte-header,
+  .hammer-qte-header,
+  .axe-qte-header {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    justify-content: center;
+    min-height: auto;
+  }
+
+  /* Remove fixed min-widths from header spans */
+  .dagger-qte-status, .dagger-qte-timer, .dagger-qte-streak,
+  .dagger-qte-highscore, .dagger-qte-avgtime,
+  .spear-qte-status, .spear-qte-streak, .spear-qte-highscore,
+  .sword-qte-status, .sword-qte-streak, .sword-qte-highscore,
+  .dodge-qte-status, .dodge-qte-streak, .dodge-qte-highscore,
+  .hammer-qte-status, .hammer-qte-streak, .hammer-qte-highscore {
+    min-width: 0 !important;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  /* Canvases — fill container width */
+  .dagger-qte-canvas,
+  .spear-qte-canvas,
+  #sword-qte-canvas,
+  #dodge-qte-canvas,
+  .hammer-qte-canvas,
+  #axe-qte-canvas,
+  #staff-qte-canvas {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    display: block;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+
+  /* Start / resume buttons — take out of absolute flow on mobile */
+  #dagger-qte-start-btn, #dagger-qte-resume-btn,
+  #spear-qte-start-btn,  #spear-qte-resume-btn,
+  #sword-qte-start-btn,  #sword-qte-resume-btn,
+  #dodge-qte-start-btn,  #dodge-qte-resume-btn,
+  #hammer-qte-start-btn, #hammer-qte-resume-btn,
+  #axe-qte-start-btn,    #axe-qte-resume-btn,
+  #staff-qte-start-btn,  #staff-qte-resume-btn {
+    position: static !important;
+    transform: none !important;
+    margin: 12px auto 0;
+    width: 70%;
+    max-width: 240px;
+    padding: 12px 0;
+    font-size: 16px;
+    display: block;
+  }
+
+  /* Fist start/resume */
+  #fist-qte-start-btn, #fist-qte-resume-btn {
+    width: 70%;
+    max-width: 220px;
+    padding: 12px 0;
+    font-size: 16px;
+  }
+
+  /* Fist arrow boxes */
+  .fist-arrow-box { width: 46px; height: 46px; font-size: 22px; }
+  .fist-qte-bar { gap: 6px; }
+  .fist-qte-status { font-size: 15px; min-height: 22px; }
+  .fist-qte-timer  { font-size: 22px; min-height: 28px; }
+
+  /* D-pad */
+  .fist-dpad-btn { width: 74px; height: 74px; font-size: 30px; }
+}
+
+/* Mobile action buttons for Axe (TAP) and Hammer (HOLD) */
+.qte-mobile-action-btn {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  padding: 22px 0;
+  margin: 14px auto 0;
+  font-family: "Rajdhani", Arial, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  background: #131a2e;
+  border: 2px solid #3a5a9a;
+  border-radius: 12px;
+  color: #7aacee;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+.qte-mobile-action-btn:active,
+.qte-mobile-action-btn.active {
+  background: #1e3a6a;
+  color: #ffffff;
+  border-color: #66aaee;
+}
+.qte-mobile-hold-btn {
+  background: #1a1a2e;
+  border-color: #5a3a9a;
+  color: #b090ee;
+}
+.qte-mobile-hold-btn:active,
+.qte-mobile-hold-btn.active {
+  background: #3a1a6a;
+  color: #ffffff;
+  border-color: #9966ee;
+}
+
+@media (max-width: 768px) {
+  /* Mobile action buttons inside QTE wraps */
+  .qte-mobile-action-btn {
+    max-width: 100%;
+    padding: 20px 0;
+    font-size: 24px;
+    margin-top: 12px;
+    flex-shrink: 0;
+  }
+}
+
+/* ============================================================
+   BUILDER MOBILE TABBAR — single scrollable row
+   Tabs appear first (natural DOM order), utility buttons at end.
+   ============================================================ */
+@media (max-width: 768px) {
+  #page-builder .tabbar {
+    justify-content: flex-start;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    gap: 0;
+  }
+  #page-builder .tabbar::-webkit-scrollbar { display: none; }
+
+  #page-builder .tabbar .tab {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+
+  /* Controls move to their own row below the tabs */
+  #page-builder .tabbar {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .tabbar-tabs {
+    order: 1;
+    width: 100%;
+    flex: 0 0 100%;
+    padding: 0 4px;
+  }
+  .tabbar-left {
+    order: 2;
+    flex: 0 0 auto;
+    padding: 0;
+    border-top: 1px solid #1c1c1c;
+  }
+  .tabbar-reset {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  .tabbar-controls {
+    order: 2;
+    flex: 1;
+    min-width: 0;
+    justify-content: flex-start;
+    border-top: 1px solid #1c1c1c;
+    padding: 4px 8px;
+    gap: 6px;
+  }
+  .tabbar-controls .build-name-input {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    font-size: 13px;
+    padding: 6px 8px;
+  }
+  .tabbar-controls .share-build-btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
+
+/* ============================================================
+   DAGGER TAP BUTTON (mobile)
+   ============================================================ */
+.dagger-tap-btn {
+  margin-top: 12px;
+  padding: 18px 48px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  background: #2a2a4a;
+  color: #aaaaff;
+  border: 2px solid #5555aa;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.dagger-tap-btn:active {
+  background: #3a3a6a;
+  border-color: #8888cc;
+}
+

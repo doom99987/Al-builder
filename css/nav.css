@@ -1,0 +1,278 @@
+/*
+ * nav.css — AL Builder
+ * Top navigation bar and home page styles.
+ * Sections: site nav, page containers, home hero/CTA, leaderboard CTA
+ */
+
+/* ============================================================
+   SITE NAVIGATION & HOME PAGE
+   ============================================================ */
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  display: flex;
+  flex-direction: column;
+}
+.site-nav { flex-shrink: 0; }
+
+/* Active pages fill whatever space remains after the nav bar */
+.site-page.active {
+  flex: 1;
+  min-height: 0;
+}
+
+#page-home.active {
+  overflow-y: auto;
+  /* safe-area padding for iPhone home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* --- Top nav bar --- */
+.site-nav {
+  display: flex;
+  align-items: center;
+  height: 46px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #222;
+  padding: 0 20px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.site-nav-logo {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+  margin-right: 8px;
+  display: block;
+}
+.site-nav-tabs { display: flex; gap: 4px; }
+.site-nav-btn {
+  background: none;
+  border: none;
+  color: #888;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s, color 0.15s;
+}
+.site-nav-btn:hover { background: #1a1a1a; color: #fff; }
+.site-nav-btn.active { background: #242424; color: #fff; border-bottom: 2px solid #fff; }
+
+/* --- Top-level page containers --- */
+.site-page { display: none; }
+.site-page.active { display: block; }
+
+/* Builder page */
+#page-builder.active {
+  display: flex;
+  flex-direction: column;
+}
+#page-builder .app {
+  flex: 1;
+  min-height: 0;
+}
+
+
+/* --- Home page --- */
+.home-hero {
+  text-align: center;
+  padding: 72px 24px 48px;
+}
+.home-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 56px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  letter-spacing: 2px;
+  color: #fff;
+}
+.home-subtitle {
+  font-size: 16px;
+  color: #999;
+  max-width: 520px;
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+.home-cta-row {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.home-cta {
+  background: #fff;
+  color: #0d0d0d;
+  border: none;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s, transform 0.1s;
+}
+.home-cta:hover { background: #e0e0e0; transform: translateY(-1px); }
+
+.home-cta-secondary {
+  background: transparent;
+  color: #ccc;
+  border: 1.5px solid #444;
+}
+.home-cta-secondary:hover { background: #1c1c1c; color: #fff; border-color: #666; }
+
+.home-section-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #555;
+  max-width: 1100px;
+  margin: 0 auto 12px;
+  padding: 0 24px;
+}
+
+.home-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  max-width: 1100px;
+  margin: 0 auto 60px;
+  padding: 0 24px;
+}
+.home-card {
+  background: #141414;
+  border: 1px solid #252525;
+  border-radius: 8px;
+  padding: 24px;
+  transition: border-color 0.15s, background 0.15s;
+}
+.home-card:hover { background: #1a1a1a; border-color: #383838; }
+.home-card-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.home-card-body {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.6;
+}
+
+/* --- Soul Tree action buttons --- */
+.soul-tree-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+.soul-tree-btn {
+  padding: 6px 18px;
+  border: none;
+  border-radius: 4px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.soul-tree-btn-max {
+  background: #3a3060;
+  color: #c4b5fd;
+}
+.soul-tree-btn-max:hover {
+  background: #4c3d80;
+}
+.soul-tree-btn-reset {
+  background: #1f1f1f;
+  color: #888;
+  border: 1px solid #2a2a2a;
+}
+.soul-tree-btn-reset:hover {
+  background: #2a2a2a;
+  color: #aaa;
+}
+
+/* --- Mastery node instant tooltip (JS-driven, see scripts.js) --- */
+#mastery-tip {
+  position: fixed;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  color: #ddd;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  width: 220px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  display: none;
+}
+
+/* --- Gear section two-column layout --- */
+.gear-section {
+  flex-direction: row;
+  gap: 0;
+  align-items: flex-start;
+}
+
+.gear-section-col {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 180px;
+  flex-shrink: 0;
+}
+
+.gear-section-col + .gear-section-col {
+  border-left: 1px solid #2a2a2a;
+  padding-left: 16px;
+  margin-left: 12px;
+}
+
+.gear-section-col h2:first-child {
+  margin-top: 0;
+}
+
+/* Ensure wpick dropdowns fill their column */
+.gear-section-col .wpick-wrap {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.gear-section-col .wpick-display {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* --- Shard DR indicator --- */
+.shard-slot.shard-dr .shard-label {
+  color: #ff8c00;
+}
+.shard-slot.shard-dr::after {
+  content: "25%";
+  display: block;
+  font-size: 10px;
+  color: #ff8c00;
+  text-align: center;
+  line-height: 1;
+}
+

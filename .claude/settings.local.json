@@ -9,7 +9,14 @@
       "Bash(node.exe:*)",
       "Bash(cmd.exe:*)",
       "Bash(python3:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(grep -n '^\\\\s\\\\{2\\\\}\"[A-Za-z \\(\\)%'\\\\''\\\\/\\\\-]*\": {$' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/scripts.js\")",
+      "Bash(sed -n '4243,4250p' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/scripts.js\")",
+      "Bash(sed -n '5517,5524p' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/scripts.js\")",
+      "Bash(sed -n '8603,8610p' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/scripts.js\")",
+      "Bash(sed -n '11050,11058p' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/scripts.js\")",
+      "Bash(sed -n '1,873p' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/data-race-moves.js\")",
+      "Bash(sed -n '874,$p' /c/Users/dkonv/OneDrive/david/Website/Al-builder/js/data-race-moves.js)"
     ]
   }
 }
