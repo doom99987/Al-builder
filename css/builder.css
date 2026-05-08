@@ -740,6 +740,17 @@ h2 {
   color: #667755;
 }
 
+.dc-beak-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #e8b84b;
+}
+.dc-beak-line b {
+  color: #f5c842;
+  font-size: 14px;
+}
+
 /* ============================================================
    DMG BONUS SECTION
    ============================================================ */

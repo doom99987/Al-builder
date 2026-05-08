@@ -2541,6 +2541,14 @@ function getShardOfBlightMult(effectiveMoveType) {
   return hasGearEquipped('Shard of Blight') ? 1.25 : 1;
 }
 
+// Returns true if the move's effect text describes applying a status effect to the target.
+function moveAppliesStatusEffect(m) {
+  const text = m.effect || '';
+  return /\b(?:apply|applies|inflict|inflicts|applying)\b[^.]*?\b(?:bleed|blind|poison|vulnerable|hex|weakened|cursed|crippled|burn|cold|sundered|fractured|ghostflame|stun(?:ned)?|karma|overheat|plague|inferno)\b/i.test(text)
+    || /\bguaranteed[^.]*?\b(?:poison|bleed|blind|vulnerable|hex|weakened|cursed|crippled|burn|cold)\b/i.test(text)
+    || /\bchance to (?:apply|inflict)\b/i.test(text);
+}
+
 function toggleDmgDetail(rowEl, idx) {
   const detail = rowEl.nextElementSibling;
   if (!detail || !detail.classList.contains("dc-detail")) return;
@@ -2621,6 +2629,21 @@ function toggleDmgDetail(rowEl, idx) {
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc0.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp0.toFixed(1)}</b></span>`;
       }
     }
+    if (hasGearEquipped("DeathBeak Dagger") && _critMult0 !== null) {
+      const _beakCoef0 = moveAppliesStatusEffect(m) ? 0.25 : 0.15;
+      const _beakDmgPer0 = baseDmgNum * _critMult0 * _beakCoef0 * enchantMult;
+      if (hitCount === 1) {
+        const _critDmg0 = _finalDmg0 * _critMult0;
+        formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg0.toFixed(1)} + ${_beakDmgPer0.toFixed(1)} = <b>${(_critDmg0 + _beakDmgPer0).toFixed(1)}</b></span>`;
+      } else {
+        const _cc0b = getCritChancePct();
+        if (_cc0b !== null) {
+          const _exp0b = getExpectedMultiHitDmg(_finalDmg0, _critMult0, _cc0b);
+          const _eCrits0 = hitCount * (_cc0b / 100);
+          formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits0.toFixed(1)} exp. crits × ${_beakDmgPer0.toFixed(1)}): <b>${(_exp0b + _eCrits0 * _beakDmgPer0).toFixed(1)}</b></span>`;
+        }
+      }
+    }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -2675,6 +2698,21 @@ function toggleDmgDetail(rowEl, idx) {
     if (_cc !== null) {
       const _exp = getExpectedMultiHitDmg(_finalDmg, _critMult, _cc);
       formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
+    }
+  }
+  if (hasGearEquipped("DeathBeak Dagger") && _critMult !== null) {
+    const _beakCoef = moveAppliesStatusEffect(m) ? 0.25 : 0.15;
+    const _beakDmgPer = baseDmgNum * _critMult * _beakCoef * enchantMult;
+    if (hitCount === 1) {
+      const _critDmg = _finalDmg * _critMult;
+      formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg.toFixed(1)} + ${_beakDmgPer.toFixed(1)} = <b>${(_critDmg + _beakDmgPer).toFixed(1)}</b></span>`;
+    } else {
+      const _ccB = getCritChancePct();
+      if (_ccB !== null) {
+        const _expB = getExpectedMultiHitDmg(_finalDmg, _critMult, _ccB);
+        const _eCrits = hitCount * (_ccB / 100);
+        formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits.toFixed(1)} exp. crits × ${_beakDmgPer.toFixed(1)}): <b>${(_expB + _eCrits * _beakDmgPer).toFixed(1)}</b></span>`;
+      }
     }
   }
 
