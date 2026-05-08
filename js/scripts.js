@@ -4,6 +4,26 @@ var _autoSaveTimer = null;
 
 const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
+// === QTE SFX ===
+(function () {
+  var cache = {};
+  window._playQteSfx = function (name, poly) {
+    var fileMap = { staff: 'sfx/staffsound (mp3cut.net).mp3' };
+    if (!cache[name]) cache[name] = new Audio(fileMap[name] || 'sfx/' + name + 'sound.mp3');
+    var a;
+    if (poly) {
+      // Clone so each call gets its own playback instance (sounds can overlap)
+      a = cache[name].cloneNode();
+    } else {
+      a = cache[name];
+      clearTimeout(a._sfxStop);
+      a.currentTime = 0;
+    }
+    a.play().catch(function () {});
+    a._sfxStop = setTimeout(function () { a.pause(); }, 500);
+  };
+})();
+
 // === QTE PING SIMULATOR ===
 // Delays keydown/keyup events by window._albPing ms when a QTE panel is active.
 // Uses capture phase so it fires before every bubble-phase handler in the game code.
@@ -8629,6 +8649,7 @@ function autoSave() {
     const matched  = expected.keys.includes(e.key);
 
     if (matched) {
+      window._playQteSfx('fist', true);
       flashBox(current, 'correct', () => {});
       current++;
       if (current === sequence.length) {
@@ -8721,6 +8742,7 @@ function autoSave() {
         const expected = sequence[current];
         const matched  = expected.keys.includes(key);
         if (matched) {
+          window._playQteSfx('fist', true);
           flashBox(current, 'correct', () => {});
           current++;
           if (current === sequence.length) {
@@ -8990,6 +9012,7 @@ function autoSave() {
       }
 
       // Good hit
+      window._playQteSfx('spear');
       dying.push({ x: c.x, y: c.y, dieTime: now, hit: true });
       streak++;
       streakEl.textContent = `Streak: ${streak}`;
@@ -9213,6 +9236,7 @@ function autoSave() {
       return;
     }
 
+    window._playQteSfx('sword');
     currentBar++;
     if (currentBar >= bars.length) {
       onRoundSuccess();
@@ -10047,6 +10071,7 @@ function autoSave() {
     flashStart   = performance.now();
     drawFrame(flashStart);
     if (!inZone) { triggerFail(fillPct < zoneMin ? 'Too early!' : 'Too late!'); return; }
+    window._playQteSfx('hammer');
     streak++;
     inSuccessDelay = true;
     streakEl.textContent = `Streak: ${streak}`;
@@ -10740,6 +10765,7 @@ function autoSave() {
       var s = slots[j];
       if (!s.filledTile && hitTest(p.x, p.y, s.x, s.y)) {
         if (tile.key === s.targetKey) {
+          window._playQteSfx('staff');
           s.filledTile = tile;
           tile.inBank = false;
           if (checkWin()) { cancelAnimationFrame(animFrame); drawFrame(); triggerSuccess(); }
