@@ -16,10 +16,15 @@
     auth: { flowType: 'implicit' }
   });
 
+  // Platform tag sent with every score ('M' = mobile, 'C' = desktop)
+  const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent);
+  const PLATFORM  = IS_MOBILE ? 'M' : 'C';
+
   // ---- state ----
   let currentUser    = null;
   let currentProfile = null; // { username }
   let _authLock      = false; // prevents onAuthStateChange from overwriting during signUp
+  let _lbPlatform    = 'all'; // active platform filter inside the per-QTE leaderboard modal
 
   // ---- profile helpers ----
   async function getProfile(userId) {
@@ -148,42 +153,54 @@
   async function submitScore(qteType, score) {
     if (!currentUser || !score) return;
     const { error } = await sb.rpc('submit_score', {
-      p_user_id: currentUser.id,
+      p_user_id:  currentUser.id,
       p_qte_type: qteType,
-      p_score: score
+      p_score:    score,
+      p_platform: PLATFORM,   // 'M' or 'C'
     });
     if (error) console.error('[sb] submitScore error', qteType, score, error.message);
-    else console.log('[sb] submitScore ok', qteType, score);
+    else console.log('[sb] submitScore ok', qteType, score, PLATFORM);
   }
 
   // ---- fetch top-10 for a QTE ----
-  async function fetchLeaderboard(qteType) {
-    const { data, error } = await sb
+  // platform: 'all' (no filter) | 'M' | 'C'
+  async function fetchLeaderboard(qteType, platform) {
+    let query = sb
       .from('leaderboard')
-      .select('score, profiles(username, avatar_url)')
+      .select('score, platform, profiles(username, avatar_url)')
       .eq('qte_type', qteType)
       .order('score', { ascending: false })
       .limit(10);
+    if (platform && platform !== 'all') query = query.eq('platform', platform);
+    const { data, error } = await query;
     if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
     return (data || []).map(r => ({
       username:   r.profiles?.username   || '???',
       avatar_url: r.profiles?.avatar_url || null,
       score:      r.score,
+      platform:   r.platform || null,   // 'M' | 'C' | null (legacy)
     }));
   }
 
   // ---- fetch the current user's rank for a QTE ----
-  async function fetchMyRank(qteType) {
+  // platform: 'all' | 'M' | 'C' — rank is computed within that subset
+  async function fetchMyRank(qteType, platform) {
     if (!currentUser) return null;
-    // Get own score first
-    const { data: mine } = await sb.from('leaderboard')
-      .select('score').eq('user_id', currentUser.id).eq('qte_type', qteType).maybeSingle();
+    // Get own score (must match the requested platform filter)
+    let mineQ = sb.from('leaderboard')
+      .select('score, platform')
+      .eq('user_id', currentUser.id)
+      .eq('qte_type', qteType);
+    if (platform && platform !== 'all') mineQ = mineQ.eq('platform', platform);
+    const { data: mine } = await mineQ.maybeSingle();
     if (!mine) return null;
-    // Count how many players have a strictly higher score
-    const { count } = await sb.from('leaderboard')
+    // Count players ranked above within the same platform subset
+    let aboveQ = sb.from('leaderboard')
       .select('*', { count: 'exact', head: true })
       .eq('qte_type', qteType)
       .gt('score', mine.score);
+    if (platform && platform !== 'all') aboveQ = aboveQ.eq('platform', platform);
+    const { count } = await aboveQ;
     return { rank: (count || 0) + 1, score: mine.score };
   }
 
@@ -792,16 +809,25 @@
     }
   }
 
+  // Render a small M/C platform badge (null-safe — legacy scores have no tag)
+  function platformBadge(p) {
+    if (!p) return '';
+    const label = p === 'M' ? 'M' : 'C';
+    return `<span class="lb-plat lb-plat-${label.toLowerCase()}" title="${p === 'M' ? 'Mobile' : 'Desktop'}">${label}</span>`;
+  }
+
   // ---- leaderboard modal ----
-  async function _renderLbContent(qteType, mode) {
+  // platform: 'all' | 'M' | 'C'
+  async function _renderLbContent(qteType, mode, platform) {
+    platform = platform || _lbPlatform || 'all';
     const type = mode === 'comp' ? qteType + '-comp' : qteType;
     const body = document.getElementById('sb-lb-body');
     if (!body) return;
     body.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
 
     const [rows, myRank] = await Promise.all([
-      fetchLeaderboard(type),
-      currentUser ? fetchMyRank(type) : Promise.resolve(null)
+      fetchLeaderboard(type, platform),
+      currentUser ? fetchMyRank(type, platform) : Promise.resolve(null)
     ]);
 
     if (!document.getElementById('sb-lb-body')) return; // modal closed
@@ -827,7 +853,7 @@
         <tr${myName === r.username ? ' class="sb-lb-me"' : ''}>
           <td>${i + 1}</td>
           <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22)}<span>${esc(r.username)}</span></div></td>
-          <td><b>${r.score}</b></td>
+          <td><b>${r.score}</b> ${platformBadge(r.platform)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -836,6 +862,7 @@
   }
 
   async function openLeaderboard(qteType) {
+    _lbPlatform = 'all'; // reset filter each time the modal opens
     const initMode = window._qteCompMode ? 'comp' : 'casual';
     openModal(`
       <button class="sb-close" onclick="window._closeModal()">&times;</button>
@@ -844,37 +871,47 @@
         <button class="sb-lb-tab${initMode === 'casual' ? ' active' : ''}" onclick="window._lbShowTab('${qteType}','casual',this)">Casual</button>
         <button class="sb-lb-tab comp-tab${initMode === 'comp' ? ' active' : ''}" onclick="window._lbShowTab('${qteType}','comp',this)">Competitive</button>
       </div>
+      <div class="lb-plat-tabs">
+        <button class="lb-plat-tab active"   onclick="window._lbSetPlatform('${qteType}','${initMode}','all',this)">All</button>
+        <button class="lb-plat-tab lb-plat-m" onclick="window._lbSetPlatform('${qteType}','${initMode}','M',this)">Mobile</button>
+        <button class="lb-plat-tab lb-plat-c" onclick="window._lbSetPlatform('${qteType}','${initMode}','C',this)">PC</button>
+      </div>
       <div id="sb-lb-body"><div class="sb-loading">Loading&hellip;</div></div>
     `);
-    await _renderLbContent(qteType, initMode);
+    await _renderLbContent(qteType, initMode, 'all');
   }
 
   // ---- all leaderboards view ----
   const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge'];
+  let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
-  async function loadAllLeaderboards(mode) {
+  async function loadAllLeaderboards(mode, platform) {
     const grid = document.getElementById('all-lb-grid');
     if (!grid) return;
 
-    // Determine mode from arg or active tab
+    // Resolve mode from arg or active tab
     if (!mode) {
       const activeTab = document.querySelector('.all-lb-mode-tab.active');
       mode = activeTab?.dataset.mode || 'casual';
     }
+    // Resolve platform from arg or module state
+    if (platform !== undefined) _allLbPlatform = platform;
+    const plat = _allLbPlatform;
+
     const suffix = mode === 'comp' ? '-comp' : '';
 
     grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
-    const results = await Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t + suffix)));
+    const results = await Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t + suffix, plat)));
 
+    const myName = currentProfile?.username || null;
     grid.innerHTML = QTE_TYPES.map((type, idx) => {
       const rows = results[idx];
-      const myName = currentProfile?.username || null;
       const rowsHtml = rows.length
         ? rows.map((r, i) => `
             <tr${myName && myName === r.username ? ' class="sb-lb-me"' : ''}>
               <td class="all-lb-rank">${i + 1}</td>
               <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20)}<span>${esc(r.username)}</span></div></td>
-              <td class="all-lb-score"><b>${r.score}</b></td>
+              <td class="all-lb-score"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
             </tr>`).join('')
         : `<tr><td colspan="3" class="all-lb-empty">No scores yet</td></tr>`;
       return `
@@ -905,15 +942,39 @@
   window._changePassword     = changePassword;
   window._uploadAvatar       = uploadAvatar;
   window._loadAllLeaderboards  = loadAllLeaderboards;
+
+  // Switch casual/competitive on the all-lb page (preserves platform filter)
   window._switchLbMode = function (btn) {
     document.querySelectorAll('.all-lb-mode-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
     loadAllLeaderboards(btn.dataset.mode);
   };
+
+  // Switch M/C/All platform filter on the all-lb page
+  window._switchAllLbPlatform = function (btn) {
+    document.querySelectorAll('.all-lb-plat-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    loadAllLeaderboards(undefined, btn.dataset.platform);
+  };
+
+  // Switch casual/competitive inside the per-QTE leaderboard modal
   window._lbShowTab = async (qteType, mode, btn) => {
     document.querySelectorAll('.sb-lb-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
-    await _renderLbContent(qteType, mode);
+    // Update onclick on platform tabs so they carry the new mode
+    document.querySelectorAll('.lb-plat-tab').forEach(t => {
+      const plat = t.dataset.platform;
+      t.onclick = () => window._lbSetPlatform(qteType, mode, plat, t);
+    });
+    await _renderLbContent(qteType, mode, _lbPlatform);
+  };
+
+  // Switch platform filter inside the per-QTE leaderboard modal
+  window._lbSetPlatform = async (qteType, mode, platform, btn) => {
+    _lbPlatform = platform;
+    document.querySelectorAll('.lb-plat-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    await _renderLbContent(qteType, mode, platform);
   };
   window._openForgotPassword   = openForgotPasswordModal;
   window._submitForgotPassword = submitForgotPassword;
