@@ -1,3 +1,10 @@
+/*
+ * base.css — AL Builder
+ * Core layout and widget styles: page chrome, stat inputs, pickers,
+ * soul tree, mastery tree (base), move cards, and gear/weapon dropdowns.
+ * Load this first — all other CSS files build on top of these rules.
+ */
+
 body {
   margin: 0;
   font-family: Arial;

@@ -1,0 +1,691 @@
+/*
+ * qte.css — AL Builder
+ * All QTE trainer styles: Fist, Spear, Sword, Dodge, Dagger, Hammer, Axe, Staff.
+ * Also covers the ping simulator bar and competitive/casual mode toggle.
+ */
+
+/* ============================================================
+   QTE TRAINER
+   ============================================================ */
+
+#page-qte.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.qte-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.qte-panel {
+  display: none;
+}
+
+/* When shown via JS (display:flex set inline), panel fills content area */
+.qte-panel-wip {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Fist QTE --- */
+.fist-qte-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 40px 20px;
+}
+
+.fist-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: #888;
+  letter-spacing: 1px;
+  min-height: 28px;
+}
+
+.fist-qte-timer {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #aaaaff;
+  letter-spacing: 2px;
+  min-height: 36px;
+  transition: color 0.3s;
+}
+
+.fist-qte-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 700px;
+}
+
+.fist-arrow-box {
+  width: 56px;
+  height: 56px;
+  border: 2px solid #333;
+  border-radius: 8px;
+  background: #141414;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  color: #666;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+}
+
+.fist-arrow-box.active {
+  border-color: #5555ff;
+  color: #aaaaff;
+  background: #0d0d22;
+}
+
+.fist-arrow-box.correct {
+  border-color: #44bb44;
+  color: #88ee88;
+  background: #0d1a0d;
+}
+
+.fist-arrow-box.wrong {
+  border-color: #bb4444;
+  color: #ee8888;
+  background: #1a0d0d;
+}
+
+.fist-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #555;
+  letter-spacing: 1px;
+  min-height: 20px;
+}
+
+.fist-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  letter-spacing: 1px;
+  min-height: 18px;
+}
+
+.fist-qte-avgtime {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #555;
+  letter-spacing: 1px;
+  min-height: 18px;
+}
+
+.fist-qte-start-btn {
+  padding: 10px 36px;
+  background: #1a2a3a;
+  border: 1px solid #3a6aaa;
+  border-radius: 6px;
+  color: #88aaee;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fist-qte-start-btn:hover {
+  background: #1e3a5a;
+  color: #aaccff;
+}
+
+/* --- Spear QTE (osu!-style) --- */
+.spear-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.spear-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.spear-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 160px;
+  text-align: center;
+}
+
+.spear-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.spear-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.spear-qte-canvas {
+  border-radius: 8px;
+  cursor: crosshair;
+  width: 100%;
+  max-width: 900px;
+  max-height: 340px;
+  display: block;
+}
+
+#spear-qte-start-btn,
+#spear-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- Dagger QTE --- */
+.dagger-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.dagger-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.dagger-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 260px;
+  text-align: center;
+}
+
+.dagger-qte-timer {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #aaaaff;
+  min-width: 50px;
+  text-align: center;
+  transition: color 0.3s;
+}
+
+.dagger-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.dagger-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.dagger-qte-avgtime {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #555;
+  min-width: 70px;
+}
+
+.dagger-qte-canvas {
+  display: block;
+  border-radius: 8px;
+}
+
+#dagger-qte-start-btn,
+#dagger-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- Dodge QTE --- */
+.dodge-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.dodge-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.dodge-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 220px;
+  text-align: center;
+}
+
+.dodge-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.dodge-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.dodge-qte-canvas {
+  border-radius: 8px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 340px;
+  display: block;
+}
+
+#dodge-qte-start-btn,
+#dodge-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- Hammer QTE --- */
+.hammer-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+.hammer-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+.hammer-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 260px;
+  text-align: center;
+}
+.hammer-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+.hammer-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+.hammer-qte-canvas {
+  border-radius: 8px;
+  display: block;
+  width: 100%;
+  max-width: 900px;
+}
+#hammer-qte-start-btn,
+#hammer-qte-resume-btn,
+#axe-qte-start-btn,
+#axe-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- Sword QTE --- */
+.sword-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.sword-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.sword-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 220px;
+  text-align: center;
+}
+
+.sword-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.sword-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.sword-qte-canvas {
+  border-radius: 8px;
+  width: 100%;
+  max-width: 900px;
+  max-height: 340px;
+  display: block;
+}
+
+#sword-qte-start-btn,
+#sword-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* --- WIP page --- */
+.wip-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+.wip-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+.wip-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #555;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+
+/* ============================================================
+   STAFF QTE
+   ============================================================ */
+.staff-qte-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px 14px;
+  min-height: 390px;
+}
+
+.staff-qte-header {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 22px;
+}
+
+.staff-qte-status  { color: #c8b0f0; }
+.staff-qte-streak  { color: #d4b870; }
+.staff-qte-highscore { color: #7ab8d4; font-size: 11px; }
+
+.staff-qte-canvas {
+  border: 2px solid #6a4ea8;
+  border-radius: 8px;
+  background: #100d1e;
+  display: block;
+}
+
+#staff-qte-start-btn,
+#staff-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+}
+
+.gear-sub-header {
+  border-top: none;
+}
+
+/* Home page hero logo */
+.home-hero-logo {
+  width: 180px;
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto 24px;
+  display: block;
+  opacity: 0.9;
+}
+
+/* Builder page watermark logo — fixed bottom-right */
+.builder-logo-watermark {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* QTE page watermark logo — fixed bottom-right */
+.qte-logo-watermark {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  height: 52px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 10;
+}
+
+
+/* ============================================================
+   QTE PING SIMULATOR BAR
+   ============================================================ */
+
+.qte-ping-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 14px;
+  background: #0d0d0d;
+  border-bottom: 1px solid #1c1c1c;
+}
+
+.qte-ping-label {
+  font-size: 11px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.qte-ping-slider {
+  -webkit-appearance: none;
+  width: 130px;
+  height: 3px;
+  border-radius: 2px;
+  background: #2a2a2a;
+  outline: none;
+  cursor: pointer;
+}
+.qte-ping-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #555;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.qte-ping-slider:hover::-webkit-slider-thumb { background: #aaa; }
+
+.qte-ping-display {
+  font-size: 12px;
+  color: #555;
+  min-width: 42px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   COMPETITIVE / CASUAL MODE
+   ============================================================ */
+.qte-mode-toggle {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 2px;
+}
+.qte-mode-btn {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 4px 22px;
+  border-radius: 20px;
+  border: 1.5px solid #3a5a8a;
+  background: #0e1620;
+  color: #7aaddd;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.qte-mode-btn.comp {
+  border-color: #8a3a3a;
+  background: #200e0e;
+  color: #dd8888;
+}
+.qte-mode-btn:hover { opacity: 0.85; }
+
+/* Leaderboard tabs – inside modals */
+.sb-lb-tabs {
+  display: flex;
+  gap: 6px;
+  margin: -4px 0 12px;
+}
+.sb-lb-tab {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 5px 10px;
+  background: #111120;
+  border: 1.5px solid #2a2a5a;
+  border-radius: 6px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sb-lb-tab.active          { background: #1e1e45; border-color: #5555aa; color: #aaaaff; }
+.sb-lb-tab.comp-tab.active { background: #200e0e; border-color: #aa5555; color: #ff9999; }
+
+/* Leaderboard mode tabs – on leaderboards page */
+.all-lb-mode-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.all-lb-mode-tab {
+  padding: 6px 20px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: #111120;
+  border: 1.5px solid #2a2a5a;
+  border-radius: 8px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.all-lb-mode-tab.active          { background: #1e1e45; border-color: #5555aa; color: #aaaaff; }
+.all-lb-mode-tab.comp-tab.active { background: #200e0e; border-color: #aa5555; color: #ff9999; }
+
+@keyframes move-card-ping {
+  0%   { box-shadow: 0 0 0 0 rgba(120, 180, 255, 0.8), 0 0 0 0 rgba(120, 180, 255, 0.4); border-color: #78b4ff; }
+  50%  { box-shadow: 0 0 0 6px rgba(120, 180, 255, 0.3), 0 0 12px 4px rgba(120, 180, 255, 0.2); border-color: #aad4ff; }
+  100% { box-shadow: none; border-color: inherit; }
+}
+.move-card-ping {
+  animation: move-card-ping 1.4s ease-out forwards;
+}
+

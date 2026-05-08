@@ -9,8 +9,23 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="Logo.png">
-  <link rel="stylesheet" href="css/styles.css?v=29">
-  <link rel="stylesheet" href="css/patch.css?v=34">
+  <!--
+    CSS load order — each file layers on top of the previous:
+      base.css        : core layout, stat widgets, soul/mastery tree base, move cards
+      nav.css         : site nav bar + home page
+      builder.css     : fonts, mastery nodes, share modal, dmg calc, summary tab
+      qte.css         : all 8 QTE trainer styles + ping bar + competitive/casual mode
+      mobile.css      : responsive overrides (max-width: 768px) + mobile d-pad
+      auth.css        : auth modal, leaderboard tables, profile avatar/dropdown
+      saved-builds.css: saved builds panel + Discord button
+  -->
+  <link rel="stylesheet" href="css/base.css?v=1">
+  <link rel="stylesheet" href="css/nav.css?v=1">
+  <link rel="stylesheet" href="css/builder.css?v=1">
+  <link rel="stylesheet" href="css/qte.css?v=1">
+  <link rel="stylesheet" href="css/mobile.css?v=1">
+  <link rel="stylesheet" href="css/auth.css?v=1">
+  <link rel="stylesheet" href="css/saved-builds.css?v=1">
 </head>
 
 <body>
@@ -685,7 +700,23 @@
 
 <script src="js/supabase.min.js"></script>
 <script src="js/sb.js?v=43"></script>
-<script src="js/scripts.js?v=89"></script>
+<!--
+  Load order is critical — each file depends on globals from earlier files:
+    core.js            : global constants, QTE SFX, ping sim, LB hook, dmgcalc state
+    data-class-moves.js: classMoves data (read by builder + move-renderer)
+    data-race-moves.js : raceMoves data  (read by move-renderer)
+    move-renderer.js   : move card HTML generators + renderMoves()
+    builder.js         : full builder UI (stats, pickers, dmgcalc, soul/mastery trees, build I/O)
+    qte.js             : all 8 QTE trainer IIFEs
+    saved-builds.js    : saved builds (localStorage persistence + UI)
+-->
+<script src="js/core.js?v=1"></script>
+<script src="js/data-class-moves.js?v=1"></script>
+<script src="js/data-race-moves.js?v=1"></script>
+<script src="js/move-renderer.js?v=1"></script>
+<script src="js/builder.js?v=1"></script>
+<script src="js/qte.js?v=1"></script>
+<script src="js/saved-builds.js?v=1"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
