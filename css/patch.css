@@ -3158,3 +3158,21 @@ h2 {
 .saved-build-card.is-fav {
   border-color: #3a3020;
 }
+
+.discord-btn {
+  display: inline-flex;
+  align-items: center;
+  background: #5865f2;
+  color: #fff;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 20px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.1s;
+}
+.discord-btn:hover {
+  background: #4752c4;
+  transform: translateY(-1px);
+}
