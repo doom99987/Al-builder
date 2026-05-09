@@ -2423,6 +2423,7 @@ classPicker.addEventListener("change", () => {
 let dmgCalcMoveList = [];
 let energyCount = 0;
 let rageEmpHpConsumed = 0; // 0-65: % of max HP consumed → up to 65% dmg bonus
+let bloodyBersHp = 100; // 1-100: current HP% → (100 - bloodyBersHp)% dmg bonus
 let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
 const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
@@ -2983,6 +2984,7 @@ function getActiveDmgMult() {
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
     let bonus = null;
     if      (p.name === "Rage Empower")          bonus = 30 + rageEmpHpConsumed;
+    else if (p.name === "Bloody Berserker")      bonus = 100 - bloodyBersHp;
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= Math.pow(1.20, bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
@@ -3183,6 +3185,16 @@ function setRageEmpHp(val) {
   recalcOpenDetails();
 }
 
+function setBloodyBersHp(val) {
+  bloodyBersHp = +val;
+  const valEl = document.getElementById("dc-bloody-bers-hp-val");
+  const bonus = 100 - bloodyBersHp;
+  const pctEl = document.querySelector(".dc-bonus-row[data-bloody-bers] .dc-bonus-pct");
+  if (valEl) valEl.textContent = val + "%";
+  if (pctEl) pctEl.textContent = `×${(1 + bonus / 100).toFixed(2)}`;
+  recalcOpenDetails();
+}
+
 function renderDmgBonusSection() {
   const container = document.getElementById("dmg-bonus-section");
   if (!container) return;
@@ -3258,6 +3270,7 @@ function renderDmgBonusSection() {
     }
     const on = dmgBonusActive[p.key];
     const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
+    const isBloodyBers   = p.name === "Bloody Berserker";
     const isRageEmp      = p.name === "Rage Empower";
     const isAbsRad       = p.name === "Absolute Radiance";
     const isBulkUp       = p.name === "Bulk Up";
@@ -3265,7 +3278,8 @@ function renderDmgBonusSection() {
     const isOppression   = p.name === "Oppression";
     const isBoreas       = p.name === "Frost Stacks";
     const isCrusher      = p.name === "Crusher";
-    const displayBonus   = isRageEmp     ? 30 + rageEmpHpConsumed
+    const displayBonus   = isBloodyBers  ? 100 - bloodyBersHp
+                         : isRageEmp     ? 30 + rageEmpHpConsumed
                          : isAbsRad      ? ABS_RAD_BONUSES[absRadTurn - 1]
                          : isHourglass   ? hourglassStacks * 20
                          : isOppression  ? oppressionCount * 5
@@ -3280,7 +3294,7 @@ function renderDmgBonusSection() {
                          : isOppression  ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
                          : isCrusher     ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
-    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
+    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${p.name}</span>
       <span class="dc-bonus-badges">${badges}</span>
@@ -3291,6 +3305,13 @@ function renderDmgBonusSection() {
         <span class="dc-rage-slider-label">HP Consumed: <span id="dc-rage-hp-val">${rageEmpHpConsumed}%</span></span>
         <input type="range" class="dc-rage-slider" min="0" max="65" value="${rageEmpHpConsumed}" oninput="setRageEmpHp(this.value)">
         <span class="dc-rage-slider-hint">0% → 65% dmg</span>
+      </div>`;
+    }
+    if (isBloodyBers) {
+      html += `<div class="dc-rage-slider-row">
+        <span class="dc-rage-slider-label">Current HP: <span id="dc-bloody-bers-hp-val">${bloodyBersHp}%</span></span>
+        <input type="range" class="dc-rage-slider" min="1" max="100" value="${bloodyBersHp}" oninput="setBloodyBersHp(this.value)">
+        <span class="dc-rage-slider-hint">100% HP → 0% dmg | 1% HP → 99% dmg</span>
       </div>`;
     }
     if (isAbsRad) {
@@ -5469,6 +5490,7 @@ function loadBuildState(state) {
   // Reset dmg-calc state so loaded builds start clean
   energyCount = 0;
   rageEmpHpConsumed = 0;
+  bloodyBersHp = 100;
   absRadTurn = 1;
   bulkUpStacks = 1;
   hourglassStacks = 1;
