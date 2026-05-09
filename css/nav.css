@@ -93,11 +93,11 @@ body {
   font-weight: 700;
   margin: 0 0 12px;
   letter-spacing: 2px;
-  color: #fff;
+  color: #aaa;
 }
 .home-subtitle {
   font-size: 16px;
-  color: #999;
+  color: #666;
   max-width: 520px;
   margin: 0 auto 32px;
   line-height: 1.6;
@@ -159,24 +159,24 @@ body {
   padding: 0 24px;
 }
 .home-card {
-  background: #141414;
-  border: 1px solid #252525;
+  background: #000;
+  border: 1px solid #1a1a1a;
   border-radius: 8px;
   padding: 24px;
   transition: border-color 0.15s, background 0.15s;
 }
-.home-card:hover { background: #1a1a1a; border-color: #383838; }
+.home-card:hover { background: #0d0d0d; border-color: #2a2a2a; }
 .home-card-title {
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 17px;
   font-weight: 700;
-  color: #fff;
+  color: #999;
   margin-bottom: 8px;
   letter-spacing: 0.5px;
 }
 .home-card-body {
   font-size: 13px;
-  color: #888;
+  color: #555;
   line-height: 1.6;
 }
 
