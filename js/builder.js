@@ -2949,7 +2949,6 @@ function getActiveDmgMult() {
     if (bonus !== null) mult *= (1 + bonus / 100);
   });
   if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);
-  if (weirdAccessoryActive) mult *= 1.5;
   TEAM_BUFFS.forEach(b => {
     if (!teamBuffsActive[b.key]) return;
     if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
@@ -3089,11 +3088,6 @@ function toggleFrozenDiademIce() {
 
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
-  renderDmgBonusSection(); recalcOpenDetails();
-}
-
-function toggleWeirdAccessory() {
-  weirdAccessoryActive = !weirdAccessoryActive;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3363,14 +3357,6 @@ function renderDmgBonusSection() {
   });
   html += `</div>`;
 
-  // --- Accessories (always shown) ---
-  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Accessories</h3><div class="dc-bonus-list">`;
-  html += `<div class="dc-bonus-row${weirdAccessoryActive ? " dc-bonus-on" : ""}" data-acc-key="weird-accessory" title="Has the bypass property — cannot be converted to the enemy via Sinister Gaze.">
-    <div class="dc-bonus-check">${weirdAccessoryActive ? "✓" : ""}</div>
-    <span class="dc-bonus-name">Weird Accessory</span>
-    <span class="dc-bonus-pct">×1.50</span>
-  </div>`;
-  html += `</div>`;
 
   // --- Enchant (shown only when a damage-boosting enchant is equipped) ---
   const _enchantName = enchantPicker.value;
@@ -3496,10 +3482,6 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.shardToggle) {
       row.addEventListener("click", () => toggleShardCondition(row.dataset.shardToggle));
-      return;
-    }
-    if (row.dataset.accKey) {
-      row.addEventListener("click", () => toggleWeirdAccessory());
       return;
     }
     if ('vasticLck' in row.dataset) {
@@ -5374,7 +5356,6 @@ function loadBuildState(state) {
   reversingDebuffCount = 1;
   crystalStarStacks = 0;
   frozenDiademIceActive = false;
-  weirdAccessoryActive = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
