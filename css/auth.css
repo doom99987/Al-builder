@@ -40,6 +40,8 @@
 .auth-btn-sm { padding: 3px 9px; font-size: 11px; }
 .auth-btn-out { border-color: #664444; color: #ffaaaa; }
 .auth-btn-out:hover { background: #3a2a2a; }
+.auth-btn-reject { background: #2a2a2a; border-color: #555; color: #ccc; }
+.auth-btn-reject:hover { background: #383838; }
 
 /* Leaderboard button inside QTE panel headers */
 .lb-open-btn {
