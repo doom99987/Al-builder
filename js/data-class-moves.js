@@ -373,7 +373,7 @@ const classMoves = {
         category: "Attack",
         damage: 13,
         scaling: "STR/END",
-        effect: "Applies 3 turns of Taunt onto the main target. Has a 50% chance to apply 2 Taunt to adjacent targets. (Difficulty: 6 bars at base)",
+        effect: "Deals full AOE damage. Applies 3 turns of Taunt onto the main target. Has a 50% chance to apply 2 Taunt to adjacent targets. (Difficulty: 6 bars at base)",
         image: "https://trello.com/1/cards/67b3293ad5daa6959942a4cf/attachments/69803e0d0cd179680a4400b4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202110223.png"
       },
       {
@@ -407,9 +407,9 @@ const classMoves = {
         cooldown: 6,
         moveType: "Physical",
         category: "Buff",
-        damage: "X*1.6",
+        damage: "min(X,25)*1.6",
         scaling: "STR/60",
-        effect: "Denies an attack if it is targeted at you and instead attacks back. X is equal to the BaseDMG of whatever move you countered.\n\nSelf-Target | Unblockable and Undodgeable"
+        effect: "Denies an attack if it is targeted at you and instead attacks back. X is equal to the BaseDMG of whatever move you countered, capped at 25.\n\nSelf-Target | Unblockable and Undodgeable"
       },
       {
         slot: "2nd Learn",
@@ -439,7 +439,7 @@ const classMoves = {
         type: "Passive",
         name: "Parry Training",
         quote: "Gives you the ability to 'Parry' attacks occasionally when you block.",
-        effect: "Can trigger multiple times on a single attack and works whilst guarding. Only affects melee attacks and cannot crit or trigger any special effects. The parry damage scales on strength."
+        effect: "Now guaranteed on block regardless of mastery. Can trigger multiple times on a single attack and works whilst guarding. Only affects melee attacks and cannot crit or trigger any special effects. The parry damage scales on strength."
       },
       {
         slot: "5th Learn",
@@ -479,7 +479,7 @@ const classMoves = {
         moveType: "Dark",
         category: "Attack",
         damage: "1x20",
-        scaling: "STR/120",
+        scaling: "STR/100",
         effect: "Consumes all current energy to increase damage by 20% per energy consumed past 1 energy.\n\nApplies 3 sunder on the last hit if you are at max energy.\n\nEnemy-Wide | Melee | Sure Hit",
         energyScaling: { perEnergy: 20, past: 1 }
       },
@@ -573,7 +573,7 @@ const classMoves = {
         category: "Attack",
         damage: 10,
         scaling: "ARC/70",
-        effect: "Deals 30% more damage against burning opponents (no visual indicator). Applies either 3 or 6 burning onto the opponent.",
+        effect: "Deals 25% more damage against burning opponents (no visual indicator). Applies either 3 or 6 burning onto the opponent. Hits the main target and adjacent enemies (non-lethal to adjacent).",
         image: "https://trello.com/1/cards/67b32945a9f9561ed5168d6b/attachments/697fc3d78cec4dd1a9d85d91/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202022001.png"
       },
       {
@@ -910,9 +910,9 @@ const classMoves = {
         cooldown: 5,
         moveType: "Fire",
         category: "Attack",
-        damage: "1.6x8",
+        damage: "2x8",
         scaling: "STR",
-        effect: "Deals multi-hit damage to a single enemy.\n\nFlaming Overdrive: Has a chance to apply Ghostflame.",
+        effect: "Deals multi-hit damage to a single enemy. Each hit has a 25% chance to apply Burn.\n\nFlaming Overdrive: Has a chance to apply Ghostflame.",
         image: "https://trello.com/1/cards/67b329593631658cda777210/attachments/6980579e00a70394afe62013/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123424.png"
       }
     ]
@@ -956,7 +956,7 @@ const classMoves = {
         type: "Active",
         name: "Party Table",
         quote: "Fall into a handstand and spin with tremendous power, barraging your foe with kicks.",
-        cost: 3,
+        cost: 2,
         cooldown: 5,
         moveType: "Physical",
         category: "Attack",
@@ -1300,7 +1300,7 @@ const classMoves = {
         cooldown: 5,
         moveType: "Physical",
         category: "Attack",
-        damage: "8.5x3",
+        damage: "5.6x3",
         scaling: "STR/75 + ARC/75",
         effect: "If the enemy is bleeding, perform an extra hit dealing 13.5 base damage with 7.5% lifesteal, applying 3 Bleeding to yourself and the enemy.",
         image: "https://trello.com/1/cards/67b3296a59bf4c7eaa7b6db5/attachments/69803c1cb4ed128cc6bec17d/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105212.png"
@@ -1339,7 +1339,7 @@ const classMoves = {
         cooldown: 9,
         moveType: "Magic",
         category: "Attack",
-        damage: 24,
+        damage: 15.6,
         scaling: "STR/65 + ARC/65",
         effect: "Deals 16.5% of max HP as self-damage on use. Applies 5 Bleeding to yourself and all enemies. Fully AoE.",
         image: "https://trello.com/1/cards/67b3296a59bf4c7eaa7b6db5/attachments/69803c1a9cae43b8b061db48/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105244.png"
@@ -1354,7 +1354,7 @@ const classMoves = {
         cooldown: 4,
         moveType: "Physical",
         category: "Attack",
-        damage: "18x2",
+        damage: "12.6x2",
         scaling: "STR/75 + ARC/75",
         effect: "Deals 8.25% of max HP as self-damage on use. Applies 1 Bleed per hit. If the target is already Bleeding, instead applies 1 Bleed, 1 Vulnerable, and 2 Weakened. Status effects are applied before the hit lands, allowing them to affect the damage.",
         image: "https://trello.com/1/cards/67b3296a59bf4c7eaa7b6db5/attachments/69803c189ae4ae526a618904/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105307.png"

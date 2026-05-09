@@ -3365,7 +3365,7 @@ function renderDmgBonusSection() {
 
   // --- Accessories (always shown) ---
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Accessories</h3><div class="dc-bonus-list">`;
-  html += `<div class="dc-bonus-row${weirdAccessoryActive ? " dc-bonus-on" : ""}" data-acc-key="weird-accessory">
+  html += `<div class="dc-bonus-row${weirdAccessoryActive ? " dc-bonus-on" : ""}" data-acc-key="weird-accessory" title="Has the bypass property — cannot be converted to the enemy via Sinister Gaze.">
     <div class="dc-bonus-check">${weirdAccessoryActive ? "✓" : ""}</div>
     <span class="dc-bonus-name">Weird Accessory</span>
     <span class="dc-bonus-pct">×1.50</span>
@@ -3810,7 +3810,7 @@ const masteryClassData = {
       l7:  { name: "Speed Node" }, l8:  { name: "Speed Node" },
       l9:  { name: "Speed Node" },
       lm1: { name: "Holy Shield",               desc: "Guarding for someone will now grant an additional 15% TDR.\nTDR = True Damage Resistance (defense)." },
-      lm2: { name: "Holy Crash Proficiency",    desc: "Taunt is now guaranteed on all targets hit — both main and adjacent.\nAdditionally raise base DMG to 15 and adjacent DMG to 10." },
+      lm2: { name: "Holy Crash Proficiency",    desc: "Taunt is now guaranteed on all targets hit — both main and adjacent.\nAdditionally raise base DMG to 15 and adjacent DMG to 10. Deals 1.25x damage." },
       c1:  { name: "Strength Node" }, c2a: { name: "Strength Node" },
       c2b: { name: "Strength Node" }, c3a: { name: "Strength Node" },
       c4:  { name: "Strength Node" }, c5a: { name: "Strength Node" },
@@ -3851,7 +3851,7 @@ const masteryClassData = {
       r5:  { name: "Speed Node" }, r6:  { name: "Speed Node" },
       r7:  { name: "Speed Node" }, r8:  { name: "Speed Node" },
       r9:  { name: "Speed Node" },
-      rm1: { name: "Parry Master",               desc: "Increases parry chance to 100%. Damage on parry slightly reduced.\nBase damage appears to be reduced by around 1 base damage. (Need more testing)" },
+      rm1: { name: "Parry Master",               desc: "Parry is now guaranteed at base, so this mastery no longer changes the proc chance. Mastery damage increased to 12 base damage on parry." },
       rm2: { name: "Flowing Dance Proficiency",  desc: "Increased speed scaling, now deals bonus damage and turns a tinge of red against bleeding targets.\nChanges scaling to SPD/50. The bleeding buff does not work." },
     }
   },
@@ -3896,7 +3896,7 @@ const masteryClassData = {
       l7:  { name: "Speed Node" }, l8:  { name: "Speed Node" },
       l9:  { name: "Speed Node" },
       lm1: { name: "Energy Manipulator",         desc: "Add +.0375 / 3.75% to your ATKP per energy you have, up to .225 / 22.5% ATKP at 6 energy.\nThis buff is based on your current energy, not the energy you had before casting a move." },
-      lm2: { name: "Blaze Proficiency",           desc: "Guarantees Burning (6T), additionally applying Vulnerable (3T) and also doubles the ATKP bonus if you attack a burning enemy.\nThis move now always deals 15% extra damage. It gains an additional 15% damage buff against burning opponents, totaling 30%.\nYour move becomes fully AoE, hitting all opponents, and has a new animation with blue fires." },
+      lm2: { name: "Blaze Proficiency",           desc: "Guarantees Burning (6T), additionally applying Vulnerable (3T) and also doubles the ATKP bonus if you attack a burning enemy.\nThis move now always deals 15% extra damage. It gains an additional 15% damage buff against burning opponents, totaling 30%.\nYour move becomes fully AoE (all opponents), and has a new animation with blue fires." },
       c1:  { name: "Arcane Node" }, c2a: { name: "Arcane Node" },
       c2b: { name: "Arcane Node" }, c3a: { name: "Arcane Node" },
       c4:  { name: "Arcane Node" }, c5a: { name: "Arcane Node" },
