@@ -495,7 +495,7 @@ input[type="number"].trd-input { width: 90px; }
 }
 .notif-bell-btn:hover { color: #ccccff; background: #1e1e40; }
 
-#notif-badge, #msg-badge {
+#notif-badge {
   position: absolute;
   top: 1px;
   right: 1px;
@@ -569,8 +569,53 @@ input[type="number"].trd-input { width: 90px; }
    DIRECT MESSAGE PANEL
    ============================================================ */
 
+/* Floating DM button */
+.dm-fab {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9200;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #2a2a5a;
+  border: 1.5px solid #4444aa;
+  color: #ccccff;
+  font-size: 22px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.55);
+  transition: background 0.15s, transform 0.12s;
+  line-height: 1;
+}
+.dm-fab:hover { background: #3a3a7a; transform: scale(1.07); }
+
+.dm-fab #msg-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #cc2233;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+  line-height: 1;
+  border: 2px solid #12121e;
+}
+
 #dm-panel {
   position: fixed;
+  bottom: 84px;
+  right: 20px;
   z-index: 9300;
   background: #1a1a2e;
   border: 1px solid #3a3a6a;
@@ -739,6 +784,19 @@ input[type="number"].trd-input { width: 90px; }
   justify-content: center;
   padding: 0 4px;
 }
+
+.dm-conv-del {
+  background: none;
+  border: none;
+  color: #444;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  display: none;
+}
+.dm-conv-del:hover { color: #cc4444; }
+.dm-conv-item:hover .dm-conv-del { display: block; }
 
 /* --- Thread messages --- */
 .dm-msg {

@@ -471,12 +471,6 @@
     if (!panel) return;
     if (_dmOpen) {
       panel.style.display = 'flex';
-      const btn = document.getElementById('msg-bell-btn');
-      if (btn) {
-        const r = btn.getBoundingClientRect();
-        panel.style.top   = (r.bottom + 6) + 'px';
-        panel.style.right = (window.innerWidth - r.right) + 'px';
-      }
       if (_dmView === 'list') loadConvList();
       else renderThread();
     } else {
@@ -515,6 +509,19 @@
     }
   }
 
+  async function deleteConversation(otherId) {
+    if (!authed()) return;
+    const me = uid();
+    if (!confirm('Delete this conversation? This cannot be undone.')) return;
+    const { error } = await sb.from('direct_messages')
+      .delete()
+      .or(`and(sender_id.eq.${me},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${me})`);
+    if (error) { console.warn('[dm] delete conv error:', error.message); return; }
+    _dmConvs = _dmConvs.filter(c => c.other_id !== otherId);
+    renderConvList();
+    syncMsgBadge();
+  }
+
   function renderConvList() {
     const body = document.getElementById('dm-body');
     if (!body) return;
@@ -539,6 +546,7 @@
         <div class="dm-conv-right">
           <div class="dm-conv-time">${timeAgo(c.last_time)}</div>
           ${c.unread > 0 ? `<div class="dm-conv-unread">${c.unread}</div>` : ''}
+          <button class="dm-conv-del" title="Delete conversation" onclick="event.stopPropagation();window._dmDeleteConv('${esc(c.other_id)}')">&#128465;</button>
         </div>
       </div>`).join('');
   }
@@ -861,14 +869,6 @@
           panel.style.display = 'none';
         }
       }
-      if (_dmOpen) {
-        const panel = document.getElementById('dm-panel');
-        const btn   = document.getElementById('msg-bell-btn');
-        if (panel && !panel.contains(e.target) && !(btn && btn.contains(e.target))) {
-          _dmOpen = false;
-          panel.style.display = 'none';
-        }
-      }
     });
   }
 
@@ -910,6 +910,7 @@
   window._toggleDm      = toggleDm;
   window._dmOpenThread  = openThread;
   window._dmBack        = backToConvs;
+  window._dmDeleteConv  = deleteConversation;
   window._dmSend        = sendDm;
   window._toggleNotifs  = toggleNotifs;
   window._syncNotifBell = syncBell;
