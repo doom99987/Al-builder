@@ -751,6 +751,104 @@ h2 {
   font-size: 14px;
 }
 
+/* Boss Target */
+.dc-boss-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-boss-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 10px;
+  border: 1px solid #444;
+  border-radius: 5px;
+  cursor: pointer;
+  background: #1a1a1a;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dc-boss-btn:hover {
+  border-color: #777;
+  background: #242424;
+}
+
+.dc-boss-selected {
+  border-color: #c084fc !important;
+  background: #1e1428 !important;
+}
+
+.dc-boss-btn-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0d0ff;
+}
+
+.dc-boss-btn-hp {
+  font-size: 11px;
+  color: #888;
+}
+
+.dc-boss-res {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 6px 10px 4px;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.dc-boss-res-row {
+  white-space: nowrap;
+}
+
+.dc-boss-corrupt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px 2px;
+}
+
+.dc-boss-corrupt-label {
+  font-size: 12px;
+  color: #c084fc;
+}
+
+.dc-boss-corrupt-toggle {
+  position: relative;
+  width: 36px;
+  height: 18px;
+  background: #333;
+  border-radius: 9px;
+  cursor: pointer;
+  border: 1px solid #555;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.dc-boss-corrupt-toggle.dc-boss-corrupt-on {
+  background: #6b21a8;
+  border-color: #c084fc;
+}
+
+.dc-boss-corrupt-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  background: #aaa;
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.dc-boss-corrupt-on .dc-boss-corrupt-knob {
+  transform: translateX(18px);
+  background: #e9d5ff;
+}
+
 /* ============================================================
    DMG BONUS SECTION
    ============================================================ */

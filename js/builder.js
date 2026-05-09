@@ -2445,6 +2445,46 @@ let oppressionCount = 1; // 1-5: unique status effects on target for Oppression 
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
 const shardToggleActive = { striking: false, executing: false };
+let selectedBoss = null;
+let bossCorrupted = false;
+
+const BOSS_DATA = {
+  "Yar'Thul, The Blazing Dragon": {
+    hp: 1200,
+    hpVariants: { "Corrupted": 1800 },
+    res: { Physical: 0.85, Fire: 0.50, Hex: 1.10 },
+  },
+  "Thorian, The Rotten": {
+    hp: 2600,
+    hpVariants: { "Corrupted": 3900 },
+    res: { Dark: 0.70, Physical: 0.70, Hex: 0.70, Poison: 0.75, Nature: 0.90, Fire: 1.10, Holy: 1.35 },
+  },
+  "Seraphon": {
+    hp: 7000,
+    hpVariants: { "Corrupted": 10500 },
+    res: { Dark: 0.80, Physical: 0.80, Holy: 1.20 },
+  },
+  "Arkhaia": {
+    hp: 10000,
+    hpVariants: { "Corrupted": 15000 },
+    res: { Hex: 0.90, Dark: 0.90, Nature: 1.10, Holy: 1.20 },
+  },
+  "Metrom's Vessel": {
+    hp: 2500,
+    hpVariants: { "Corrupted": 3750 },
+    res: { Hex: 0.75, Dark: 0.75, Holy: 1.20, Fire: 1.20, Nature: 1.20 },
+  },
+  "Pterathanaian": {
+    hp: 2500,
+    hpVariants: { "Corrupted": 3750 },
+    res: { Hex: 0.75, Dark: 0.75, Holy: 1.20, Fire: 1.20, Nature: 1.20 },
+  },
+  "Handaconda": {
+    hp: 9000,
+    hpVariants: { "Corrupted": 13500 },
+    res: { Physical: 0.50, Magic: 0.50, Fire: 1.25 },
+  },
+};
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -2614,18 +2654,21 @@ function toggleDmgDetail(rowEl, idx) {
     const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
     if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
     const _finalDmg0 = sMult !== 1 ? currentDmg * sMult : currentDmg;
+    const { mult: bMult0, label: bLabel0 } = getBossResMult(effectiveMoveType);
+    if (bMult0 !== 1) formula += ` × ${bMult0.toFixed(2)} <span class="dc-bonus-tag">[${bLabel0}]</span> = <b>${(_finalDmg0 * bMult0).toFixed(1)}</b>`;
+    const _resFinalDmg0 = _finalDmg0 * bMult0;
     const _critMult0 = getCritDmgMult();
     if (hitCount > 1) {
-      const _avgHit0 = _finalDmg0 / hitCount;
+      const _avgHit0 = _resFinalDmg0 / hitCount;
       formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit0.toFixed(1)}</b>`;
       if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(1)}</b>`;
       formula += `</span>`;
     }
-    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_finalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_finalDmg0 * _critMult0).toFixed(1)}</b></span>`;
+    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_resFinalDmg0 * _critMult0).toFixed(1)}</b></span>`;
     if (hitCount > 1 && _critMult0 !== null) {
       const _cc0 = getCritChancePct();
       if (_cc0 !== null) {
-        const _exp0 = getExpectedMultiHitDmg(_finalDmg0, _critMult0, _cc0);
+        const _exp0 = getExpectedMultiHitDmg(_resFinalDmg0, _critMult0, _cc0);
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc0.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp0.toFixed(1)}</b></span>`;
       }
     }
@@ -2633,12 +2676,12 @@ function toggleDmgDetail(rowEl, idx) {
       const _beakCoef0 = moveAppliesStatusEffect(m) ? 0.25 : 0.15;
       const _beakDmgPer0 = baseDmgNum * _critMult0 * _beakCoef0 * enchantMult;
       if (hitCount === 1) {
-        const _critDmg0 = _finalDmg0 * _critMult0;
+        const _critDmg0 = _resFinalDmg0 * _critMult0;
         formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg0.toFixed(1)} + ${_beakDmgPer0.toFixed(1)} = <b>${(_critDmg0 + _beakDmgPer0).toFixed(1)}</b></span>`;
       } else {
         const _cc0b = getCritChancePct();
         if (_cc0b !== null) {
-          const _exp0b = getExpectedMultiHitDmg(_finalDmg0, _critMult0, _cc0b);
+          const _exp0b = getExpectedMultiHitDmg(_resFinalDmg0, _critMult0, _cc0b);
           const _eCrits0 = hitCount * (_cc0b / 100);
           formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits0.toFixed(1)} exp. crits × ${_beakDmgPer0.toFixed(1)}): <b>${(_exp0b + _eCrits0 * _beakDmgPer0).toFixed(1)}</b></span>`;
         }
@@ -2685,18 +2728,21 @@ function toggleDmgDetail(rowEl, idx) {
   const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
+  const { mult: bMult, label: bLabel } = getBossResMult(effectiveMoveType);
+  if (bMult !== 1) formula += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${(_finalDmg * bMult).toFixed(1)}</b>`;
+  const _resFinalDmg = _finalDmg * bMult;
   const _critMult = getCritDmgMult();
   if (hitCount > 1) {
-    const _avgHit = _finalDmg / hitCount;
+    const _avgHit = _resFinalDmg / hitCount;
     formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit.toFixed(1)}</b>`;
     if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(1)}</b>`;
     formula += `</span>`;
   }
-  if (_critMult !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_finalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_finalDmg * _critMult).toFixed(1)}</b></span>`;
+  if (_critMult !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_resFinalDmg * _critMult).toFixed(1)}</b></span>`;
   if (hitCount > 1 && _critMult !== null) {
     const _cc = getCritChancePct();
     if (_cc !== null) {
-      const _exp = getExpectedMultiHitDmg(_finalDmg, _critMult, _cc);
+      const _exp = getExpectedMultiHitDmg(_resFinalDmg, _critMult, _cc);
       formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
     }
   }
@@ -2704,12 +2750,12 @@ function toggleDmgDetail(rowEl, idx) {
     const _beakCoef = moveAppliesStatusEffect(m) ? 0.25 : 0.15;
     const _beakDmgPer = baseDmgNum * _critMult * _beakCoef * enchantMult;
     if (hitCount === 1) {
-      const _critDmg = _finalDmg * _critMult;
+      const _critDmg = _resFinalDmg * _critMult;
       formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg.toFixed(1)} + ${_beakDmgPer.toFixed(1)} = <b>${(_critDmg + _beakDmgPer).toFixed(1)}</b></span>`;
     } else {
       const _ccB = getCritChancePct();
       if (_ccB !== null) {
-        const _expB = getExpectedMultiHitDmg(_finalDmg, _critMult, _ccB);
+        const _expB = getExpectedMultiHitDmg(_resFinalDmg, _critMult, _ccB);
         const _eCrits = hitCount * (_ccB / 100);
         formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits.toFixed(1)} exp. crits × ${_beakDmgPer.toFixed(1)}): <b>${(_expB + _eCrits * _beakDmgPer).toFixed(1)}</b></span>`;
       }
@@ -3112,6 +3158,15 @@ function getStatusMultiplier(moveType) {
   return { mult, label: labels.join(", ") };
 }
 
+function getBossResMult(moveType) {
+  if (!selectedBoss) return { mult: 1, label: "" };
+  const boss = BOSS_DATA[selectedBoss];
+  if (!boss) return { mult: 1, label: "" };
+  const mult = boss.res[moveType] ?? 1;
+  const pct = Math.round(mult * 100);
+  return { mult, label: `${pct}% res` };
+}
+
 function setRageEmpHp(val) {
   rageEmpHpConsumed = +val;
   const valEl = document.getElementById("dc-rage-hp-val");
@@ -3468,10 +3523,58 @@ function renderDmgBonusSection() {
   });
   html += `</div>`;
 
+  // --- Boss Target ---
+  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Boss Target</h3><div class="dc-boss-list">`;
+  Object.entries(BOSS_DATA).forEach(([name, boss]) => {
+    const active = selectedBoss === name;
+    const corruptedHp = boss.hpVariants?.['Corrupted'];
+    const displayHp = (active && bossCorrupted && corruptedHp) ? corruptedHp : boss.hp;
+    html += `<div class="dc-boss-btn${active ? ' dc-boss-selected' : ''}" data-boss-name="${name.replace(/"/g, '&quot;')}">
+      <span class="dc-boss-btn-name">${name}</span>
+      <span class="dc-boss-btn-hp">${displayHp} HP${corruptedHp ? ` <span style="color:#666">/ ${corruptedHp} corrupted</span>` : ''}</span>
+    </div>`;
+    if (active) {
+      if (corruptedHp) {
+        html += `<div class="dc-boss-corrupt-row">
+          <span class="dc-boss-corrupt-label">Corrupted</span>
+          <div class="dc-boss-corrupt-toggle${bossCorrupted ? ' dc-boss-corrupt-on' : ''}" data-boss-corrupt>
+            <span class="dc-boss-corrupt-knob"></span>
+          </div>
+        </div>`;
+      }
+      const resEntries = Object.entries(boss.res);
+      html += `<div class="dc-boss-res">`;
+      resEntries.forEach(([type, pct]) => {
+        const col = MOVE_TYPE_COLORS[type] || '#aaa';
+        const pctNum = Math.round(pct * 100);
+        const tag = pctNum > 100 ? `<span style="color:#88ff88">+${pctNum - 100}%</span>` : pctNum < 100 ? `<span style="color:#ff8888">-${100 - pctNum}%</span>` : `<span style="color:#aaa">—</span>`;
+        html += `<span class="dc-boss-res-row"><span style="color:${col}">${type}</span> ${tag}</span>`;
+      });
+      html += `</div>`;
+    }
+  });
+  html += `</div>`;
+
   container.innerHTML = html;
 
   document.getElementById("dmg-bonus-search")?.addEventListener("input", e => {
     _dmgBonusFilter = e.target.value.toLowerCase();
+    renderDmgBonusSection();
+  });
+
+  container.querySelectorAll(".dc-boss-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.bossName;
+      if (selectedBoss !== name) bossCorrupted = false;
+      selectedBoss = selectedBoss === name ? null : name;
+      renderDmgBonusSection();
+      recalcOpenDetails();
+    });
+  });
+
+  container.querySelector("[data-boss-corrupt]")?.addEventListener("click", e => {
+    e.stopPropagation();
+    bossCorrupted = !bossCorrupted;
     renderDmgBonusSection();
   });
 
@@ -5356,6 +5459,8 @@ function loadBuildState(state) {
   reversingDebuffCount = 1;
   crystalStarStacks = 0;
   frozenDiademIceActive = false;
+  selectedBoss = null;
+  bossCorrupted = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
