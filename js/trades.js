@@ -23,8 +23,15 @@
 
   // ---- tradeable items ----
   const TRADEABLE_ITEMS = [
-    // --- Currency / Special ---
+    // --- Lesser Artifacts ---
+    'Skyward Totem',
+    'Soul Dust',
+    'Memory Fragment',
+    'Phoenix Tear',
     'Lineage Shard',
+    'Resplendent Essence',
+    'Void Key',
+    'Echo Shard',
 
     // --- Weapons: Ferrus ---
     'Ferrus Sword',
@@ -244,6 +251,10 @@
     "Arkhaia's Visage",
     'Paranoxian Crux',
     'Ancient Insignia',
+
+    // --- Weapon Modifiers ---
+    'Arcanium Crystal',
+    'Tempurus Gem',
   ];
 
   // ---- state ----

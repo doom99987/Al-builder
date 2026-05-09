@@ -336,6 +336,12 @@ const soulTreeBonuses = { "crit-dmg": 0, "crit-chance": 0, endFlat: 0 };
 const weaponBonuses = {
   "Jade Broadsword":  { "out-heal": 30, "inc-heal": 30 },
   "Jade Prayerstaff": { "out-heal": 30, "inc-heal": 30 },
+  "Ivory Sword":      { "crit-chance": 15 },
+  "Ivory Dagger":     { "crit-chance": 15 },
+  "Ivory Spear":      { "crit-chance": 15 },
+  "Ivory Axe":        { "crit-chance": 15 },
+  "Ivory Hammer":     { "crit-chance": 15 },
+  "Ivory Greatsword": { "crit-chance": 15 },
 };
 
 // Rank-gated percentage bonuses unlocked at specific covenant ranks.
