@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="css/builder.css?v=1">
   <link rel="stylesheet" href="css/qte.css?v=1">
   <link rel="stylesheet" href="css/mobile.css?v=1">
-  <link rel="stylesheet" href="css/auth.css?v=1">
+  <link rel="stylesheet" href="css/auth.css?v=4">
   <link rel="stylesheet" href="css/saved-builds.css?v=1">
   <link rel="stylesheet" href="css/trades.css?v=4">
 </head>
@@ -287,7 +287,7 @@
 <!-- Trades page -->
 <div id="page-trades" class="site-page">
   <div id="trades-disclaimer" style="display:none">
-    <span class="trd-disc-text">&#128274; All messages and chats are monitored for safety and appropriate use of this platform. By messaging you agree to keep it respectful.</span>
+    <span class="trd-disc-text">&#128274; All messages and chats are monitored for safety and appropriate use of this platform. By messaging you agree to keep it respectful. Messages from terminated accounts are permanently deleted after 12 months.</span>
     <button class="trd-disc-close" onclick="window._dismissTradesDisclaimer()">Got it</button>
   </div>
   <div class="trd-wrap">
@@ -771,7 +771,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=43"></script>
+<script src="js/sb.js?v=46"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
     core.js            : global constants, QTE SFX, ping sim, LB hook, dmgcalc state
@@ -789,7 +789,7 @@
 <script src="js/builder.js?v=1"></script>
 <script src="js/qte.js?v=1"></script>
 <script src="js/saved-builds.js?v=1"></script>
-<script src="js/trades.js?v=4"></script>
+<script src="js/trades.js?v=7"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
