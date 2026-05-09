@@ -243,11 +243,8 @@
     if (currentUser && currentProfile) {
       const { username, avatar_url } = currentProfile;
       bar.innerHTML =
-        `<button class="notif-bell-btn" id="msg-bell-btn" onclick="window._toggleDm()" title="Messages">` +
-          `&#9993;<span id="msg-badge" style="display:none">0</span>` +
-        `</button>` +
         `<button class="notif-bell-btn" id="notif-bell-btn" onclick="window._toggleNotifs()" title="Notifications">` +
-          `&#128276;<span id="notif-badge" style="display:none">0</span>` +
+          `&#9993;<span id="notif-badge" style="display:none">0</span>` +
         `</button>` +
         renderAvatar(username, avatar_url, 32,
           `title="${esc(username)}" onclick="window._toggleProfileMenu(event)"`);
