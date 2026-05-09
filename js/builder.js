@@ -2441,6 +2441,7 @@ const TEAM_BUFFS = [
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
+let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -2986,6 +2987,7 @@ function getActiveDmgMult() {
     else if (p.name === "Bulk Up")               { mult *= Math.pow(1.20, bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
+    else if (p.name === "Crusher")               { mult *= Math.pow(1.07, crusherStacks); return; }
     else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
     else if (p.bonusType === 'per-debuff-target') bonus = p.perDebuffVal * shatteringDebuffCount;
     else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
@@ -3102,6 +3104,11 @@ function toggleStatusEffect(name) {
 
 function changeOverheatStacks(delta) {
   overheatStacks = Math.min(10, Math.max(1, overheatStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeCrusherStacks(delta) {
+  crusherStacks = Math.min(3, Math.max(1, crusherStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3257,10 +3264,12 @@ function renderDmgBonusSection() {
     const isHourglass    = p.name === "Sands Of Time";
     const isOppression   = p.name === "Oppression";
     const isBoreas       = p.name === "Frost Stacks";
+    const isCrusher      = p.name === "Crusher";
     const displayBonus   = isRageEmp     ? 30 + rageEmpHpConsumed
                          : isAbsRad      ? ABS_RAD_BONUSES[absRadTurn - 1]
                          : isHourglass   ? hourglassStacks * 20
                          : isOppression  ? oppressionCount * 5
+                         : isCrusher     ? crusherStacks * 7
                          : isBoreas      ? boreasStacks * 20
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
@@ -3269,6 +3278,7 @@ function renderDmgBonusSection() {
                          : isBoreas      ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
                          : isHourglass   ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
                          : isOppression  ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
+                         : isCrusher     ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
@@ -3320,6 +3330,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeHourglassStacks(-1)">−</button>
           <span class="dc-energy-val">${hourglassStacks}</span>
           <button class="dc-energy-btn" onclick="changeHourglassStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isCrusher) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Stacks (max 3)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeCrusherStacks(-1)">−</button>
+          <span class="dc-energy-val">${crusherStacks}</span>
+          <button class="dc-energy-btn" onclick="changeCrusherStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -5454,6 +5474,7 @@ function loadBuildState(state) {
   hourglassStacks = 1;
   boreasStacks = 1;
   overheatStacks = 1;
+  crusherStacks = 1;
   oppressionCount = 1;
   shatteringDebuffCount = 1;
   reversingDebuffCount = 1;
