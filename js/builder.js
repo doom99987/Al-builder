@@ -2460,19 +2460,19 @@ const BOSS_DATA = {
     res: { Dark: 0.70, Physical: 0.70, Hex: 0.70, Poison: 0.75, Nature: 0.90, Fire: 1.10, Holy: 1.35 },
   },
   "Seraphon": {
+    hp: 4500,
+    hpVariants: { "Corrupted": 6750 },
+    res: { Physical: 0.80, Holy: 0.90, Dark: 1.20 },
+  },
+  "Arkhaia": {
     hp: 7000,
     hpVariants: { "Corrupted": 10500 },
     res: { Dark: 0.80, Physical: 0.80, Holy: 1.20 },
   },
-  "Arkhaia": {
+  "Metrom's Vessel": {
     hp: 10000,
     hpVariants: { "Corrupted": 15000 },
     res: { Hex: 0.90, Dark: 0.90, Nature: 1.10, Holy: 1.20 },
-  },
-  "Metrom's Vessel": {
-    hp: 2500,
-    hpVariants: { "Corrupted": 3750 },
-    res: { Hex: 0.75, Dark: 0.75, Holy: 1.20, Fire: 1.20, Nature: 1.20 },
   },
   "Pterathanaian": {
     hp: 2500,
