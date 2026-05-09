@@ -234,6 +234,13 @@
     { group: 'Gear — Other', items: [
       'Lethal Blackjack', 'Everbeating Drums',
     ]},
+    { group: 'Ore', items: [
+      'Aestic Ore', 'Ferrus Ore', 'Laneus Ore',
+    ]},
+    { group: 'Ingredients', items: [
+      'Everthistle', 'Carnastool', 'Cryastem', 'Hightail', 'Driproot', 'Crylight',
+      'Slime Chunk', 'Mushroom Cap', 'Sand Core', 'Restless Fragment', 'Haze Chunk', 'Rot Core',
+    ]},
   ];
   // Flat list derived from groups (used for search filtering)
   const TRADEABLE_ITEMS = TRADEABLE_GROUPS.flatMap(g => g.items);
@@ -332,7 +339,10 @@
     }
     const itemList = arr =>
       (Array.isArray(arr) && arr.length)
-        ? arr.map(i => `<div class="trd-card-item">${esc(i.item)}${i.quantity > 1 ? ` <span class="trd-card-qty">×${i.quantity}</span>` : ''}</div>`).join('')
+        ? arr.map(i => i.item === 'Gold'
+            ? `<div class="trd-card-item">🪙 <span class="trd-card-gold">${i.quantity.toLocaleString()} Gold</span></div>`
+            : `<div class="trd-card-item">${esc(i.item)}${i.quantity > 1 ? ` <span class="trd-card-qty">×${i.quantity}</span>` : ''}</div>`
+          ).join('')
         : '';
 
     el.innerHTML = list.map(l => {
@@ -477,11 +487,21 @@
             <label class="trd-label">Items <span class="trd-req">*</span></label>
             <div id="trd-items-container">${itemRowHtml()}</div>
             <button class="trd-add-item-btn" type="button" onclick="window._trdAddItem('trd-items-container')">+ Add item</button>
+            <div class="trd-gold-row">
+              <span class="trd-gold-label">🪙 Gold</span>
+              <input id="trd-gold-offer" class="trd-input trd-gold-input" type="number" min="0" max="50000" value="0" placeholder="0">
+              <span class="trd-gold-hint">max 50,000</span>
+            </div>
           </div>
           <div class="trd-form-row">
             <label class="trd-label" id="trd-lf-section-label">Looking For <span class="trd-req">*</span></label>
             <div id="trd-lf-container">${itemRowHtml()}</div>
             <button class="trd-add-item-btn" type="button" onclick="window._trdAddItem('trd-lf-container')">+ Add item</button>
+            <div class="trd-gold-row">
+              <span class="trd-gold-label">🪙 Gold</span>
+              <input id="trd-gold-lf" class="trd-input trd-gold-input" type="number" min="0" max="50000" value="0" placeholder="0">
+              <span class="trd-gold-hint">max 50,000</span>
+            </div>
           </div>
           <div class="trd-form-row">
             <label class="trd-label">Notes</label>
@@ -521,11 +541,17 @@
     const ttype = document.querySelector('.trd-type-btn.active')?.dataset.ttype || 'selling';
     const errEl = document.getElementById('trd-post-err');
 
+    const goldOffer = Math.min(50000, Math.max(0, parseInt(document.getElementById('trd-gold-offer')?.value) || 0));
+    const goldLf    = Math.min(50000, Math.max(0, parseInt(document.getElementById('trd-gold-lf')?.value)    || 0));
+
     const items    = collectRows('trd-items-container');
     const lf_items = collectRows('trd-lf-container');
 
-    if (!items.length)    { if (errEl) errEl.textContent = 'Add at least one item.'; return; }
-    if (!lf_items.length) { if (errEl) errEl.textContent = 'Add at least one Looking For item.'; return; }
+    if (goldOffer > 0) items.unshift({ item: 'Gold', quantity: goldOffer });
+    if (goldLf    > 0) lf_items.unshift({ item: 'Gold', quantity: goldLf });
+
+    if (!items.length)    { if (errEl) errEl.textContent = 'Add at least one item or gold amount.'; return; }
+    if (!lf_items.length) { if (errEl) errEl.textContent = 'Add at least one Looking For item or gold amount.'; return; }
     if (errEl) errEl.textContent = '';
 
     const id = uid(), name = uname();
