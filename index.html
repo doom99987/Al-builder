@@ -52,10 +52,11 @@
   <div class="home-hero">
     <h1 class="home-title">AL Builder</h1>
     <img class="home-hero-logo" src="Logo.png" alt="AL Builder Logo">
-    <p class="home-subtitle">Plan your build, master your class, calculate your damage, and sharpen your reaction times — all in one place.</p>
+    <p class="home-subtitle">Plan your build, master your class, calculate your damage, sharpen your reaction times, and trade with other players — all in one place.</p>
     <div class="home-cta-row">
       <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
       <button class="home-cta home-cta-secondary" onclick="switchPage('qte')">QTE Trainer</button>
+      <button class="home-cta home-cta-trades" onclick="switchPage('trades')">Trades</button>
     </div>
     <div style="margin-top:16px;text-align:center">
       <a href="https://discord.gg/n4YxGTwqjC" target="_blank" rel="noopener" class="discord-btn">
@@ -126,6 +127,22 @@
     <div class="home-card">
       <div class="home-card-title">Dodge</div>
       <div class="home-card-body">Press space to jump over a fast-moving white bar. Miss and your streak resets. The bar speeds up the hotter your run gets.</div>
+    </div>
+  </div>
+
+  <div class="home-section-label">Trades</div>
+  <div class="home-features">
+    <div class="home-card">
+      <div class="home-card-title">Player Market</div>
+      <div class="home-card-body">Browse selling and buying listings posted by other players. Find the items you need or offload your extras.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Post a Listing</div>
+      <div class="home-card-body">List multiple items at once with quantities and specify exactly what you're looking for in return.</div>
+    </div>
+    <div class="home-card">
+      <div class="home-card-title">Direct Messages</div>
+      <div class="home-card-body">Accept an offer with one click to notify the seller and open a private message thread to coordinate the trade.</div>
     </div>
   </div>
 </div>
@@ -301,6 +318,7 @@
     <span id="dm-panel-title">Messages</span>
     <button class="dm-panel-close" onclick="window._toggleDm()">✕</button>
   </div>
+  <div id="dm-thread-ctx" class="dm-thread-ctx" style="display:none"></div>
   <div id="dm-body" class="dm-body"></div>
   <div id="dm-footer" style="display:none">
     <input id="dm-input" type="text" placeholder="Message…" maxlength="500" autocomplete="off">
