@@ -607,12 +607,13 @@
         </ul>
         <p style="font-size:11px;color:#555;margin-bottom:4px">
           By clicking "I Agree" you acknowledge you have read our
-          <a href="privacy.html" target="_blank" rel="noopener" style="color:#7777cc">Privacy Policy</a>.
+          <a href="privacy.html" target="_blank" rel="noopener" style="color:#7777cc">Privacy Policy</a> and
+          <a href="terms.html" target="_blank" rel="noopener" style="color:#7777cc">Terms and Conditions</a>.
         </p>
         <div id="chat-consent-err" style="color:#ff8888;font-size:12px;min-height:14px"></div>
         <div class="sb-delete-confirm-actions" style="margin-top:10px">
-          <button class="auth-btn" style="flex:1" onclick="window._grantChatConsent()">I Agree</button>
-          <button class="auth-btn auth-btn-out" onclick="document.getElementById('chat-consent-modal').remove()">Decline</button>
+          <button class="auth-btn" style="flex:1" onclick="window._grantChatConsent()">Accept</button>
+          <button class="auth-btn auth-btn-reject" style="flex:1" onclick="document.getElementById('chat-consent-modal').remove()">Reject</button>
         </div>
       </div>`;
     document.body.appendChild(el);
@@ -973,23 +974,6 @@
     } catch (_) {}
   }
 
-  // ============================================================
-  //  TRADES DISCLAIMER
-  // ============================================================
-
-  function updateTradesDisclaimer(userId) {
-    const el = document.getElementById('trades-disclaimer');
-    if (!el) return;
-    const key = userId ? 'alb-trades-disc-' + userId : null;
-    el.style.display = (key && localStorage.getItem(key)) ? 'none' : 'flex';
-  }
-
-  window._dismissTradesDisclaimer = function () {
-    const el = document.getElementById('trades-disclaimer');
-    if (el) el.style.display = 'none';
-    const id = uid();
-    if (id) localStorage.setItem('alb-trades-disc-' + id, '1');
-  };
 
   // ============================================================
   //  AUTH SYNC
@@ -999,7 +983,7 @@
     const id = uid();
     if (id === _prevUid) return;
     _prevUid = id;
-    updateTradesDisclaimer(id);
+
     if (id) {
       _cachedAvatar = null;
       loadNotifs();
