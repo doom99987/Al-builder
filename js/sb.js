@@ -242,8 +242,17 @@
     if (!bar) return;
     if (currentUser && currentProfile) {
       const { username, avatar_url } = currentProfile;
-      bar.innerHTML = renderAvatar(username, avatar_url, 32,
-        `title="${esc(username)}" onclick="window._toggleProfileMenu(event)"`);
+      bar.innerHTML =
+        `<button class="notif-bell-btn" id="msg-bell-btn" onclick="window._toggleDm()" title="Messages">` +
+          `&#9993;<span id="msg-badge" style="display:none">0</span>` +
+        `</button>` +
+        `<button class="notif-bell-btn" id="notif-bell-btn" onclick="window._toggleNotifs()" title="Notifications">` +
+          `&#128276;<span id="notif-badge" style="display:none">0</span>` +
+        `</button>` +
+        renderAvatar(username, avatar_url, 32,
+          `title="${esc(username)}" onclick="window._toggleProfileMenu(event)"`);
+      window._syncNotifBell?.();
+      window._syncMsgBadge?.();
     } else {
       bar.innerHTML =
         `<button class="auth-btn" onclick="window._openAuthModal('login')">Login</button>` +
@@ -928,6 +937,7 @@
   // ================================================================
   //  Globals (called from HTML onclick and from scripts.js)
   // ================================================================
+  window._sbClient           = sb; // shared authenticated client for other modules
   window._sbSignOut          = () => signOut();
   window._openAuthModal      = openAuthModal;
   window._openLeaderboard    = openLeaderboard;

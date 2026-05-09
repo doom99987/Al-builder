@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="css/mobile.css?v=1">
   <link rel="stylesheet" href="css/auth.css?v=1">
   <link rel="stylesheet" href="css/saved-builds.css?v=1">
+  <link rel="stylesheet" href="css/trades.css?v=1">
 </head>
 
 <body>
@@ -38,6 +39,7 @@
     <button class="site-nav-btn" data-page="builder">Builder</button>
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
     <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
+    <button class="site-nav-btn" data-page="trades">Trades</button>
   </div>
   <div id="auth-bar">
     <button class="auth-btn" onclick="window._openAuthModal && window._openAuthModal('login')">Login</button>
@@ -263,6 +265,47 @@
     </div>
   </div>
   <img class="qte-logo-watermark" src="Logo.png" alt="">
+</div>
+
+<!-- Trades page -->
+<div id="page-trades" class="site-page">
+  <div id="trades-disclaimer" style="display:none">
+    <span class="trd-disc-text">&#128274; All messages and chats are monitored for safety and appropriate use of this platform. By messaging you agree to keep it respectful.</span>
+    <button class="trd-disc-close" onclick="window._dismissTradesDisclaimer()">Got it</button>
+  </div>
+  <div class="trd-wrap">
+    <div class="trd-header">
+      <h2 class="trd-title">Trades</h2>
+      <button class="trd-post-btn" onclick="window._trdPost()">+ Post Listing</button>
+    </div>
+    <div class="trd-tabbar">
+      <button class="trd-tab active" data-ttab="selling">Selling</button>
+      <button class="trd-tab" data-ttab="buying">Buying</button>
+    </div>
+    <div class="trd-list" id="trades-list">
+      <div class="trd-state">Select a tab to load listings.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Notification panel (fixed dropdown, positioned by JS) -->
+<div id="notif-panel">
+  <div class="notif-panel-hdr">Notifications</div>
+  <div id="notif-list"></div>
+</div>
+
+<!-- Direct message panel (fixed, positioned by JS) -->
+<div id="dm-panel" style="display:none">
+  <div class="dm-panel-hdr">
+    <button id="dm-back-btn" class="dm-back-btn" onclick="window._dmBack()" style="display:none">‹ Back</button>
+    <span id="dm-panel-title">Messages</span>
+    <button class="dm-panel-close" onclick="window._toggleDm()">✕</button>
+  </div>
+  <div id="dm-body" class="dm-body"></div>
+  <div id="dm-footer" style="display:none">
+    <input id="dm-input" type="text" placeholder="Message…" maxlength="500" autocomplete="off">
+    <button class="dm-send-btn" onclick="window._dmSend()">Send</button>
+  </div>
 </div>
 
 <!-- Leaderboards page -->
@@ -722,6 +765,7 @@
 <script src="js/builder.js?v=1"></script>
 <script src="js/qte.js?v=1"></script>
 <script src="js/saved-builds.js?v=1"></script>
+<script src="js/trades.js?v=1"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
@@ -730,6 +774,7 @@
     document.querySelector('.site-nav-btn[data-page="' + name + '"]').classList.add('active');
     history.replaceState(null, '', '#' + name);
     if (name === 'leaderboards' && typeof window._loadAllLeaderboards === 'function') window._loadAllLeaderboards();
+    if (name === 'trades' && typeof window._trdLoad === 'function') window._trdLoad();
     // Auto-activate the Build tab if no builder tab is active yet
     if (name === 'builder') {
       const activeBuildTab = document.querySelector('.tabbar .tab.active[data-tab]');
@@ -746,7 +791,7 @@
   // On load, navigate to the page in the URL hash
   // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
-  const _validPages = ['home', 'builder', 'qte', 'leaderboards'];
+  const _validPages = ['home', 'builder', 'qte', 'leaderboards', 'trades'];
   const _hasSharedBuild = new URLSearchParams(location.search).has('id');
   switchPage(_hasSharedBuild ? 'builder' : (_validPages.includes(_initPage) ? _initPage : 'home'));
 
