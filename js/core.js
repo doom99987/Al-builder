@@ -135,7 +135,8 @@ window._toggleQteMode = function () {
 // § DMGCALC STATE
 // These globals are declared early because updatePecents() references them before the
 // damage calculator section is parsed. Keep them here to avoid temporal dead zones.
-var crystalStarStacks     = 0;     // 0–5  : Crystallized Star LCK stacks (+10 LCK each)
-var frozenDiademIceActive = false; // true when target has Cold/Ice status → +5% crit chance (Frozen Diadem)
+var crystalStarStacks        = 0;     // 0–5  : Crystallized Star LCK stacks (+10 LCK each)
+var frozenDiademIceActive    = false; // true when target has Cold/Ice status → +15% crit chance (Frozen Diadem: 5% innate + 10% applying Cold)
+var flamingOverdriveStacks   = 0;     // 0–15 : Burning stacks on enemy → +1% dmg each (Flaming Overdrive passive)
 var vasticLckProcActive   = false; // true when Vastic Glaive LCK proc is active → +80% crit chance
 var weirdAccessoryActive  = false; // reserved for accessory with custom conditional behaviour

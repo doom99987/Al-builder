@@ -536,7 +536,7 @@ function updatePecents() {
       display = Math.min(100, parseFloat(display) + stultusBonus).toFixed(1);
     }
     if (stat === "crit-chance" && frozenDiademIceActive && hasGearEquipped("Frozen Diadem")) {
-      display = Math.min(100, parseFloat(display) + 5).toFixed(1);
+      display = Math.min(100, parseFloat(display) + 15).toFixed(1);
     }
     if (stat === "crit-chance" && vasticLckProcActive) {
       display = Math.min(100, parseFloat(display) + 80).toFixed(1);
@@ -2994,6 +2994,7 @@ function getActiveDmgMult() {
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= Math.pow(1.20, bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
+    else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
     else if (p.name === "Crusher")               { mult *= Math.pow(1.07, crusherStacks); return; }
     else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
@@ -3097,6 +3098,11 @@ function changeBulkUpStacks(delta) {
 
 function changeBoreasStacks(delta) {
   boreasStacks = Math.min(10, Math.max(1, boreasStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeFlamingOverdriveStacks(delta) {
+  flamingOverdriveStacks = Math.min(15, Math.max(0, flamingOverdriveStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3235,7 +3241,7 @@ function renderDmgBonusSection() {
   const hasFrozenDiadem = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Frozen Diadem");
   if (hasFrozenDiadem) {
     html += `<div class="dc-energy-section">
-      <span class="dc-energy-label">Target has Cold/Ice <span style="color:#aaa;font-size:11px">(+5% crit chance)</span></span>
+      <span class="dc-energy-label">Target has Cold/Ice <span style="color:#aaa;font-size:11px">(+15% crit chance)</span></span>
       <div class="dc-bonus-check dc-toggle-btn${frozenDiademIceActive ? " dc-bonus-on" : ""}" onclick="toggleFrozenDiademIce()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${frozenDiademIceActive ? "✓" : ""}</div>
     </div>`;
   } else if (frozenDiademIceActive) {
@@ -3279,26 +3285,28 @@ function renderDmgBonusSection() {
     const isBloodyBers   = p.name === "Bloody Berserker";
     const isRageEmp      = p.name === "Rage Empower";
     const isAbsRad       = p.name === "Absolute Radiance";
-    const isBulkUp       = p.name === "Bulk Up";
-    const isHourglass    = p.name === "Sands Of Time";
-    const isOppression   = p.name === "Oppression";
-    const isBoreas       = p.name === "Frost Stacks";
-    const isCrusher      = p.name === "Crusher";
-    const displayBonus   = isBloodyBers  ? 100 - bloodyBersHp
-                         : isRageEmp     ? 30 + rageEmpHpConsumed
-                         : isAbsRad      ? ABS_RAD_BONUSES[absRadTurn - 1]
-                         : isHourglass   ? hourglassStacks * 20
-                         : isOppression  ? oppressionCount * 5
-                         : isCrusher     ? crusherStacks * 7
-                         : isBoreas      ? boreasStacks * 20
+    const isBulkUp           = p.name === "Bulk Up";
+    const isHourglass        = p.name === "Sands Of Time";
+    const isOppression       = p.name === "Oppression";
+    const isBoreas           = p.name === "Frost Stacks";
+    const isCrusher          = p.name === "Crusher";
+    const isFlamingOverdrive = p.name === "Flaming Overdrive";
+    const displayBonus   = isBloodyBers      ? 100 - bloodyBersHp
+                         : isRageEmp         ? 30 + rageEmpHpConsumed
+                         : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
+                         : isHourglass       ? hourglassStacks * 20
+                         : isOppression      ? oppressionCount * 5
+                         : isCrusher         ? crusherStacks * 7
+                         : isBoreas          ? boreasStacks * 20
+                         : isFlamingOverdrive? flamingOverdriveStacks
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
-    const displayBonusStr = isBulkUp      ? `×${Math.pow(1.20, bulkUpStacks).toFixed(2)}`
-                         : isBoreas      ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
-                         : isHourglass   ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
-                         : isOppression  ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
-                         : isCrusher     ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
+    const displayBonusStr = isBulkUp          ? `×${Math.pow(1.20, bulkUpStacks).toFixed(2)}`
+                         : isBoreas           ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
+                         : isHourglass        ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
+                         : isOppression       ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
+                         : isCrusher          ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
@@ -3347,6 +3355,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeBoreasStacks(-1)">−</button>
           <span class="dc-energy-val">${boreasStacks}</span>
           <button class="dc-energy-btn" onclick="changeBoreasStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isFlamingOverdrive) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Burn Stacks on Enemy (max 15)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeFlamingOverdriveStacks(-1)">−</button>
+          <span class="dc-energy-val">${flamingOverdriveStacks}</span>
+          <button class="dc-energy-btn" onclick="changeFlamingOverdriveStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -5508,6 +5526,7 @@ function loadBuildState(state) {
   reversingDebuffCount = 1;
   crystalStarStacks = 0;
   frozenDiademIceActive = false;
+  flamingOverdriveStacks = 0;
   selectedBoss = null;
   bossCorrupted = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
