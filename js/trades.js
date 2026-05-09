@@ -15,7 +15,108 @@
   });
 
   // ---- chat word filter ----
-  const _BANNED = ['fuck','shit','bitch','cunt','cock','pussy','asshole','bastard','whore','nigger','nigga','faggot','fag','retard','kys','kms'];
+  const _BANNED = [
+    // profanity — f-word family
+    'fuck','fucking','fucked','fucker','fucks',
+    'fuckhead','fuckface','fuckwit','fuckoff',
+    'motherfucker','motherfucking','clusterfuck','dumbfuck',
+    // profanity — s-word family
+    'shit','shitting','shithead','shitstain','shitface',
+    'bullshit','horseshit','dipshit',
+    // profanity — b-words
+    'bitch','bitches','bitching','bitchass',
+    'bastard',
+    // profanity — c-words
+    'cunt','cunting','cocksucker',
+    'cock','cockhead',
+    // profanity — d-word
+    'dick','dickhead','dickface',
+    // profanity — a-words
+    'ass','asshole','assholes','arsehole','arseholes',
+    'asshat','asswipe','assfuck','assclown','assface',
+    'jackass','dumbass','smartass',
+    // profanity — other
+    'pussy','pussies',
+    'prick',
+    'whore','whorish',
+    'slut','slutty','slutting','slutshaming',
+    'skank',
+    'thot',
+    'twat','twatface',
+    'wanker','wanking',
+    'piss','pissing','pisser','pisshead',
+    // sexual body parts / acts
+    'cum','cumshot','cumming','cumslut',
+    'jizz','jizzing',
+    'tit','tits','titties','titty',
+    'boob','boobs',
+    'boner',
+    'blowjob','handjob','rimjob',
+    'ballsack','nutsack','ballsacking',
+    // racial / ethnic slurs — anti-Black
+    'nigger','nigga','nigg',
+    'coon','darkie','blackie',
+    'jigaboo','sambo','pickaninny',
+    'porch monkey','moon cricket','jungle bunny',
+    'spook',
+    // racial / ethnic slurs — anti-Latino
+    'spic','beaner','wetback',
+    // racial / ethnic slurs — anti-Asian
+    'chink','gook','zipperhead','slope',
+    // racial / ethnic slurs — anti-Arab/Muslim
+    'towelhead','raghead','sandnigger','camel jockey',
+    // racial / ethnic slurs — anti-South Asian
+    'paki',
+    // racial / ethnic slurs — anti-Indigenous
+    'redskin','injun','squaw',
+    // racial / ethnic slurs — anti-Jewish
+    'kike','heeb','hymie','jewboy','sheeny',
+    // racial / ethnic slurs — other
+    'polack','polak',
+    'gypo','gyp',
+    'wop','dago',
+    // gender / sexuality slurs
+    'faggot','fag',
+    'tranny','trannies','shemale','ladyboy','troon',
+    'homo',
+    'dyke',
+    'lesbo',
+    'poofter','poof',
+    'fudgepacker',
+    // disability slurs
+    'retard','retarded',
+    'spaz','spastic',
+    'mongoloid',
+    'cripple',
+    // self-harm / threats
+    'kys','kms',
+    'kill yourself',
+    'hang yourself',
+    'shoot yourself',
+    'slit your wrists',
+    'end yourself',
+    'noose',
+    // extremist / hate group
+    'sieg heil','heil hitler',
+    'white power','white pride','white supremacy',
+    '1488','14 words',
+    // csam-adjacent
+    'loli','lolita',
+    'jailbait',
+    'pedo','pedophile','paedophile',
+    // nsfw
+    'porn','porno','pornography',
+    'hentai',
+    'nude','nudes','nudepic',
+    'sexting',
+    'rape','raping','raped','rapist',
+    'anal',
+    'masturbate','masturbating','masturbation',
+    'horny',
+    'dildo',
+    'bdsm',
+    'xxx',
+  ];
   function filterMsg(txt) {
     return _BANNED.reduce((s, w) =>
       s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), txt);
@@ -672,7 +773,7 @@
     const mine = m.sender_id === myId;
     return `<div class="dm-msg ${mine ? 'dm-msg-mine' : 'dm-msg-theirs'}">
       ${!mine ? mkAvatar(m.sender_name, m.sender_avatar, 24) : ''}
-      <div class="dm-bubble">${esc(m.content)}<span class="dm-bubble-time">${timeAgo(m.created_at)}</span></div>
+      <div class="dm-bubble">${esc(filterMsg(m.content))}<span class="dm-bubble-time">${timeAgo(m.created_at)}</span></div>
     </div>`;
   }
 
