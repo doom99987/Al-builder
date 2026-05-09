@@ -2095,8 +2095,8 @@
 
   function resizeCanvas() {
     var wrap = canvas.parentElement;
-    var displayW = wrap ? Math.min(wrap.clientWidth - 20, 600) : 520;
-    var scale = Math.min(displayW / 520, 1);
+    var displayW = wrap ? Math.min(wrap.clientWidth - 20, 780) : 660;
+    var scale = displayW / 520;
     CW = Math.round(520 * scale);
     CH = Math.round(310 * scale);
     TW = Math.round(46 * scale);
