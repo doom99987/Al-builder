@@ -22,240 +22,120 @@
   }
 
   // ---- tradeable items ----
-  const TRADEABLE_ITEMS = [
-    // --- Lesser Artifacts ---
-    'Skyward Totem',
-    'Soul Dust',
-    'Memory Fragment',
-    'Phoenix Tear',
-    'Lineage Shard',
-    'Resplendent Essence',
-    'Void Key',
-    'Echo Shard',
-
-    // --- Weapons: Ferrus ---
-    'Ferrus Sword',
-    'Old Staff',
-    'Ferrus Dagger',
-    'Ferrus Cestus',
-    'Ferrus Spear',
-    'Ferrus Axe',
-    'Ferrus Tenderizer',
-
-    // --- Weapons: Blacksteel ---
-    'Blacksteel Sabre',
-    'Blacksteel Staff',
-    'Blacksteel Knife',
-    'Blacksteel Claws',
-    'Blacksteel Spear',
-    'Blacksteel Axe',
-    'Greatsword',
-
-    // --- Weapons: Jade ---
-    'Jade Broadsword',
-    'Jade Prayerstaff',
-
-    // --- Weapons: Corealloy ---
-    'Corealloy Manadagger',
-    'Corealloy Manaclaws',
-    'Corealloy Manablade',
-
-    // --- Weapons: Dragon ---
-    'Dragontooth Blade',
-    'Dragontooth Staff',
-    'Dragontooth Dagger',
-    'Dragonbone Gauntlets',
-    'Dragonbone Spear',
-    'Dragonpyre Axe',
-    'Dragonbone Hammer',
-
-    // --- Weapons: Blight ---
-    'Blightrock Sword',
-    'Blightwood Staff',
-    'Blightrock Dagger',
-    'Blightrock Gauntlets',
-    'Blightrock Spear',
-
-    // --- Weapons: Sun ---
-    'Sun Sword',
-    'Sun Staff',
-    'Sun Dagger',
-    'Sun Spear',
-    'Sun Greatsword',
-
-    // --- Weapons: Darkblood ---
-    'Darkblood Sword',
-    'Darkblood Staff',
-    'Darkblood Dagger',
-    'Darkblood Cestus',
-    'Darkblood Spear',
-    'Darkblood Hexer',
-
-    // --- Weapons: Sandstone ---
-    'Sandstone Staff',
-    'Sandstone Dagger',
-    'Sandstone Gauntlets',
-    'Sandstone Spear',
-    'Sandstone Hammer',
-
-    // --- Weapons: Primordial ---
-    'Primordial Sword',
-    'Primordial Staff',
-    'Primordial Dagger',
-    'Primordial Gauntlets',
-    'Primordial Spear',
-    'Primordial Axe',
-    'Primordial Hammer',
-
-    // --- Weapons: Icerind ---
-    'Icerind Sword',
-    'Icerind Staff',
-    'Icerind Sai',
-    'Icerind Cestus',
-    'Icerind Spear',
-    'Icerind Greatsword',
-
-    // --- Weapons: Ivory ---
-    'Ivory Sword',
-    'Ivory Dagger',
-    'Ivory Spear',
-    'Ivory Axe',
-    'Ivory Hammer',
-    'Ivory Greatsword',
-
-    // --- Weapons: Unique ---
-    'Vastic Glaive',
-    'Star-Seeing Hammer',
-
-    // --- Shields ---
-    'Targe',
-    'Ferrus Towershield',
-    'Dragonflame Shield',
-    'Slimy Buckler',
-    'Icerind Shield',
-    'Sandstone Shield',
-    'Primordial Shield',
-    'Ivory Shield',
-
-    // --- Gear: Easter ---
-    'Rabbit Pelt',
-    'Egg Shelmet',
-    'Chocolate Egg',
-    'Party Egg',
-    'Gleaming Carrot',
-    "Rabbit's Foot",
-
-    // --- Gear: Winter Solstice ---
-    'Snorb',
-    'Elementary Resonance',
-    'Frosty Topper',
-
-    // --- Gear: Forest ---
-    '7 Leafed Everthistle',
-    'Shattered Clock Hand',
-    'The Biggest Pebble',
-    'Arbusta Tear',
-    'Parasitic Leech',
-    'Spore Root',
-    'Forest Charm',
-    'Elemental Infuser',
-    'Crystallized Star',
-    'Pathfinder Mark',
-    'Gilded Pouch',
-
-    // --- Gear: Desert ---
-    'Crystal Sphere',
-    'Dust Storm',
-    'Golem Rune Core',
-    'Spiked Steel Ball',
-    'Stone Brand',
-    'Ramizcan Idol',
-    'Band of Crushing Force',
-    'Grain Of Balance',
-    "Madseer's Codex",
-    'Impure Crown',
-    'The Last Straw',
-    'Imbued Chains',
-    'Delicate Purse',
-    'Desert Escutcheon',
-
-    // --- Gear: Deeproot ---
-    'Cursed Brand',
-    "Narthana's Leaf",
-    'Wicked Crown',
-    'Sanguine Fang',
-    'Coagulated Finger Nail',
-    'Shard of Blight',
-    "Traveler's Lamp",
-    'Expedite Anklet',
-    'Phantom Ooze',
-
-    // --- Gear: Volcano ---
-    'Imperial Headband',
-    'Magma Charm',
-    'Vulcan Knuckle',
-    'Dragon Memoir',
-    'Blazing Brand',
-    'Molten Carapace',
-
-    // --- Gear: Boss Drops ---
-    'Gelat Band',
-    'Tear Blood Crystal',
-    "Ptera's Heart",
-    'DeathBeak Dagger',
-    'Blazing Perforator',
-    "Yar'thul's Wrath",
-    'Frostburned Rune',
-    'Vow of Ruin',
-    'Frozen Diadem',
-    'Imbuement Reliquary',
-    'Divine Promise',
-    'Focused Mind',
-    'Aspect of Maladaptation',
-    'Tainted Quiver',
-    'Vainglorious Locket',
-    'The Smallest Boulder',
-    'Eroded Blade',
-    "Dust Devil's Eye",
-    'Open Hand',
-
-    // --- Gear: Other ---
-    'Lethal Blackjack',
-    'Everbeating Drums',
-
-    // --- Shards ---
-    'Striking (R)',
-    'Striking (P)',
-    'Shattering (R)',
-    'Shattering (P)',
-    'Regenerative (R)',
-    'Regenerative (P)',
-    'Voltaic (R)',
-    'Voltaic (P)',
-    'Executing (R)',
-    'Executing (P)',
-    'Reversing (R)',
-    'Reversing (P)',
-    'Empowering (R)',
-    'Empowering (P)',
-
-    // --- Artifacts ---
-    'Reality Watch',
-    "Narthana's Sigil",
-    'Shifting Hourglass',
-    "Metrom's Amulet",
-    "Heaven's Authority",
-    'Darksigil',
-    'Stellian Core',
-    'Chaos Orb',
-    "Arkhaia's Visage",
-    'Paranoxian Crux',
-    'Ancient Insignia',
-
-    // --- Weapon Modifiers ---
-    'Arcanium Crystal',
-    'Tempurus Gem',
+  const TRADEABLE_GROUPS = [
+    { group: 'Lesser Artifacts', items: [
+      'Skyward Totem', 'Soul Dust', 'Memory Fragment', 'Phoenix Tear',
+      'Lineage Shard', 'Resplendent Essence', 'Void Key', 'Echo Shard',
+    ]},
+    { group: 'Artifacts', items: [
+      'Reality Watch', "Narthana's Sigil", 'Shifting Hourglass', "Metrom's Amulet",
+      "Heaven's Authority", 'Darksigil', 'Stellian Core', 'Chaos Orb',
+      "Arkhaia's Visage", 'Paranoxian Crux', 'Ancient Insignia',
+    ]},
+    { group: 'Weapon Modifiers', items: [
+      'Arcanium Crystal', 'Tempurus Gem',
+    ]},
+    { group: 'Shards', items: [
+      'Striking (R)', 'Striking (P)',
+      'Shattering (R)', 'Shattering (P)',
+      'Regenerative (R)', 'Regenerative (P)',
+      'Voltaic (R)', 'Voltaic (P)',
+      'Executing (R)', 'Executing (P)',
+      'Reversing (R)', 'Reversing (P)',
+      'Empowering (R)', 'Empowering (P)',
+    ]},
+    { group: 'Weapons — Ferrus', items: [
+      'Ferrus Sword', 'Old Staff', 'Ferrus Dagger', 'Ferrus Cestus',
+      'Ferrus Spear', 'Ferrus Axe', 'Ferrus Tenderizer',
+    ]},
+    { group: 'Weapons — Blacksteel', items: [
+      'Blacksteel Sabre', 'Blacksteel Staff', 'Blacksteel Knife',
+      'Blacksteel Claws', 'Blacksteel Spear', 'Blacksteel Axe', 'Greatsword',
+    ]},
+    { group: 'Weapons — Jade', items: [
+      'Jade Broadsword', 'Jade Prayerstaff',
+    ]},
+    { group: 'Weapons — Corealloy', items: [
+      'Corealloy Manadagger', 'Corealloy Manaclaws', 'Corealloy Manablade',
+    ]},
+    { group: 'Weapons — Dragon', items: [
+      'Dragontooth Blade', 'Dragontooth Staff', 'Dragontooth Dagger',
+      'Dragonbone Gauntlets', 'Dragonbone Spear', 'Dragonpyre Axe', 'Dragonbone Hammer',
+    ]},
+    { group: 'Weapons — Blight', items: [
+      'Blightrock Sword', 'Blightwood Staff', 'Blightrock Dagger',
+      'Blightrock Gauntlets', 'Blightrock Spear',
+    ]},
+    { group: 'Weapons — Sun', items: [
+      'Sun Sword', 'Sun Staff', 'Sun Dagger', 'Sun Spear', 'Sun Greatsword',
+    ]},
+    { group: 'Weapons — Darkblood', items: [
+      'Darkblood Sword', 'Darkblood Staff', 'Darkblood Dagger',
+      'Darkblood Cestus', 'Darkblood Spear', 'Darkblood Hexer',
+    ]},
+    { group: 'Weapons — Sandstone', items: [
+      'Sandstone Staff', 'Sandstone Dagger', 'Sandstone Gauntlets',
+      'Sandstone Spear', 'Sandstone Hammer',
+    ]},
+    { group: 'Weapons — Primordial', items: [
+      'Primordial Sword', 'Primordial Staff', 'Primordial Dagger',
+      'Primordial Gauntlets', 'Primordial Spear', 'Primordial Axe', 'Primordial Hammer',
+    ]},
+    { group: 'Weapons — Icerind', items: [
+      'Icerind Sword', 'Icerind Staff', 'Icerind Sai',
+      'Icerind Cestus', 'Icerind Spear', 'Icerind Greatsword',
+    ]},
+    { group: 'Weapons — Ivory', items: [
+      'Ivory Sword', 'Ivory Dagger', 'Ivory Spear',
+      'Ivory Axe', 'Ivory Hammer', 'Ivory Greatsword',
+    ]},
+    { group: 'Weapons — Unique', items: [
+      'Vastic Glaive', 'Star-Seeing Hammer',
+    ]},
+    { group: 'Shields', items: [
+      'Targe', 'Ferrus Towershield', 'Dragonflame Shield', 'Slimy Buckler',
+      'Icerind Shield', 'Sandstone Shield', 'Primordial Shield', 'Ivory Shield',
+    ]},
+    { group: 'Gear — Boss Drops', items: [
+      'Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'DeathBeak Dagger',
+      'Blazing Perforator', "Yar'thul's Wrath", 'Frostburned Rune', 'Vow of Ruin',
+      'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focused Mind',
+      'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket',
+      'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand',
+    ]},
+    { group: 'Gear — Forest', items: [
+      '7 Leafed Everthistle', 'Shattered Clock Hand', 'The Biggest Pebble',
+      'Arbusta Tear', 'Parasitic Leech', 'Spore Root', 'Forest Charm',
+      'Elemental Infuser', 'Crystallized Star', 'Pathfinder Mark', 'Gilded Pouch',
+    ]},
+    { group: 'Gear — Desert', items: [
+      'Crystal Sphere', 'Dust Storm', 'Golem Rune Core', 'Spiked Steel Ball',
+      'Stone Brand', 'Ramizcan Idol', 'Band of Crushing Force', 'Grain Of Balance',
+      "Madseer's Codex", 'Impure Crown', 'The Last Straw', 'Imbued Chains',
+      'Delicate Purse', 'Desert Escutcheon',
+    ]},
+    { group: 'Gear — Deeproot', items: [
+      'Cursed Brand', "Narthana's Leaf", 'Wicked Crown', 'Sanguine Fang',
+      'Coagulated Finger Nail', 'Shard of Blight', "Traveler's Lamp",
+      'Expedite Anklet', 'Phantom Ooze',
+    ]},
+    { group: 'Gear — Volcano', items: [
+      'Imperial Headband', 'Magma Charm', 'Vulcan Knuckle',
+      'Dragon Memoir', 'Blazing Brand', 'Molten Carapace',
+    ]},
+    { group: 'Gear — Easter', items: [
+      'Rabbit Pelt', 'Egg Shelmet', 'Chocolate Egg',
+      'Party Egg', 'Gleaming Carrot', "Rabbit's Foot",
+    ]},
+    { group: 'Gear — Winter Solstice', items: [
+      'Snorb', 'Elementary Resonance', 'Frosty Topper',
+    ]},
+    { group: 'Gear — Other', items: [
+      'Lethal Blackjack', 'Everbeating Drums',
+    ]},
   ];
+  // Flat list derived from groups (used for search filtering)
+  const TRADEABLE_ITEMS = TRADEABLE_GROUPS.flatMap(g => g.items);
 
   // ---- state ----
   let _tradeTab      = 'selling';
@@ -384,15 +264,83 @@
   // ---- post listing modal ----
   function itemRowHtml() {
     return `<div class="trd-item-row">
-      <input class="trd-input trd-item-name" type="text" placeholder="Item name" maxlength="100" list="trd-items-list" autocomplete="off">
-      <input class="trd-input trd-item-qty"  type="number" min="1" max="9999" value="1" title="Quantity">
+      <div class="trd-pick-wrap">
+        <input class="trd-item-name" type="hidden" value="">
+        <div class="trd-pick-display">— Select item —</div>
+        <div class="trd-pick-panel" style="display:none">
+          <input class="trd-pick-search" type="text" placeholder="Search items..." autocomplete="off">
+          <div class="trd-pick-list"></div>
+        </div>
+      </div>
+      <input class="trd-input trd-item-qty" type="number" min="1" max="9999" value="1" title="Quantity">
       <button class="trd-item-row-del" type="button" onclick="window._trdRemoveItem(this)" title="Remove">×</button>
     </div>`;
   }
 
+  function buildTrdItemPicker(wrap) {
+    const hidden  = wrap.querySelector('.trd-item-name');
+    const display = wrap.querySelector('.trd-pick-display');
+    const panel   = wrap.querySelector('.trd-pick-panel');
+    const search  = wrap.querySelector('.trd-pick-search');
+    const list    = wrap.querySelector('.trd-pick-list');
+
+    function makeItem(name) {
+      const item = document.createElement('div');
+      item.className = 'trd-pick-item' + (hidden.value === name ? ' trd-pick-selected' : '');
+      item.textContent = name;
+      item.addEventListener('mousedown', e => {
+        e.preventDefault();
+        hidden.value = name;
+        display.textContent = name;
+        display.classList.add('trd-pick-has-value');
+        panel.style.display = 'none';
+        search.value = '';
+      });
+      return item;
+    }
+
+    function buildList(q) {
+      list.innerHTML = '';
+      if (q) {
+        const lq = q.toLowerCase();
+        TRADEABLE_ITEMS
+          .filter(name => name.toLowerCase().includes(lq))
+          .forEach(name => list.appendChild(makeItem(name)));
+      } else {
+        TRADEABLE_GROUPS.forEach(({ group, items }) => {
+          const hdr = document.createElement('div');
+          hdr.className = 'trd-pick-group';
+          hdr.textContent = group;
+          list.appendChild(hdr);
+          items.forEach(name => list.appendChild(makeItem(name)));
+        });
+      }
+    }
+
+    display.addEventListener('click', () => {
+      const isOpen = panel.style.display !== 'none';
+      document.querySelectorAll('#trd-post-modal .trd-pick-panel').forEach(p => { p.style.display = 'none'; });
+      if (!isOpen) {
+        panel.style.display = 'block';
+        search.value = '';
+        buildList('');
+        search.focus();
+      }
+    });
+
+    search.addEventListener('input', () => buildList(search.value));
+
+    document.addEventListener('mousedown', function handler(e) {
+      if (!wrap.contains(e.target)) panel.style.display = 'none';
+      if (!document.getElementById('trd-post-modal')) document.removeEventListener('mousedown', handler);
+    });
+  }
+
   function addItemRow(containerId) {
     const c = document.getElementById(containerId);
-    if (c) c.insertAdjacentHTML('beforeend', itemRowHtml());
+    if (!c) return;
+    c.insertAdjacentHTML('beforeend', itemRowHtml());
+    buildTrdItemPicker(c.lastElementChild.querySelector('.trd-pick-wrap'));
   }
 
   function removeItemRow(btn) {
@@ -422,7 +370,6 @@
               <button class="trd-type-btn"        data-ttype="buying"  onclick="window._trdTypeSelect(this)">Buying</button>
             </div>
           </div>
-          <datalist id="trd-items-list">${TRADEABLE_ITEMS.map(i => `<option value="${esc(i)}">`).join('')}</datalist>
           <div class="trd-form-row">
             <label class="trd-label">Items <span class="trd-req">*</span></label>
             <div id="trd-items-container">${itemRowHtml()}</div>
@@ -443,7 +390,7 @@
       </div>`;
     document.body.appendChild(m);
     m.addEventListener('click', e => { if (e.target === m) window._trdClosePost(); });
-    document.querySelector('.trd-item-name')?.focus();
+    m.querySelectorAll('.trd-pick-wrap').forEach(w => buildTrdItemPicker(w));
   }
 
   function closePostModal() { document.getElementById('trd-post-modal')?.remove(); }
