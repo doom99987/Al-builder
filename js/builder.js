@@ -2437,6 +2437,7 @@ let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 
 let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
+const summonBuffsActive = { spiritAwakening: false };
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
@@ -2914,6 +2915,15 @@ function collectDmgBonusPassives() {
     }
   });
 
+  // Spirit Awakening — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
+  if (raceName === "Vastayan (9%)") {
+    const saKey = "buff:Spirit Awakening";
+    if (!seen.has(saKey)) {
+      seen.add(saKey);
+      rawEntries.push({ key: saKey, name: "Spirit Awakening", bonus: 15, kind: "buff", desc: "Grants the user a 15% buff to all stats for 4 turns. (50% summon damage buff in Summon Buffs section)" });
+    }
+  }
+
   // Metrom's Grasp — show in dmg bonus when equipped (bypasses DoT filter)
   if (lostScrollName === "Metrom's Grasp") {
     const mgKey = "scroll-mg:Metrom's Grasp";
@@ -2995,6 +3005,7 @@ function getActiveDmgMult() {
     else if (p.name === "Bulk Up")               { mult *= Math.pow(1.20, bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
     else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
+    else if (p.name === "Spirit Awakening")     bonus = 15; // 15% to all stats → ~15% dmg; 50% summon buff handled separately
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
     else if (p.name === "Crusher")               { mult *= Math.pow(1.07, crusherStacks); return; }
     else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
@@ -3011,6 +3022,7 @@ function getActiveDmgMult() {
     if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
     mult *= b.mult;
   });
+  if (summonBuffsActive.spiritAwakening) mult *= 1.50;
   return mult;
 }
 
@@ -3290,7 +3302,8 @@ function renderDmgBonusSection() {
     const isOppression       = p.name === "Oppression";
     const isBoreas           = p.name === "Frost Stacks";
     const isCrusher          = p.name === "Crusher";
-    const isFlamingOverdrive = p.name === "Flaming Overdrive";
+    const isFlamingOverdrive  = p.name === "Flaming Overdrive";
+    const isSpiritAwakening   = p.name === "Spirit Awakening";
     const displayBonus   = isBloodyBers      ? 100 - bloodyBersHp
                          : isRageEmp         ? 30 + rageEmpHpConsumed
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3299,6 +3312,7 @@ function renderDmgBonusSection() {
                          : isCrusher         ? crusherStacks * 7
                          : isBoreas          ? boreasStacks * 20
                          : isFlamingOverdrive? flamingOverdriveStacks
+                         : isSpiritAwakening ? 15
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
@@ -3588,6 +3602,21 @@ function renderDmgBonusSection() {
   });
   html += `</div>`;
 
+  // --- Summon Buffs ---
+  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Summon Buffs</h3><div class="dc-bonus-list">`;
+  const _summonBufDefs = [
+    { key: 'spiritAwakening', label: "Spirit Awakening", mult: 1.50, desc: "Vastayan racial active: +50% damage buff to summons for 4 turns." },
+  ];
+  _summonBufDefs.forEach(b => {
+    const on = summonBuffsActive[b.key];
+    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-summon-key="${b.key}" title="${b.desc}">
+      <div class="dc-bonus-check">${on ? "✓" : ""}</div>
+      <span class="dc-bonus-name">${b.label}</span>
+      <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+    </div>`;
+  });
+  html += `</div>`;
+
   // --- Boss Target ---
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Boss Target</h3><div class="dc-boss-list">`;
   Object.entries(BOSS_DATA).forEach(([name, boss]) => {
@@ -3666,6 +3695,13 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.teamKey) {
       row.addEventListener("click", () => toggleTeamBuff(row.dataset.teamKey));
+      return;
+    }
+    if (row.dataset.summonKey) {
+      row.addEventListener("click", () => {
+        summonBuffsActive[row.dataset.summonKey] = !summonBuffsActive[row.dataset.summonKey];
+        renderDmgBonusSection(); recalcOpenDetails();
+      });
       return;
     }
     const p = dmgBonusPassives[+row.dataset.bidx];
@@ -5531,6 +5567,7 @@ function loadBuildState(state) {
   bossCorrupted = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
+  Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
