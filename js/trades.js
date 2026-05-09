@@ -551,11 +551,18 @@
     const body = document.getElementById('dm-body');
     if (body) body.innerHTML = '<div class="dm-state">Loading...</div>';
     const title = document.getElementById('dm-panel-title');
-    if (title) title.textContent = otherName;
+    if (title) title.textContent = 'Messages';
     const backBtn = document.getElementById('dm-back-btn');
     if (backBtn) backBtn.style.display = '';
     const footer = document.getElementById('dm-footer');
     if (footer) footer.style.display = 'flex';
+
+    // Context strip
+    const ctx = document.getElementById('dm-thread-ctx');
+    if (ctx) {
+      ctx.style.display = 'flex';
+      ctx.innerHTML = `${mkAvatar(otherName, null, 32)}<div class="dm-ctx-info"><span class="dm-ctx-label">Trading with</span><span class="dm-ctx-name">${esc(otherName)}</span></div>`;
+    }
 
     await loadThread(otherId);
     subscribeDm();
@@ -568,6 +575,8 @@
     _dmWithId   = null;
     _dmWithName = null;
     _dmThread   = [];
+    const ctx = document.getElementById('dm-thread-ctx');
+    if (ctx) ctx.style.display = 'none';
     loadConvList();
   }
 
@@ -878,16 +887,15 @@
   window._trdRemoveItem = removeItemRow;
   window._trdMessage    = async function (userId, username, itemName) {
     if (!authed()) { window._openAuthModal?.('login'); return; }
-    // Send acceptance notification to the listing owner
+    // Send acceptance notification to the listing owner (skip for null/self)
     const myName = uname();
-    if (myName) {
-      try {
-        await sb.from('notifications').insert({
-          user_id: userId,
-          title:   `${myName} accepted your offer!`,
-          body:    `${myName} wants to trade for: ${itemName}`,
-        });
-      } catch (_) {}
+    if (myName && userId && userId !== uid()) {
+      const { error: nErr } = await sb.from('notifications').insert({
+        user_id: userId,
+        title:   `${myName} accepted your offer!`,
+        body:    `${myName} wants to trade for: ${itemName}`,
+      });
+      if (nErr) console.warn('[trades] notification insert failed:', nErr.message);
     }
     // Open DM thread
     if (!_dmOpen) toggleDm();

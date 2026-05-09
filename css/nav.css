@@ -131,6 +131,13 @@ body {
 }
 .home-cta-secondary:hover { background: #1c1c1c; color: #fff; border-color: #666; }
 
+.home-cta-trades {
+  background: transparent;
+  color: #aaaaee;
+  border: 1.5px solid #4444aa;
+}
+.home-cta-trades:hover { background: #1a1a35; color: #ccccff; border-color: #6666cc; }
+
 .home-section-label {
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 11px;
