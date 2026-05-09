@@ -305,7 +305,7 @@
   }
 
   // ---- settings modal ----
-  function openSettings() {
+  async function openSettings() {
     closeProfileMenu();
     const name = currentProfile?.username || '';
     const url  = currentProfile?.avatar_url || null;
@@ -335,9 +335,28 @@
       <input class="sb-input" id="sb-conf-pass" type="password" placeholder="Confirm new password" autocomplete="new-password">
       <div class="sb-err" id="sb-pw-err"></div>
       <button class="auth-btn sb-btn-full" id="sb-pw-btn" onclick="window._changePassword()">Change Password</button>
+      <div class="sb-menu-divider" style="margin:16px 0 12px"></div>
+      <p class="sb-field-label">Messaging Consent</p>
+      <div id="sb-consent-status" class="sb-consent-status">Loading...</div>
       <div class="sb-menu-divider" style="margin:12px 0"></div>
       <button class="auth-btn auth-btn-out sb-btn-full" onclick="window._sbSignOut();window._closeModal()">Logout</button>
+      <div class="sb-menu-divider" style="margin:12px 0"></div>
+      <button class="auth-btn sb-btn-full sb-btn-delete-account" onclick="window._deleteAccount()">Delete Account</button>
     `);
+    // Load consent status
+    if (currentUser) {
+      const { data } = await sb.from('profiles').select('chat_consent_at, chat_consent_version').eq('id', currentUser.id).maybeSingle();
+      const el = document.getElementById('sb-consent-status');
+      if (!el) return;
+      if (data?.chat_consent_at) {
+        const date = new Date(data.chat_consent_at).toLocaleDateString();
+        el.innerHTML = `<span style="color:#88cc88">&#10003; Consented on ${date}</span>
+          <button class="sb-consent-withdraw-btn" onclick="window._withdrawChatConsent()">Withdraw</button>`;
+      } else {
+        el.innerHTML = `<span style="color:#888">Not consented — messaging disabled.</span>
+          <button class="sb-consent-grant-btn" onclick="window._showConsentFromSettings()">Give Consent</button>`;
+      }
+    }
   }
 
   // ---- avatar crop modal ----
@@ -935,6 +954,46 @@
   //  Globals (called from HTML onclick and from scripts.js)
   // ================================================================
   window._sbClient           = sb; // shared authenticated client for other modules
+  function deleteAccount() {
+    const overlay = document.createElement('div');
+    overlay.id = 'sb-delete-confirm-overlay';
+    overlay.className = 'sb-delete-confirm-overlay';
+    overlay.innerHTML = `
+      <div class="sb-delete-confirm-box">
+        <h3 class="sb-delete-confirm-title">Delete Account</h3>
+        <p class="sb-delete-confirm-body">This will permanently delete your account and all associated data. <strong>This cannot be undone.</strong></p>
+        <p class="sb-delete-confirm-body" style="margin-top:6px">Type <strong>DELETE</strong> to confirm:</p>
+        <input class="sb-input" id="sb-delete-confirm-input" type="text" placeholder="DELETE" autocomplete="off" style="margin-top:8px">
+        <div class="sb-err" id="sb-delete-confirm-err"></div>
+        <div class="sb-delete-confirm-actions">
+          <button class="auth-btn sb-btn-delete-account" onclick="window._confirmDeleteAccount()">Delete My Account</button>
+          <button class="auth-btn auth-btn-out" onclick="document.getElementById('sb-delete-confirm-overlay').remove()">Cancel</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('sb-delete-confirm-input')?.focus();
+  }
+
+  async function confirmDeleteAccount() {
+    const input = document.getElementById('sb-delete-confirm-input');
+    const errEl = document.getElementById('sb-delete-confirm-err');
+    if (!input || input.value.trim() !== 'DELETE') {
+      if (errEl) errEl.textContent = 'Type DELETE exactly to confirm.';
+      return;
+    }
+    if (errEl) errEl.textContent = '';
+    try {
+      const { error } = await sb.rpc('delete_own_account');
+      if (error) throw error;
+      await sb.auth.signOut();
+      document.getElementById('sb-delete-confirm-overlay')?.remove();
+      window._closeModal?.();
+      renderAuthBar(null, null);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message || 'Failed to delete account.';
+    }
+  }
+
   window._sbSignOut          = () => signOut();
   window._openAuthModal      = openAuthModal;
   window._openLeaderboard    = openLeaderboard;
@@ -948,6 +1007,9 @@
   window._saveUsername       = saveUsername;
   window._changePassword     = changePassword;
   window._uploadAvatar       = uploadAvatar;
+  window._deleteAccount        = deleteAccount;
+  window._confirmDeleteAccount = confirmDeleteAccount;
+  window._showConsentFromSettings = () => window._showChatConsentModal?.(() => openSettings());
   window._loadAllLeaderboards  = loadAllLeaderboards;
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)

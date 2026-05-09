@@ -145,6 +145,8 @@
   let _cachedAvatar  = null;
   let _prevUid       = null;
 
+  const CHAT_CONSENT_VERSION = '1.0';
+
   // DM state
   let _dmOpen     = false;
   let _dmView     = 'list'; // 'list' | 'thread'
@@ -451,18 +453,85 @@
   //  DIRECT MESSAGES
   // ============================================================
 
+  async function checkChatConsent(onConsented) {
+    if (!authed()) { window._openAuthModal?.('login'); return; }
+    const { data } = await sb.from('profiles').select('chat_consent_version').eq('id', uid()).maybeSingle();
+    if (data?.chat_consent_version === CHAT_CONSENT_VERSION) { onConsented(); return; }
+    showChatConsentModal(onConsented);
+  }
+
+  function showChatConsentModal(onConsented) {
+    if (document.getElementById('chat-consent-modal')) return;
+    const el = document.createElement('div');
+    el.id = 'chat-consent-modal';
+    el.className = 'sb-delete-confirm-overlay';
+    el.innerHTML = `
+      <div class="sb-delete-confirm-box" style="max-width:420px">
+        <h3 class="sb-delete-confirm-title" style="color:#aaaaee">Messaging Policy</h3>
+        <p class="trd-disc-text" style="color:#999;font-size:13px;line-height:1.6;margin-bottom:10px">
+          By using the messaging feature you agree to the following:
+        </p>
+        <ul style="color:#888;font-size:12px;line-height:1.8;margin:0 0 12px;padding-left:18px">
+          <li>All messages are monitored for safety and appropriate use of this platform.</li>
+          <li>Messages must remain respectful — harassment, spam, or abuse will result in account termination.</li>
+          <li>Message history is retained for moderation purposes.</li>
+          <li>Messages from terminated accounts are permanently deleted after <strong style="color:#ccc">12 months</strong>.</li>
+          <li>You may withdraw consent at any time via your account settings, which will disable messaging.</li>
+        </ul>
+        <p style="font-size:11px;color:#555;margin-bottom:4px">
+          By clicking "I Agree" you acknowledge you have read our
+          <a href="privacy.html" target="_blank" rel="noopener" style="color:#7777cc">Privacy Policy</a>.
+        </p>
+        <div id="chat-consent-err" style="color:#ff8888;font-size:12px;min-height:14px"></div>
+        <div class="sb-delete-confirm-actions" style="margin-top:10px">
+          <button class="auth-btn" style="flex:1" onclick="window._grantChatConsent()">I Agree</button>
+          <button class="auth-btn auth-btn-out" onclick="document.getElementById('chat-consent-modal').remove()">Decline</button>
+        </div>
+      </div>`;
+    document.body.appendChild(el);
+    window._pendingConsentCallback = onConsented;
+  }
+
+  async function grantChatConsent() {
+    const { error } = await sb.from('profiles').update({
+      chat_consent_at: new Date().toISOString(),
+      chat_consent_version: CHAT_CONSENT_VERSION,
+    }).eq('id', uid());
+    if (error) {
+      const errEl = document.getElementById('chat-consent-err');
+      if (errEl) errEl.textContent = 'Failed to save consent. Please try again.';
+      return;
+    }
+    document.getElementById('chat-consent-modal')?.remove();
+    window._pendingConsentCallback?.();
+    window._pendingConsentCallback = null;
+  }
+
+  async function withdrawChatConsent() {
+    const { error } = await sb.from('profiles').update({
+      chat_consent_at: null,
+      chat_consent_version: null,
+    }).eq('id', uid());
+    if (error) { console.warn('[consent] withdraw failed:', error.message); return; }
+    const statusEl = document.getElementById('sb-consent-status');
+    if (statusEl) statusEl.innerHTML = `<span style="color:#888">Not consented — messaging disabled.</span>
+      <button class="sb-consent-grant-btn" onclick="window._showConsentFromSettings()">Give Consent</button>`;
+  }
+
   function toggleDm() {
     if (!authed()) { window._openAuthModal?.('login'); return; }
-    _dmOpen = !_dmOpen;
-    const panel = document.getElementById('dm-panel');
-    if (!panel) return;
-    if (_dmOpen) {
-      panel.style.display = 'flex';
-      if (_dmView === 'list') loadConvList();
-      else renderThread();
-    } else {
-      panel.style.display = 'none';
-    }
+    checkChatConsent(() => {
+      _dmOpen = !_dmOpen;
+      const panel = document.getElementById('dm-panel');
+      if (!panel) return;
+      if (_dmOpen) {
+        panel.style.display = 'flex';
+        if (_dmView === 'list') loadConvList();
+        else renderThread();
+      } else {
+        panel.style.display = 'none';
+      }
+    });
   }
 
   async function loadConvList() {
@@ -472,8 +541,8 @@
     const id = uid(); if (!id) return;
     try {
       const [{ data: sent }, { data: recv }] = await Promise.all([
-        sb.from('direct_messages').select('*').eq('sender_id', id).order('created_at', { ascending: false }).limit(100),
-        sb.from('direct_messages').select('*').eq('recipient_id', id).order('created_at', { ascending: false }).limit(100),
+        sb.from('direct_messages').select('*').eq('sender_id', id).not('deleted_for', 'cs', `["${id}"]`).order('created_at', { ascending: false }).limit(100),
+        sb.from('direct_messages').select('*').eq('recipient_id', id).not('deleted_for', 'cs', `["${id}"]`).order('created_at', { ascending: false }).limit(100),
       ]);
 
       // Merge and group by other user, keeping only the most recent message per convo
@@ -499,11 +568,11 @@
   async function deleteConversation(otherId) {
     if (!authed()) return;
     const me = uid();
-    if (!confirm('Delete this conversation? This cannot be undone.')) return;
-    const { error } = await sb.from('direct_messages')
-      .delete()
-      .or(`and(sender_id.eq.${me},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${me})`);
-    if (error) { console.warn('[dm] delete conv error:', error.message); return; }
+    if (!confirm('Delete this conversation? It will be hidden from your view.')) return;
+    // Soft-delete: append this user's ID to deleted_for on every message in the conversation.
+    // Messages remain in the DB for moderation; they just won't appear for this user.
+    const { error } = await sb.rpc('soft_delete_conversation', { p_me: me, p_other: otherId });
+    if (error) { console.warn('[dm] soft delete error:', error.message); return; }
     _dmConvs = _dmConvs.filter(c => c.other_id !== otherId);
     renderConvList();
     syncMsgBadge();
@@ -579,8 +648,8 @@
     const id = uid(); if (!id) return;
     try {
       const [{ data: sent }, { data: recv }] = await Promise.all([
-        sb.from('direct_messages').select('*').eq('sender_id', id).eq('recipient_id', otherId).order('created_at', { ascending: true }),
-        sb.from('direct_messages').select('*').eq('sender_id', otherId).eq('recipient_id', id).order('created_at', { ascending: true }),
+        sb.from('direct_messages').select('*').eq('sender_id', id).eq('recipient_id', otherId).not('deleted_for', 'cs', `["${id}"]`).order('created_at', { ascending: true }),
+        sb.from('direct_messages').select('*').eq('sender_id', otherId).eq('recipient_id', id).not('deleted_for', 'cs', `["${id}"]`).order('created_at', { ascending: true }),
       ]);
       _dmThread = [...(sent || []), ...(recv || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
       renderThread();
@@ -872,8 +941,11 @@
   window._trdDelete     = deleteListing;
   window._trdAddItem    = addItemRow;
   window._trdRemoveItem = removeItemRow;
-  window._trdMessage    = async function (userId, username, itemName) {
+  window._trdMessage    = function (userId, username, itemName) {
     if (!authed()) { window._openAuthModal?.('login'); return; }
+    checkChatConsent(() => _trdMessageInner(userId, username, itemName));
+  };
+  async function _trdMessageInner(userId, username, itemName) {
     // Send acceptance notification to the listing owner (skip for null/self)
     const myName = uname();
     if (myName && userId && userId !== uid()) {
@@ -893,7 +965,10 @@
         if (inp) { inp.value = 'I accept your offer'; inp.focus(); }
       }, 120);
     }, _dmOpen ? 0 : 80);
-  };
+  }
+  window._grantChatConsent    = grantChatConsent;
+  window._withdrawChatConsent = withdrawChatConsent;
+  window._showChatConsentModal = showChatConsentModal;
   window._toggleDm      = toggleDm;
   window._dmOpenThread  = openThread;
   window._dmBack        = backToConvs;
