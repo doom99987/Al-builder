@@ -518,6 +518,31 @@ input[type="number"].trd-input { width: 90px; }
 }
 .trd-add-item-btn:hover { color: #aaa; border-color: #555; }
 
+.trd-gold-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+.trd-gold-label {
+  font-size: 13px;
+  color: #cca84a;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.trd-gold-input {
+  width: 75px !important;
+  text-align: right;
+}
+.trd-gold-hint {
+  font-size: 11px;
+  color: #555;
+}
+.trd-card-gold {
+  color: #cca84a;
+  font-weight: 700;
+}
+
 .trd-form-err {
   font-size: 12px;
   color: #ff8888;
