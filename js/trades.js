@@ -215,6 +215,35 @@
     // --- Gear: Other ---
     'Lethal Blackjack',
     'Everbeating Drums',
+
+    // --- Shards ---
+    'Striking (R)',
+    'Striking (P)',
+    'Shattering (R)',
+    'Shattering (P)',
+    'Regenerative (R)',
+    'Regenerative (P)',
+    'Voltaic (R)',
+    'Voltaic (P)',
+    'Executing (R)',
+    'Executing (P)',
+    'Reversing (R)',
+    'Reversing (P)',
+    'Empowering (R)',
+    'Empowering (P)',
+
+    // --- Artifacts ---
+    'Reality Watch',
+    "Narthana's Sigil",
+    'Shifting Hourglass',
+    "Metrom's Amulet",
+    "Heaven's Authority",
+    'Darksigil',
+    'Stellian Core',
+    'Chaos Orb',
+    "Arkhaia's Visage",
+    'Paranoxian Crux',
+    'Ancient Insignia',
   ];
 
   // ---- state ----
