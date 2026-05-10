@@ -740,6 +740,19 @@ h2 {
   color: #667755;
 }
 
+.dc-overcrit-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+.dc-overcrit-line b { font-size: 14px; }
+.dc-overcrit-orange { color: #ffb347; }
+.dc-overcrit-orange b { color: #ff8c00; }
+.dc-overcrit-red { color: #ff6b6b; }
+.dc-overcrit-red b { color: #e50000; }
+.dc-overcrit-purple { color: #c77dff; }
+.dc-overcrit-purple b { color: #9b45e8; }
+
 .dc-beak-line {
   display: inline-block;
   margin-top: 4px;

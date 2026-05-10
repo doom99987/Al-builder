@@ -533,13 +533,13 @@ function updatePecents() {
       display = (parseFloat(base) + pctBonus).toFixed(stat === "crit-dmg" ? 2 : 1);
     }
     if (stat === "crit-chance" && isStultus) {
-      display = Math.min(100, parseFloat(display) + stultusBonus).toFixed(1);
+      display = (parseFloat(display) + Math.min(100, stultusBonus)).toFixed(1);
     }
     if (stat === "crit-chance" && frozenDiademIceActive && hasGearEquipped("Frozen Diadem")) {
-      display = Math.min(100, parseFloat(display) + 15).toFixed(1);
+      display = (parseFloat(display) + 10).toFixed(1);
     }
     if (stat === "crit-chance" && vasticLckProcActive) {
-      display = Math.min(100, parseFloat(display) + 80).toFixed(1);
+      display = (parseFloat(display) + 80).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
@@ -1115,6 +1115,7 @@ function renderGearInfo() {
 // Percentage bonuses granted by gear items (e.g. crit-chance, energy)
 const gearPctBonuses = {
   "Crystal Sphere":  { "crit-chance": 5 },
+  "Frozen Diadem":   { "crit-chance": 5 },
   "Narthana's Leaf": { "out-heal": 75, "end": -25 },
 };
 
@@ -2564,7 +2565,35 @@ function getCritChancePct() {
   const el = document.getElementById("crit-chance-pct");
   if (!el) return null;
   const v = parseFloat(el.textContent);
-  return isNaN(v) ? null : Math.min(100, Math.max(0, v));
+  return isNaN(v) ? null : Math.max(0, v);
+}
+
+// Returns overcrit tiers (0 = no overcrit, 1 = orange, 2 = red, ...)
+// and the overflow chance for the next tier.
+function getOvercritInfo() {
+  const cc = getCritChancePct();
+  if (cc === null || cc <= 100) return null;
+  const tier     = Math.floor(cc / 100);     // guaranteed exponent level (1 = normal, 2 = orange...)
+  const overflow = cc % 100;                  // % chance of going one tier higher
+  return { tier, overflow, cc };
+}
+
+function buildOvercritLines(finalDmg, critMult) {
+  if (critMult === null) return '';
+  const info = getOvercritInfo();
+  if (!info) return '';
+  let out = '';
+  const orangeMult = Math.pow(critMult, 2);
+  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit (×${critMult.toFixed(2)}²): <b>${(finalDmg * orangeMult).toFixed(1)}</b></span>`;
+  if (info.cc > 200) {
+    const redMult = Math.pow(critMult, 3);
+    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit (×${critMult.toFixed(2)}³): <b>${(finalDmg * redMult).toFixed(1)}</b></span>`;
+  }
+  if (info.cc > 300) {
+    const purpleMult = Math.pow(critMult, 4);
+    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit (×${critMult.toFixed(2)}⁴): <b>${(finalDmg * purpleMult).toFixed(1)}</b></span>`;
+  }
+  return out;
 }
 
 // Expected total damage for a multi-hit move using binomial expectation:
@@ -2674,6 +2703,7 @@ function toggleDmgDetail(rowEl, idx) {
       formula += `</span>`;
     }
     if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_resFinalDmg0 * _critMult0).toFixed(1)}</b></span>`;
+    formula += buildOvercritLines(_resFinalDmg0, _critMult0);
     if (hitCount > 1 && _critMult0 !== null) {
       const _cc0 = getCritChancePct();
       if (_cc0 !== null) {
@@ -2748,6 +2778,7 @@ function toggleDmgDetail(rowEl, idx) {
     formula += `</span>`;
   }
   if (_critMult !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_resFinalDmg * _critMult).toFixed(1)}</b></span>`;
+  formula += buildOvercritLines(_resFinalDmg, _critMult);
   if (hitCount > 1 && _critMult !== null) {
     const _cc = getCritChancePct();
     if (_cc !== null) {
