@@ -278,6 +278,8 @@
 /* ---- Admin panel ---- */
 .sb-ban-btn { margin-top: 4px; background: #7b2020; }
 .sb-ban-btn:hover { background: #a02828; }
+.sb-ban-profanity-btn { margin-top: 6px; background: #4a3000; font-size: 13px; }
+.sb-ban-profanity-btn:hover { background: #6a4500; }
 .sb-admin-ban-list { margin-top: 18px; }
 .sb-admin-ban-list-title {
   font-size: 11px;

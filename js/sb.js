@@ -37,10 +37,25 @@
   }
 
   // ---- ban helpers ----
+  let _bannedSet = null; // cached Set of banned usernames
+
+  async function loadBannedCache() {
+    const { data } = await sb.from('banned_usernames').select('username');
+    _bannedSet = new Set((data || []).map(r => r.username));
+  }
+
+  function isBannedCached(username) {
+    return _bannedSet ? _bannedSet.has(username) : false;
+  }
+
   async function checkIfBanned(username) {
+    if (_bannedSet) return _bannedSet.has(username);
     const { data } = await sb.from('banned_usernames').select('username').eq('username', username).maybeSingle();
     return !!data;
   }
+
+  // Load ban cache immediately so leaderboard filtering is ready
+  loadBannedCache();
 
   // ---- state ----
   let currentUser    = null;
@@ -195,21 +210,25 @@
   // ---- fetch top-10 for a QTE ----
   // platform: 'all' (no filter) | 'M' | 'C'
   async function fetchLeaderboard(qteType, platform) {
+    // Fetch extra rows to absorb any that get filtered out for bans
     let query = sb
       .from('leaderboard')
       .select('score, platform, profiles(username, avatar_url)')
       .eq('qte_type', qteType)
       .order('score', { ascending: false })
-      .limit(10);
+      .limit(50);
     if (platform && platform !== 'all') query = query.eq('platform', platform);
     const { data, error } = await query;
     if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
-    return (data || []).map(r => ({
-      username:   r.profiles?.username   || '???',
-      avatar_url: r.profiles?.avatar_url || null,
-      score:      r.score,
-      platform:   r.platform || null,   // 'M' | 'C' | null (legacy)
-    }));
+    return (data || [])
+      .map(r => ({
+        username:   r.profiles?.username   || '???',
+        avatar_url: r.profiles?.avatar_url || null,
+        score:      r.score,
+        platform:   r.platform || null,
+      }))
+      .filter(r => !isBannedCached(r.username))
+      .slice(0, 10);
   }
 
   // ---- fetch the current user's rank for a QTE ----
@@ -1043,6 +1062,7 @@
         <div id="sb-ban-err" class="sb-error"></div>
       </div>
       <button class="sb-submit sb-ban-btn" onclick="window._banUser()">Ban User</button>
+      <button id="sb-ban-profanity-btn" class="sb-submit sb-ban-profanity-btn" onclick="window._banAllProfanityUsers()">Ban All Profanity Users</button>
       <div class="sb-admin-ban-list">
         <div class="sb-admin-ban-list-title">Currently Banned</div>
         <div id="sb-admin-ban-rows">${banRows}</div>
@@ -1062,6 +1082,7 @@
     if (!profile) { if (errEl) errEl.textContent = 'User not found.'; return; }
     const { error } = await sb.from('banned_usernames').upsert({ username: name }, { onConflict: 'username' });
     if (error) { if (errEl) errEl.textContent = error.message; return; }
+    _bannedSet?.add(name);
     // Refresh ban list in the modal
     const rowsEl = document.getElementById('sb-admin-ban-rows');
     if (rowsEl) {
@@ -1082,12 +1103,52 @@
   async function unbanUser(username) {
     if (currentProfile?.username !== ADMIN_USERNAME) return;
     await sb.from('banned_usernames').delete().eq('username', username);
+    _bannedSet?.delete(username);
     // Remove from UI
     document.querySelector(`[data-ban="${username}"]`)?.remove();
     const rowsEl = document.getElementById('sb-admin-ban-rows');
     if (rowsEl && !rowsEl.children.length) {
       rowsEl.innerHTML = '<div class="sb-admin-empty">No banned users.</div>';
     }
+  }
+
+  async function banAllProfanityUsers() {
+    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    const errEl = document.getElementById('sb-ban-err');
+    const btn   = document.getElementById('sb-ban-profanity-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning...'; }
+    // Fetch all usernames (paginate if needed, profiles table shouldn't be huge)
+    const { data: profiles } = await sb.from('profiles').select('username');
+    const dirty = (profiles || []).filter(p => p.username && containsProfanity(p.username)).map(p => p.username);
+    if (!dirty.length) {
+      if (errEl) { errEl.style.color = '#66ddaa'; errEl.textContent = 'No profanity usernames found.'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Ban All Profanity Users'; }
+      return;
+    }
+    const rows = dirty.map(u => ({ username: u }));
+    const { error } = await sb.from('banned_usernames').upsert(rows, { onConflict: 'username' });
+    if (error) {
+      if (errEl) errEl.textContent = error.message;
+      if (btn) { btn.disabled = false; btn.textContent = 'Ban All Profanity Users'; }
+      return;
+    }
+    dirty.forEach(u => _bannedSet?.add(u));
+    if (errEl) { errEl.style.color = '#66ddaa'; errEl.textContent = `Banned ${dirty.length} user(s): ${dirty.join(', ')}`; }
+    // Reload the ban rows in the modal
+    const rowsEl = document.getElementById('sb-admin-ban-rows');
+    if (rowsEl) {
+      dirty.forEach(name => {
+        if (!rowsEl.querySelector(`[data-ban="${name}"]`)) {
+          const div = document.createElement('div');
+          div.className = 'sb-admin-ban-row';
+          div.dataset.ban = name;
+          div.innerHTML = `<span>${esc(name)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(name)}')">Unban</button>`;
+          rowsEl.querySelector('.sb-admin-empty')?.remove();
+          rowsEl.appendChild(div);
+        }
+      });
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Ban All Profanity Users'; }
   }
 
   window._sbSignOut          = () => signOut();
@@ -1107,9 +1168,10 @@
   window._confirmDeleteAccount = confirmDeleteAccount;
   window._showConsentFromSettings = () => window._showChatConsentModal?.(() => openSettings());
   window._loadAllLeaderboards  = loadAllLeaderboards;
-  window._openAdminPanel       = openAdminPanel;
-  window._banUser              = banUser;
-  window._unbanUser            = unbanUser;
+  window._openAdminPanel         = openAdminPanel;
+  window._banUser                = banUser;
+  window._unbanUser              = unbanUser;
+  window._banAllProfanityUsers   = banAllProfanityUsers;
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)
   window._switchLbMode = function (btn) {
