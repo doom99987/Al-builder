@@ -160,10 +160,12 @@ body {
 .stat-list {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 0;
   width: fit-content;
   margin: 0 auto;
 }
+
+.stat-row { margin-bottom: 7px; }
 
 .stat-row {
   display: flex;

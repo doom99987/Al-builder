@@ -535,66 +535,27 @@ h2 {
 }
 
 /* ============================================================
-   7. STAT BONUS COLUMNS (R / L / T)
+   7. STAT INVESTED + BONUS + DETAILS
    ============================================================ */
-.stat-col-header {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: 35px;
-  margin-bottom: 2px;
-}
 
-.stat-col-header-name {
-  width: 50px;
-  flex-shrink: 0;
-}
+/* Hide obsolete R/L/T elements */
+.stat-col-header,
+.stat-col-header-name,
+.stat-col-header-spacer,
+.stat-col-header-label { display: none !important; }
+.stat-base, .stat-lvl-bonus, .stat-total { display: none !important; }
 
-.stat-col-header-spacer {
-  /* minus margin(8) + minus(28) + gap(5) + input(60) + gap(5) + plus(28) */
-  width: 134px;
-  flex-shrink: 0;
-}
-
-.stat-col-header-label {
-  width: 28px;
-  font-size: 9px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.stat-col-header-label:nth-child(3) { color: #4caf8a; }
-.stat-col-header-label:nth-child(4) { color: #b06aff; }
-.stat-col-header-label:nth-child(5) { color: #ff5555; }
-
-.stat-base {
-  order: 5;
-  width: 28px;
-  font-size: 11px;
-  color: #4caf8a;
-  text-align: center;
-}
-
-.stat-lvl-bonus {
-  order: 6;
-  width: 28px;
-  font-size: 11px;
-  color: #b06aff;
-  text-align: center;
-}
-
-.stat-total { display: none; }
-
-/* Invested + bonus display */
+/* Invested number + bonus-in-parens */
 .stat-result {
   display: flex;
   align-items: baseline;
   gap: 4px;
-  min-width: 70px;
+  width: 72px;
+  flex-shrink: 0;
 }
 
 .stat-invested-n {
-  font-size: 20px;
+  font-size: 17px;
   font-weight: 700;
   color: #fff;
   line-height: 1;
@@ -602,49 +563,66 @@ h2 {
 
 .stat-bonus-n {
   font-size: 11px;
-  color: #777;
+  color: #666;
+  white-space: nowrap;
 }
 
+/* Details toggle button */
 .stat-details-btn {
   font-size: 10px;
-  padding: 2px 7px;
-  background: #1a1a1a;
-  border: 1px solid #2e2e2e;
-  color: #555;
+  padding: 3px 8px;
+  height: 22px;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  color: #666;
   cursor: pointer;
   border-radius: 3px;
   font-family: 'Rajdhani', Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   white-space: nowrap;
-  transition: color 0.1s, border-color 0.1s;
+  flex-shrink: 0;
+  transition: color 0.12s, border-color 0.12s, background 0.12s;
 }
-.stat-details-btn:hover { color: #aaa; border-color: #555; }
+.stat-details-btn:hover {
+  color: #ccc;
+  border-color: #444;
+  background: #1a1a1a;
+}
 
-/* Detail breakdown panel */
+/* Panel snaps directly under its stat-row */
 .stat-detail-panel {
-  background: #0a0a0a;
-  border: 1px solid #1e1e1e;
-  border-radius: 4px;
-  padding: 7px 12px;
-  margin-left: 55px;
+  margin-bottom: 7px;
+  background: #080808;
+  border: 1px solid #1c1c1c;
+  border-top: none;
+  border-radius: 0 0 5px 5px;
+  padding: 8px 12px;
   font-family: 'Rajdhani', Arial, sans-serif;
 }
 
 .stat-detail-row {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 16px;
-  padding: 2px 0;
+  padding: 3px 0;
   font-size: 12px;
-  color: #888;
-  border-bottom: 1px solid #141414;
+  border-bottom: 1px solid #111;
 }
 .stat-detail-row:last-child { border-bottom: none; }
 
-.stat-detail-label { color: #666; }
-.stat-detail-val   { color: #ccc; font-weight: 700; }
-.stat-detail-empty { font-size: 12px; color: #444; }
-.stat-detail-total { border-top: 1px solid #2a2a2a; margin-top: 2px; padding-top: 4px; }
-.stat-detail-total .stat-detail-label { color: #999; }
+.stat-detail-label { color: #555; }
+.stat-detail-val   { color: #bbb; font-weight: 700; }
+.stat-detail-empty { font-size: 12px; color: #333; }
+
+.stat-detail-total {
+  border-top: 1px solid #202020;
+  border-bottom: none;
+  margin-top: 3px;
+  padding-top: 5px;
+}
+.stat-detail-total .stat-detail-label { color: #888; }
 .stat-detail-total-val { color: #fff; font-size: 14px; }
 
 /* ============================================================

@@ -167,19 +167,14 @@
   .shard-label   { font-size: 10px; }
 
   /* Stat row compact */
-  #page-builder .stat-list            { gap: 4px; }
+  #page-builder .stat-row             { margin-bottom: 4px; }
   #page-builder .stat-name            { font-size: 12px; width: 40px; }
   #page-builder .stat-btn             { width: 24px; height: 24px; font-size: 14px; }
   #page-builder .stat-val             { width: 40px; font-size: 13px; }
-  #page-builder .stat-base,
-  #page-builder .stat-lvl-bonus,
-  #page-builder .stat-total           { font-size: 10px; width: 22px; }
-  /* Realign R/L/T header to match compact stat-row widths:
-     name 40px | spacer = minus(24)+gap(5)+val(40)+gap(5)+plus(24) = 98px | labels 22px */
-  .stat-col-header          { margin-left: 28px; gap: 5px; }
-  .stat-col-header-name     { width: 40px; }
-  .stat-col-header-spacer   { width: 98px; }
-  .stat-col-header-label    { width: 22px; font-size: 9px; }
+  #page-builder .stat-result          { width: 58px; }
+  #page-builder .stat-invested-n      { font-size: 14px; }
+  #page-builder .stat-bonus-n         { font-size: 10px; }
+  #page-builder .stat-details-btn     { font-size: 9px; padding: 2px 5px; }
 
   /* Stat boxes / level */
   #page-builder .box                  { font-size: 13px; padding: 6px 10px; }
