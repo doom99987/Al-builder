@@ -2510,6 +2510,11 @@ let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
 const summonBuffsActive = { spiritAwakening: false };
+const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false };
+let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
+let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
+let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
+let sinisterGazeReflect = false; // Sinister Gaze: enemy has your Bulk Up defense debuff
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
@@ -2609,7 +2614,13 @@ function getTotalStat(statKey) {
   const totalStatPct  = (INNATE_PCT[statKey] ?? 0) + armourStatPct;
   const pctBase   = allocated + (raceBase[statKey] ?? 0) + lvlBonus;
   const otherFlat = (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + crystalBonus;
-  return Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+  let total = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+  if (statKey === "spd") {
+    const spdPct = (statBuffsActive.rallyingSpd ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
+    const spdFlat = statBuffsActive.flourishSpd ? _flourishSpdAmt : 0;
+    if (spdPct || spdFlat) total = Math.round(total * (1 + spdPct / 100)) + spdFlat;
+  }
+  return total;
 }
 
 function recalcOpenDetails() {
@@ -2891,6 +2902,8 @@ function parseDmgBonus(text) {
   if (/\bper\s+energy\b/i.test(text)) return null;
   // Exclude damage reduction (defensive effect, not a dmg buff)
   if (/\bdamage\s+reduction\b/i.test(text)) return null;
+  // Exclude "more damage to you" — enemy deals more to the player, not a player dmg buff
+  if (/\bmore\s+damage\s+to\s+you\b/i.test(text)) return null;
   const patterns = [
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+buff/i,
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+bonus/i,
@@ -3017,6 +3030,15 @@ function collectDmgBonusPassives() {
     }
   });
 
+  // Boreas Frost Stacks — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
+  if (raceName === "Boreas (1%)") {
+    const fsKey = "passive:Frost Stacks";
+    if (!seen.has(fsKey)) {
+      seen.add(fsKey);
+      rawEntries.push({ key: fsKey, name: "Frost Stacks", bonus: 20, kind: "passive", desc: "Each Ice move grants 1 stack (20% dmg + 10% DR). Max 10 stacks = 200% dmg." });
+    }
+  }
+
   // Spirit Awakening — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
   if (raceName === "Vastayan (9%)") {
     const saKey = "buff:Spirit Awakening";
@@ -3104,8 +3126,10 @@ function getActiveDmgMult() {
     if      (p.name === "Rage Empower")          bonus = 30 + rageEmpHpConsumed;
     else if (p.name === "Bloody Berserker")      bonus = 100 - bloodyBersHp;
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
-    else if (p.name === "Bulk Up")               { mult *= Math.pow(1.20, bulkUpStacks); return; }
+    else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
+    else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
+    else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
     else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
     else if (p.name === "Spirit Awakening")     bonus = 15; // 15% to all stats → ~15% dmg; 50% summon buff handled separately
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
@@ -3125,6 +3149,11 @@ function getActiveDmgMult() {
     mult *= b.mult;
   });
   if (summonBuffsActive.spiritAwakening) mult *= 1.50;
+  // Sinister Gaze: enemy received your Bulk Up defense debuff → they take more damage (multiplicative)
+  if (sinisterGazeReflect) {
+    const bulkUpOn = dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key]);
+    if (bulkUpOn) mult *= Math.pow(1.20, bulkUpStacks);
+  }
   return mult;
 }
 
@@ -3143,6 +3172,27 @@ function getEnchantMult() {
 
 function toggleTeamBuff(key) {
   teamBuffsActive[key] = !teamBuffsActive[key];
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function toggleStatBuff(key) {
+  statBuffsActive[key] = !statBuffsActive[key];
+  renderDmgBonusSection(); recalcOpenDetails();
+  updatePecents();
+}
+
+function changeRamiIdolStacks(delta) {
+  ramiIdolStacks = Math.min(5, Math.max(1, ramiIdolStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeVaingLocketTurn(delta) {
+  vaingLocketTurn = Math.min(3, Math.max(1, vaingLocketTurn + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function toggleSinisterGaze() {
+  sinisterGazeReflect = !sinisterGazeReflect;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3406,6 +3456,8 @@ function renderDmgBonusSection() {
     const isCrusher          = p.name === "Crusher";
     const isFlamingOverdrive  = p.name === "Flaming Overdrive";
     const isSpiritAwakening   = p.name === "Spirit Awakening";
+    const isRamiIdol          = p.name === "Ramizcan Idol";
+    const isVaingLocket       = p.name === "Vainglorious Locket";
     const displayBonus   = isBloodyBers      ? 100 - bloodyBersHp
                          : isRageEmp         ? 30 + rageEmpHpConsumed
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3415,14 +3467,16 @@ function renderDmgBonusSection() {
                          : isBoreas          ? boreasStacks * 20
                          : isFlamingOverdrive? flamingOverdriveStacks
                          : isSpiritAwakening ? 15
+                         : isVaingLocket     ? Math.max(0, 10 - 5 * (vaingLocketTurn - 1))
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
-    const displayBonusStr = isBulkUp          ? `×${Math.pow(1.20, bulkUpStacks).toFixed(2)}`
+    const displayBonusStr = isBulkUp          ? `×${(1 + 0.20 * bulkUpStacks).toFixed(2)}`
                          : isBoreas           ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
                          : isHourglass        ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
                          : isOppression       ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
                          : isCrusher          ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
+                         : isRamiIdol         ? `×${(1 + 0.15 * ramiIdolStacks).toFixed(2)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
@@ -3501,6 +3555,27 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeCrusherStacks(-1)">−</button>
           <span class="dc-energy-val">${crusherStacks}</span>
           <button class="dc-energy-btn" onclick="changeCrusherStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isRamiIdol) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Blocks/Parries (max 5)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeRamiIdolStacks(-1)">−</button>
+          <span class="dc-energy-val">${ramiIdolStacks}</span>
+          <button class="dc-energy-btn" onclick="changeRamiIdolStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isVaingLocket) {
+      const _vaingBonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1));
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Turn <span style="color:#aaa;font-size:11px">(+${_vaingBonus}% dmg)</span></span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeVaingLocketTurn(-1)">−</button>
+          <span class="dc-energy-val">${vaingLocketTurn}</span>
+          <button class="dc-energy-btn" onclick="changeVaingLocketTurn(1)">+</button>
         </div>
       </div>`;
     }
@@ -3680,6 +3755,38 @@ function renderDmgBonusSection() {
     }
   }
 
+  // --- Stat Buffs (shown only when relevant moves/masteries are in the build) ---
+  {
+    const _superClass = document.getElementById("super-picker")?.value || "";
+    const _hasRallyingShout = dmgCalcMoveList.some(m => m.name === "Rallying Shout");
+    const _hasEmpPierce = dmgCalcMoveList.some(m => m.name === "Empowered Pierce");
+    const _hasEmpPierceProf = _hasEmpPierce && masteryState["rm2"] && _superClass === "Impaler (Ch)";
+    const _hasFlourish = dmgCalcMoveList.some(m => m.name === "Flourish");
+    const _hasFlourishProf = _hasFlourish && masteryState["lm2"] && _superClass === "Verdant Archer (Ch)";
+    _flourishSpdAmt = _hasFlourishProf ? 48 : 25;
+    // Auto-reset if no longer available
+    if (!_hasRallyingShout && statBuffsActive.rallyingSpd) statBuffsActive.rallyingSpd = false;
+    if (!_hasEmpPierceProf && statBuffsActive.empPierceSpd) statBuffsActive.empPierceSpd = false;
+    if (!_hasFlourish && statBuffsActive.flourishSpd) statBuffsActive.flourishSpd = false;
+    const _statBuffDefs = [
+      _hasRallyingShout && { key: 'rallyingSpd', label: "Rallying Shout SPD",   val: "+25% SPD", desc: "+25% SPD buff for 4 turns" },
+      _hasEmpPierceProf && { key: 'empPierceSpd', label: "Emp. Pierce Prof. SPD", val: "+25% SPD", desc: "+25% SPD buff for 2 turns (Empowering Pierce Proficiency)" },
+      _hasFlourish      && { key: 'flourishSpd',  label: `Flourish SPD${_hasFlourishProf ? " (Prof.)" : ""}`, val: `+${_flourishSpdAmt} flat SPD`, desc: `+${_flourishSpdAmt} flat SPD while in Flourish stance` },
+    ].filter(Boolean);
+    if (_statBuffDefs.length) {
+      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Stat Buffs</h3><div class="dc-bonus-list">`;
+      _statBuffDefs.forEach(b => {
+        const on = statBuffsActive[b.key];
+        html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-stat-buff-key="${b.key}" title="${b.desc}">
+          <div class="dc-bonus-check">${on ? "✓" : ""}</div>
+          <span class="dc-bonus-name">${b.label}</span>
+          <span class="dc-bonus-pct">${b.val}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+  }
+
   // --- Team Buffs (always shown) ---
   const _mgPassiveActive = !!dmgBonusActive["scroll-mg:Metrom's Grasp"];
   // If MG passive is active, ensure team buff MG stays off (and vice versa)
@@ -3718,6 +3825,23 @@ function renderDmgBonusSection() {
     </div>`;
   });
   html += `</div>`;
+
+  // --- Sinister Gaze (Amorus racial — shown when Bulk Up is active) ---
+  {
+    const _isAmorus = racePicker.value === "Amorus (Ob)";
+    const _bulkUpOn = dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key]);
+    if (!_isAmorus && sinisterGazeReflect) sinisterGazeReflect = false;
+    if (_isAmorus && _bulkUpOn) {
+      const _sgMult = Math.pow(1.20, bulkUpStacks).toFixed(2);
+      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Sinister Gaze</h3><div class="dc-bonus-list">
+        <div class="dc-bonus-row${sinisterGazeReflect ? " dc-bonus-on" : ""}" data-sinister-gaze title="You shared your Bulk Up defense debuff(s) to the enemy via Sinister Gaze — enemy takes more damage.">
+          <div class="dc-bonus-check">${sinisterGazeReflect ? "✓" : ""}</div>
+          <span class="dc-bonus-name">Defense debuff reflected</span>
+          <span class="dc-bonus-pct">×${_sgMult}</span>
+        </div>
+      </div>`;
+    }
+  }
 
   // --- Boss Target ---
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Boss Target</h3><div class="dc-boss-list">`;
@@ -3793,6 +3917,14 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.enchKey) {
       row.addEventListener("click", () => toggleEnchantCond(row.dataset.enchKey));
+      return;
+    }
+    if (row.dataset.statBuffKey) {
+      row.addEventListener("click", () => toggleStatBuff(row.dataset.statBuffKey));
+      return;
+    }
+    if ('sinisterGaze' in row.dataset) {
+      row.addEventListener("click", () => toggleSinisterGaze());
       return;
     }
     if (row.dataset.teamKey) {
