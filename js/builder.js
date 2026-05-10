@@ -2660,10 +2660,17 @@ function getOvercritInfo() {
   return { tier, overflow, cc };
 }
 
-function buildOvercritLines(finalDmg, critMult) {
+function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
   if (critMult === null) return '';
-  const info = getOvercritInfo();
-  if (!info) return '';
+  let info;
+  if (ccOverride !== null) {
+    if (ccOverride <= 100) return '';
+    const cc = ccOverride;
+    info = { cc, tier: Math.floor(cc / 100), overflow: cc % 100 };
+  } else {
+    info = getOvercritInfo();
+    if (!info) return '';
+  }
   let out = '';
   const orangeMult = Math.pow(critMult, 2);
   out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit (×${critMult.toFixed(2)}²): <b>${(finalDmg * orangeMult).toFixed(1)}</b></span>`;
@@ -2716,6 +2723,14 @@ function toggleDmgDetail(rowEl, idx) {
 
   const m = dmgCalcMoveList[idx];
   const scalings = parseScaling(m.scaling);
+
+  // Move-specific crit chance bonus (e.g. Dark Smite +25%, or +50% with Dark Smite Proficiency lm2)
+  const moveCritBonus = (() => {
+    if (!m.critBonus) return 0;
+    if (m.name === "Dark Smite" && superPicker.value === "Darkwraith (Ch)" && masteryState["lm2"]) return 50;
+    return m.critBonus;
+  })();
+  const getMoveCritChancePct = () => { const b = getCritChancePct(); return b !== null ? b + moveCritBonus : null; };
 
   // Parse base damage — handle "6x2" style
   let baseDmgNum = null;
@@ -2784,10 +2799,11 @@ function toggleDmgDetail(rowEl, idx) {
       if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(1)}</b>`;
       formula += `</span>`;
     }
+    if (moveCritBonus > 0 && _critMult0 !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
     if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_resFinalDmg0 * _critMult0).toFixed(1)}</b></span>`;
-    formula += buildOvercritLines(_resFinalDmg0, _critMult0);
+    formula += buildOvercritLines(_resFinalDmg0, _critMult0, getMoveCritChancePct());
     if (hitCount > 1 && _critMult0 !== null) {
-      const _cc0 = getCritChancePct();
+      const _cc0 = getMoveCritChancePct();
       if (_cc0 !== null) {
         const _exp0 = getExpectedMultiHitDmg(_resFinalDmg0, _critMult0, _cc0);
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc0.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp0.toFixed(1)}</b></span>`;
@@ -2800,7 +2816,7 @@ function toggleDmgDetail(rowEl, idx) {
         const _critDmg0 = _resFinalDmg0 * _critMult0;
         formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg0.toFixed(1)} + ${_beakDmgPer0.toFixed(1)} = <b>${(_critDmg0 + _beakDmgPer0).toFixed(1)}</b></span>`;
       } else {
-        const _cc0b = getCritChancePct();
+        const _cc0b = getMoveCritChancePct();
         if (_cc0b !== null) {
           const _exp0b = getExpectedMultiHitDmg(_resFinalDmg0, _critMult0, _cc0b);
           const _eCrits0 = hitCount * (_cc0b / 100);
@@ -2857,9 +2873,10 @@ function toggleDmgDetail(rowEl, idx) {
     const _dResFinal = _dCurDmg * _dbMult;
     const _dCritMult = getCritDmgMult();
     if (_dCritMult !== null) {
+      if (moveCritBonus > 0) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
       formula += `<br><span class="dc-crit-line">All crits: <b>${_dResFinal.toFixed(1)}</b> × ${_dCritMult.toFixed(2)}x = <b>${(_dResFinal * _dCritMult).toFixed(1)}</b></span>`;
-      formula += buildOvercritLines(_dResFinal, _dCritMult);
-      const _dCc = getCritChancePct();
+      formula += buildOvercritLines(_dResFinal, _dCritMult, getMoveCritChancePct());
+      const _dCc = getMoveCritChancePct();
       if (_dCc !== null) {
         const _dExp = getExpectedMultiHitDmg(_dResFinal, _dCritMult, _dCc);
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_dCc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_dExp.toFixed(1)}</b></span>`;
@@ -2894,10 +2911,11 @@ function toggleDmgDetail(rowEl, idx) {
     if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(1)}</b>`;
     formula += `</span>`;
   }
+  if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
   if (_critMult !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_resFinalDmg * _critMult).toFixed(1)}</b></span>`;
-  formula += buildOvercritLines(_resFinalDmg, _critMult);
+  formula += buildOvercritLines(_resFinalDmg, _critMult, getMoveCritChancePct());
   if (hitCount > 1 && _critMult !== null) {
-    const _cc = getCritChancePct();
+    const _cc = getMoveCritChancePct();
     if (_cc !== null) {
       const _exp = getExpectedMultiHitDmg(_resFinalDmg, _critMult, _cc);
       formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
@@ -2910,7 +2928,7 @@ function toggleDmgDetail(rowEl, idx) {
       const _critDmg = _resFinalDmg * _critMult;
       formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg.toFixed(1)} + ${_beakDmgPer.toFixed(1)} = <b>${(_critDmg + _beakDmgPer).toFixed(1)}</b></span>`;
     } else {
-      const _ccB = getCritChancePct();
+      const _ccB = getMoveCritChancePct();
       if (_ccB !== null) {
         const _expB = getExpectedMultiHitDmg(_resFinalDmg, _critMult, _ccB);
         const _eCrits = hitCount * (_ccB / 100);
