@@ -2511,7 +2511,8 @@ let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
 let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
 let sinisterGazeReflect = false; // Sinister Gaze: enemy has your Bulk Up defense debuff
-let unendingFlowStacks = 1; // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
+let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
+let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
@@ -3085,6 +3086,15 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Rending Barrage Proficiency (Impaler lm2) — per-bleed-stack scaling, bypasses parseDmgBonus
+  if (superClass === "Impaler (Ch)" && masteryState["lm2"]) {
+    const rbKey = "mastery:Rending Barrage Proficiency";
+    if (!seen.has(rbKey)) {
+      seen.add(rbKey);
+      rawEntries.push({ key: rbKey, name: "Rending Barrage Proficiency", bonus: 2.5, kind: "mastery", desc: "+2.5% dmg per combined bleed stack (yours + target), up to 25% at 10 stacks." });
+    }
+  }
+
   // Metrom's Grasp — show in dmg bonus when equipped (bypasses DoT filter)
   if (lostScrollName === "Metrom's Grasp") {
     const mgKey = "scroll-mg:Metrom's Grasp";
@@ -3168,8 +3178,12 @@ function collectDmgBonusPassives() {
 function getActiveDmgMult(moveType = null) {
   // Passives that only apply to specific move types
   const _affinityRestricted = {
-    "Affinity Mastery": ["Holy", "Magic"],
-    "Affinity Boost":   ["Magic", "Hex"],
+    "Affinity Mastery":  ["Holy", "Magic"],
+    "Affinity Boost":    ["Magic", "Hex"],
+    "Magically Charged": ["Fire", "Magic"],
+    "Cast Amplify":      ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"],
+    "Elemental Master":  ["Fire", "Magic", "Nature", "Dark"],
+    "Forest Charm":      ["Nature"],
   };
   let mult = 1;
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
@@ -3179,7 +3193,8 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
-    else if (p.name === "Unending Flow")          { mult *= (1 + 0.05 * unendingFlowStacks); return; }
+    else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
+    else if (p.name === "Rending Barrage Proficiency") { bonus = 2.5 * rendingBarrageStacks; }
     else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
     else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
     else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
@@ -3199,9 +3214,11 @@ function getActiveDmgMult(moveType = null) {
     if (bonus !== null) mult *= (1 + bonus / 100);
   });
   if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);
+  const _amplifyTypes = ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"];
   TEAM_BUFFS.forEach(b => {
     if (!teamBuffsActive[b.key]) return;
     if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
+    if ((b.key === 'castAmplify' || b.key === 'arcaneRitual') && moveType && !_amplifyTypes.includes(moveType)) return;
     mult *= b.mult;
   });
   if (summonBuffsActive.spiritAwakening) mult *= 1.50;
@@ -3255,6 +3272,11 @@ function toggleSinisterGaze() {
 
 function changeUnendingFlowStacks(delta) {
   unendingFlowStacks = Math.min(10, Math.max(1, unendingFlowStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeRendingBarrageStacks(delta) {
+  rendingBarrageStacks = Math.min(10, Math.max(1, rendingBarrageStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3521,6 +3543,7 @@ function renderDmgBonusSection() {
     const isRamiIdol          = p.name === "Ramizcan Idol";
     const isVaingLocket       = p.name === "Vainglorious Locket";
     const isUnendingFlow      = p.name === "Unending Flow";
+    const isRendingBarrage    = p.name === "Rending Barrage Proficiency";
     const displayBonus   = isBloodyBers      ? 100 - bloodyBersHp
                          : isRageEmp         ? 30 + rageEmpHpConsumed
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3541,6 +3564,7 @@ function renderDmgBonusSection() {
                          : isCrusher          ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
                          : isRamiIdol         ? `×${(1 + 0.15 * ramiIdolStacks).toFixed(2)}`
                          : isUnendingFlow     ? `×${(1 + 0.05 * unendingFlowStacks).toFixed(2)}`
+                         : isRendingBarrage   ? `×${(1 + 0.025 * rendingBarrageStacks).toFixed(3)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -3651,6 +3675,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeUnendingFlowStacks(-1)">−</button>
           <span class="dc-energy-val">${unendingFlowStacks}</span>
           <button class="dc-energy-btn" onclick="changeUnendingFlowStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isRendingBarrage) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Combined Bleed Stacks (max 10)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeRendingBarrageStacks(-1)">−</button>
+          <span class="dc-energy-val">${rendingBarrageStacks}</span>
+          <button class="dc-energy-btn" onclick="changeRendingBarrageStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -5895,6 +5929,7 @@ function loadBuildState(state) {
   hourglassStacks = 1;
   boreasStacks = 1;
   unendingFlowStacks = 1;
+  rendingBarrageStacks = 1;
   ramiIdolStacks = 1;
   vaingLocketTurn = 1;
   sinisterGazeReflect = false;
