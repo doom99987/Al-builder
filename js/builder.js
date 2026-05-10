@@ -3909,7 +3909,8 @@ function renderDmgCalc() {
   dmgCalcMoveList = allMoves;
   let html = `<div class="dmg-calc-move-list">`;
   allMoves.forEach((m, i) => {
-    const color = MOVE_TYPE_COLORS[m.moveType] || "#cccccc";
+    const effectiveMoveType = getEffectiveMoveType(m.moveType);
+    const color = MOVE_TYPE_COLORS[effectiveMoveType] || "#cccccc";
     const canCalc = m.damage !== undefined && /^\d/.test(String(m.damage));
     const dmgStr  = m.damage   !== undefined ? `<span class="dc-stat">Dmg: <b>${m.damage}</b></span>` : "";
     const sclStr  = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
@@ -3921,7 +3922,7 @@ function renderDmgCalc() {
       : isSummonMove(m) ? `<span class="dc-stat" style="color:#888">[${m.slot}]</span>` : "";
     html += `<div class="dc-row${canCalc ? " dc-row-clickable" : ""}" style="border-left:3px solid ${color}" ${canCalc ? `data-idx="${i}" onclick="toggleDmgDetail(this,${i})"` : ""}>
       <span class="dc-name" style="color:${color}">${m.name}</span>
-      <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>${summonLabel}
+      <span class="dc-type" style="color:${color}">[${effectiveMoveType || "—"}]</span>${summonLabel}
       <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}${eneStr}</span>
       ${canCalc ? `<span class="dc-hint">click to calculate</span>` : ""}
     </div>
@@ -3931,14 +3932,15 @@ function renderDmgCalc() {
   if (healMoves.length) {
     html += `<h3 class="dc-support-title">Support</h3>`;
     healMoves.forEach(m => {
-      const color = MOVE_TYPE_COLORS[m.moveType] || "#cccccc";
+      const effectiveMoveType = getEffectiveMoveType(m.moveType);
+      const color = MOVE_TYPE_COLORS[effectiveMoveType] || "#cccccc";
       const healStr  = `<span class="dc-stat dc-heal-val">Heal: <b>${m.healing}</b></span>`;
       const sclStr   = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
       const costStr  = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
       const cdStr    = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
       html += `<div class="dc-row" style="border-left:3px solid ${color}">
         <span class="dc-name" style="color:${color}">${m.name}</span>
-        <span class="dc-type" style="color:${color}">[${m.moveType || "—"}]</span>
+        <span class="dc-type" style="color:${color}">[${effectiveMoveType || "—"}]</span>
         <span class="dc-stats">${healStr}${sclStr}${costStr}${cdStr}</span>
       </div>`;
     });
