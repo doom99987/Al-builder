@@ -5074,7 +5074,7 @@ function confirmMasteryNode() {
     const n = masteryNodeMap[nodeId];
     if (!n) return;
     [].concat(n.parent ?? []).forEach(p => collectAncestors(p));
-    if (!masteryState[nodeId] && n.type !== "mastery") toActivate.push(nodeId);
+    if (!masteryState[nodeId]) toActivate.push(nodeId);
   }
   [].concat(masteryNodeMap[id].parent ?? []).forEach(p => collectAncestors(p));
   toActivate.push(id); // always include the target itself
@@ -5120,7 +5120,7 @@ function toggleMasteryNode(id) {
       const n = masteryNodeMap[nodeId];
       if (!n) return;
       [].concat(n.parent ?? []).forEach(p => _collectAncestors(p));
-      if (!masteryState[nodeId] && n.type !== "mastery") toActivate.push(nodeId);
+      if (!masteryState[nodeId]) toActivate.push(nodeId);
     }
     [].concat(node.parent ?? []).forEach(p => _collectAncestors(p));
     toActivate.push(id);

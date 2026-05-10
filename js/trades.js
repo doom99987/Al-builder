@@ -415,7 +415,7 @@
         </div>
         <div class="trd-card-items">${itemsHtml}</div>
         ${lfHtml ? `<div class="trd-card-lf-block"><span class="${l.type === 'buying' ? 'trd-gv-label' : 'trd-lf-label'}">${l.type === 'buying' ? 'GV' : 'LF'}</span><div class="trd-card-items">${lfHtml}</div></div>` : ''}
-        ${l.description ? `<div class="trd-card-desc">${esc(l.description)}</div>` : ''}
+        ${l.description?.trim() ? `<div class="trd-card-desc">${esc(l.description)}</div>` : ''}
         ${!own ? `<button class="trd-msg-btn" onclick="window._trdMessage('${esc(l.user_id)}','${esc(l.username)}','${esc((Array.isArray(l.items)&&l.items.length)?l.items[0].item:(l.item||'your listing'))}')">💬 Accept Offer</button>` : ''}
       </div>`;
     }).join('');
