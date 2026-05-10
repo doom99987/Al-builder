@@ -487,12 +487,8 @@ function updatePecents() {
   const isStultus = racePicker.value === "Stultus (20%)";
   let stultusBonus = 0;
   if (isStultus) {
-    const spdVal = _pctCache.spdInput ? +_pctCache.spdInput.value : 0;
-    // pct only boosts: invested + race base + level bonus
-    const spdPctBase = spdVal + (raceBase.spd ?? 0) + lvlStatBonus;
-    const spdOther   = (armour.spd ?? 0) + (masteryStats.spd ?? 0) + (gearStatBonuses.spd ?? 0);
-    const spdTotalPct = (INNATE_STAT_PCT.spd ?? 0) + (armourPct.spd ?? 0);
-    stultusBonus = (spdPctBase * (1 + spdTotalPct / 100) + spdOther) / 10;
+    // Use getTotalStat so active SPD buffs (Focus Step, Rallying, etc.) are included
+    stultusBonus = getTotalStat("spd") / 10;
   }
 
   _pctCache.items.forEach(({ el, stat, valEl, statInput }) => {
@@ -3233,6 +3229,7 @@ function getEnchantMult() {
 function toggleTeamBuff(key) {
   teamBuffsActive[key] = !teamBuffsActive[key];
   renderDmgBonusSection(); recalcOpenDetails();
+  updatePecents();
 }
 
 function toggleStatBuff(key) {
