@@ -1354,7 +1354,7 @@ const classMoves = {
         cooldown: 4,
         moveType: "Physical",
         category: "Attack",
-        damage: "12.6x2",
+        damage: "5x2",
         scaling: "STR/75 + ARC/75",
         effect: "Deals 8.25% of max HP as self-damage on use. Applies 1 Bleed per hit. If the target is already Bleeding, instead applies 1 Bleed, 1 Vulnerable, and 2 Weakened. Status effects are applied before the hit lands, allowing them to affect the damage.",
         image: "https://trello.com/1/cards/67b3296a59bf4c7eaa7b6db5/attachments/69803c189ae4ae526a618904/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105307.png"
