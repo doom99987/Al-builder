@@ -372,7 +372,7 @@ const classMoves = {
         moveType: "Holy",
         category: "Attack",
         damage: 13,
-        scaling: "STR/END",
+        scaling: "STR/75 + END/100",
         effect: "Deals full AOE damage. Applies 3 turns of Taunt onto the main target. Has a 50% chance to apply 2 Taunt to adjacent targets. (Difficulty: 6 bars at base)",
         image: "https://trello.com/1/cards/67b3293ad5daa6959942a4cf/attachments/69803e0d0cd179680a4400b4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202110223.png"
       },

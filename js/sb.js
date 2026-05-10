@@ -33,11 +33,84 @@
   const PERMA_BANNED = new Set(['NIGGER']);
 
   // ---- profanity filter ----
-  // Checked as substrings (case-insensitive) against the full username.
+  // Mirrors the chat moderation list in trades.js — keep both in sync.
+  // Multi-word phrases are skipped for username checks (usernames can't contain spaces).
   const PROFANITY_LIST = [
-    'fuck','shit','cunt','nigger','nigga','faggot','fag','bitch','cock','pussy',
-    'asshole','bastard','dick','whore','slut','retard','twat','prick','wank',
-    'kike','spic','chink','gook','tranny','rape','nonce','pedo','pedophile',
+    // f-word family
+    'fuck','fucking','fucked','fucker','fucks',
+    'fuckhead','fuckface','fuckwit','fuckoff',
+    'motherfucker','motherfucking','clusterfuck','dumbfuck',
+    // s-word family
+    'shit','shitting','shithead','shitstain','shitface',
+    'bullshit','horseshit','dipshit',
+    // b-words
+    'bitch','bitches','bitching','bitchass',
+    'bastard',
+    // c-words
+    'cunt','cunting','cocksucker',
+    'cock','cockhead',
+    // d-word
+    'dick','dickhead','dickface',
+    // a-words
+    'ass','asshole','assholes','arsehole','arseholes',
+    'asshat','asswipe','assfuck','assclown','assface',
+    'jackass','dumbass','smartass',
+    // other profanity
+    'pussy','pussies',
+    'prick',
+    'whore','whorish',
+    'slut','slutty','slutting',
+    'skank',
+    'thot',
+    'twat','twatface',
+    'wanker','wanking',
+    'piss','pissing','pisser','pisshead',
+    // sexual
+    'cum','cumshot','cumming','cumslut',
+    'jizz','jizzing',
+    'tit','tits','titties','titty',
+    'boob','boobs',
+    'boner',
+    'blowjob','handjob','rimjob',
+    'ballsack','nutsack',
+    // racial slurs — anti-Black
+    'nigger','nigga','nigg',
+    'coon','darkie','blackie',
+    'jigaboo','sambo','pickaninny','spook',
+    // racial slurs — anti-Latino
+    'spic','beaner','wetback',
+    // racial slurs — anti-Asian
+    'chink','gook','zipperhead','slope',
+    // racial slurs — anti-Arab
+    'towelhead','raghead','sandnigger',
+    // racial slurs — anti-South Asian
+    'paki',
+    // racial slurs — anti-Indigenous
+    'redskin','injun','squaw',
+    // racial slurs — anti-Jewish
+    'kike','heeb','hymie','jewboy','sheeny',
+    // other slurs
+    'polack','polak','gypo','gyp','wop','dago',
+    // gender / sexuality slurs
+    'faggot','fag','tranny','trannies','shemale','ladyboy','troon',
+    'homo','dyke','lesbo','poofter','poof','fudgepacker',
+    // disability slurs
+    'retard','retarded','spaz','spastic','mongoloid','cripple',
+    // self-harm
+    'kys','kms',
+    // extremist
+    '1488',
+    // csam-adjacent
+    'loli','lolita','jailbait',
+    'pedo','pedophile','paedophile',
+    // nsfw
+    'porn','porno','pornography',
+    'hentai',
+    'nude','nudes',
+    'rape','raping','raped','rapist',
+    'anal',
+    'masturbate','masturbating','masturbation',
+    'dildo','bdsm','xxx',
   ];
 
   function containsProfanity(str) {
