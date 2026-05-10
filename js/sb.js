@@ -902,7 +902,7 @@
     body.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
 
     const [rows, myRank] = await Promise.all([
-      fetchLeaderboard(type, platform),
+      loadBannedCache().then(() => fetchLeaderboard(type, platform)),
       currentUser ? fetchMyRank(type, platform) : Promise.resolve(null)
     ]);
 
@@ -977,6 +977,7 @@
     const suffix = mode === 'comp' ? '-comp' : '';
 
     grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
+    await loadBannedCache();
     const results = await Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t + suffix, plat)));
 
     const myName = currentProfile?.username || null;
