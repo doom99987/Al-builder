@@ -2750,9 +2750,9 @@ function toggleDmgDetail(rowEl, idx) {
   }
 
   if (!scalings) {
-    const activeMult        = getActiveDmgMult();
-    const energyBonus       = getEnergyBonusPct(m);
     const effectiveMoveType = getEffectiveMoveType(m.moveType);
+    const activeMult        = getActiveDmgMult(effectiveMoveType);
+    const energyBonus       = getEnergyBonusPct(m);
     const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
     const darkMult          = getShardOfBlightMult(effectiveMoveType);
     const blizzardMult      = getBlizzardMult(effectiveMoveType);
@@ -2828,9 +2828,9 @@ function toggleDmgDetail(rowEl, idx) {
   const dmgPerHit = baseDmgNum * (1 + totalContrib);
   const totalDmg  = dmgPerHit * hitCount;
 
-  const activeMult        = getActiveDmgMult();
-  const energyBonus       = getEnergyBonusPct(m);
   const effectiveMoveType = getEffectiveMoveType(m.moveType);
+  const activeMult        = getActiveDmgMult(effectiveMoveType);
+  const energyBonus       = getEnergyBonusPct(m);
   const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
   const darkMult          = getShardOfBlightMult(effectiveMoveType);
   const blizzardMult      = getBlizzardMult(effectiveMoveType);
@@ -3169,7 +3169,12 @@ function collectDmgBonusPassives() {
   return merged;
 }
 
-function getActiveDmgMult() {
+function getActiveDmgMult(moveType = null) {
+  // Passives that only apply to specific move types
+  const _affinityRestricted = {
+    "Affinity Mastery": ["Holy", "Magic"],
+    "Affinity Boost":   ["Magic", "Hex"],
+  };
   let mult = 1;
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
     let bonus = null;
@@ -3190,7 +3195,11 @@ function getActiveDmgMult() {
     else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
     else if (p.bonusType === 'conditional-hp-above') { if (shardToggleActive.striking)  bonus = p.bonus; else return; }
     else if (p.bonusType === 'conditional-hp-below') { if (shardToggleActive.executing) bonus = p.bonus; else return; }
-    else bonus = p.bonus;
+    else {
+      const _restr = _affinityRestricted[p.name];
+      if (_restr && moveType && !_restr.includes(moveType)) return;
+      bonus = p.bonus;
+    }
     if (bonus !== null) mult *= (1 + bonus / 100);
   });
   if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);

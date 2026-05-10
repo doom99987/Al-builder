@@ -2502,9 +2502,7 @@
 
   const MAX_LIVES = 2;
   function stepBar(dir) {
-    if (dir === 'up')    { barDir = 'up'; return; }
-    if (dir === 'left')  { barDir = barDir === 'right' ? 'up' : 'left'; return; }
-    if (dir === 'right') { barDir = barDir === 'left'  ? 'up' : 'right'; }
+    barDir = dir;
   }
 
   // ---- Difficulty ----
