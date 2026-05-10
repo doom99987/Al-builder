@@ -1,0 +1,128 @@
+/* ── Value List page ─────────────────────────────────────────────────────── */
+#page-value-list.active { overflow-y: auto; }
+.vl-wrap {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+}
+
+.vl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.vl-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.vl-search {
+  background: #111;
+  border: 1px solid #2a2a2a;
+  color: #fff;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  width: 220px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.vl-search:focus { border-color: #444; }
+.vl-search::placeholder { color: #444; }
+
+.vl-note {
+  font-size: 11px;
+  color: #444;
+  margin: 0 0 20px;
+  letter-spacing: 0.2px;
+}
+
+.vl-tier { margin-bottom: 14px; }
+.vl-tier.vl-hidden { display: none; }
+
+.vl-tier-hdr {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-radius: 4px 4px 0 0;
+}
+
+.vl-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  overflow: hidden;
+}
+
+.vl-table thead th {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #444;
+  background: #080808;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid #1a1a1a;
+  text-align: left;
+}
+.vl-table thead th:not(:first-child) { text-align: center; }
+
+.vl-table tbody tr { border-bottom: 1px solid #141414; }
+.vl-table tbody tr:last-child { border-bottom: none; }
+.vl-table tbody tr:nth-child(even) { background: #0a0a0a; }
+.vl-table tbody tr:nth-child(odd)  { background: #0d0d0d; }
+.vl-table tbody tr.vl-row-hidden   { display: none; }
+
+.vl-table td {
+  padding: 5px 10px;
+  font-size: 13px;
+  color: #bbb;
+  vertical-align: middle;
+}
+.vl-table td:not(:first-child) { text-align: center; }
+
+.vl-cat {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.vl-cat-Gear            { background: #152030; color: #4488bb; }
+.vl-cat-Weapon          { background: #251508; color: #cc7744; }
+.vl-cat-Artifact        { background: #1a0d2a; color: #9966cc; }
+.vl-cat-LesserArtifact  { background: #08200f; color: #44aa66; }
+.vl-cat-WeaponModifier  { background: #201e05; color: #bbaa33; }
+.vl-cat-Ingredient      { background: #181800; color: #888855; }
+.vl-cat-Ore             { background: #181818; color: #777777; }
+
+.vl-val { font-weight: 700; }
+.vl-no-results {
+  color: #333;
+  font-size: 14px;
+  padding: 24px;
+  text-align: center;
+  display: none;
+}
+.vl-no-results.show { display: block; }
+
+@media (max-width: 768px) {
+  .vl-search { width: 160px; }
+  .vl-table td, .vl-table thead th { padding: 5px 6px; font-size: 12px; }
+  .vl-cat { font-size: 8px; padding: 1px 4px; }
+}

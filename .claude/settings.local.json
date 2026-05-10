@@ -18,7 +18,8 @@
       "Bash(sed -n '1,873p' \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/data-race-moves.js\")",
       "Bash(sed -n '874,$p' /c/Users/dkonv/OneDrive/david/Website/Al-builder/js/data-race-moves.js)",
       "Bash(grep -n \"switchPage\\\\s*=\" /c/Users/dkonv/OneDrive/david/Website/Al-builder/js/*.js)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(pip install:*)"
     ]
   }
 }
