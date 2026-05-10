@@ -349,10 +349,14 @@
       // Gold range filters
       const goldOffered = Array.isArray(l.items)    ? (l.items.find(i => i.item === 'Gold')?.quantity ?? 0)    : 0;
       const goldWanted  = Array.isArray(l.lf_items) ? (l.lf_items.find(i => i.item === 'Gold')?.quantity ?? 0) : 0;
-      if (_advFilters.gold_min !== '' && goldOffered < Number(_advFilters.gold_min)) return false;
-      if (_advFilters.gold_max !== '' && goldOffered > Number(_advFilters.gold_max)) return false;
-      if (_advFilters.lf_gold_min !== '' && goldWanted < Number(_advFilters.lf_gold_min)) return false;
-      if (_advFilters.lf_gold_max !== '' && goldWanted > Number(_advFilters.lf_gold_max)) return false;
+      const _gmin = parseInt(_advFilters.gold_min, 10);
+      const _gmax = parseInt(_advFilters.gold_max, 10);
+      const _lgmin = parseInt(_advFilters.lf_gold_min, 10);
+      const _lgmax = parseInt(_advFilters.lf_gold_max, 10);
+      if (!isNaN(_gmin)  && goldOffered < _gmin)  return false;
+      if (!isNaN(_gmax)  && goldOffered > _gmax)  return false;
+      if (!isNaN(_lgmin) && goldWanted  < _lgmin) return false;
+      if (!isNaN(_lgmax) && goldWanted  > _lgmax) return false;
 
       return true;
     });
@@ -393,10 +397,12 @@
     }
     const itemList = arr =>
       (Array.isArray(arr) && arr.length)
-        ? arr.map(i => i.item === 'Gold'
-            ? `<div class="trd-card-item">🪙 <span class="trd-card-gold">${i.quantity.toLocaleString()} Gold</span></div>`
-            : `<div class="trd-card-item">${esc(i.item)}${i.quantity > 1 ? ` <span class="trd-card-qty">×${i.quantity}</span>` : ''}</div>`
-          ).join('')
+        ? arr.map(i => {
+            const qty = i.quantity ?? 1;
+            return i.item === 'Gold'
+              ? `<div class="trd-card-item">🪙 <span class="trd-card-gold">${qty.toLocaleString()} Gold</span></div>`
+              : `<div class="trd-card-item">${esc(i.item || '')}${qty > 1 ? ` <span class="trd-card-qty">×${qty}</span>` : ''}</div>`;
+          }).join('')
         : '';
 
     el.innerHTML = list.map(l => {
@@ -751,6 +757,9 @@
 
     if (!items.length)    { if (errEl) errEl.textContent = 'Add at least one item or gold amount.'; return; }
     if (!lf_items.length) { if (errEl) errEl.textContent = 'Add at least one Looking For item or gold amount.'; return; }
+    const _invalidItem = [...items, ...lf_items].find(i => i.item !== 'Gold' && !TRADEABLE_ITEMS.includes(i.item));
+    if (_invalidItem) { if (errEl) errEl.textContent = `Invalid item: "${_invalidItem.item}"`; return; }
+    if (desc && desc.length > 300) { if (errEl) errEl.textContent = 'Description must be 300 characters or fewer.'; return; }
     if (errEl) errEl.textContent = '';
 
     const id = uid(), name = uname();
@@ -881,7 +890,7 @@
         const otherName = isMe ? m.recipient_name : m.sender_name;
         const otherAvatar = isMe ? null : m.sender_avatar;
         if (!convMap.has(otherId)) {
-          convMap.set(otherId, { other_id: otherId, other_name: otherName, other_avatar: otherAvatar, last_msg: m.content, last_time: m.created_at, unread: 0 });
+          convMap.set(otherId, { other_id: otherId, other_name: otherName, other_avatar: otherAvatar, last_msg: m.content || '', last_time: m.created_at, unread: 0 });
         }
         if (!isMe && !m.read) convMap.get(otherId).unread++;
       }
