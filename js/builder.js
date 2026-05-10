@@ -768,7 +768,10 @@ markPickers.forEach(picker => {
   });
 });
 
-markPicker.addEventListener("change", renderMoves);
+markPicker.addEventListener("change", () => {
+  if (markPicker.value !== 'Venia') permuthStat = '';
+  renderMoves();
+});
 
 // § ENCHANTS
 // Weapon enchant data shown in the picker description panel.
@@ -2514,6 +2517,7 @@ let sinisterGazeReflect = false; // Sinister Gaze: enemy has your Bulk Up defens
 let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
+let permuthStat = ''; // chosen stat for Permuth (Venia mark) +40% buff: 'str'|'arc'|'end'|'spd'|'lck'|''
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
@@ -2614,6 +2618,7 @@ function getTotalStat(statKey) {
   const pctBase   = allocated + (raceBase[statKey] ?? 0) + lvlBonus;
   const otherFlat = (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + crystalBonus;
   let total = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+  if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
   if (statKey === "spd") {
     const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
     const spdFlat = (statBuffsActive.flourishSpd ? _flourishSpdAmt : 0)
@@ -2673,14 +2678,17 @@ function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
   }
   let out = '';
   const orangeMult = Math.pow(critMult, 2);
-  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit (×${critMult.toFixed(2)}²): <b>${(finalDmg * orangeMult).toFixed(1)}</b></span>`;
+  const orangeLabel = info.tier >= 2 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
+  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${critMult.toFixed(2)}²): <b>${(finalDmg * orangeMult).toFixed(1)}</b></span>`;
   if (info.cc > 200) {
     const redMult = Math.pow(critMult, 3);
-    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit (×${critMult.toFixed(2)}³): <b>${(finalDmg * redMult).toFixed(1)}</b></span>`;
+    const redLabel = info.tier >= 3 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${critMult.toFixed(2)}³): <b>${(finalDmg * redMult).toFixed(1)}</b></span>`;
   }
   if (info.cc > 300) {
     const purpleMult = Math.pow(critMult, 4);
-    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit (×${critMult.toFixed(2)}⁴): <b>${(finalDmg * purpleMult).toFixed(1)}</b></span>`;
+    const purpleLabel = info.tier >= 4 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${critMult.toFixed(2)}⁴): <b>${(finalDmg * purpleMult).toFixed(1)}</b></span>`;
   }
   return out;
 }
@@ -3935,7 +3943,8 @@ function renderDmgBonusSection() {
       _hasFlourish      && { key: 'flourishSpd',  label: `Flourish SPD${_hasFlourishProf ? " (Prof.)" : ""}`, val: `+${_flourishSpdAmt} flat SPD`, desc: `+${_flourishSpdAmt} flat SPD while in Flourish stance` },
       _hasFocusStep     && { key: 'focusStepSpd', label: "Focus Step SPD", val: `+${_focusStepAmt} flat SPD`, desc: `+LVL×2 flat SPD (${_focusStepAmt} at current level) for 4 turns` },
     ].filter(Boolean);
-    if (_statBuffDefs.length) {
+    const _hasPermuth = markPicker.value === 'Venia';
+    if (_statBuffDefs.length || _hasPermuth) {
       html += `<h3 class="dc-bonus-title" style="margin-top:12px">Stat Buffs</h3><div class="dc-bonus-list">`;
       _statBuffDefs.forEach(b => {
         const on = statBuffsActive[b.key];
@@ -3945,6 +3954,14 @@ function renderDmgBonusSection() {
           <span class="dc-bonus-pct">${b.val}</span>
         </div>`;
       });
+      if (_hasPermuth) {
+        const _pStats = [['str','STR'],['arc','ARC'],['end','END'],['spd','SPD'],['lck','LCK']];
+        html += `<div class="dc-permuth-wrap"><span class="dc-bonus-name" style="flex:0;white-space:nowrap">Permuth</span><div class="dc-permuth-chips">`;
+        _pStats.forEach(([k, label]) => {
+          html += `<button class="dc-permuth-chip${permuthStat === k ? ' dc-permuth-active' : ''}" data-permuth-stat="${k}">${label}</button>`;
+        });
+        html += `</div><span class="dc-bonus-pct" style="color:#c9b8ff">+40%</span></div>`;
+      }
       html += `</div>`;
     }
   }
@@ -4116,6 +4133,14 @@ function renderDmgBonusSection() {
     });
     row.addEventListener("mouseenter", () => showDcTooltip(row, p));
     row.addEventListener("mouseleave", hideDcTooltip);
+  });
+  container.querySelectorAll('[data-permuth-stat]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const s = btn.dataset.permuthStat;
+      permuthStat = (permuthStat === s) ? '' : s;
+      renderDmgBonusSection(); recalcOpenDetails(); updatePecents();
+    });
   });
 }
 
@@ -5567,6 +5592,7 @@ function getBuildState() {
     sub:  subPicker.value,
     ...stats,
     mark: markPicker.value,
+    pStat: permuthStat,
     cov:  covenantPicker.value,
     covR: +(document.getElementById('covenant-rank').value) || 1,
     ench: enchantPicker.value,
@@ -5898,6 +5924,7 @@ function loadBuildState(state) {
 
   // Mark
   markPicker.value = state.mark || '';
+  permuthStat = (state.mark === 'Venia' && state.pStat) ? state.pStat : '';
   markPicker.dispatchEvent(new Event('change'));
 
   // Covenant

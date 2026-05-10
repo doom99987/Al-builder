@@ -1035,6 +1035,35 @@ h2 {
   letter-spacing: 0.5px;
 }
 
+.dc-permuth-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+}
+.dc-permuth-chips {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.dc-permuth-chip {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border: 1px solid #444;
+  border-radius: 3px;
+  background: #111;
+  color: #888;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.dc-permuth-chip:hover { background: rgba(255,255,255,0.07); color: #ddd; }
+.dc-permuth-active { background: rgba(201,184,255,0.15) !important; border-color: #c9b8ff !important; color: #c9b8ff !important; }
+
 .dc-bonus-kind-passive {
   background: rgba(155,122,232,0.15);
   color: #9b7ae8;
