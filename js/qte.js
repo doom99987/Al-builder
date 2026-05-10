@@ -2508,7 +2508,7 @@
   // ---- Difficulty ----
   // Round timer starts short and grows a little each round
   function getRoundSecs()     { return Math.min(8 + streak * 1.5, 20); }
-  function getSpeed()         { return window._qteCompMode ? Math.min(115 + streak * 28, 380) : Math.min(105 + streak * 20, 285); }
+  function getSpeed()         { return window._qteCompMode ? Math.min(155 + streak * 28, 380) : Math.min(145 + streak * 20, 285); }
   function getStripLen()      { return window._qteCompMode ? Math.min(4 + streak, 10)          : Math.min(3 + Math.floor(streak * 0.85), 9); }
   function getHeartInterval() { return window._qteCompMode ? Math.max(170, 390 - streak * 22)  : Math.max(210, 430 - streak * 20); }
   function getGapDelay()      { return window._qteCompMode ? Math.max(420, 1300 - streak * 90)  : Math.max(500, 1500 - streak * 85); }
