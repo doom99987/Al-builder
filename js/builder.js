@@ -534,10 +534,13 @@ function updatePecents() {
       display = (parseFloat(display) + Math.min(100, stultusBonus)).toFixed(1);
     }
     if (stat === "crit-chance" && frozenDiademIceActive && hasGearEquipped("Frozen Diadem")) {
-      display = (parseFloat(display) + 10).toFixed(1);
+      display = (parseFloat(display) + 15).toFixed(1);
     }
     if (stat === "crit-chance" && vasticLckProcActive) {
       display = (parseFloat(display) + 80).toFixed(1);
+    }
+    if (stat === "crit-chance" && artifactPicker.value === "Stellian Core" && dmgBonusActive["passive:Stellian Core"]) {
+      display = (parseFloat(display) + 15).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
@@ -1112,7 +1115,7 @@ buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), () => {
   enchantReaperEnemyHp = 100;
   renderDmgBonusSection(); recalcOpenDetails();
 });
-buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); updatePecents(); });
+buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); updatePecents(); renderDmgBonusSection(); recalcOpenDetails(); });
 
 function renderArtifactDesc() {
   const section = artifactDescSection;
@@ -1185,7 +1188,7 @@ function renderGearInfo() {
 // Percentage bonuses granted by gear items (e.g. crit-chance, energy)
 const gearPctBonuses = {
   "Crystal Sphere":  { "crit-chance": 5 },
-  "Frozen Diadem":   { "crit-chance": 5 },
+  // Frozen Diadem crit (+5% vs Cold, +10% after applying Cold) is conditional — handled by frozenDiademIceActive toggle (+15 total)
   "Narthana's Leaf": { "out-heal": 75, "end": -25 },
 };
 
@@ -2530,6 +2533,7 @@ let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
+let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -2618,6 +2622,9 @@ function getTotalStat(statKey) {
   const pctBase   = allocated + (raceBase[statKey] ?? 0) + lvlBonus;
   const otherFlat = (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + crystalBonus;
   let total = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+  if (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"]) {
+    total += coagNailStacks * 1.5;
+  }
   if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
   if (statKey === "spd") {
     const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
@@ -3131,6 +3138,15 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Coagulated Finger Nail — manually added (stat buff per turn, handled via getTotalStat)
+  if (gearSlots.includes("Coagulated Finger Nail")) {
+    const cnKey = "passive:Coagulated Finger Nail";
+    if (!seen.has(cnKey)) {
+      seen.add(cnKey);
+      rawEntries.push({ key: cnKey, name: "Coagulated Finger Nail", bonus: coagNailStacks * 1.5, kind: "passive", desc: `+${(coagNailStacks * 1.5).toFixed(1)} to all base stats per stack (max 10 stacks = +15).`, isCoagNail: true });
+    }
+  }
+
   // Shards — passive-dmg and conditional with DR applied
   getShardBonusEntries().forEach(entry => {
     const { name, drMult, rawVal, bonusType } = entry;
@@ -3392,6 +3408,11 @@ function changeHourglassStacks(delta) {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
+function changeCoagNailStacks(delta) {
+  coagNailStacks = Math.min(10, Math.max(1, coagNailStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
 function toggleStatusEffect(name) {
   statusEffectsActive[name] = !statusEffectsActive[name];
   renderDmgBonusSection(); recalcOpenDetails();
@@ -3575,6 +3596,8 @@ function renderDmgBonusSection() {
     const isSpiritAwakening   = p.name === "Spirit Awakening";
     const isRamiIdol          = p.name === "Ramizcan Idol";
     const isVaingLocket       = p.name === "Vainglorious Locket";
+    const isStellianCore      = p.name === "Stellian Core";
+    const isCoagNail          = p.name === "Coagulated Finger Nail";
     const isUnendingFlow      = p.name === "Unending Flow";
     const isRendingBarrage    = p.name === "Rending Barrage Proficiency";
     const isDemonicPresence   = p.name === "Demonic Presence";
@@ -3600,6 +3623,7 @@ function renderDmgBonusSection() {
                          : isUnendingFlow     ? `×${(1 + 0.05 * unendingFlowStacks).toFixed(2)}`
                          : isRendingBarrage   ? `×${(1 + 0.025 * rendingBarrageStacks).toFixed(3)}`
                          : isDemonicPresence  ? `×${(1 + 0.05 * demonicPresenceStacks).toFixed(2)}`
+                         : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -3608,6 +3632,19 @@ function renderDmgBonusSection() {
       <span class="dc-bonus-badges">${badges}</span>
       <span class="dc-bonus-pct">${displayBonusStr}</span>
     </div>`;
+    if (isStellianCore) {
+      html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">Also grants <span style="color:#e0c97a">+15% Crit chance</span> while active (above 95% HP)</div>`;
+    }
+    if (isCoagNail) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Turns / Stacks <span style="color:#aaa;font-size:11px">(max 10 = +15 stats)</span></span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeCoagNailStacks(-1)">−</button>
+          <span class="dc-energy-val">${coagNailStacks}</span>
+          <button class="dc-energy-btn" onclick="changeCoagNailStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
     if (isRageEmp) {
       html += `<div class="dc-rage-slider-row">
         <span class="dc-rage-slider-label">HP Consumed: <span id="dc-rage-hp-val">${rageEmpHpConsumed}%</span></span>
@@ -4130,6 +4167,7 @@ function renderDmgBonusSection() {
       dmgBonusActive[p.key] = !dmgBonusActive[p.key];
       renderDmgBonusSection();
       recalcOpenDetails();
+      if (p.name === "Stellian Core") updatePecents();
     });
     row.addEventListener("mouseenter", () => showDcTooltip(row, p));
     row.addEventListener("mouseleave", hideDcTooltip);
@@ -6013,6 +6051,7 @@ function loadBuildState(state) {
   Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
+  coagNailStacks = 1;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
 
