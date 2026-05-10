@@ -310,6 +310,56 @@
   //  TRADES
   // ============================================================
 
+  let _allListings = [];
+
+  function getSearchQuery() {
+    const el = document.getElementById('trd-search');
+    return el ? el.value.trim().toLowerCase() : '';
+  }
+
+  function applySearch() {
+    const q = getSearchQuery();
+    const hasAdv = _advFilters.items.length || _advFilters.lf_items.length;
+
+    const filtered = _allListings.filter(l => {
+      const itemNames = Array.isArray(l.items)    ? l.items.map(i => i.item)    : (l.item    ? [l.item]    : []);
+      const lfNames   = Array.isArray(l.lf_items) ? l.lf_items.map(i => i.item) : (l.lf      ? [l.lf]      : []);
+
+      // Text search
+      if (q) {
+        const goldAmounts = [
+          ...(Array.isArray(l.items)    ? l.items.filter(i => i.item === 'Gold').map(i => String(i.quantity)) : []),
+          ...(Array.isArray(l.lf_items) ? l.lf_items.filter(i => i.item === 'Gold').map(i => String(i.quantity)) : [])
+        ];
+        const haystack = [...itemNames, ...lfNames, ...goldAmounts, l.username || '', l.description || ''].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+
+      // Advanced item filters (OR within each side, AND between sides)
+      if (_advFilters.items.length) {
+        const match = _advFilters.items.some(f => itemNames.some(n => n.toLowerCase() === f.toLowerCase()));
+        if (!match) return false;
+      }
+      if (_advFilters.lf_items.length) {
+        const match = _advFilters.lf_items.some(f => lfNames.some(n => n.toLowerCase() === f.toLowerCase()));
+        if (!match) return false;
+      }
+
+      // Gold range filters
+      const goldOffered = Array.isArray(l.items)    ? (l.items.find(i => i.item === 'Gold')?.quantity ?? 0)    : 0;
+      const goldWanted  = Array.isArray(l.lf_items) ? (l.lf_items.find(i => i.item === 'Gold')?.quantity ?? 0) : 0;
+      if (_advFilters.gold_min !== '' && goldOffered < Number(_advFilters.gold_min)) return false;
+      if (_advFilters.gold_max !== '' && goldOffered > Number(_advFilters.gold_max)) return false;
+      if (_advFilters.lf_gold_min !== '' && goldWanted < Number(_advFilters.lf_gold_min)) return false;
+      if (_advFilters.lf_gold_max !== '' && goldWanted > Number(_advFilters.lf_gold_max)) return false;
+
+      return true;
+    });
+
+    const label = [q, ..._advFilters.items, ..._advFilters.lf_items].filter(Boolean).join(', ');
+    renderListings(filtered, label || null);
+  }
+
   async function loadListings() {
     const el = document.getElementById('trades-list');
     if (!el) return;
@@ -323,18 +373,21 @@
         .order('created_at', { ascending: false })
         .limit(60);
       if (error) throw error;
-      renderListings(data || []);
+      _allListings = data || [];
+      applySearch();
     } catch (_) {
       el.innerHTML = '<div class="trd-state">Could not load listings — the trades table may not be set up yet.</div>';
     }
   }
 
-  function renderListings(list) {
+  function renderListings(list, searchQuery) {
     const el = document.getElementById('trades-list');
     if (!el) return;
     const myId = uid();
     if (!list.length) {
-      el.innerHTML = `<div class="trd-state">No ${_tradeTab} listings yet. Be the first!</div>`;
+      el.innerHTML = searchQuery
+        ? `<div class="trd-state">No listings match "<strong>${esc(searchQuery)}</strong>".</div>`
+        : `<div class="trd-state">No ${_tradeTab} listings yet. Be the first!</div>`;
       return;
     }
     const itemList = arr =>
@@ -390,7 +443,8 @@
     </div>`;
   }
 
-  function buildTrdItemPicker(wrap) {
+  function buildTrdItemPicker(wrap, modalId) {
+    modalId = modalId || 'trd-post-modal';
     const hidden  = wrap.querySelector('.trd-item-name');
     const display = wrap.querySelector('.trd-pick-display');
     const panel   = wrap.querySelector('.trd-pick-panel');
@@ -432,7 +486,7 @@
 
     display.addEventListener('click', () => {
       const isOpen = panel.style.display !== 'none';
-      document.querySelectorAll('#trd-post-modal .trd-pick-panel').forEach(p => { p.style.display = 'none'; });
+      document.querySelectorAll(`#${modalId} .trd-pick-panel`).forEach(p => { p.style.display = 'none'; });
       if (!isOpen) {
         panel.style.display = 'block';
         search.value = '';
@@ -445,7 +499,7 @@
 
     document.addEventListener('mousedown', function handler(e) {
       if (!wrap.contains(e.target)) panel.style.display = 'none';
-      if (!document.getElementById('trd-post-modal')) document.removeEventListener('mousedown', handler);
+      if (!document.getElementById(modalId)) document.removeEventListener('mousedown', handler);
     });
   }
 
@@ -517,6 +571,150 @@
   }
 
   function closePostModal() { document.getElementById('trd-post-modal')?.remove(); }
+
+  // ---- advanced search modal ----
+  let _advFilters = { items: [], lf_items: [], gold_min: '', gold_max: '', lf_gold_min: '', lf_gold_max: '' };
+
+  function advSearchRowHtml() {
+    return `<div class="trd-item-row trd-adv-row">
+      <div class="trd-pick-wrap">
+        <input class="trd-item-name" type="hidden" value="">
+        <div class="trd-pick-display">— Select item —</div>
+        <div class="trd-pick-panel" style="display:none">
+          <input class="trd-pick-search" type="text" placeholder="Search items..." autocomplete="off">
+          <div class="trd-pick-list"></div>
+        </div>
+      </div>
+      <button class="trd-item-row-del" type="button" onclick="window._trdAdvRemoveRow(this)" title="Remove">×</button>
+    </div>`;
+  }
+
+  function addAdvSearchRow(containerId) {
+    const c = document.getElementById(containerId);
+    if (!c) return;
+    c.insertAdjacentHTML('beforeend', advSearchRowHtml());
+    buildTrdItemPicker(c.lastElementChild.querySelector('.trd-pick-wrap'), 'trd-advsearch-modal');
+  }
+
+  function removeAdvRow(btn) {
+    const row = btn.closest('.trd-adv-row');
+    const c   = row?.parentElement;
+    if (!c) return;
+    if (c.children.length <= 1) {
+      // clear the selection instead of removing the last row
+      const hidden  = row.querySelector('.trd-item-name');
+      const display = row.querySelector('.trd-pick-display');
+      if (hidden)  hidden.value = '';
+      if (display) { display.textContent = '— Select item —'; display.classList.remove('trd-pick-has-value'); }
+      return;
+    }
+    row.remove();
+  }
+
+  function collectAdvRows(containerId) {
+    const out = [];
+    document.querySelectorAll(`#${containerId} .trd-item-name`).forEach(el => {
+      const v = el.value.trim();
+      if (v) out.push(v);
+    });
+    return out;
+  }
+
+  function openAdvSearchModal() {
+    if (document.getElementById('trd-advsearch-modal')) return;
+    const m = document.createElement('div');
+    m.id        = 'trd-advsearch-modal';
+    m.className = 'trd-modal-overlay';
+    m.innerHTML = `
+      <div class="trd-modal" role="dialog" aria-modal="true">
+        <div class="trd-modal-hdr">
+          <span>Advanced Search</span>
+          <button class="trd-modal-x" onclick="window._trdCloseAdvSearch()">✕</button>
+        </div>
+        <div class="trd-modal-body">
+          <div class="trd-form-row">
+            <label class="trd-label">Offering (items seller has)</label>
+            <div id="trd-adv-items-container">${advSearchRowHtml()}</div>
+            <button class="trd-add-item-btn" type="button" onclick="window._trdAdvAddRow('trd-adv-items-container')">+ Add item</button>
+            <div class="trd-adv-gold-row">
+              <span class="trd-gold-label">🪙 Gold offered</span>
+              <input id="trd-adv-gold-min" class="trd-input trd-adv-gold-input" type="number" min="0" max="50000" placeholder="Min">
+              <span class="trd-adv-gold-sep">–</span>
+              <input id="trd-adv-gold-max" class="trd-input trd-adv-gold-input" type="number" min="0" max="50000" placeholder="Max">
+            </div>
+          </div>
+          <div class="trd-form-row">
+            <label class="trd-label">Looking For (items seller wants)</label>
+            <div id="trd-adv-lf-container">${advSearchRowHtml()}</div>
+            <button class="trd-add-item-btn" type="button" onclick="window._trdAdvAddRow('trd-adv-lf-container')">+ Add item</button>
+            <div class="trd-adv-gold-row">
+              <span class="trd-gold-label">🪙 Gold wanted</span>
+              <input id="trd-adv-lf-gold-min" class="trd-input trd-adv-gold-input" type="number" min="0" max="50000" placeholder="Min">
+              <span class="trd-adv-gold-sep">–</span>
+              <input id="trd-adv-lf-gold-max" class="trd-input trd-adv-gold-input" type="number" min="0" max="50000" placeholder="Max">
+            </div>
+          </div>
+          <div class="trd-adv-actions">
+            <button class="trd-adv-clear-btn" onclick="window._trdAdvClear()">Clear</button>
+            <button class="trd-submit-btn" onclick="window._trdAdvApply()">Apply Filter</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m) window._trdCloseAdvSearch(); });
+    m.querySelectorAll('.trd-pick-wrap').forEach(w => buildTrdItemPicker(w, 'trd-advsearch-modal'));
+    // Pre-fill with existing filters
+    if (_advFilters.items.length) {
+      const ic = document.getElementById('trd-adv-items-container');
+      _advFilters.items.forEach((name, i) => {
+        if (i > 0) { ic.insertAdjacentHTML('beforeend', advSearchRowHtml()); buildTrdItemPicker(ic.lastElementChild.querySelector('.trd-pick-wrap'), 'trd-advsearch-modal'); }
+        const row = ic.children[i];
+        if (row) { row.querySelector('.trd-item-name').value = name; const d = row.querySelector('.trd-pick-display'); d.textContent = name; d.classList.add('trd-pick-has-value'); }
+      });
+    }
+    if (_advFilters.lf_items.length) {
+      const lc = document.getElementById('trd-adv-lf-container');
+      _advFilters.lf_items.forEach((name, i) => {
+        if (i > 0) { lc.insertAdjacentHTML('beforeend', advSearchRowHtml()); buildTrdItemPicker(lc.lastElementChild.querySelector('.trd-pick-wrap'), 'trd-advsearch-modal'); }
+        const row = lc.children[i];
+        if (row) { row.querySelector('.trd-item-name').value = name; const d = row.querySelector('.trd-pick-display'); d.textContent = name; d.classList.add('trd-pick-has-value'); }
+      });
+    }
+    // Pre-fill gold ranges
+    if (_advFilters.gold_min)    document.getElementById('trd-adv-gold-min').value    = _advFilters.gold_min;
+    if (_advFilters.gold_max)    document.getElementById('trd-adv-gold-max').value    = _advFilters.gold_max;
+    if (_advFilters.lf_gold_min) document.getElementById('trd-adv-lf-gold-min').value = _advFilters.lf_gold_min;
+    if (_advFilters.lf_gold_max) document.getElementById('trd-adv-lf-gold-max').value = _advFilters.lf_gold_max;
+  }
+
+  function closeAdvSearchModal() { document.getElementById('trd-advsearch-modal')?.remove(); }
+
+  function applyAdvFilter() {
+    _advFilters.items       = collectAdvRows('trd-adv-items-container');
+    _advFilters.lf_items    = collectAdvRows('trd-adv-lf-container');
+    _advFilters.gold_min    = document.getElementById('trd-adv-gold-min')?.value.trim()    || '';
+    _advFilters.gold_max    = document.getElementById('trd-adv-gold-max')?.value.trim()    || '';
+    _advFilters.lf_gold_min = document.getElementById('trd-adv-lf-gold-min')?.value.trim() || '';
+    _advFilters.lf_gold_max = document.getElementById('trd-adv-lf-gold-max')?.value.trim() || '';
+    closeAdvSearchModal();
+    applySearch();
+    updateAdvSearchBtn();
+  }
+
+  function clearAdvFilter() {
+    _advFilters = { items: [], lf_items: [], gold_min: '', gold_max: '', lf_gold_min: '', lf_gold_max: '' };
+    closeAdvSearchModal();
+    applySearch();
+    updateAdvSearchBtn();
+  }
+
+  function updateAdvSearchBtn() {
+    const btn = document.getElementById('trd-advsearch-btn');
+    if (!btn) return;
+    const active = _advFilters.items.length || _advFilters.lf_items.length || _advFilters.gold_min || _advFilters.gold_max || _advFilters.lf_gold_min || _advFilters.lf_gold_max;
+    btn.classList.toggle('trd-advsearch-active', !!active);
+    btn.title = active ? 'Advanced filter active — click to edit' : 'Advanced search';
+  }
 
   function typeSelect(btn) {
     document.querySelectorAll('.trd-type-btn').forEach(b => b.classList.remove('active'));
@@ -1020,8 +1218,15 @@
 
   function init() {
     document.querySelectorAll('.trd-tab').forEach(btn => {
-      btn.addEventListener('click', () => switchTab(btn.dataset.ttab));
+      btn.addEventListener('click', () => {
+        const searchEl = document.getElementById('trd-search');
+        if (searchEl) searchEl.value = '';
+        switchTab(btn.dataset.ttab);
+      });
     });
+
+    const searchEl = document.getElementById('trd-search');
+    if (searchEl) searchEl.addEventListener('input', applySearch);
 
     document.getElementById('dm-input')?.addEventListener('keydown', e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendDm(); }
@@ -1044,14 +1249,20 @@
   // ============================================================
   //  GLOBALS
   // ============================================================
-  window._trdLoad       = loadListings;
-  window._trdPost       = openPostModal;
-  window._trdClosePost  = closePostModal;
-  window._trdTypeSelect = typeSelect;
-  window._trdSubmit     = submitPost;
-  window._trdDelete     = deleteListing;
-  window._trdAddItem    = addItemRow;
-  window._trdRemoveItem = removeItemRow;
+  window._trdLoad          = loadListings;
+  window._trdPost          = openPostModal;
+  window._trdClosePost     = closePostModal;
+  window._trdTypeSelect    = typeSelect;
+  window._trdSubmit        = submitPost;
+  window._trdDelete        = deleteListing;
+  window._trdAddItem       = addItemRow;
+  window._trdRemoveItem    = removeItemRow;
+  window._trdAdvSearch     = openAdvSearchModal;
+  window._trdCloseAdvSearch= closeAdvSearchModal;
+  window._trdAdvApply      = applyAdvFilter;
+  window._trdAdvClear      = clearAdvFilter;
+  window._trdAdvAddRow     = addAdvSearchRow;
+  window._trdAdvRemoveRow  = removeAdvRow;
   window._trdMessage    = function (userId, username, itemName) {
     if (!authed()) { window._openAuthModal?.('login'); return; }
     checkChatConsent(() => _trdMessageInner(userId, username, itemName));
