@@ -482,7 +482,7 @@ function updatePecents() {
   // Armour stat pct keys that boost the actual stat (not a direct % output bonus)
   const STAT_PCT_KEYS = new Set(["str", "arc", "spd"]);
   // Innate stat % bonuses applied to (invested + race base + level bonus) portion only
-  const INNATE_STAT_PCT = { str: 10, arc: 10 };
+  const INNATE_STAT_PCT = { str: 15, arc: 15 };
 
   const isStultus = racePicker.value === "Stultus (20%)";
   let stultusBonus = 0;
@@ -586,7 +586,7 @@ function _buildStatDetail(statKey) {
   });
   const crystalBonus = statKey === "lck" ? crystalStarStacks * 10 : 0;
   const STAT_PCT_SET = new Set(["str", "arc", "spd"]);
-  const INNATE = { str: 10, arc: 10 };
+  const INNATE = { str: 15, arc: 15 };
   const innatePct   = INNATE[statKey] ?? 0;
   const armourSPct  = STAT_PCT_SET.has(statKey) ? (armourPct[statKey] ?? 0) : 0;
   const totalPct    = innatePct + armourSPct;
