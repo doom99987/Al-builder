@@ -21,7 +21,14 @@
   const PLATFORM  = IS_MOBILE ? 'M' : 'C';
 
   // ---- admin ----
-  const ADMIN_USERNAMES = new Set(['Lycoris', 'TheAgentsOfRoblox']);
+  // Admin access is tied to Supabase user IDs so it survives username changes.
+  // To find IDs: SELECT p.username, u.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE p.username IN ('Lycoris','TheAgentsOfRoblox');
+  const ADMIN_IDS = new Set([
+    'a508b4b7-1d32-4511-a609-4a80ded49681', // Lycoris
+    '3a376365-2f03-4e4f-8c5f-6b8020271809', // TheAgentsOfRoblox
+  ]);
+  function isAdmin() { return !!currentUser && ADMIN_IDS.has(currentUser.id); }
+
   // Permanently banned — hidden from all UI, cannot be unbanned through the panel
   const PERMA_BANNED = new Set(['NIGGER']);
 
@@ -332,7 +339,7 @@
       </div>
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item" onclick="window._openSettings()">&#9881;&nbsp; Settings</button>
-      ${ADMIN_USERNAMES.has(name) ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
+      ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
     document.body.appendChild(menu);
@@ -1066,7 +1073,7 @@
 
   async function openAdminPanel() {
     closeProfileMenu();
-    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
+    if (!isAdmin()) return;
     const { data: bans } = await sb.from('banned_usernames').select('username').order('username');
     const banRows = _renderBanRows(bans || []);
     openModal(`
@@ -1134,7 +1141,7 @@
   }
 
   async function adminLookup() {
-    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
+    if (!isAdmin()) return;
     const name = (document.getElementById('sb-admin-uname')?.value || '').trim();
     if (!name) { adminSetStatus('Enter a username.'); return; }
     adminSetStatus('Searching…');
@@ -1226,7 +1233,7 @@
   }
 
   async function unbanUser(username) {
-    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
+    if (!isAdmin()) return;
     if (PERMA_BANNED.has(username)) return;
     await sb.from('banned_usernames').delete().eq('username', username);
     _bannedSet?.delete(username);
@@ -1235,7 +1242,7 @@
   }
 
   async function banAllProfanityUsers() {
-    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
+    if (!isAdmin()) return;
     const btn = document.getElementById('sb-ban-profanity-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
     const { data: profiles } = await sb.from('profiles').select('username');
