@@ -403,7 +403,9 @@ const _pctCache = (() => {
     rowEl,
     stat: rowEl.dataset.stat,
     input: rowEl.querySelector(".stat-val"),
-    totalEl: rowEl.querySelector(".stat-total")
+    totalEl: rowEl.querySelector(".stat-total"),
+    investedEl: rowEl.querySelector(".stat-invested-n"),
+    bonusEl: rowEl.querySelector(".stat-bonus-n")
   }));
   const spdInput = document.querySelector('.stat-row[data-stat="spd"] .stat-val');
   const lckInput = document.querySelector('.stat-row[data-stat="lck"] .stat-val');
@@ -546,8 +548,7 @@ function updatePecents() {
   });
 
   // Update stat total display (merged, uses same cached stat rows)
-  _pctCache.statRows.forEach(({ stat, input, totalEl }) => {
-    if (!totalEl) return;
+  _pctCache.statRows.forEach(({ stat, input, totalEl, investedEl, bonusEl }) => {
     const allocated = input ? +input.value : 0;
     const crystalBonus = stat === "lck" ? crystalStarStacks * 10 : 0;
     const otherFlat = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0) + crystalBonus;
@@ -555,10 +556,80 @@ function updatePecents() {
     // pct only boosts: invested + race base + level bonus
     const pctBase = allocated + (raceBase[stat] ?? 0) + lvlStatBonus;
     const displayTotal = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
-    totalEl.textContent = displayTotal || "";
+    if (totalEl) totalEl.textContent = displayTotal || "";
+    if (investedEl) investedEl.textContent = allocated;
+    if (bonusEl) {
+      const bonus = displayTotal - allocated;
+      bonusEl.textContent = bonus > 0 ? `(+${bonus})` : bonus < 0 ? `(${bonus})` : "";
+    }
+    // Refresh any open detail panel for this stat
+    const panel = document.querySelector(`.stat-detail-panel[data-stat="${stat}"]`);
+    if (panel && panel.style.display !== 'none') panel.innerHTML = _buildStatDetail(stat);
   });
   autoSave();
 }
+
+// Build breakdown HTML for the stat detail panel
+function _buildStatDetail(statKey) {
+  const row = document.querySelector(`.stat-row[data-stat="${statKey}"] .stat-val`);
+  const allocated = row ? +row.value : 0;
+  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+  const lvlBonus = Math.floor(lvl / 5);
+  const masteryStats = getMasteryStatBonuses();
+  const armourEl = document.getElementById("armour-main");
+  const armourData = armourItems?.[armourEl?.value] || {};
+  const armourPct = armourData.pct || {};
+  const gearStatBonuses = {};
+  ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
+    const g = gearItems?.[document.getElementById(id)?.value];
+    if (g) Object.entries(g).forEach(([k, v]) => { if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v; });
+  });
+  const crystalBonus = statKey === "lck" ? crystalStarStacks * 10 : 0;
+  const STAT_PCT_SET = new Set(["str", "arc", "spd"]);
+  const INNATE = { str: 10, arc: 10 };
+  const innatePct   = INNATE[statKey] ?? 0;
+  const armourSPct  = STAT_PCT_SET.has(statKey) ? (armourPct[statKey] ?? 0) : 0;
+  const totalPct    = innatePct + armourSPct;
+  const pctBase     = allocated + (raceBase[statKey] ?? 0) + lvlBonus;
+  const pctEffect   = totalPct > 0 ? Math.round(pctBase * (1 + totalPct / 100)) - pctBase : 0;
+
+  const sources = [];
+  const race = raceBase[statKey] ?? 0;
+  if (race)        sources.push({ label: "Race",         val: race });
+  if (lvlBonus)    sources.push({ label: "Level",        val: lvlBonus });
+  if (pctEffect)   sources.push({ label: `Stat % (${totalPct}%)`, val: pctEffect });
+  const mastery = masteryStats[statKey] ?? 0;
+  if (mastery)     sources.push({ label: "Mastery",      val: mastery });
+  const armFlat = armourData[statKey] ?? 0;
+  if (armFlat)     sources.push({ label: "Armour",       val: armFlat });
+  const gear = gearStatBonuses[statKey] ?? 0;
+  if (gear)        sources.push({ label: "Gear",         val: gear });
+  if (crystalBonus) sources.push({ label: "Crystal Stars", val: crystalBonus });
+
+  const displayTotal = Math.round(pctBase * (1 + totalPct / 100)) +
+    (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) +
+    (gearStatBonuses[statKey] ?? 0) + crystalBonus;
+
+  const rows = sources.length
+    ? sources.map(s => `<div class="stat-detail-row"><span class="stat-detail-label">${s.label}</span><span class="stat-detail-val">+${s.val}</span></div>`).join('')
+    : '<div class="stat-detail-empty">No active bonuses</div>';
+
+  return rows + `<div class="stat-detail-row stat-detail-total"><span class="stat-detail-label">Total</span><span class="stat-detail-val stat-detail-total-val">${displayTotal}</span></div>`;
+}
+
+// Details button click handler (event delegation on stat-list)
+document.querySelector('.stat-list').addEventListener('click', e => {
+  const btn = e.target.closest('.stat-details-btn');
+  if (!btn) return;
+  const stat = btn.closest('.stat-row')?.dataset.stat;
+  if (!stat) return;
+  const panel = document.querySelector(`.stat-detail-panel[data-stat="${stat}"]`);
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  panel.style.display = open ? 'none' : '';
+  btn.textContent = open ? 'Details \u25be' : 'Details \u25b4';
+  if (!open) panel.innerHTML = _buildStatDetail(stat);
+});
 
 // Run the initial stat render on page load so all percentage displays are populated.
 updatePecents();

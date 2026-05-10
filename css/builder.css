@@ -583,13 +583,69 @@ h2 {
   text-align: center;
 }
 
-.stat-total {
-  order: 7;
-  width: 28px;
-  font-size: 11px;
-  color: #ff5555;
-  text-align: center;
+.stat-total { display: none; }
+
+/* Invested + bonus display */
+.stat-result {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 70px;
 }
+
+.stat-invested-n {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+.stat-bonus-n {
+  font-size: 11px;
+  color: #777;
+}
+
+.stat-details-btn {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: #1a1a1a;
+  border: 1px solid #2e2e2e;
+  color: #555;
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  white-space: nowrap;
+  transition: color 0.1s, border-color 0.1s;
+}
+.stat-details-btn:hover { color: #aaa; border-color: #555; }
+
+/* Detail breakdown panel */
+.stat-detail-panel {
+  background: #0a0a0a;
+  border: 1px solid #1e1e1e;
+  border-radius: 4px;
+  padding: 7px 12px;
+  margin-left: 55px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+}
+
+.stat-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 0;
+  font-size: 12px;
+  color: #888;
+  border-bottom: 1px solid #141414;
+}
+.stat-detail-row:last-child { border-bottom: none; }
+
+.stat-detail-label { color: #666; }
+.stat-detail-val   { color: #ccc; font-weight: 700; }
+.stat-detail-empty { font-size: 12px; color: #444; }
+.stat-detail-total { border-top: 1px solid #2a2a2a; margin-top: 2px; padding-top: 4px; }
+.stat-detail-total .stat-detail-label { color: #999; }
+.stat-detail-total-val { color: #fff; font-size: 14px; }
 
 /* ============================================================
    DMG CALC — Move List
