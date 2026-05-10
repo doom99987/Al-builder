@@ -276,40 +276,169 @@
 .sb-menu-item-admin:hover { background: #2a1e0a; color: #ffcc80; }
 
 /* ---- Admin panel ---- */
-.sb-ban-btn { margin-top: 4px; background: #7b2020; }
-.sb-ban-btn:hover { background: #a02828; }
-.sb-ban-profanity-btn { margin-top: 6px; background: #4a3000; font-size: 13px; }
-.sb-ban-profanity-btn:hover { background: #6a4500; }
-.sb-admin-ban-list { margin-top: 18px; }
-.sb-admin-ban-list-title {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: #666;
+.sb-admin-modal-box {
+  max-width: 520px !important;
+  width: 100% !important;
+}
+.sb-admin-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.sb-admin-crown { font-size: 22px; }
+.sb-admin-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f4a460;
+  letter-spacing: 0.5px;
+}
+.sb-admin-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 0;
+  margin-bottom: 12px;
+}
+.sb-admin-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #777;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+.sb-admin-tab:hover { color: #bbb; }
+.sb-admin-tab.active { color: #f4a460; border-bottom-color: #f4a460; }
+.sb-admin-status {
+  font-size: 12px;
+  min-height: 16px;
   margin-bottom: 8px;
+  text-align: center;
+}
+.sb-admin-search-row {
+  display: flex;
+  gap: 8px;
+}
+.sb-admin-search-btn {
+  background: #2a2a5a;
+  border: 1px solid #4444aa;
+  border-radius: 6px;
+  color: #ccccff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.sb-admin-search-btn:hover { background: #3a3a7a; }
+.sb-admin-user-card {
+  background: #12121e;
+  border: 1px solid #2a2a4a;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 10px;
+}
+.sb-admin-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sb-admin-uname-display {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ddd;
+}
+.sb-admin-user-meta {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+.sb-admin-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.sb-admin-action-btn {
+  background: #1e1e2e;
+  border: 1px solid #333;
+  border-radius: 6px;
+  color: #ccc;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.sb-admin-action-btn:hover { background: #2a2a3e; border-color: #555; color: #eee; }
+.sb-admin-btn-ban  { border-color: #7b3030; color: #ff9999; }
+.sb-admin-btn-ban:hover  { background: #2a1010; border-color: #aa4444; color: #ffbbbb; }
+.sb-admin-btn-scores { border-color: #2a4a7b; color: #99bbff; }
+.sb-admin-btn-scores:hover { background: #101a2a; border-color: #4466aa; color: #bbddff; }
+.sb-admin-btn-listings { border-color: #4a4a20; color: #dddd88; }
+.sb-admin-btn-listings:hover { background: #1a1a08; border-color: #777730; color: #eeeeaa; }
+.sb-admin-btn-wipe {
+  grid-column: 1 / -1;
+  border-color: #6b2020;
+  background: #1a0808;
+  color: #ff7777;
+  font-size: 14px;
+}
+.sb-admin-btn-wipe:hover { background: #2a1010; border-color: #cc3333; color: #ffaaaa; }
+.sb-admin-ban-list {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 .sb-admin-ban-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 8px;
-  background: #1a1a1a;
+  padding: 7px 10px;
+  background: #12121e;
+  border: 1px solid #2a2a3a;
   border-radius: 6px;
-  margin-bottom: 4px;
-  font-size: 14px;
+  font-size: 13px;
   color: #ccc;
 }
 .sb-admin-unban-btn {
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: #1e1e2e;
+  border: 1px solid #3a5a3a;
   border-radius: 4px;
-  color: #aaa;
+  color: #88cc88;
   font-size: 12px;
-  padding: 3px 8px;
+  font-family: inherit;
+  padding: 3px 10px;
   cursor: pointer;
+  transition: background 0.15s;
 }
-.sb-admin-unban-btn:hover { background: #3a3a3a; color: #eee; }
-.sb-admin-empty { font-size: 13px; color: #555; font-style: italic; }
+.sb-admin-unban-btn:hover { background: #1a3a1a; color: #aaffaa; }
+.sb-admin-empty { font-size: 13px; color: #555; font-style: italic; padding: 8px 0; }
+.sb-admin-tool-btn {
+  width: 100%;
+  background: #1e1a08;
+  border: 1px solid #6a5500;
+  border-radius: 8px;
+  color: #ddbb66;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.sb-admin-tool-btn:hover { background: #2a2408; border-color: #aa8800; color: #ffdd88; }
 
 /* ---- Settings modal extras ---- */
 .sb-field-label {

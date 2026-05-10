@@ -1047,109 +1047,206 @@
   }
 
   // ---- admin panel ----
+  let _adminTab = 'actions';
+
+  function adminSetStatus(msg, ok = false) {
+    const el = document.getElementById('sb-admin-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = ok ? '#66ddaa' : '#ff8888';
+  }
+
+  function adminSwitchTab(tab) {
+    _adminTab = tab;
+    document.querySelectorAll('.sb-admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    document.querySelectorAll('.sb-admin-panel').forEach(p => p.style.display = p.dataset.panel === tab ? 'block' : 'none');
+  }
+
   async function openAdminPanel() {
     closeProfileMenu();
     if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
-    // Load current ban list
     const { data: bans } = await sb.from('banned_usernames').select('username').order('username');
-    const banRows = (bans || []).map(b =>
-      `<div class="sb-admin-ban-row"><span>${esc(b.username)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button></div>`
-    ).join('') || '<div class="sb-admin-empty">No banned users.</div>';
+    const banRows = _renderBanRows(bans || []);
     openModal(`
-      <div class="sb-modal-title">Admin Panel</div>
-      <div class="sb-form-group">
-        <label class="sb-label">Ban username</label>
-        <input id="sb-ban-input" class="sb-input" type="text" placeholder="Username to ban" autocomplete="off" maxlength="20">
-        <div id="sb-ban-err" class="sb-error"></div>
+      <button class="sb-close" onclick="window._closeModal()">&times;</button>
+      <div class="sb-admin-header">
+        <span class="sb-admin-crown">&#9760;</span>
+        <span class="sb-admin-title">Admin Panel</span>
       </div>
-      <button class="sb-submit sb-ban-btn" onclick="window._banUser()">Ban User</button>
-      <button id="sb-ban-profanity-btn" class="sb-submit sb-ban-profanity-btn" onclick="window._banAllProfanityUsers()">Ban All Profanity Users</button>
-      <div class="sb-admin-ban-list">
-        <div class="sb-admin-ban-list-title">Currently Banned</div>
-        <div id="sb-admin-ban-rows">${banRows}</div>
+      <div class="sb-admin-tabs">
+        <button class="sb-admin-tab active" data-tab="actions" onclick="window._adminSwitchTab('actions')">User Actions</button>
+        <button class="sb-admin-tab" data-tab="banned" onclick="window._adminSwitchTab('banned')">Banned (${(bans||[]).length})</button>
+        <button class="sb-admin-tab" data-tab="tools" onclick="window._adminSwitchTab('tools')">Tools</button>
       </div>
-      <button class="sb-cancel" onclick="window._closeModal()">Close</button>
+      <div id="sb-admin-status" class="sb-admin-status"></div>
+
+      <div class="sb-admin-panel" data-panel="actions" style="display:block">
+        <div class="sb-admin-search-row">
+          <input id="sb-admin-uname" class="sb-input" type="text" placeholder="Enter username…" autocomplete="off" maxlength="20"
+            onkeydown="if(event.key==='Enter') window._adminLookup()">
+          <button class="sb-admin-search-btn" onclick="window._adminLookup()">Search</button>
+        </div>
+        <div id="sb-admin-user-card" class="sb-admin-user-card" style="display:none">
+          <div class="sb-admin-user-info">
+            <div id="sb-admin-avatar-wrap"></div>
+            <div>
+              <div id="sb-admin-uname-display" class="sb-admin-uname-display"></div>
+              <div id="sb-admin-user-meta" class="sb-admin-user-meta"></div>
+            </div>
+          </div>
+          <div class="sb-admin-actions">
+            <button class="sb-admin-action-btn sb-admin-btn-ban" onclick="window._adminBanUser()">🚫 Ban</button>
+            <button class="sb-admin-action-btn sb-admin-btn-scores" onclick="window._adminClearScores()">📊 Clear Scores</button>
+            <button class="sb-admin-action-btn sb-admin-btn-listings" onclick="window._adminDeleteListings()">🗑 Delete Listings</button>
+            <button class="sb-admin-action-btn sb-admin-btn-wipe" onclick="window._adminBanAndWipe()">☠ Ban + Wipe All</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="sb-admin-panel" data-panel="banned" style="display:none">
+        <div id="sb-admin-ban-rows" class="sb-admin-ban-list">${banRows}</div>
+      </div>
+
+      <div class="sb-admin-panel" data-panel="tools" style="display:none">
+        <button id="sb-ban-profanity-btn" class="sb-admin-tool-btn" onclick="window._banAllProfanityUsers()">
+          🔍 Scan &amp; Ban All Profanity Usernames
+        </button>
+      </div>
     `);
+    document.querySelector('.sb-modal-box')?.classList.add('sb-admin-modal-box');
+    _adminTab = 'actions';
+    _adminCurrentUser = null;
   }
 
-  async function banUser() {
+  let _adminCurrentUser = null; // { username, id }
+
+  function _renderBanRows(bans) {
+    if (!bans.length) return '<div class="sb-admin-empty">No banned users.</div>';
+    return bans.map(b =>
+      `<div class="sb-admin-ban-row" data-ban="${esc(b.username)}">
+        <span>${esc(b.username)}</span>
+        <button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button>
+      </div>`
+    ).join('');
+  }
+
+  async function adminLookup() {
     if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
-    const errEl = document.getElementById('sb-ban-err');
-    const input = document.getElementById('sb-ban-input');
-    const name  = (input?.value || '').trim();
-    if (!name) { if (errEl) errEl.textContent = 'Enter a username.'; return; }
-    // Check user exists
-    const { data: profile } = await sb.from('profiles').select('id').eq('username', name).maybeSingle();
-    if (!profile) { if (errEl) errEl.textContent = 'User not found.'; return; }
-    const { error } = await sb.from('banned_usernames').upsert({ username: name }, { onConflict: 'username' });
-    if (error) { if (errEl) errEl.textContent = error.message; return; }
-    _bannedSet?.add(name);
-    // Refresh ban list in the modal
-    const rowsEl = document.getElementById('sb-admin-ban-rows');
-    if (rowsEl) {
-      const existing = rowsEl.querySelector(`[data-ban="${name}"]`);
-      if (!existing) {
-        const div = document.createElement('div');
-        div.className = 'sb-admin-ban-row';
-        div.dataset.ban = name;
-        div.innerHTML = `<span>${esc(name)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(name)}')">Unban</button>`;
-        rowsEl.querySelector('.sb-admin-empty')?.remove();
-        rowsEl.appendChild(div);
-      }
+    const name = (document.getElementById('sb-admin-uname')?.value || '').trim();
+    if (!name) { adminSetStatus('Enter a username.'); return; }
+    adminSetStatus('Searching…');
+    const { data: profile } = await sb.from('profiles').select('id, username, created_at').eq('username', name).maybeSingle();
+    if (!profile) { adminSetStatus('User not found.'); document.getElementById('sb-admin-user-card').style.display = 'none'; return; }
+    _adminCurrentUser = profile;
+    const [{ count: scoreCount }, { count: listingCount }] = await Promise.all([
+      sb.from('leaderboard').select('*', { count: 'exact', head: true }).eq('user_id', profile.id),
+      sb.from('trade_listings').select('*', { count: 'exact', head: true }).eq('username', profile.username),
+    ]);
+    const joined = profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown';
+    const card = document.getElementById('sb-admin-user-card');
+    document.getElementById('sb-admin-avatar-wrap').innerHTML = renderAvatar(profile.username, null, 36);
+    document.getElementById('sb-admin-uname-display').textContent = profile.username;
+    document.getElementById('sb-admin-user-meta').innerHTML =
+      `Joined: ${joined} &nbsp;·&nbsp; Scores: ${scoreCount ?? 0} &nbsp;·&nbsp; Listings: ${listingCount ?? 0}`;
+    card.style.display = 'block';
+    const isBanned = isBannedCached(profile.username);
+    const banBtn = card.querySelector('.sb-admin-btn-ban');
+    if (banBtn) { banBtn.textContent = isBanned ? '✅ Unban' : '🚫 Ban'; banBtn.dataset.banned = isBanned ? '1' : '0'; }
+    adminSetStatus('');
+  }
+
+  async function adminBanUser() {
+    if (!_adminCurrentUser) return;
+    const banBtn = document.querySelector('.sb-admin-btn-ban');
+    const isBanned = banBtn?.dataset.banned === '1';
+    if (isBanned) {
+      await sb.from('banned_usernames').delete().eq('username', _adminCurrentUser.username);
+      _bannedSet?.delete(_adminCurrentUser.username);
+      banBtn.textContent = '🚫 Ban'; banBtn.dataset.banned = '0';
+      adminSetStatus(`${_adminCurrentUser.username} unbanned.`, true);
+      _refreshBannedTab(_adminCurrentUser.username, 'remove');
+    } else {
+      const { error } = await sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' });
+      if (error) { adminSetStatus(error.message); return; }
+      _bannedSet?.add(_adminCurrentUser.username);
+      banBtn.textContent = '✅ Unban'; banBtn.dataset.banned = '1';
+      adminSetStatus(`${_adminCurrentUser.username} banned.`, true);
+      _refreshBannedTab(_adminCurrentUser.username, 'add');
     }
-    if (input) input.value = '';
-    if (errEl) { errEl.style.color = '#66ddaa'; errEl.textContent = `${name} has been banned.`; }
+  }
+
+  async function adminClearScores() {
+    if (!_adminCurrentUser) return;
+    adminSetStatus('Clearing scores…');
+    const { error } = await sb.from('leaderboard').delete().eq('user_id', _adminCurrentUser.id);
+    if (error) { adminSetStatus(error.message); return; }
+    adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
+  }
+
+  async function adminDeleteListings() {
+    if (!_adminCurrentUser) return;
+    adminSetStatus('Deleting listings…');
+    const { error } = await sb.from('trade_listings').delete().eq('username', _adminCurrentUser.username);
+    if (error) { adminSetStatus(error.message); return; }
+    adminSetStatus(`Trade listings deleted for ${_adminCurrentUser.username}.`, true);
+  }
+
+  async function adminBanAndWipe() {
+    if (!_adminCurrentUser) return;
+    adminSetStatus('Wiping user…');
+    await Promise.all([
+      sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' }),
+      sb.from('leaderboard').delete().eq('user_id', _adminCurrentUser.id),
+      sb.from('trade_listings').delete().eq('username', _adminCurrentUser.username),
+    ]);
+    _bannedSet?.add(_adminCurrentUser.username);
+    const banBtn = document.querySelector('.sb-admin-btn-ban');
+    if (banBtn) { banBtn.textContent = '✅ Unban'; banBtn.dataset.banned = '1'; }
+    adminSetStatus(`${_adminCurrentUser.username} banned + all data wiped.`, true);
+    _refreshBannedTab(_adminCurrentUser.username, 'add');
+  }
+
+  function _refreshBannedTab(username, action) {
+    const rowsEl = document.getElementById('sb-admin-ban-rows');
+    if (!rowsEl) return;
+    if (action === 'add' && !rowsEl.querySelector(`[data-ban="${username}"]`)) {
+      rowsEl.querySelector('.sb-admin-empty')?.remove();
+      const div = document.createElement('div');
+      div.className = 'sb-admin-ban-row';
+      div.dataset.ban = username;
+      div.innerHTML = `<span>${esc(username)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(username)}')">Unban</button>`;
+      rowsEl.appendChild(div);
+    } else if (action === 'remove') {
+      rowsEl.querySelector(`[data-ban="${username}"]`)?.remove();
+      if (!rowsEl.children.length) rowsEl.innerHTML = '<div class="sb-admin-empty">No banned users.</div>';
+    }
   }
 
   async function unbanUser(username) {
     if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
     await sb.from('banned_usernames').delete().eq('username', username);
     _bannedSet?.delete(username);
-    // Remove from UI
-    document.querySelector(`[data-ban="${username}"]`)?.remove();
-    const rowsEl = document.getElementById('sb-admin-ban-rows');
-    if (rowsEl && !rowsEl.children.length) {
-      rowsEl.innerHTML = '<div class="sb-admin-empty">No banned users.</div>';
-    }
+    _refreshBannedTab(username, 'remove');
+    adminSetStatus(`${username} unbanned.`, true);
   }
 
   async function banAllProfanityUsers() {
     if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
-    const errEl = document.getElementById('sb-ban-err');
-    const btn   = document.getElementById('sb-ban-profanity-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Scanning...'; }
-    // Fetch all usernames (paginate if needed, profiles table shouldn't be huge)
+    const btn = document.getElementById('sb-ban-profanity-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
     const { data: profiles } = await sb.from('profiles').select('username');
     const dirty = (profiles || []).filter(p => p.username && containsProfanity(p.username)).map(p => p.username);
     if (!dirty.length) {
-      if (errEl) { errEl.style.color = '#66ddaa'; errEl.textContent = 'No profanity usernames found.'; }
-      if (btn) { btn.disabled = false; btn.textContent = 'Ban All Profanity Users'; }
+      adminSetStatus('No profanity usernames found.', true);
+      if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; }
       return;
     }
-    const rows = dirty.map(u => ({ username: u }));
-    const { error } = await sb.from('banned_usernames').upsert(rows, { onConflict: 'username' });
-    if (error) {
-      if (errEl) errEl.textContent = error.message;
-      if (btn) { btn.disabled = false; btn.textContent = 'Ban All Profanity Users'; }
-      return;
-    }
+    const { error } = await sb.from('banned_usernames').upsert(dirty.map(u => ({ username: u })), { onConflict: 'username' });
+    if (error) { adminSetStatus(error.message); if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; } return; }
     dirty.forEach(u => _bannedSet?.add(u));
-    if (errEl) { errEl.style.color = '#66ddaa'; errEl.textContent = `Banned ${dirty.length} user(s): ${dirty.join(', ')}`; }
-    // Reload the ban rows in the modal
-    const rowsEl = document.getElementById('sb-admin-ban-rows');
-    if (rowsEl) {
-      dirty.forEach(name => {
-        if (!rowsEl.querySelector(`[data-ban="${name}"]`)) {
-          const div = document.createElement('div');
-          div.className = 'sb-admin-ban-row';
-          div.dataset.ban = name;
-          div.innerHTML = `<span>${esc(name)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(name)}')">Unban</button>`;
-          rowsEl.querySelector('.sb-admin-empty')?.remove();
-          rowsEl.appendChild(div);
-        }
-      });
-    }
-    if (btn) { btn.disabled = false; btn.textContent = 'Ban All Profanity Users'; }
+    dirty.forEach(u => _refreshBannedTab(u, 'add'));
+    adminSetStatus(`Banned ${dirty.length} user(s): ${dirty.join(', ')}`, true);
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; }
   }
 
   window._sbSignOut          = () => signOut();
@@ -1170,7 +1267,12 @@
   window._showConsentFromSettings = () => window._showChatConsentModal?.(() => openSettings());
   window._loadAllLeaderboards  = loadAllLeaderboards;
   window._openAdminPanel         = openAdminPanel;
-  window._banUser                = banUser;
+  window._adminSwitchTab         = adminSwitchTab;
+  window._adminLookup            = adminLookup;
+  window._adminBanUser           = adminBanUser;
+  window._adminClearScores       = adminClearScores;
+  window._adminDeleteListings    = adminDeleteListings;
+  window._adminBanAndWipe        = adminBanAndWipe;
   window._unbanUser              = unbanUser;
   window._banAllProfanityUsers   = banAllProfanityUsers;
 
