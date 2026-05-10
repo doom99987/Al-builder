@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="css/auth.css?v=4">
   <link rel="stylesheet" href="css/saved-builds.css?v=1">
   <link rel="stylesheet" href="css/trades.css?v=4">
+  <link rel="stylesheet" href="css/vl.css?v=1">
 </head>
 
 <body>
@@ -40,6 +41,7 @@
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
     <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
     <button class="site-nav-btn" data-page="trades">Trades</button>
+    <button class="site-nav-btn" data-page="value-list">Value List</button>
   </div>
   <div id="auth-bar">
     <button class="auth-btn" onclick="window._openAuthModal && window._openAuthModal('login')">Login</button>
@@ -318,6 +320,19 @@
     <div class="trd-list" id="trades-list">
       <div class="trd-state">Select a tab to load listings.</div>
     </div>
+  </div>
+</div>
+
+<!-- Value List page -->
+<div id="page-value-list" class="site-page">
+  <div class="vl-wrap">
+    <div class="vl-header">
+      <h2 class="vl-title">Value List</h2>
+      <input class="vl-search" id="vl-search" type="text" placeholder="Search items…" oninput="window._vlSearch(this.value)" autocomplete="off">
+    </div>
+    <p class="vl-note">Format: VALUE , DEMAND &nbsp;·&nbsp; Demand max 5 &nbsp;·&nbsp; Values 1–4 non-linear &nbsp;·&nbsp; Values 4+ linear (two 4 = one 8)</p>
+    <div id="vl-tiers"></div>
+    <div class="vl-no-results" id="vl-no-results">No items found.</div>
   </div>
 </div>
 
@@ -806,6 +821,201 @@
 <script src="js/qte.js?v=7"></script>
 <script src="js/saved-builds.js?v=1"></script>
 <script src="js/trades.js?v=19"></script>
+<script>
+(function () {
+  // ── Value List data: [name, category, value, demand] ─────────────────────
+  const VL_ITEMS = [
+    // VALUE 1 — demand 1
+    ['Aestic Ore','Ore',1,1],['Arbusta Tear','Gear',1,1],['Band Of Crushing Force','Gear',1,1],
+    ['Blacksteel Axe','Weapon',1,1],['Blacksteel Cestus','Weapon',1,1],['Blacksteel Dagger','Weapon',1,1],
+    ['Blacksteel Greatsword','Weapon',1,1],['Blacksteel Shield','Weapon',1,1],['Blacksteel Spear','Weapon',1,1],
+    ['Blacksteel Staff','Weapon',1,1],['Blacksteel Sword','Weapon',1,1],
+    ['Blazing Perforator','Gear',1,1],['Carnastool','Ingredient',1,1],['Chocolate Egg','Gear',1,1],
+    ['Cryastem','Ingredient',1,1],['Cursed Brand','Gear',1,1],['Delicate Purse','Gear',1,1],
+    ['Desert Escutcheon','Gear',1,1],
+    ['Dragon Bone Axe','Weapon',1,1],['Dragon Bone Cestus','Weapon',1,1],['Dragon Bone Dagger','Weapon',1,1],
+    ['Dragon Bone Shield','Weapon',1,1],['Dragon Bone Spear','Weapon',1,1],['Dragon Bone Staff','Weapon',1,1],
+    ['Dragon Bone Sword','Weapon',1,1],
+    ['Dragon Memior','Gear',1,1],['Driproot','Ingredient',1,1],['Egg Shelmet','Gear',1,1],
+    ['Elementary Resonance','Gear',1,1],['Everbeating Drum','Gear',1,1],['Everthistle','Ingredient',1,1],
+    ['Ferrus Axe','Weapon',1,1],['Ferrus Cestus','Weapon',1,1],['Ferrus Dagger','Weapon',1,1],
+    ['Ferrus Hammer','Weapon',1,1],['Ferrus Ore','Ore',1,1],['Ferrus Spear','Weapon',1,1],
+    ['Ferrus Staff','Weapon',1,1],['Ferrus Sword','Weapon',1,1],
+    ['Frostburned Rune','Gear',1,1],['Gilded Pouch','Gear',1,1],['Gleaming Carrot','Gear',1,1],
+    ['Golem Rune Core','Gear',1,1],['Grain of Balance','Gear',1,1],
+    ['Haze Chunk','Ingredient',1,1],['Hightail','Ingredient',1,1],
+    ['Imbued Chains','Gear',1,1],['Imperial Headband','Gear',1,1],['Impure Crown','Gear',1,1],
+    ['Laneus Ore','Ore',1,1],['Lethal Blackajck','Gear',1,1],["Madseer's Codex",'Gear',1,1],
+    ['Magma Charm','Gear',1,1],['Molten Carapace','Gear',1,1],['Mushroom Cap','Ingredient',1,1],
+    ['Party Egg','Gear',1,1],["Pathfinder's Mark",'Gear',1,1],['Phantom Ooze','Gear',1,1],
+    ['Rabbit Pelt','Gear',1,1],['Rabbits Foot','Gear',1,1],
+    ['Restless Fragment','Ingredient',1,1],['Sand Core','Ingredient',1,1],
+    ['Shattered Clockhand','Gear',1,1],['Slime Chunk','Ingredient',1,1],['Snorb','Gear',1,1],
+    ['Stone Brand','Gear',1,1],['Tear Blood Crystal','Gear',1,1],['The Biggest Pebble','Gear',1,1],
+    ['The Last Straw','Gear',1,1],['Vulcan Knuckle','Gear',1,1],["Yarthul's Wrath",'Gear',1,1],
+    // VALUE 1 — demand 1.5
+    ['Aspect of Maladaptation','Gear',1,1.5],['Dust Storm','Gear',1,1.5],
+    ['Expedite Anklet','Gear',1,1.5],['Gelat Band','Gear',1,1.5],
+    ['Imbuement Reliquary','Gear',1,1.5],['Ramzicon Idol','Gear',1,1.5],
+    ['Sanguine Fang','Gear',1,1.5],['Spiked Steel Ball','Gear',1,1.5],['Wicked Crown','Gear',1,1.5],
+    // VALUE 1 — demand 2
+    ['7 Leafed Everthisel','Gear',1,2],['Elemental Infuser','Gear',1,2],['Forest Charm','Gear',1,2],
+    ['Frosty Topper','Gear',1,2],["Narthana's Leaf",'Gear',1,2],
+    ['Parasitic Leech','Gear',1,2],['Spore Root','Gear',1,2],
+    // VALUE 1 — demand 2.5
+    ['Coagulated Finger Nail','Gear',1,2.5],['Crystal Sphere','Gear',1,2.5],
+    ['Crystalized Star','Gear',1,2.5],['Shard of Blight','Gear',1,2.5],["Traveler's Lamp",'Gear',1,2.5],
+    // VALUE 1.3
+    ['Rot Core','Ingredient',1.3,2],
+    // VALUE 1.5
+    ['Soul Dust','Lesser Artifact',1.5,1.5],
+    ['Corealloy Cestus','Weapon',1.5,2],['Corealloy Dagger','Weapon',1.5,2],['Corealloy Greatsword','Weapon',1.5,2],
+    ['Echo shard','Lesser Artifact',1.5,2],['Memory Fragment','Lesser Artifact',1.5,2],
+    ['Resplendent Essence','Lesser Artifact',1.5,2],['Skyward Totem','Lesser Artifact',1.5,2],
+    ['Sun Dagger','Weapon',1.5,2],['Sun Hammer (visage)','Weapon',1.5,2],
+    ['Sun Staff','Weapon',1.5,2],['Sun Sword','Weapon',1.5,2],
+    ['temperus gem','Weapon Modifier',1.5,2],
+    ['Deathbeak Dagger','Gear',1.5,2.5],
+    ['arcanium crystal','Weapon Modifier',1.5,3],
+    // VALUE 2
+    ['Ivory Axe','Weapon',2,1],['Ivory Cestus','Weapon',2,1],['Ivory Dagger','Weapon',2,1],
+    ['Ivory Greatsword','Weapon',2,1],['Ivory Hammer','Weapon',2,1],['Ivory Shield','Weapon',2,1],
+    ['Ivory Spear','Weapon',2,1],['Ivory Staff','Weapon',2,1],['Ivory Sword','Weapon',2,1],
+    ['Tainted Quiver','Gear',2,1.5],
+    ['Blightrock/wood Sword','Weapon',2,2],['Divine Promise','Gear',2,2],['Focussed Mind','Gear',2,2],
+    ['Reality Watch','Artifact',2,2],['Shifting Hourglass','Artifact',2,2],
+    ['Sun Spear','Weapon',2,2],['Vow of Ruin','Gear',2,2],
+    ['Frozen Diadem','Gear',2,2.5],['Phoenix Tear','Lesser Artifact',2,2.5],['Sun Greatsword','Weapon',2,2.5],
+    ["Narthana's Sigil",'Artifact',2,3],["Ptera's Heart",'Gear',2,3],
+    ['Jade Staff','Weapon',2,3.5],['Jade Sword','Weapon',2,3.5],
+    ['Crylight','Ingredient',2,4],['Lineage Shard','Lesser Artifact',2,4],
+    // VALUE 2.5
+    ["Dust Devil's Eye",'Gear',2.5,2],['Open Hand','Gear',2.5,2],['The Smallest Boulder','Gear',2.5,2],
+    ['Eroded Blade','Gear',2.5,3],
+    ['Icerind Cestus','Weapon',2.5,3],['Icerind Greatsword','Weapon',2.5,3],
+    ['Icerind Spear','Weapon',2.5,3],['Icerind Staff','Weapon',2.5,3],['Icerind Sword','Weapon',2.5,3],
+    ['Metroms Amulet','Artifact',2.5,3],['Stellian Core','Artifact',2.5,3],
+    ['Dark Sigil','Artifact',2.5,3.5],
+    // VALUE 3
+    ["Arkhaia's Visage",'Artifact',3,3],['Blightrock/wood Spear','Weapon',3,3],
+    ["Heaven's Authority",'Artifact',3,3],['Vainglorious Locket','Gear',3,3],
+    ['Blightrock/wood Cestus','Weapon',3,3.5],['Blightrock/wood Dagger','Weapon',3,3.5],
+    ['Blightrock/wood Staff','Weapon',3,3.5],
+    ['Icerind Dagger','Weapon',3,4],['Icerind Shield','Weapon',3,4],['Void Key','Lesser Artifact',3,4],
+    // VALUE 3.5
+    ['Darkblood Sword','Weapon',3.5,2],
+    ['Ancient Insignia','Artifact',3.5,3.5],['Chaos Orb','Artifact',3.5,3.5],['Paranoxian Crux','Artifact',3.5,3.5],
+    // VALUE 4
+    ['Darkblood Dagger','Weapon',4,3],['Darkblood Greatsword','Weapon',4,3],
+    ['Darkblood Spear','Weapon',4,3],['Darkblood Staff','Weapon',4,3],
+    ['Darkblood Cestus','Weapon',4,3.5],
+    ['Sandstone Cestus','Weapon',4,4],['Sandstone Hammer','Weapon',4,4],
+    ['Sandstone Shield','Weapon',4,4],['Sandstone Staff','Weapon',4,4],
+    ['Sandstone Dagger','Weapon',4,4.5],
+    // VALUE 4+ (linear)
+    ['Primordial Sword','Weapon',7,3.5],
+    ['Primordial Axe','Weapon',8,5],['Primordial Cestus','Weapon',8,5],
+    ['Primordial Greatsword','Weapon',8,5],['Primordial Hammer','Weapon',8,5],
+    ['Primordial Spear','Weapon',8,5],['Primordial Staff','Weapon',8,5],
+    ['Primordial Shield','Weapon',9,5],
+    ['Primordial Dagger','Weapon',9.5,5],
+  ];
+
+  const TIERS = [
+    { min: 1,   max: 1,   label: 'VALUE 1 — Common',                   bg: '#181818', fg: '#666666' },
+    { min: 1.3, max: 1.3, label: 'VALUE 1.3',                          bg: '#151f0d', fg: '#7aaa55' },
+    { min: 1.5, max: 1.5, label: 'VALUE 1.5',                          bg: '#0d1e14', fg: '#44bb77' },
+    { min: 2,   max: 2,   label: 'VALUE 2',                            bg: '#0d1622', fg: '#4477cc' },
+    { min: 2.5, max: 2.5, label: 'VALUE 2.5',                          bg: '#110d22', fg: '#7766cc' },
+    { min: 3,   max: 3,   label: 'VALUE 3',                            bg: '#1e0d22', fg: '#aa55cc' },
+    { min: 3.5, max: 3.5, label: 'VALUE 3.5',                          bg: '#221100', fg: '#cc7733' },
+    { min: 4,   max: 4,   label: 'VALUE 4',                            bg: '#1e1800', fg: '#ccaa00' },
+    { min: 4.1, max: 999, label: 'VALUE 4+ — Linear (two 4 = one 8)', bg: '#1e0808', fg: '#cc3333' },
+  ];
+
+  const CAT_CLASS = {
+    'Gear':            'vl-cat-Gear',
+    'Weapon':          'vl-cat-Weapon',
+    'Artifact':        'vl-cat-Artifact',
+    'Lesser Artifact': 'vl-cat-LesserArtifact',
+    'Weapon Modifier': 'vl-cat-WeaponModifier',
+    'Ingredient':      'vl-cat-Ingredient',
+    'Ore':             'vl-cat-Ore',
+  };
+
+  function fmt(n) { return n % 1 === 0 ? n : n; }
+
+  function buildTiers() {
+    const container = document.getElementById('vl-tiers');
+    if (!container) return;
+    container.innerHTML = '';
+
+    TIERS.forEach((tier, ti) => {
+      const tierItems = VL_ITEMS.filter(it => it[2] >= tier.min && it[2] <= tier.max);
+      if (!tierItems.length) return;
+
+      const div = document.createElement('div');
+      div.className = 'vl-tier';
+      div.dataset.tier = ti;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'vl-tier-hdr';
+      hdr.style.background = tier.bg;
+      hdr.style.color = tier.fg;
+      hdr.textContent = tier.label;
+
+      const table = document.createElement('table');
+      table.className = 'vl-table';
+      table.innerHTML =
+        '<thead><tr><th>Item</th><th>Category</th><th>Value</th><th>Demand</th></tr></thead>';
+
+      const tbody = document.createElement('tbody');
+      tierItems.forEach(it => {
+        const tr = document.createElement('tr');
+        tr.dataset.name = it[0].toLowerCase();
+        const catCls = CAT_CLASS[it[1]] || '';
+        tr.innerHTML =
+          '<td>' + it[0] + '</td>' +
+          '<td><span class="vl-cat ' + catCls + '">' + it[1] + '</span></td>' +
+          '<td class="vl-val" style="color:' + tier.fg + '">' + fmt(it[2]) + '</td>' +
+          '<td>' + fmt(it[3]) + '</td>';
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      div.appendChild(hdr);
+      div.appendChild(table);
+      container.appendChild(div);
+    });
+  }
+
+  window._vlSearch = function (q) {
+    const term = q.trim().toLowerCase();
+    let anyVisible = false;
+
+    document.querySelectorAll('#vl-tiers .vl-tier').forEach(tierEl => {
+      let tierVisible = false;
+      tierEl.querySelectorAll('tbody tr').forEach(tr => {
+        const match = !term || tr.dataset.name.includes(term);
+        tr.classList.toggle('vl-row-hidden', !match);
+        if (match) tierVisible = true;
+      });
+      tierEl.classList.toggle('vl-hidden', !tierVisible);
+      if (tierVisible) anyVisible = true;
+    });
+
+    const noRes = document.getElementById('vl-no-results');
+    if (noRes) noRes.classList.toggle('show', !anyVisible);
+  };
+
+  // Build on load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', buildTiers);
+  } else {
+    buildTiers();
+  }
+})();
+</script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
