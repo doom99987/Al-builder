@@ -2515,6 +2515,7 @@ let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
 let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
 let sinisterGazeReflect = false; // Sinister Gaze: enemy has your Bulk Up defense debuff
+let unendingFlowStacks = 1; // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
@@ -2813,7 +2814,12 @@ function toggleDmgDetail(rowEl, idx) {
   }
 
   // Full formula: BaseDMG(1 + stat1/scl1 + stat2/scl2 ...)
-  const statParts = scalings.map(({ stat, scaling, label }) => {
+  // Flowing Dance Proficiency (Blade Dancer rm2): override scaling to SPD/50
+  let _activeScalings = scalings;
+  if (m.name === "Flowing Dance" && masteryState["rm2"] && superPicker.value === "Blade Dancer (N)") {
+    _activeScalings = [{ stat: "spd", scaling: 50, label: "SPD" }];
+  }
+  const statParts = _activeScalings.map(({ stat, scaling, label }) => {
     const val = getTotalStat(stat);
     return { label, val, scaling, contrib: val / scaling };
   });
@@ -2834,6 +2840,25 @@ function toggleDmgDetail(rowEl, idx) {
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
+
+  // Discharge Proficiency (Lancer cm2): 4 hits [1.0, 0.38, 1/3, 1/3]
+  if (m.name === "Discharge" && masteryState["cm2"] && superPicker.value === "Lancer (N)") {
+    const _dMults = [1.0, 0.38, 1/3, 1/3];
+    const _dLabels = ["Full", "38%", "33%", "33%"];
+    const _dBase = totalMult > 1 ? dmgPerHit * totalMult : dmgPerHit;
+    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult)}</span> = <b>${_dBase.toFixed(1)}</b>`;
+    const _dHitStrs = _dMults.map((r, i) => `${_dLabels[i]}: <b>${(_dBase * r).toFixed(1)}</b>`);
+    const _dTotal = _dMults.reduce((s, r) => s + _dBase * r, 0);
+    formula += `<br><span class="dc-avg-line">4 hits — ${_dHitStrs.join(' | ')} = <b>${_dTotal.toFixed(1)}</b></span>`;
+    const { mult: _dsMult, label: _dsLabel } = getStatusMultiplier(m.moveType);
+    const _dCurDmg = _dsMult !== 1 ? _dTotal * _dsMult : _dTotal;
+    if (_dsMult !== 1) formula += ` × ${_dsMult.toFixed(2)} <span class="dc-bonus-tag">[${_dsLabel}]</span> = <b>${_dCurDmg.toFixed(1)}</b>`;
+    const { mult: _dbMult, label: _dbLabel } = getBossResMult(effectiveMoveType);
+    if (_dbMult !== 1) formula += ` × ${_dbMult.toFixed(2)} <span class="dc-bonus-tag">[${_dbLabel}]</span> = <b>${(_dCurDmg * _dbMult).toFixed(1)}</b>`;
+    detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
+  }
+
   let currentDmg;
   if (totalMult > 1) {
     const boosted = dmgPerHit * totalMult;
@@ -2923,6 +2948,9 @@ function parseDmgBonus(text) {
       for (let i = 1; i < m.length; i++) { if (m[i] !== undefined) return +m[i]; }
     }
   }
+  // Multiplier format: "Deals 1.25x damage" → 25% bonus
+  const mxPat = text.match(/deals?\s+(\d+(?:\.\d+)?)\s*[x×]\s*(?:more\s+)?damage/i);
+  if (mxPat) return Math.round((+mxPat[1] - 1) * 100);
   return null;
 }
 
@@ -3108,6 +3136,8 @@ function collectDmgBonusPassives() {
         kinds: [e.kind],
         descs: [{ kind: e.kind, text: e.desc }],
       };
+      // Standalone mastery proficiency (no base entry to merge with)
+      if (baseName !== null) entry.isProficiency = true;
       // Preserve shard-specific fields so getActiveDmgBonus can use them
       if (e.bonusType !== undefined) entry.bonusType = e.bonusType;
       if (e.perDebuffVal !== undefined) entry.perDebuffVal = e.perDebuffVal;
@@ -3115,6 +3145,13 @@ function collectDmgBonusPassives() {
       merged.push(entry);
     }
   });
+
+  // Nature's Wrath (Ranger (Or) lm1): doubles Verdant Archer bonus from 7.5% to 15%
+  const _rangerActive = superClass === "Ranger (Or)" || baseClass === "Ranger (Or)";
+  if (_rangerActive && masteryState["lm1"]) {
+    const vaEntry = merged.find(e => e.name === "Verdant Archer");
+    if (vaEntry) vaEntry.bonus = 15;
+  }
 
   return merged;
 }
@@ -3128,6 +3165,7 @@ function getActiveDmgMult() {
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
+    else if (p.name === "Unending Flow")          { mult *= (1 + 0.05 * unendingFlowStacks); return; }
     else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
     else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
     else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
@@ -3193,6 +3231,11 @@ function changeVaingLocketTurn(delta) {
 
 function toggleSinisterGaze() {
   sinisterGazeReflect = !sinisterGazeReflect;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeUnendingFlowStacks(delta) {
+  unendingFlowStacks = Math.min(10, Math.max(1, unendingFlowStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3458,6 +3501,7 @@ function renderDmgBonusSection() {
     const isSpiritAwakening   = p.name === "Spirit Awakening";
     const isRamiIdol          = p.name === "Ramizcan Idol";
     const isVaingLocket       = p.name === "Vainglorious Locket";
+    const isUnendingFlow      = p.name === "Unending Flow";
     const displayBonus   = isBloodyBers      ? 100 - bloodyBersHp
                          : isRageEmp         ? 30 + rageEmpHpConsumed
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3477,10 +3521,12 @@ function renderDmgBonusSection() {
                          : isOppression       ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
                          : isCrusher          ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
                          : isRamiIdol         ? `×${(1 + 0.15 * ramiIdolStacks).toFixed(2)}`
+                         : isUnendingFlow     ? `×${(1 + 0.05 * unendingFlowStacks).toFixed(2)}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
+    const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
-      <span class="dc-bonus-name">${p.name}</span>
+      <span class="dc-bonus-name">${p.name}${profTag}</span>
       <span class="dc-bonus-badges">${badges}</span>
       <span class="dc-bonus-pct">${displayBonusStr}</span>
     </div>`;
@@ -3576,6 +3622,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeVaingLocketTurn(-1)">−</button>
           <span class="dc-energy-val">${vaingLocketTurn}</span>
           <button class="dc-energy-btn" onclick="changeVaingLocketTurn(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isUnendingFlow) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Consecutive Hits (max 10)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeUnendingFlowStacks(-1)">−</button>
+          <span class="dc-energy-val">${unendingFlowStacks}</span>
+          <button class="dc-energy-btn" onclick="changeUnendingFlowStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -5794,6 +5850,10 @@ function loadBuildState(state) {
   bulkUpStacks = 1;
   hourglassStacks = 1;
   boreasStacks = 1;
+  unendingFlowStacks = 1;
+  ramiIdolStacks = 1;
+  vaingLocketTurn = 1;
+  sinisterGazeReflect = false;
   overheatStacks = 1;
   crusherStacks = 1;
   oppressionCount = 1;
