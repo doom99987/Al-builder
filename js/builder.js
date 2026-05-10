@@ -2510,7 +2510,7 @@ let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
 const summonBuffsActive = { spiritAwakening: false };
-const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false };
+const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false, focusStepSpd: false };
 let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
 let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
@@ -2617,8 +2617,9 @@ function getTotalStat(statKey) {
   const otherFlat = (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) + (gearBonuses[statKey] ?? 0) + crystalBonus;
   let total = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
   if (statKey === "spd") {
-    const spdPct = (statBuffsActive.rallyingSpd ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
-    const spdFlat = statBuffsActive.flourishSpd ? _flourishSpdAmt : 0;
+    const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
+    const spdFlat = (statBuffsActive.flourishSpd ? _flourishSpdAmt : 0)
+                  + (statBuffsActive.focusStepSpd ? Math.max(1, +lvlInput.value || 1) * 2 : 0);
     if (spdPct || spdFlat) total = Math.round(total * (1 + spdPct / 100)) + spdFlat;
   }
   return total;
@@ -3820,14 +3821,18 @@ function renderDmgBonusSection() {
     const _hasFlourish = dmgCalcMoveList.some(m => m.name === "Flourish");
     const _hasFlourishProf = _hasFlourish && masteryState["lm2"] && _superClass === "Verdant Archer (Ch)";
     _flourishSpdAmt = _hasFlourishProf ? 48 : 25;
+    const _hasFocusStep = dmgCalcMoveList.some(m => m.name === "Focus Step");
+    const _focusStepAmt = Math.max(1, +lvlInput.value || 1) * 2;
     // Auto-reset if no longer available
     if (!_hasRallyingShout && statBuffsActive.rallyingSpd) statBuffsActive.rallyingSpd = false;
     if (!_hasEmpPierceProf && statBuffsActive.empPierceSpd) statBuffsActive.empPierceSpd = false;
     if (!_hasFlourish && statBuffsActive.flourishSpd) statBuffsActive.flourishSpd = false;
+    if (!_hasFocusStep && statBuffsActive.focusStepSpd) statBuffsActive.focusStepSpd = false;
     const _statBuffDefs = [
       _hasRallyingShout && { key: 'rallyingSpd', label: "Rallying Shout SPD",   val: "+25% SPD", desc: "+25% SPD buff for 4 turns" },
       _hasEmpPierceProf && { key: 'empPierceSpd', label: "Emp. Pierce Prof. SPD", val: "+25% SPD", desc: "+25% SPD buff for 2 turns (Empowering Pierce Proficiency)" },
       _hasFlourish      && { key: 'flourishSpd',  label: `Flourish SPD${_hasFlourishProf ? " (Prof.)" : ""}`, val: `+${_flourishSpdAmt} flat SPD`, desc: `+${_flourishSpdAmt} flat SPD while in Flourish stance` },
+      _hasFocusStep     && { key: 'focusStepSpd', label: "Focus Step SPD", val: `+${_focusStepAmt} flat SPD`, desc: `+LVL×2 flat SPD (${_focusStepAmt} at current level) for 4 turns` },
     ].filter(Boolean);
     if (_statBuffDefs.length) {
       html += `<h3 class="dc-bonus-title" style="margin-top:12px">Stat Buffs</h3><div class="dc-bonus-list">`;
