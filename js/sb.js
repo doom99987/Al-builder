@@ -1011,7 +1011,7 @@
         <tr${myName === r.username ? ' class="sb-lb-me"' : ''}>
           <td>${i + 1}</td>
           <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22)}<span>${esc(r.username)}</span></div></td>
-          <td><b>${r.score}</b> ${platformBadge(r.platform)}</td>
+          <td style="white-space:nowrap"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -1239,7 +1239,7 @@
   }
 
   async function adminBanUser() {
-    if (!_adminCurrentUser) return;
+    if (!isAdmin() || !_adminCurrentUser) return;
     const banBtn = document.querySelector('.sb-admin-btn-ban');
     const isBanned = banBtn?.dataset.banned === '1';
     if (isBanned) {
@@ -1259,7 +1259,7 @@
   }
 
   async function adminClearScores() {
-    if (!_adminCurrentUser) return;
+    if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Clearing scores…');
     const { error } = await sb.from('leaderboard').delete().eq('user_id', _adminCurrentUser.id);
     if (error) { adminSetStatus(error.message); return; }
@@ -1267,7 +1267,7 @@
   }
 
   async function adminDeleteListings() {
-    if (!_adminCurrentUser) return;
+    if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Deleting listings…');
     const { error } = await sb.from('trade_listings').delete().eq('username', _adminCurrentUser.username);
     if (error) { adminSetStatus(error.message); return; }
@@ -1275,7 +1275,7 @@
   }
 
   async function adminBanAndWipe() {
-    if (!_adminCurrentUser) return;
+    if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Wiping user…');
     await Promise.all([
       sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' }),
