@@ -3771,11 +3771,23 @@ function renderDmgBonusSection() {
     const _vEnd = getTotalStat("end");
     const _vSpd = getTotalStat("spd");
     const _vLck = getTotalStat("lck");
-    const _vMax = Math.max(_vStr, _vArc, _vEnd, _vSpd, _vLck);
-    const _strMajor = _vStr === _vMax;
-    const _arcMajor = _vArc === _vMax;
+    // Which buff activates is determined by: invested points + race base + level bonus only
+    const _vasticLvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+    const _vasticLvlBonus = Math.floor(_vasticLvl / 5);
+    const _getVasticBase = stat => {
+      const inv = +(document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`)?.value || 0);
+      return inv + (raceBase[stat] ?? 0) + _vasticLvlBonus;
+    };
+    const _iStr = _getVasticBase("str");
+    const _iArc = _getVasticBase("arc");
+    const _iEnd = _getVasticBase("end");
+    const _iSpd = _getVasticBase("spd");
+    const _iLck = _getVasticBase("lck");
+    const _vMax = Math.max(_iStr, _iArc, _iEnd, _iSpd, _iLck);
+    const _strMajor = _iStr === _vMax;
+    const _arcMajor = _iArc === _vMax;
 
-    const _lckMajor = _vLck === _vMax;
+    const _lckMajor = _iLck === _vMax;
     // Reset LCK proc toggle if LCK is no longer the highest stat
     if (!_lckMajor && vasticLckProcActive) { vasticLckProcActive = false; }
 
