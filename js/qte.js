@@ -2447,3 +2447,484 @@
   canvas.style.display = 'none';
 })();
 
+
+// === THORIAN QTE ===
+// A small blue bar orbits the Thorian heart, snapping UP / LEFT / RIGHT (W/A/D).
+// Purple hearts come in strips toward the center. The bar physically blocks any heart
+// it overlaps. Hearts that get past it hit Thorian and cost a life.
+// Survive the round timer — each round adds length, speed, and active sides.
+(function () {
+  const canvas    = document.getElementById('thorian-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('thorian-qte-status');
+  const streakEl  = document.getElementById('thorian-qte-streak');
+  const hsEl      = document.getElementById('thorian-qte-highscore');
+  const startBtn  = document.getElementById('thorian-qte-start-btn');
+  const resumeBtn = document.getElementById('thorian-qte-resume-btn');
+
+  const HS_KEY      = 'alb:thorian-hs';
+  const HS_KEY_COMP = 'alb:thorian-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY)      || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  // ---- Game state ----
+  let running       = false;
+  let gameStarted   = false;
+  let paused        = false;
+  let streak        = 0;
+  let animFrame     = null;
+  let lastTime      = 0;
+  let lives         = 3;
+  let thorianFlash  = 0;   // seconds Thorian heart flashes red
+  let roundTime     = 0;
+  let hearts        = [];  // { x, y, vx, vy, dying, dyingT }
+  let particles     = [];  // block-burst particles
+
+  // ---- Strip scheduler ----
+  let stripHeartLeft    = 0;
+  let stripHeartTimer   = 0;   // ms until next heart in strip
+  let stripSide         = 'top';
+  let betweenStripTimer = 600; // ms until next strip
+
+  // ---- Bar ----
+  let barDir = 'right'; // 'up' | 'left' | 'right'
+
+  // ---- Layout (scaled on resize) ----
+  let CX = 0, CY = 0;
+  let BAR_OFF   = 22;  // px from canvas-center to the near edge of the bar
+  let BAR_LEN   = 58;  // total bar length (coverage width/height)
+  let BAR_THICK = 10;  // bar thickness
+  let THORIAN_R = 16;  // Thorian heart damage radius
+  let THORIAN_SZ= 28;  // Thorian heart font size
+  let PROJ_R    = 9;   // projectile collision radius
+  let PROJ_SZ   = 20;  // projectile font size
+
+  const MAX_LIVES = 2;
+  function stepBar(dir) {
+    if (dir === 'up')    { barDir = 'up'; return; }
+    if (dir === 'left')  { barDir = barDir === 'right' ? 'up' : 'left'; return; }
+    if (dir === 'right') { barDir = barDir === 'left'  ? 'up' : 'right'; }
+  }
+
+  // ---- Difficulty ----
+  // Round timer starts short and grows a little each round
+  function getRoundSecs()     { return Math.min(8 + streak * 1.5, 20); }
+  function getSpeed()         { return window._qteCompMode ? Math.min(115 + streak * 28, 380) : Math.min(105 + streak * 20, 285); }
+  function getStripLen()      { return window._qteCompMode ? Math.min(4 + streak, 10)          : Math.min(3 + Math.floor(streak * 0.85), 9); }
+  function getHeartInterval() { return window._qteCompMode ? Math.max(170, 390 - streak * 22)  : Math.max(210, 430 - streak * 20); }
+  function getGapDelay()      { return window._qteCompMode ? Math.max(420, 1300 - streak * 90)  : Math.max(500, 1500 - streak * 85); }
+  function getActiveSides()   { return ['top', 'left', 'right']; }
+
+  // ---- Highscore ----
+  function updateHighscore(val) {
+    if (window._qteCompMode) {
+      if (val > highscoreComp) {
+        highscoreComp = val;
+        try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('thorian-comp', val);
+      }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
+    } else {
+      if (val > highscore) {
+        highscore = val;
+        try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('thorian', val);
+      }
+      if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
+    }
+  }
+  updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => {
+    highscore = 0; highscoreComp = 0;
+    localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP);
+    updateHighscore(0);
+  });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+  }
+
+  // ---- Canvas (square) ----
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    const sz    = Math.min(wrap.clientWidth - 24 || 440, 440);
+    canvas.width = canvas.height = sz;
+    CX = CY      = sz / 2;
+    BAR_OFF      = Math.round(sz * 0.052);
+    BAR_LEN      = Math.round(sz * 0.135);
+    BAR_THICK    = Math.round(sz * 0.024);
+    THORIAN_R    = Math.round(sz * 0.038);
+    THORIAN_SZ   = Math.round(sz * 0.100);
+    PROJ_R       = Math.round(sz * 0.022);
+    PROJ_SZ      = Math.round(sz * 0.056);
+  }
+
+  // ---- Bar bounding box ----
+  // Each orientation lives OUTSIDE the Thorian heart on exactly one side.
+  // Hearts aimed at center from perpendicular sides will not reach the bar
+  // (they hit Thorian or the opposite-side bar first), ensuring no false blocks.
+  function barRect() {
+    const h = BAR_LEN / 2, off = BAR_OFF, th = BAR_THICK;
+    if (barDir === 'up')
+      return { l: CX - h, r: CX + h,        t: CY - off - th, b: CY - off };
+    if (barDir === 'left')
+      return { l: CX - off - th, r: CX - off, t: CY - h,        b: CY + h  };
+    return   { l: CX + off,      r: CX + off + th, t: CY - h,   b: CY + h  };
+  }
+
+  // ---- Heart glyph ----
+  function drawHeart(x, y, sz, color, alpha) {
+    ctx.save();
+    if (alpha !== undefined) ctx.globalAlpha = alpha;
+    ctx.fillStyle = color; ctx.font = sz + 'px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('\u2665', x, y);
+    ctx.restore();
+  }
+
+  // ---- Draw blue bar as a rounded rect ----
+  function drawBar() {
+    const bb = barRect();
+    const w = bb.r - bb.l, h = bb.b - bb.t;
+    const r = Math.min(w, h, 4);
+    ctx.save();
+    ctx.shadowBlur  = 14;
+    ctx.shadowColor = '#2266ff';
+    ctx.fillStyle   = '#4499ff';
+    ctx.beginPath();
+    ctx.moveTo(bb.l + r, bb.t);
+    ctx.lineTo(bb.r - r, bb.t);
+    ctx.quadraticCurveTo(bb.r, bb.t, bb.r, bb.t + r);
+    ctx.lineTo(bb.r, bb.b - r);
+    ctx.quadraticCurveTo(bb.r, bb.b, bb.r - r, bb.b);
+    ctx.lineTo(bb.l + r, bb.b);
+    ctx.quadraticCurveTo(bb.l, bb.b, bb.l, bb.b - r);
+    ctx.lineTo(bb.l, bb.t + r);
+    ctx.quadraticCurveTo(bb.l, bb.t, bb.l + r, bb.t);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- Full frame ----
+  function drawFrame() {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#0e0e1a'; ctx.fillRect(0, 0, W, H);
+
+    // Arena border
+    ctx.strokeStyle = '#1c1c38'; ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, W - 2, H - 2);
+
+    // Active side indicators
+    const sides = getActiveSides();
+    ctx.save(); ctx.globalAlpha = 0.20; ctx.fillStyle = '#aa33ff';
+    const IW = 4;
+    if (sides.includes('top'))   ctx.fillRect(W * 0.1, 0,       W * 0.8, IW);
+    if (sides.includes('left'))  ctx.fillRect(0,       H * 0.1, IW,      H * 0.8);
+    if (sides.includes('right')) ctx.fillRect(W - IW,  H * 0.1, IW,      H * 0.8);
+    ctx.restore();
+
+    // Thorian heart
+    const tColor = thorianFlash > 0 ? '#ff1111' : '#ff5588';
+    if (thorianFlash > 0) {
+      ctx.save(); ctx.shadowBlur = 28; ctx.shadowColor = '#ff0000';
+      drawHeart(CX, CY, THORIAN_SZ * 1.25, tColor, 1.0);
+      ctx.restore();
+    } else {
+      drawHeart(CX, CY, THORIAN_SZ, tColor, 0.75);
+    }
+
+    // Blue bar (orbiting the heart)
+    drawBar();
+
+    // Purple heart projectiles
+    hearts.forEach(h => {
+      if (h.dying > 0) {
+        // Fading block flash
+        ctx.save();
+        ctx.globalAlpha = h.dying;
+        ctx.shadowBlur = 12; ctx.shadowColor = '#4499ff';
+        drawHeart(h.x, h.y, PROJ_SZ * 1.2, '#88ccff', h.dying);
+        ctx.restore();
+      } else {
+        drawHeart(h.x, h.y, PROJ_SZ, '#cc44ff');
+      }
+    });
+
+    // Block-burst particles
+    particles = particles.filter(p => {
+      p.life -= 0.04; if (p.life <= 0) return false;
+      p.x += p.vx; p.y += p.vy;
+      ctx.save(); ctx.globalAlpha = p.life;
+      ctx.fillStyle = '#88aaff';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      return true;
+    });
+
+    // Lives
+    const lifeS = Math.round(W * 0.050);
+    for (let i = 0; i < MAX_LIVES; i++) {
+      drawHeart(14 + i * (lifeS + 4), 14, lifeS, i < lives ? '#ff4466' : '#252540');
+    }
+
+    // Timer
+    const t = Math.ceil(roundTime);
+    ctx.fillStyle = t <= 3 ? '#ee5555' : '#aaaaff';
+    ctx.font = 'bold ' + Math.round(W * 0.038) + 'px Rajdhani, sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText(t + 's', W - 8, 4);
+
+    // Round label
+    ctx.fillStyle = '#9966cc';
+    ctx.font = Math.round(W * 0.032) + 'px Rajdhani, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Round ' + (streak + 1), W / 2, 4);
+    ctx.textAlign = 'left';
+  }
+
+  function drawIdle() {
+    const W = canvas.width, H = canvas.height;
+    ctx.fillStyle = '#0e0e1a'; ctx.fillRect(0, 0, W, H);
+    drawHeart(W / 2, H / 2, THORIAN_SZ * 1.4, '#ff5588', 0.35);
+    ctx.fillStyle = '#555';
+    ctx.font = Math.round(W * 0.030) + 'px Rajdhani, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Hold W / A / D  or  \u2191\u2190\u2192  to rotate the bar', W / 2, H * 0.70);
+    ctx.textAlign = 'left';
+  }
+
+  // ---- Spawn one projectile from a side, aimed at center ----
+  function spawnHeart(side) {
+    const speed   = getSpeed();
+    const spread  = BAR_LEN * 0.38;  // lateral spread within bar coverage
+    const W = canvas.width, H = canvas.height;
+    let x, y;
+    if (side === 'top') {
+      x = CX + (Math.random() - 0.5) * spread * 2;
+      y = -PROJ_R;
+    } else if (side === 'left') {
+      x = -PROJ_R;
+      y = CY + (Math.random() - 0.5) * spread * 2;
+    } else {
+      x = W + PROJ_R;
+      y = CY + (Math.random() - 0.5) * spread * 2;
+    }
+    // Velocity directed toward center
+    const dx = CX - x, dy = CY - y, dist = Math.sqrt(dx * dx + dy * dy);
+    hearts.push({ x, y, vx: dx / dist * speed, vy: dy / dist * speed, dying: 0 });
+  }
+
+  // ---- Collision ----
+  function overlapsBar(h) {
+    const bb = barRect(), r = PROJ_R;
+    return h.x + r > bb.l && h.x - r < bb.r && h.y + r > bb.t && h.y - r < bb.b;
+  }
+  function hitsThorian(h) {
+    const dx = h.x - CX, dy = h.y - CY;
+    return dx * dx + dy * dy < (THORIAN_R + PROJ_R) * (THORIAN_R + PROJ_R);
+  }
+
+  // ---- Game loop ----
+  function gameLoop(now) {
+    if (!running) return;
+    const dt   = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime   = now;
+    const dtMs = dt * 1000;
+
+    // Strip scheduler
+    if (stripHeartLeft > 0) {
+      stripHeartTimer -= dtMs;
+      if (stripHeartTimer <= 0) {
+        spawnHeart(stripSide);
+        stripHeartLeft--;
+        stripHeartTimer = getHeartInterval();
+      }
+    } else {
+      betweenStripTimer -= dtMs;
+      if (betweenStripTimer <= 0) {
+        const sides = getActiveSides();
+        stripSide       = sides[Math.floor(Math.random() * sides.length)];
+        stripHeartLeft  = getStripLen();
+        stripHeartTimer = 0;
+        betweenStripTimer = getGapDelay();
+      }
+    }
+
+    if (thorianFlash > 0) thorianFlash -= dt;
+
+    // Move hearts & check collisions
+    const W = canvas.width, H = canvas.height;
+    hearts = hearts.filter(h => {
+      if (h.dying > 0) { h.dying -= 0.07; return h.dying > 0; }
+
+      h.x += h.vx * dt;
+      h.y += h.vy * dt;
+
+      // Off-screen
+      if (h.x < -40 || h.x > W + 40 || h.y < -40 || h.y > H + 40) return false;
+
+      // Hit bar → block
+      if (overlapsBar(h)) {
+        h.dying = 1.0;
+        for (let i = 0; i < 7; i++) {
+          particles.push({
+            x: h.x, y: h.y,
+            vx: (Math.random() - 0.5) * 3.5,
+            vy: (Math.random() - 0.5) * 3.5,
+            r: 2 + Math.random() * 3, life: 0.9
+          });
+        }
+        if (window._playQteSfx) window._playQteSfx('dodge', true);
+        return true;
+      }
+
+      // Hit Thorian heart → damage
+      if (hitsThorian(h)) {
+        lives--;
+        thorianFlash = 0.5;
+        if (window._playQteSfx) window._playQteSfx('dodge', false);
+        if (lives <= 0) { onGameOver(); return false; }
+        return false;
+      }
+      return true;
+    });
+
+    roundTime -= dt;
+    if (roundTime <= 0 && running) { onRoundWin(); return; }
+
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onRoundWin() {
+    streak++;
+    updateHighscore(streak);
+    hearts = []; particles = []; lives = MAX_LIVES;
+    if (streakEl) streakEl.textContent = 'Rounds: ' + streak;
+    setStatus('Round ' + streak + ' survived!', '#88ffaa');
+    drawFrame();
+    setTimeout(() => { if (running) beginRound(); }, 1600);
+  }
+
+  function onGameOver() {
+    cancelAnimationFrame(animFrame);
+    running = false; hearts = []; particles = [];
+    setStatus('Thorian fell! ' + streak + ' round' + (streak !== 1 ? 's' : '') + ' survived', '#ee5555');
+    drawFrame();
+    setTimeout(() => {
+      gameStarted = false;
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+    }, 1900);
+  }
+
+  function beginRound() {
+    hearts = []; particles = [];
+    roundTime         = getRoundSecs();
+    stripHeartLeft    = 0;
+    betweenStripTimer = 700;
+    running           = true;
+    setStatus('Block the hearts!', '#cc88ff');
+    animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+  }
+
+  function startGame() {
+    streak = 0; lives = MAX_LIVES; thorianFlash = 0;
+    paused = false; gameStarted = true; barDir = 'right';
+    hearts = []; particles = [];
+    resizeCanvas();
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (streakEl)  streakEl.textContent = '';
+    setStatus('Block the hearts!', '#cc88ff');
+    beginRound();
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running = false; gameStarted = false; paused = false;
+    hearts = []; particles = [];
+    streak = 0; lives = MAX_LIVES; thorianFlash = 0; barDir = 'right';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('', '#888');
+    if (streakEl) streakEl.textContent = '';
+    resizeCanvas(); drawIdle();
+  }
+
+  // ---- Keyboard ----
+  const KEY_MAP = {
+    ArrowUp: 'up', w: 'up', W: 'up',
+    ArrowLeft: 'left', a: 'left', A: 'left',
+    ArrowRight: 'right', d: 'right', D: 'right'
+  };
+
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    const panel = document.getElementById('qte-panel-thorian');
+    if (!panel || panel.style.display === 'none') return;
+    const dir = KEY_MAP[e.key];
+    if (!dir) return;
+    e.preventDefault();
+    if (gameStarted && !paused) stepBar(dir);
+  });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', () => {
+    if (!paused) return;
+    paused = false; running = true;
+    betweenStripTimer = 700;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Block the hearts!', '#cc88ff');
+    animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+  });
+
+  // ---- Tab hooks ----
+  window._onThorianQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+      drawFrame();
+    } else if (!gameStarted) {
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888');
+      if (streakEl) streakEl.textContent = '';
+      drawIdle();
+    }
+  };
+
+  window._onThorianQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame); running = false; paused = true;
+    } else { resetToStart(); streak = 0; }
+  };
+
+  // ---- Mobile d-pad (up / left / right) ----
+  if (IS_MOBILE) {
+    const dpad = document.createElement('div');
+    dpad.className = 'thorian-dpad';
+    dpad.innerHTML =
+      '<div class="thorian-dpad-row"><button class="thorian-dpad-btn" data-dir="up">\u2191</button></div>' +
+      '<div class="thorian-dpad-row">' +
+        '<button class="thorian-dpad-btn" data-dir="left">\u2190</button>' +
+        '<button class="thorian-dpad-btn" data-dir="right">\u2192</button>' +
+      '</div>';
+    dpad.querySelectorAll('.thorian-dpad-btn').forEach(btn => {
+      const dir = btn.dataset.dir;
+      btn.addEventListener('touchstart', e => { e.preventDefault(); if (gameStarted && !paused) stepBar(dir); }, { passive: false });
+    });
+    canvas.parentNode.insertBefore(dpad, canvas.nextSibling);
+  }
+
+  resizeCanvas();
+  drawIdle();
+})();
