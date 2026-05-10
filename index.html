@@ -528,59 +528,67 @@
             </select>
           </div>
 
-          <div class="stat-col-header">
-            <span class="stat-col-header-name"></span>
-            <span class="stat-col-header-spacer"></span>
-            <span class="stat-col-header-label" title="Race">R</span>
-            <span class="stat-col-header-label" title="Level">L</span>
-            <span class="stat-col-header-label" title="Total">T</span>
-          </div>
           <div class="stat-list">
             <div class="stat-row" data-stat="str">
               <span class="stat-name">STR</span>
-              <span class="stat-base"></span>
-              <span class="stat-lvl-bonus"></span>
-              <span class="stat-total"></span>
+              <span class="stat-base" style="display:none"></span>
+              <span class="stat-lvl-bonus" style="display:none"></span>
+              <span class="stat-total" style="display:none"></span>
               <button class="stat-btn minus">−</button>
               <input class="stat-val" type="number" value="0" min="0">
               <button class="stat-btn plus">+</button>
+              <span class="stat-result"><span class="stat-invested-n">0</span><span class="stat-bonus-n"></span></span>
+              <button class="stat-details-btn">Details ▾</button>
             </div>
+            <div class="stat-detail-panel" data-stat="str" style="display:none"></div>
             <div class="stat-row" data-stat="arc">
               <span class="stat-name">ARC</span>
-              <span class="stat-base"></span>
-              <span class="stat-lvl-bonus"></span>
-              <span class="stat-total"></span>
+              <span class="stat-base" style="display:none"></span>
+              <span class="stat-lvl-bonus" style="display:none"></span>
+              <span class="stat-total" style="display:none"></span>
               <button class="stat-btn minus">−</button>
               <input class="stat-val" type="number" value="0" min="0">
               <button class="stat-btn plus">+</button>
+              <span class="stat-result"><span class="stat-invested-n">0</span><span class="stat-bonus-n"></span></span>
+              <button class="stat-details-btn">Details ▾</button>
             </div>
+            <div class="stat-detail-panel" data-stat="arc" style="display:none"></div>
             <div class="stat-row" data-stat="end">
               <span class="stat-name">END</span>
-              <span class="stat-base"></span>
-              <span class="stat-lvl-bonus"></span>
-              <span class="stat-total"></span>
+              <span class="stat-base" style="display:none"></span>
+              <span class="stat-lvl-bonus" style="display:none"></span>
+              <span class="stat-total" style="display:none"></span>
               <button class="stat-btn minus">−</button>
               <input class="stat-val" type="number" value="0" min="0">
               <button class="stat-btn plus">+</button>
+              <span class="stat-result"><span class="stat-invested-n">0</span><span class="stat-bonus-n"></span></span>
+              <button class="stat-details-btn">Details ▾</button>
             </div>
+            <div class="stat-detail-panel" data-stat="end" style="display:none"></div>
             <div class="stat-row" data-stat="spd">
               <span class="stat-name">SPD</span>
-              <span class="stat-base"></span>
-              <span class="stat-lvl-bonus"></span>
-              <span class="stat-total"></span>
+              <span class="stat-base" style="display:none"></span>
+              <span class="stat-lvl-bonus" style="display:none"></span>
+              <span class="stat-total" style="display:none"></span>
               <button class="stat-btn minus">−</button>
               <input class="stat-val" type="number" value="0" min="0">
               <button class="stat-btn plus">+</button>
+              <span class="stat-result"><span class="stat-invested-n">0</span><span class="stat-bonus-n"></span></span>
+              <button class="stat-details-btn">Details ▾</button>
             </div>
+            <div class="stat-detail-panel" data-stat="spd" style="display:none"></div>
             <div class="stat-row" data-stat="lck">
               <span class="stat-name">LCK</span>
-              <span class="stat-base"></span>
-              <span class="stat-lvl-bonus"></span>
-              <span class="stat-total"></span>
+              <span class="stat-base" style="display:none"></span>
+              <span class="stat-lvl-bonus" style="display:none"></span>
+              <span class="stat-total" style="display:none"></span>
               <button class="stat-btn minus">−</button>
               <input class="stat-val" type="number" value="0" min="0">
               <button class="stat-btn plus">+</button>
+              <span class="stat-result"><span class="stat-invested-n">0</span><span class="stat-bonus-n"></span></span>
+              <button class="stat-details-btn">Details ▾</button>
             </div>
+            <div class="stat-detail-panel" data-stat="lck" style="display:none"></div>
           </div>
 
           <div class="stat-percent">
@@ -817,7 +825,7 @@
 <script src="js/data-class-moves.js?v=2"></script>
 <script src="js/data-race-moves.js?v=1"></script>
 <script src="js/move-renderer.js?v=1"></script>
-<script src="js/builder.js?v=8"></script>
+<script src="js/builder.js?v=9"></script>
 <script src="js/qte.js?v=7"></script>
 <script src="js/saved-builds.js?v=1"></script>
 <script src="js/trades.js?v=19"></script>
