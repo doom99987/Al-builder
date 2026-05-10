@@ -21,7 +21,7 @@
   const PLATFORM  = IS_MOBILE ? 'M' : 'C';
 
   // ---- admin ----
-  const ADMIN_USERNAMES = new Set(['Lycoris']);
+  const ADMIN_USERNAMES = new Set(['Lycoris', 'TheAgentsOfRoblox']);
 
   // ---- profanity filter ----
   // Checked as substrings (case-insensitive) against the full username.
