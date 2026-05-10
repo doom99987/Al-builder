@@ -1040,7 +1040,7 @@
   }
 
   // ---- all leaderboards view ----
-  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge'];
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian'];
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
   async function loadAllLeaderboards(mode, platform) {

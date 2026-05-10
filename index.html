@@ -161,6 +161,7 @@
     <button class="tab" data-qte="axe">Axe</button>
     <button class="tab" data-qte="hammer">Hammer</button>
     <button class="tab" data-qte="dodge">Dodge</button>
+    <button class="tab" data-qte="thorian">Thorian</button>
   </div>
   <div class="qte-ping-bar">
     <label class="qte-ping-label">Ping</label>
@@ -278,6 +279,20 @@
         <canvas id="dodge-qte-canvas" class="dodge-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="dodge-qte-start-btn">Start</button>
         <button class="fist-qte-start-btn" id="dodge-qte-resume-btn" style="display:none">Resume</button>
+      </div>
+    </div>
+    <!-- Thorian QTE -->
+    <div class="qte-panel" id="qte-panel-thorian" style="display:none">
+      <div class="thorian-qte-wrap">
+        <div class="thorian-qte-header">
+          <span class="thorian-qte-status" id="thorian-qte-status"></span>
+          <span class="thorian-qte-streak" id="thorian-qte-streak"></span>
+          <span class="thorian-qte-highscore" id="thorian-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('thorian')">&#127942; Leaderboard</button>
+        </div>
+        <canvas id="thorian-qte-canvas" class="thorian-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="thorian-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="thorian-qte-resume-btn" style="display:none">Resume</button>
       </div>
     </div>
   </div>
@@ -772,7 +787,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=57"></script>
+<script src="js/sb.js?v=58"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
     core.js            : global constants, QTE SFX, ping sim, LB hook, dmgcalc state
@@ -788,7 +803,7 @@
 <script src="js/data-race-moves.js?v=1"></script>
 <script src="js/move-renderer.js?v=1"></script>
 <script src="js/builder.js?v=8"></script>
-<script src="js/qte.js?v=2"></script>
+<script src="js/qte.js?v=7"></script>
 <script src="js/saved-builds.js?v=1"></script>
 <script src="js/trades.js?v=19"></script>
 <script>
@@ -840,8 +855,10 @@
     if (name !== 'hammer' && typeof window._onHammerQteHide === 'function') window._onHammerQteHide();
     if (name === 'axe'    && typeof window._onAxeQteShow    === 'function') window._onAxeQteShow();
     if (name !== 'axe'    && typeof window._onAxeQteHide    === 'function') window._onAxeQteHide();
-    if (name === 'staff'  && typeof window._onStaffQteShow  === 'function') window._onStaffQteShow();
-    if (name !== 'staff'  && typeof window._onStaffQteHide  === 'function') window._onStaffQteHide();
+    if (name === 'staff'  && typeof window._onStaffQteShow   === 'function') window._onStaffQteShow();
+    if (name !== 'staff'  && typeof window._onStaffQteHide   === 'function') window._onStaffQteHide();
+    if (name === 'thorian' && typeof window._onThorianQteShow === 'function') window._onThorianQteShow();
+    if (name !== 'thorian' && typeof window._onThorianQteHide === 'function') window._onThorianQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

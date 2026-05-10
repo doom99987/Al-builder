@@ -37,11 +37,40 @@
 }
 .fist-dpad-btn:active { background: #5a3a9a; color: #fff; }
 
+/* ----- Thorian QTE D-pad (up / left / right — no down) ----- */
+.thorian-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 8px auto 0;
+  flex-shrink: 0;
+}
+.thorian-dpad-row { display: flex; gap: 6px; }
+.thorian-dpad-btn {
+  width: 68px;
+  height: 68px;
+  font-size: 28px;
+  background: #1a1030;
+  color: #cc88ff;
+  border: 2px solid #7744bb;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.thorian-dpad-btn:active { background: #4a1a8a; color: #fff; }
+
 /* Disable text selection on canvas QTEs during touch */
 @media (pointer: coarse) {
   .hammer-qte-canvas, #sword-qte-canvas, #dodge-qte-canvas,
   #dagger-qte-canvas, #axe-qte-canvas, #staff-qte-canvas,
-  .spear-qte-canvas { touch-action: none; cursor: pointer; }
+  #thorian-qte-canvas, .spear-qte-canvas { touch-action: none; cursor: pointer; }
 }
 
 /* ============================================================
