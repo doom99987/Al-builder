@@ -5146,7 +5146,7 @@ function toggleMasteryNode(id) {
     // Check point budget for everything being activated
     const cost = toActivate
       .filter(nid => masteryNodeMap[nid].type !== "breakthrough")
-      .reduce((sum, nid) => sum + 1, 0); // regular nodes cost 1 each
+      .reduce((sum, nid) => sum + (masteryNodeMap[nid].type === "mastery" ? 5 : 1), 0);
     if (masteryPointsSpent() + cost > MASTERY_TOTAL_POINTS) return;
 
     toActivate.forEach(nid => { masteryState[nid] = true; });
