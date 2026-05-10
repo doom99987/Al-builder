@@ -2856,6 +2856,17 @@ function toggleDmgDetail(rowEl, idx) {
     if (_dsMult !== 1) formula += ` × ${_dsMult.toFixed(2)} <span class="dc-bonus-tag">[${_dsLabel}]</span> = <b>${_dCurDmg.toFixed(1)}</b>`;
     const { mult: _dbMult, label: _dbLabel } = getBossResMult(effectiveMoveType);
     if (_dbMult !== 1) formula += ` × ${_dbMult.toFixed(2)} <span class="dc-bonus-tag">[${_dbLabel}]</span> = <b>${(_dCurDmg * _dbMult).toFixed(1)}</b>`;
+    const _dResFinal = _dCurDmg * _dbMult;
+    const _dCritMult = getCritDmgMult();
+    if (_dCritMult !== null) {
+      formula += `<br><span class="dc-crit-line">All crits: <b>${_dResFinal.toFixed(1)}</b> × ${_dCritMult.toFixed(2)}x = <b>${(_dResFinal * _dCritMult).toFixed(1)}</b></span>`;
+      formula += buildOvercritLines(_dResFinal, _dCritMult);
+      const _dCc = getCritChancePct();
+      if (_dCc !== null) {
+        const _dExp = getExpectedMultiHitDmg(_dResFinal, _dCritMult, _dCc);
+        formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_dCc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_dExp.toFixed(1)}</b></span>`;
+      }
+    }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -2924,8 +2935,9 @@ function parseDmgBonus(text) {
   if (!text) return null;
   // Exclude damage bonuses that apply only to DoT (poison/bleed/burn ticks, not hits)
   if (/\bfor\s+do[t]\b|\bdo[t]\s+(?:effects?|damage)\b|\bdamage\s+over\s+time\b/i.test(text)) return null;
-  // Exclude per-energy bonuses (Corealloy) — handled separately by energy system
+  // Exclude per-energy bonuses (Corealloy, Lightning Crash) — handled separately by energy system
   if (/\bper\s+energy\b/i.test(text)) return null;
+  if (/\bfor\s+each\s+energy\s+consumed\b/i.test(text)) return null;
   // Exclude damage reduction (defensive effect, not a dmg buff)
   if (/\bdamage\s+reduction\b/i.test(text)) return null;
   // Exclude "more damage to you" — enemy deals more to the player, not a player dmg buff
@@ -3119,7 +3131,7 @@ function collectDmgBonusPassives() {
           // Mastery upgrades the base entry — put it first so it's the "primary" version
           ex.kinds.unshift("mastery");
           ex.descs.unshift({ kind: "mastery", text: e.desc });
-          ex.bonus = e.bonus; // mastery overrides base bonus
+          ex.bonus = Math.max(ex.bonus, e.bonus); // keep higher value — mastery should never reduce
         } else {
           ex.kinds.push(e.kind);
           ex.descs.push({ kind: e.kind, text: e.desc });
@@ -3833,7 +3845,7 @@ function renderDmgBonusSection() {
     const _hasFlourish = dmgCalcMoveList.some(m => m.name === "Flourish");
     const _hasFlourishProf = _hasFlourish && masteryState["lm2"] && _superClass === "Verdant Archer (Ch)";
     _flourishSpdAmt = _hasFlourishProf ? 48 : 25;
-    const _hasFocusStep = dmgCalcMoveList.some(m => m.name === "Focus Step");
+    const _hasFocusStep = racePicker.value === "Stultus (20%)" && (+lvlInput.value || 0) >= 10;
     const _focusStepAmt = Math.max(1, +lvlInput.value || 1) * 2;
     // Auto-reset if no longer available
     if (!_hasRallyingShout && statBuffsActive.rallyingSpd) statBuffsActive.rallyingSpd = false;
@@ -3948,7 +3960,13 @@ function renderDmgBonusSection() {
   });
   html += `</div>`;
 
+  const _searchWasFocused = document.activeElement?.id === "dmg-bonus-search";
+  const _searchCaret = _searchWasFocused ? document.activeElement.selectionStart : null;
   container.innerHTML = html;
+  if (_searchWasFocused) {
+    const _searchEl = document.getElementById("dmg-bonus-search");
+    if (_searchEl) { _searchEl.focus(); if (_searchCaret !== null) _searchEl.setSelectionRange(_searchCaret, _searchCaret); }
+  }
 
   document.getElementById("dmg-bonus-search")?.addEventListener("input", e => {
     _dmgBonusFilter = e.target.value.toLowerCase();
@@ -5061,6 +5079,7 @@ function toggleMasteryNode(id) {
   renderMasteryInfoSection();
   updatePecents();
   renderDmgBonusSection();
+  recalcOpenDetails();
 }
 
 function resetMastery() {
@@ -5068,6 +5087,8 @@ function resetMastery() {
   updateMasteryDisplay();
   renderMasteryInfoSection();
   updatePecents();
+  renderDmgBonusSection();
+  recalcOpenDetails();
 }
 
 function masteryNodeHtml(id) {
