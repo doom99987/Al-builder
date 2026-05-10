@@ -22,6 +22,8 @@
 
   // ---- admin ----
   const ADMIN_USERNAMES = new Set(['Lycoris', 'TheAgentsOfRoblox']);
+  // Permanently banned — hidden from all UI, cannot be unbanned through the panel
+  const PERMA_BANNED = new Set(['NIGGER']);
 
   // ---- profanity filter ----
   // Checked as substrings (case-insensitive) against the full username.
@@ -1121,8 +1123,9 @@
   let _adminCurrentUser = null; // { username, id }
 
   function _renderBanRows(bans) {
-    if (!bans.length) return '<div class="sb-admin-empty">No banned users.</div>';
-    return bans.map(b =>
+    const visible = (bans || []).filter(b => !PERMA_BANNED.has(b.username));
+    if (!visible.length) return '<div class="sb-admin-empty">No banned users.</div>';
+    return visible.map(b =>
       `<div class="sb-admin-ban-row" data-ban="${esc(b.username)}">
         <span>${esc(b.username)}</span>
         <button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button>
@@ -1209,7 +1212,7 @@
   function _refreshBannedTab(username, action) {
     const rowsEl = document.getElementById('sb-admin-ban-rows');
     if (!rowsEl) return;
-    if (action === 'add' && !rowsEl.querySelector(`[data-ban="${username}"]`)) {
+    if (action === 'add' && !PERMA_BANNED.has(username) && !rowsEl.querySelector(`[data-ban="${username}"]`)) {
       rowsEl.querySelector('.sb-admin-empty')?.remove();
       const div = document.createElement('div');
       div.className = 'sb-admin-ban-row';
@@ -1224,6 +1227,7 @@
 
   async function unbanUser(username) {
     if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
+    if (PERMA_BANNED.has(username)) return;
     await sb.from('banned_usernames').delete().eq('username', username);
     _bannedSet?.delete(username);
     _refreshBannedTab(username, 'remove');
