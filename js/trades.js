@@ -263,6 +263,7 @@
   let _dmWithId   = null;
   let _dmWithName = null;
   let _dmSub      = null;
+  let _lastDmSend = 0; // rate limit: timestamp of last sent message
 
   // ---- helpers ----
   const _E = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -1064,13 +1065,17 @@
 
   async function sendDm() {
     if (!authed()) return;
+    const now = Date.now();
+    if (now - _lastDmSend < 1000) return; // max 1 message per second
     const inp = document.getElementById('dm-input');
     const txt = inp?.value.trim();
     if (!txt || !_dmWithId || !_dmWithName) return;
+    if (txt.length > 500) { inp.value = txt.slice(0, 500); return; } // enforce cap in code too
     const id = uid(), name = uname();
     if (!id || !name) return;
+    _lastDmSend = now;
     const avatar_url = await myAvatar();
-    const filtered = filterMsg(txt);
+    const filtered = filterMsg(txt).slice(0, 500); // double-enforce before insert
     inp.value = '';
     try {
       const { error } = await sb.from('direct_messages').insert({

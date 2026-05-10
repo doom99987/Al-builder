@@ -651,7 +651,7 @@
 
 .all-lb-rank { color: #666; width: 24px; }
 .all-lb-name { color: #ccc; }
-.all-lb-score { color: #e0d8c8; text-align: right; }
+.all-lb-score { color: #e0d8c8; text-align: right; white-space: nowrap; }
 
 .dc-vastic-active {
   background: rgba(255,255,255,0.04);
