@@ -21,7 +21,7 @@
   const PLATFORM  = IS_MOBILE ? 'M' : 'C';
 
   // ---- admin ----
-  const ADMIN_USERNAME = 'doom99987';
+  const ADMIN_USERNAMES = new Set(['Lycoris']);
 
   // ---- profanity filter ----
   // Checked as substrings (case-insensitive) against the full username.
@@ -330,7 +330,7 @@
       </div>
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item" onclick="window._openSettings()">&#9881;&nbsp; Settings</button>
-      ${name === ADMIN_USERNAME ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
+      ${ADMIN_USERNAMES.has(name) ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
     document.body.appendChild(menu);
@@ -1048,7 +1048,7 @@
   // ---- admin panel ----
   async function openAdminPanel() {
     closeProfileMenu();
-    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
     // Load current ban list
     const { data: bans } = await sb.from('banned_usernames').select('username').order('username');
     const banRows = (bans || []).map(b =>
@@ -1072,7 +1072,7 @@
   }
 
   async function banUser() {
-    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
     const errEl = document.getElementById('sb-ban-err');
     const input = document.getElementById('sb-ban-input');
     const name  = (input?.value || '').trim();
@@ -1101,7 +1101,7 @@
   }
 
   async function unbanUser(username) {
-    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
     await sb.from('banned_usernames').delete().eq('username', username);
     _bannedSet?.delete(username);
     // Remove from UI
@@ -1113,7 +1113,7 @@
   }
 
   async function banAllProfanityUsers() {
-    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    if (!ADMIN_USERNAMES.has(currentProfile?.username)) return;
     const errEl = document.getElementById('sb-ban-err');
     const btn   = document.getElementById('sb-ban-profanity-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Scanning...'; }
