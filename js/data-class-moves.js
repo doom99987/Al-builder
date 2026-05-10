@@ -1003,6 +1003,7 @@ const classMoves = {
         category: "Attack",
         damage: "2x4",
         scaling: "ARC/75",
+        critBonus: 25,
         effect: "This move has a 25% higher chance to critically strike.\n\nSingle-target | Ranged | Sure Hit"
       },
       {
