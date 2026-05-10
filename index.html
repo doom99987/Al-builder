@@ -296,6 +296,10 @@
       <button class="trd-tab active" data-ttab="selling">Selling</button>
       <button class="trd-tab" data-ttab="buying">Buying</button>
     </div>
+    <div class="trd-search-wrap">
+      <input id="trd-search" class="trd-search" type="text" placeholder="Search items, usernames, descriptions…" autocomplete="off">
+      <button id="trd-advsearch-btn" class="trd-advsearch-btn" onclick="window._trdAdvSearch()" title="Advanced search">⚙ Filter</button>
+    </div>
     <div class="trd-list" id="trades-list">
       <div class="trd-state">Select a tab to load listings.</div>
     </div>
@@ -786,7 +790,7 @@
 <script src="js/builder.js?v=6"></script>
 <script src="js/qte.js?v=2"></script>
 <script src="js/saved-builds.js?v=1"></script>
-<script src="js/trades.js?v=16"></script>
+<script src="js/trades.js?v=19"></script>
 <script>
   function switchPage(name) {
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));

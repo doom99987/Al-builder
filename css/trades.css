@@ -73,6 +73,90 @@
 }
 .trd-tab.active { background: #1a1a35; border-color: #4444aa; color: #aaaaee; }
 
+/* --- Search bar --- */
+.trd-search-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.trd-search {
+  flex: 1;
+  background: #111118;
+  border: 1.5px solid #252535;
+  border-radius: 8px;
+  color: #ccc;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.trd-search::placeholder { color: #444; }
+.trd-search:focus { border-color: #4444aa; }
+
+.trd-advsearch-btn {
+  background: #111118;
+  border: 1.5px solid #252535;
+  border-radius: 8px;
+  color: #666;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.trd-advsearch-btn:hover { border-color: #4444aa; color: #aaaaee; }
+.trd-advsearch-btn.trd-advsearch-active {
+  border-color: #4444aa;
+  color: #aaaaee;
+  background: #1a1a35;
+}
+
+/* --- Advanced search modal extras --- */
+.trd-adv-row { gap: 8px; }
+.trd-adv-row .trd-pick-wrap { flex: 1; }
+.trd-adv-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+.trd-adv-clear-btn {
+  flex: 1;
+  background: #1a1a1a;
+  border: 1.5px solid #333;
+  border-radius: 8px;
+  color: #888;
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.trd-adv-clear-btn:hover { border-color: #555; color: #bbb; }
+.trd-adv-actions .trd-submit-btn { flex: 2; }
+.trd-adv-gold-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.trd-adv-gold-row .trd-gold-label {
+  font-size: 13px;
+  color: #aaa;
+  white-space: nowrap;
+  min-width: 100px;
+}
+.trd-adv-gold-input {
+  width: 90px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.trd-adv-gold-sep {
+  color: #666;
+  font-size: 14px;
+}
+
 /* --- Listing cards grid --- */
 .trd-list {
   display: grid;
