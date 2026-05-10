@@ -20,6 +20,28 @@
   const IS_MOBILE = /Mobi|Android|iPhone|iPad|iPod|Touch/i.test(navigator.userAgent);
   const PLATFORM  = IS_MOBILE ? 'M' : 'C';
 
+  // ---- admin ----
+  const ADMIN_USERNAME = 'doom99987';
+
+  // ---- profanity filter ----
+  // Checked as substrings (case-insensitive) against the full username.
+  const PROFANITY_LIST = [
+    'fuck','shit','cunt','nigger','nigga','faggot','fag','bitch','cock','pussy',
+    'asshole','bastard','dick','whore','slut','retard','twat','prick','wank',
+    'kike','spic','chink','gook','tranny','rape','nonce','pedo','pedophile',
+  ];
+
+  function containsProfanity(str) {
+    const lower = str.toLowerCase();
+    return PROFANITY_LIST.some(w => lower.includes(w));
+  }
+
+  // ---- ban helpers ----
+  async function checkIfBanned(username) {
+    const { data } = await sb.from('banned_usernames').select('username').eq('username', username).maybeSingle();
+    return !!data;
+  }
+
   // ---- state ----
   let currentUser    = null;
   let currentProfile = null; // { username }
@@ -88,6 +110,7 @@
     if (username.length < 3)  throw new Error('Username must be at least 3 characters.');
     if (username.length > 20) throw new Error('Username must be 20 characters or fewer.');
     if (!/^[a-zA-Z0-9_\-]+$/.test(username)) throw new Error('Username: letters, numbers, _ and - only.');
+    if (containsProfanity(username)) throw new Error('That username is not allowed.');
 
     // Check uniqueness before creating auth account
     const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
@@ -124,6 +147,13 @@
       currentUser    = data.user;
       const username = data.user.user_metadata?.username
         || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
+      // Check ban before allowing login
+      const banned = await checkIfBanned(username);
+      if (banned) {
+        await sb.auth.signOut();
+        currentUser = null;
+        throw new Error('Your account has been banned.');
+      }
       currentProfile = { username };
       renderAuthBar();
       clearLocalScores();
@@ -281,6 +311,7 @@
       </div>
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item" onclick="window._openSettings()">&#9881;&nbsp; Settings</button>
+      ${name === ADMIN_USERNAME ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
     document.body.appendChild(menu);
@@ -550,6 +581,7 @@
     if (!newName) { if (errEl) errEl.textContent = 'Enter a username.'; return; }
     if (newName.length < 3) { if (errEl) errEl.textContent = 'At least 3 characters.'; return; }
     if (!/^[a-zA-Z0-9_\-]+$/.test(newName)) { if (errEl) errEl.textContent = 'Letters, numbers, _ and - only.'; return; }
+    if (containsProfanity(newName)) { if (errEl) errEl.textContent = 'That username is not allowed.'; return; }
     if (newName === currentProfile?.username) { closeModal(); return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
@@ -994,6 +1026,70 @@
     }
   }
 
+  // ---- admin panel ----
+  async function openAdminPanel() {
+    closeProfileMenu();
+    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    // Load current ban list
+    const { data: bans } = await sb.from('banned_usernames').select('username').order('username');
+    const banRows = (bans || []).map(b =>
+      `<div class="sb-admin-ban-row"><span>${esc(b.username)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button></div>`
+    ).join('') || '<div class="sb-admin-empty">No banned users.</div>';
+    openModal(`
+      <div class="sb-modal-title">Admin Panel</div>
+      <div class="sb-form-group">
+        <label class="sb-label">Ban username</label>
+        <input id="sb-ban-input" class="sb-input" type="text" placeholder="Username to ban" autocomplete="off" maxlength="20">
+        <div id="sb-ban-err" class="sb-error"></div>
+      </div>
+      <button class="sb-submit sb-ban-btn" onclick="window._banUser()">Ban User</button>
+      <div class="sb-admin-ban-list">
+        <div class="sb-admin-ban-list-title">Currently Banned</div>
+        <div id="sb-admin-ban-rows">${banRows}</div>
+      </div>
+      <button class="sb-cancel" onclick="window._closeModal()">Close</button>
+    `);
+  }
+
+  async function banUser() {
+    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    const errEl = document.getElementById('sb-ban-err');
+    const input = document.getElementById('sb-ban-input');
+    const name  = (input?.value || '').trim();
+    if (!name) { if (errEl) errEl.textContent = 'Enter a username.'; return; }
+    // Check user exists
+    const { data: profile } = await sb.from('profiles').select('id').eq('username', name).maybeSingle();
+    if (!profile) { if (errEl) errEl.textContent = 'User not found.'; return; }
+    const { error } = await sb.from('banned_usernames').upsert({ username: name }, { onConflict: 'username' });
+    if (error) { if (errEl) errEl.textContent = error.message; return; }
+    // Refresh ban list in the modal
+    const rowsEl = document.getElementById('sb-admin-ban-rows');
+    if (rowsEl) {
+      const existing = rowsEl.querySelector(`[data-ban="${name}"]`);
+      if (!existing) {
+        const div = document.createElement('div');
+        div.className = 'sb-admin-ban-row';
+        div.dataset.ban = name;
+        div.innerHTML = `<span>${esc(name)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(name)}')">Unban</button>`;
+        rowsEl.querySelector('.sb-admin-empty')?.remove();
+        rowsEl.appendChild(div);
+      }
+    }
+    if (input) input.value = '';
+    if (errEl) { errEl.style.color = '#66ddaa'; errEl.textContent = `${name} has been banned.`; }
+  }
+
+  async function unbanUser(username) {
+    if (currentProfile?.username !== ADMIN_USERNAME) return;
+    await sb.from('banned_usernames').delete().eq('username', username);
+    // Remove from UI
+    document.querySelector(`[data-ban="${username}"]`)?.remove();
+    const rowsEl = document.getElementById('sb-admin-ban-rows');
+    if (rowsEl && !rowsEl.children.length) {
+      rowsEl.innerHTML = '<div class="sb-admin-empty">No banned users.</div>';
+    }
+  }
+
   window._sbSignOut          = () => signOut();
   window._openAuthModal      = openAuthModal;
   window._openLeaderboard    = openLeaderboard;
@@ -1011,6 +1107,9 @@
   window._confirmDeleteAccount = confirmDeleteAccount;
   window._showConsentFromSettings = () => window._showChatConsentModal?.(() => openSettings());
   window._loadAllLeaderboards  = loadAllLeaderboards;
+  window._openAdminPanel       = openAdminPanel;
+  window._banUser              = banUser;
+  window._unbanUser            = unbanUser;
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)
   window._switchLbMode = function (btn) {

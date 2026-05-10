@@ -272,6 +272,42 @@
 .sb-menu-item:hover { background: #242448; color: #ddd; }
 .sb-menu-item-danger { color: #ff9999; }
 .sb-menu-item-danger:hover { background: #2a1a1a; color: #ffbbbb; }
+.sb-menu-item-admin { color: #f4a460; }
+.sb-menu-item-admin:hover { background: #2a1e0a; color: #ffcc80; }
+
+/* ---- Admin panel ---- */
+.sb-ban-btn { margin-top: 4px; background: #7b2020; }
+.sb-ban-btn:hover { background: #a02828; }
+.sb-admin-ban-list { margin-top: 18px; }
+.sb-admin-ban-list-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.sb-admin-ban-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: #1a1a1a;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: #ccc;
+}
+.sb-admin-unban-btn {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.sb-admin-unban-btn:hover { background: #3a3a3a; color: #eee; }
+.sb-admin-empty { font-size: 13px; color: #555; font-style: italic; }
 
 /* ---- Settings modal extras ---- */
 .sb-field-label {
