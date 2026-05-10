@@ -4027,7 +4027,7 @@ const masteryClassData = {
       l7:  { name: "Speed Node" }, l8:  { name: "Speed Node" },
       l9:  { name: "Speed Node" },
       lm1: { name: "Holy Shield",               desc: "Guarding for someone will now grant an additional 15% TDR.\nTDR = True Damage Resistance (defense)." },
-      lm2: { name: "Holy Crash Proficiency",    desc: "Taunt is now guaranteed on all targets hit — both main and adjacent.\nAdditionally raise base DMG to 15 and adjacent DMG to 10. Deals 1.25x damage." },
+      lm2: { name: "Holy Crash Proficiency",    desc: "Taunt is now guaranteed on all targets hit — both main and adjacent. Deals 1.25x damage." },
       c1:  { name: "Strength Node" }, c2a: { name: "Strength Node" },
       c2b: { name: "Strength Node" }, c3a: { name: "Strength Node" },
       c4:  { name: "Strength Node" }, c5a: { name: "Strength Node" },
@@ -5487,6 +5487,9 @@ async function _loadById(id) {
 
 function loadBuildState(state) {
   if (!state || state.v !== 1) return;
+
+  // Reset spent so stale values don't cause negative clamping when stats are re-loaded
+  spent = 0;
 
   // Level
   lvlInput.value = state.lvl || 1;
