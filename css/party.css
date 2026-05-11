@@ -1,0 +1,812 @@
+/*
+ * party.css — AL Builder
+ * LF Party page: listings, party panel, host modal, profile modal.
+ */
+
+/* ============================================================
+   PAGE SHELL
+   ============================================================ */
+
+#page-lf-party {
+  overflow-y: auto;
+  padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+}
+
+.party-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.party-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.party-title {
+  margin: 0;
+  font-size: 20px;
+  font-family: 'Rajdhani', sans-serif;
+  color: #e0d8c8;
+  letter-spacing: 0.04em;
+  flex: 1;
+}
+
+.party-header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.party-host-btn {
+  background: #2a2a5a;
+  color: #ccccff;
+  border: 1px solid #4444aa;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.party-host-btn:hover { background: #3a3a7a; }
+
+.party-my-class-btn,
+.party-attach-build-btn {
+  background: #1e1e32;
+  color: #aaa;
+  border: 1px solid #383860;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.party-my-class-btn:hover,
+.party-attach-build-btn:hover { background: #2a2a48; color: #ccc; }
+
+.party-section-hdr {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6666aa;
+  margin: 0 0 10px;
+}
+.party-section-hdr-public {
+  margin-top: 24px;
+}
+.party-my-section {
+  margin-bottom: 8px;
+}
+
+.party-state {
+  text-align: center;
+  color: #888;
+  padding: 48px 0;
+  font-size: 14px;
+}
+
+/* ============================================================
+   YOUR PARTY BANNER
+   ============================================================ */
+
+.party-banner {
+  background: linear-gradient(135deg, #16162a 0%, #1e1e38 100%);
+  border: 1px solid #5555aa;
+  border-left: 3px solid #7766dd;
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.party-banner-boss {
+  font-size: 17px;
+  font-weight: 700;
+  color: #d0c8f0;
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
+
+.party-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.party-banner-host {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-banner-host-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #c0b8e8;
+  display: block;
+}
+
+.party-banner-host-class {
+  font-size: 11px;
+  color: #8888bb;
+  display: block;
+  margin-top: 1px;
+}
+
+.party-banner-slots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.party-open-btn--wide {
+  flex: 1;
+  min-width: 120px;
+}
+
+/* ============================================================
+   PUBLIC PARTY GRID
+   ============================================================ */
+
+.party-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.party-card-boss-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #d0c8f0;
+  font-family: 'Rajdhani', sans-serif;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  margin-bottom: 2px;
+}
+
+.party-card-host-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ============================================================
+   PARTY CARD GRID (legacy)
+   ============================================================ */
+
+.party-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+}
+
+.party-card {
+  background: #1a1a2e;
+  border: 1px solid #333355;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.15s;
+}
+.party-card:hover { border-color: #4444aa; }
+
+.party-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.party-card-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.party-card-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.party-card-uname {
+  font-weight: 600;
+  color: #d0c8f0;
+  font-size: 13px;
+}
+
+.party-card-class {
+  font-size: 11px;
+  color: #8888bb;
+}
+
+.party-status-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.party-status-open { background: #162216; color: #66bb6a; }
+.party-status-full { background: #2a1616; color: #ef5350; }
+
+.party-card-boss {
+  font-size: 13px;
+  color: #ccc;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.party-card-boss-label { color: #666; font-size: 11px; }
+.party-card-boss strong { color: #e0d8c8; }
+
+/* Slot pips */
+.party-card-slots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-slots-bar {
+  display: flex;
+  gap: 4px;
+}
+
+.party-slot {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #252540;
+  border: 1px solid #44446a;
+}
+
+.party-slot.filled {
+  background: #3a3a8a;
+  border-color: #6666cc;
+}
+
+.party-slot.filled.host {
+  background: #5a3a8a;
+  border-color: #9966cc;
+}
+
+.party-slots-label {
+  font-size: 12px;
+  color: #888;
+}
+
+/* Action buttons on card */
+.party-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.party-join-btn {
+  flex: 1;
+  background: #2a2a5a;
+  color: #ccccff;
+  border: 1px solid #4444aa;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.party-join-btn:hover:not(:disabled) { background: #3a3a7a; }
+.party-join-btn:disabled { background: #1e1e30; color: #555; border-color: #333; cursor: default; }
+
+.party-close-btn {
+  background: #2a1616;
+  color: #ef5350;
+  border: 1px solid #4a2020;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.party-close-btn:hover { background: #3a1e1e; }
+
+.party-open-btn {
+  flex: 1;
+  background: #1e2e1e;
+  color: #66bb6a;
+  border: 1px solid #2a4a2a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.party-open-btn:hover { background: #263826; }
+
+.party-profile-btn {
+  background: #1e1e30;
+  color: #888;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.party-profile-btn:hover { background: #2a2a44; color: #aaa; }
+
+.party-card-age {
+  font-size: 11px;
+  color: #555;
+  margin-top: 2px;
+}
+
+/* ============================================================
+   PARTY PANEL OVERLAY
+   ============================================================ */
+
+.party-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.party-panel {
+  background: #14141f;
+  border: 1px solid #44446a;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  max-height: 88vh;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+.party-panel-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #2a2a44;
+  flex-shrink: 0;
+}
+
+.party-panel-title {
+  font-weight: 700;
+  color: #d0c8f0;
+  font-size: 14px;
+}
+
+.party-panel-close {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.party-panel-close:hover { color: #ccc; }
+
+/* Members section */
+.party-panel-members {
+  padding: 10px 14px;
+  border-bottom: 1px solid #1e1e30;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.party-members-title {
+  font-size: 11px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+
+.party-member-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.party-member-info { flex: 1; min-width: 0; }
+
+.party-member-name {
+  font-size: 13px;
+  color: #d0c8f0;
+  font-weight: 600;
+}
+
+.party-member-class {
+  font-size: 11px;
+  color: #8888bb;
+}
+
+.party-member-badge {
+  font-size: 10px;
+  background: #2a1a4a;
+  color: #aa88ee;
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  font-weight: 600;
+}
+
+/* Chat */
+.party-panel-chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 160px;
+}
+
+.party-panel-chat::-webkit-scrollbar { width: 4px; }
+.party-panel-chat::-webkit-scrollbar-track { background: transparent; }
+.party-panel-chat::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+.party-msg {
+  display: flex;
+  gap: 7px;
+  align-items: flex-end;
+}
+
+.party-msg-body {
+  background: #1e1e32;
+  border-radius: 8px;
+  padding: 6px 10px;
+  max-width: 340px;
+  word-break: break-word;
+}
+
+.party-msg.own {
+  flex-direction: row-reverse;
+}
+
+.party-msg.own .party-msg-body {
+  background: #222244;
+}
+
+.party-msg-name {
+  font-size: 11px;
+  color: #8877cc;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.party-msg-text {
+  font-size: 13px;
+  color: #ccc;
+}
+
+.party-chat-empty {
+  color: #555;
+  font-size: 13px;
+  text-align: center;
+  margin: auto;
+}
+
+/* Footer input */
+.party-panel-footer {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-top: 1px solid #2a2a44;
+  flex-shrink: 0;
+}
+
+.party-chat-input {
+  flex: 1;
+  background: #1e1e30;
+  border: 1px solid #44446a;
+  border-radius: 6px;
+  padding: 7px 11px;
+  color: #ccc;
+  font-size: 13px;
+  font-family: inherit;
+}
+.party-chat-input:focus { outline: none; border-color: #6666cc; }
+
+.party-chat-send {
+  background: #2a2a5a;
+  color: #ccccff;
+  border: 1px solid #4444aa;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.party-chat-send:hover { background: #3a3a7a; }
+
+.party-leave-btn {
+  margin: 6px 14px 12px;
+  background: #2a1616;
+  color: #ef5350;
+  border: 1px solid #4a2020;
+  border-radius: 6px;
+  padding: 7px;
+  font-size: 13px;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+.party-leave-btn:hover { background: #3a1e1e; }
+
+/* ============================================================
+   MODALS (host, set class, attach build, profile view)
+   ============================================================ */
+
+.party-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.party-modal {
+  background: #14141f;
+  border: 1px solid #44446a;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  padding: 20px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.party-modal-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #d0c8f0;
+  margin: 0 0 16px;
+}
+
+.party-modal-label {
+  font-size: 12px;
+  color: #888;
+  display: block;
+  margin-bottom: 5px;
+}
+
+.party-modal-select {
+  width: 100%;
+  background: #1e1e30;
+  border: 1px solid #44446a;
+  border-radius: 6px;
+  color: #ccc;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+}
+.party-modal-select:focus { outline: none; border-color: #6666cc; }
+
+/* Party size buttons */
+.party-modal-size-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.party-size-btn {
+  flex: 1;
+  background: #1e1e30;
+  border: 1px solid #44446a;
+  border-radius: 6px;
+  color: #888;
+  padding: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.12s, color 0.12s;
+  font-family: inherit;
+}
+.party-size-btn:hover { background: #2a2a44; color: #aaa; }
+.party-size-btn.selected {
+  background: #2a2a5a;
+  border-color: #6666cc;
+  color: #ccccff;
+}
+
+/* Modal action buttons */
+.party-modal-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.party-modal-submit {
+  flex: 1;
+  background: #2a2a5a;
+  color: #ccccff;
+  border: 1px solid #4444aa;
+  border-radius: 6px;
+  padding: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+}
+.party-modal-submit:hover { background: #3a3a7a; }
+
+.party-modal-cancel {
+  background: #1e1e30;
+  color: #888;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+}
+.party-modal-cancel:hover { background: #262638; color: #aaa; }
+
+/* Notification action buttons (injected via _notifExtra) */
+.notif-actions {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0 2px;
+  flex-wrap: wrap;
+}
+
+.notif-action-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid #444;
+  background: #1e1e30;
+  color: #bbb;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s;
+}
+.notif-action-btn:hover { background: #2a2a44; color: #ddd; }
+
+.notif-accept-btn { border-color: #2a4a2a; color: #66bb6a; background: #162216; }
+.notif-accept-btn:hover { background: #1e2e1e; }
+
+.notif-reject-btn { border-color: #4a2a2a; color: #ef5350; background: #2a1616; }
+.notif-reject-btn:hover { background: #3a1e1e; }
+
+.notif-build-btn { border-color: #2a2a5a; color: #9999dd; }
+.notif-build-btn:hover { background: #2a2a48; }
+
+.notif-action-result {
+  font-size: 12px;
+  margin: 4px 0 2px;
+  font-weight: 600;
+}
+.notif-accepted { color: #66bb6a; }
+.notif-rejected { color: #ef5350; }
+
+/* Boss picker list */
+.party-boss-list {
+  border: 1px solid #44446a;
+  border-radius: 6px;
+  background: #1e1e30;
+  overflow-y: auto;
+  max-height: 160px;
+}
+.party-boss-list::-webkit-scrollbar { width: 4px; }
+.party-boss-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+.party-boss-item {
+  padding: 8px 11px;
+  font-size: 13px;
+  color: #bbb;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.party-boss-item:hover { background: #2a2a44; color: #ddd; }
+.party-boss-item.selected { background: #2a2a5a; color: #ccccff; font-weight: 600; }
+
+/* Class search list */
+.party-class-list {
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #44446a;
+  border-radius: 6px;
+  background: #1e1e30;
+}
+.party-class-list::-webkit-scrollbar { width: 4px; }
+.party-class-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+.party-class-item {
+  padding: 7px 11px;
+  font-size: 13px;
+  color: #bbb;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.party-class-item:hover { background: #2a2a44; color: #ddd; }
+.party-class-item.selected { background: #2a2a5a; color: #ccccff; font-weight: 600; }
+
+/* Profile view build card */
+.party-build-card {
+  background: #1e1e30;
+  border: 1px solid #333355;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.6;
+}
+.party-build-name {
+  font-weight: 700;
+  color: #d0c8f0;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.party-build-row { color: #999; }
+.party-build-row span { color: #ccc; }
+
+.party-no-build {
+  color: #555;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 600px) {
+  .party-header { flex-direction: column; align-items: flex-start; }
+  .party-list { grid-template-columns: 1fr; }
+  .party-grid { grid-template-columns: 1fr; }
+  .party-panel { max-height: 95vh; }
+  .party-modal { padding: 16px; }
+  .party-banner-row { flex-direction: column; align-items: flex-start; }
+}
