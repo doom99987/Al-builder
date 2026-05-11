@@ -29,7 +29,8 @@
   ]);
   function isAdmin() { return !!currentUser && ADMIN_IDS.has(currentUser.id); }
 
-  // Permanently banned — hidden from all UI, cannot be unbanned through the panel
+  // Permanently banned — hidden from ban list, cannot be unbanned through the panel
+  // Seeded with hardcoded values; DB-loaded entries are added in loadBannedCache()
   const PERMA_BANNED = new Set(['NIGGER']);
 
   // ---- profanity filter ----
@@ -122,8 +123,12 @@
   let _bannedSet = null; // cached Set of banned usernames
 
   async function loadBannedCache() {
-    const { data } = await sb.from('banned_usernames').select('username');
-    _bannedSet = new Set((data || []).map(r => r.username));
+    const [bansRes, permaRes] = await Promise.all([
+      sb.from('banned_usernames').select('username'),
+      sb.from('perma_banned_usernames').select('username').catch(() => ({ data: [] }))
+    ]);
+    _bannedSet = new Set((bansRes.data || []).map(r => r.username));
+    (permaRes.data || []).forEach(r => PERMA_BANNED.add(r.username));
   }
 
   function isBannedCached(username) {
@@ -1178,6 +1183,7 @@
           </div>
           <div class="sb-admin-actions">
             <button class="sb-admin-action-btn sb-admin-btn-ban" onclick="window._adminBanUser()">🚫 Ban</button>
+            <button class="sb-admin-action-btn sb-admin-btn-perma" onclick="window._adminPermaBanUser()">🔒 Perma Ban</button>
             <button class="sb-admin-action-btn sb-admin-btn-scores" onclick="window._adminClearScores()">📊 Clear Scores</button>
             <button class="sb-admin-action-btn sb-admin-btn-listings" onclick="window._adminDeleteListings()">🗑 Delete Listings</button>
             <button class="sb-admin-action-btn sb-admin-btn-wipe" onclick="window._adminBanAndWipe()">☠ Ban + Wipe All</button>
@@ -1208,7 +1214,10 @@
     return visible.map(b =>
       `<div class="sb-admin-ban-row" data-ban="${esc(b.username)}">
         <span>${esc(b.username)}</span>
-        <button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button>
+        <div style="display:flex;gap:6px">
+          <button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button>
+          <button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${esc(b.username)}')">🔒 Perma Ban</button>
+        </div>
       </div>`
     ).join('');
   }
@@ -1233,13 +1242,26 @@
       `Joined: ${joined} &nbsp;·&nbsp; Scores: ${scoreCount ?? 0} &nbsp;·&nbsp; Listings: ${listingCount ?? 0}`;
     card.style.display = 'block';
     const isBanned = isBannedCached(profile.username);
-    const banBtn = card.querySelector('.sb-admin-btn-ban');
-    if (banBtn) { banBtn.textContent = isBanned ? '✅ Unban' : '🚫 Ban'; banBtn.dataset.banned = isBanned ? '1' : '0'; }
+    const isPerma  = PERMA_BANNED.has(profile.username);
+    const banBtn   = card.querySelector('.sb-admin-btn-ban');
+    const permaBtn = card.querySelector('.sb-admin-btn-perma');
+    if (banBtn) {
+      banBtn.textContent   = isPerma ? '🔒 Perma Banned' : (isBanned ? '✅ Unban' : '🚫 Ban');
+      banBtn.dataset.banned = isBanned || isPerma ? '1' : '0';
+      banBtn.disabled      = isPerma;
+    }
+    if (permaBtn) {
+      permaBtn.disabled    = isPerma;
+      permaBtn.textContent = isPerma ? '🔒 Perma Banned' : '🔒 Perma Ban';
+    }
     adminSetStatus('');
   }
 
   async function adminBanUser() {
     if (!isAdmin() || !_adminCurrentUser) return;
+    if (PERMA_BANNED.has(_adminCurrentUser.username)) {
+      adminSetStatus(`${_adminCurrentUser.username} is permanently banned.`); return;
+    }
     const banBtn = document.querySelector('.sb-admin-btn-ban');
     const isBanned = banBtn?.dataset.banned === '1';
     if (isBanned) {
@@ -1256,6 +1278,36 @@
       adminSetStatus(`${_adminCurrentUser.username} banned.`, true);
       _refreshBannedTab(_adminCurrentUser.username, 'add');
     }
+  }
+
+  async function adminPermaBanUser(usernameArg) {
+    if (!isAdmin()) return;
+    const username = usernameArg || _adminCurrentUser?.username;
+    if (!username) return;
+    if (PERMA_BANNED.has(username)) { adminSetStatus(`${username} is already permanently banned.`); return; }
+    if (!confirm(`Permanently ban "${username}"? This cannot be undone from the panel.`)) return;
+
+    adminSetStatus('Applying permanent ban…');
+    const [permaRes, banRes] = await Promise.all([
+      sb.from('perma_banned_usernames').upsert({ username }, { onConflict: 'username' }),
+      sb.from('banned_usernames').upsert({ username }, { onConflict: 'username' })
+    ]);
+    if (permaRes.error) { adminSetStatus(permaRes.error.message); return; }
+
+    PERMA_BANNED.add(username);
+    _bannedSet?.add(username);
+
+    // Remove from the ban list UI (perma banned are hidden there)
+    _refreshBannedTab(username, 'remove');
+
+    // Update action buttons if this user is currently displayed
+    if (_adminCurrentUser?.username === username) {
+      const banBtn   = document.querySelector('.sb-admin-btn-ban');
+      const permaBtn = document.querySelector('.sb-admin-btn-perma');
+      if (banBtn)   { banBtn.textContent = '🔒 Perma Banned'; banBtn.disabled = true; banBtn.dataset.banned = '1'; }
+      if (permaBtn) { permaBtn.textContent = '🔒 Perma Banned'; permaBtn.disabled = true; }
+    }
+    adminSetStatus(`${username} permanently banned.`, true);
   }
 
   async function adminClearScores() {
@@ -1297,7 +1349,7 @@
       const div = document.createElement('div');
       div.className = 'sb-admin-ban-row';
       div.dataset.ban = username;
-      div.innerHTML = `<span>${esc(username)}</span><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(username)}')">Unban</button>`;
+      div.innerHTML = `<span>${esc(username)}</span><div style="display:flex;gap:6px"><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(username)}')">Unban</button><button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${esc(username)}')">🔒 Perma Ban</button></div>`;
       rowsEl.appendChild(div);
     } else if (action === 'remove') {
       rowsEl.querySelector(`[data-ban="${username}"]`)?.remove();
@@ -1354,6 +1406,7 @@
   window._adminSwitchTab         = adminSwitchTab;
   window._adminLookup            = adminLookup;
   window._adminBanUser           = adminBanUser;
+  window._adminPermaBanUser      = adminPermaBanUser;
   window._adminClearScores       = adminClearScores;
   window._adminDeleteListings    = adminDeleteListings;
   window._adminBanAndWipe        = adminBanAndWipe;

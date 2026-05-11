@@ -382,6 +382,21 @@
 .sb-admin-action-btn:hover { background: #2a2a3e; border-color: #555; color: #eee; }
 .sb-admin-btn-ban  { border-color: #7b3030; color: #ff9999; }
 .sb-admin-btn-ban:hover  { background: #2a1010; border-color: #aa4444; color: #ffbbbb; }
+.sb-admin-btn-perma { border-color: #6a2080; color: #dd88ff; }
+.sb-admin-btn-perma:hover { background: #1e0a2a; border-color: #9944cc; color: #eebeff; }
+.sb-admin-btn-perma:disabled { border-color: #444; color: #555; background: none; cursor: default; }
+.sb-admin-perma-btn {
+  background: #1e0a2a;
+  border: 1px solid #6a2080;
+  border-radius: 4px;
+  color: #dd88ff;
+  font-size: 12px;
+  padding: 3px 9px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.sb-admin-perma-btn:hover { background: #2a1040; color: #eebeff; }
 .sb-admin-btn-scores { border-color: #2a4a7b; color: #99bbff; }
 .sb-admin-btn-scores:hover { background: #101a2a; border-color: #4466aa; color: #bbddff; }
 .sb-admin-btn-listings { border-color: #4a4a20; color: #dddd88; }
