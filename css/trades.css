@@ -788,6 +788,15 @@ input[type="number"].trd-input { width: 90px; }
   overflow: hidden;
 }
 
+#dm-panel.dm-panel--popped {
+  bottom: unset;
+  right: unset;
+  max-height: unset;
+  resize: both;
+  box-shadow: 0 12px 48px rgba(0,0,0,0.75);
+  border-color: #5555aa;
+}
+
 .dm-panel-hdr {
   display: flex;
   align-items: center;
@@ -818,6 +827,19 @@ input[type="number"].trd-input { width: 90px; }
   transition: color 0.12s;
 }
 .dm-back-btn:hover { color: #ccccff; }
+
+.dm-popout-btn {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 3px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: color 0.12s;
+}
+.dm-popout-btn:hover { color: #aaaaee; }
 
 .dm-panel-close {
   background: none;
