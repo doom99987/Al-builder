@@ -440,6 +440,30 @@
 }
 .sb-admin-unban-btn:hover { background: #1a3a1a; color: #aaffaa; }
 .sb-admin-empty { font-size: 13px; color: #555; font-style: italic; padding: 8px 0; }
+.sb-admin-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #2a2a3e;
+  border-radius: 6px;
+  background: #0f0f1a;
+}
+.sb-admin-results::-webkit-scrollbar { width: 4px; }
+.sb-admin-results::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+.sb-admin-result-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: #ccc;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.sb-admin-result-row:hover { background: #1e1e30; color: #eee; }
 .sb-admin-tool-btn {
   width: 100%;
   background: #1e1a08;

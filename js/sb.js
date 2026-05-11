@@ -1233,8 +1233,44 @@
     const name = (document.getElementById('sb-admin-uname')?.value || '').trim();
     if (!name) { adminSetStatus('Enter a username.'); return; }
     adminSetStatus('Searching…');
-    const { data: profile } = await sb.from('profiles').select('id, username, created_at').eq('username', name).maybeSingle();
-    if (!profile) { adminSetStatus('User not found.'); document.getElementById('sb-admin-user-card').style.display = 'none'; return; }
+    document.getElementById('sb-admin-user-card').style.display = 'none';
+    document.getElementById('sb-admin-results')?.remove();
+
+    const { data: profiles } = await sb.from('profiles')
+      .select('id, username, created_at')
+      .ilike('username', `%${name}%`)
+      .order('username')
+      .limit(20);
+
+    if (!profiles?.length) { adminSetStatus('No users found.'); return; }
+    adminSetStatus('');
+
+    // If exact match, load directly
+    if (profiles.length === 1) { adminLoadUserCard(profiles[0]); return; }
+
+    // Otherwise show a results list
+    const list = document.createElement('div');
+    list.id = 'sb-admin-results';
+    list.className = 'sb-admin-results';
+    list.innerHTML = profiles.map(p =>
+      `<div class="sb-admin-result-row" onclick="window._adminSelectUser('${esc(p.id)}')">
+        ${renderAvatar(p.username, null, 22)}
+        <span>${esc(p.username)}</span>
+      </div>`
+    ).join('');
+    document.getElementById('sb-admin-user-card').insertAdjacentElement('beforebegin', list);
+  }
+
+  async function adminSelectUser(userId) {
+    document.getElementById('sb-admin-results')?.remove();
+    adminSetStatus('Loading…');
+    const { data: profile } = await sb.from('profiles')
+      .select('id, username, created_at').eq('id', userId).maybeSingle();
+    if (!profile) { adminSetStatus('User not found.'); return; }
+    adminLoadUserCard(profile);
+  }
+
+  async function adminLoadUserCard(profile) {
     _adminCurrentUser = profile;
     const [{ count: scoreCount }, { count: listingCount }] = await Promise.all([
       sb.from('leaderboard').select('*', { count: 'exact', head: true }).eq('user_id', profile.id),
@@ -1252,9 +1288,9 @@
     const banBtn   = card.querySelector('.sb-admin-btn-ban');
     const permaBtn = card.querySelector('.sb-admin-btn-perma');
     if (banBtn) {
-      banBtn.textContent   = isPerma ? '🔒 Perma Banned' : (isBanned ? '✅ Unban' : '🚫 Ban');
+      banBtn.textContent    = isPerma ? '🔒 Perma Banned' : (isBanned ? '✅ Unban' : '🚫 Ban');
       banBtn.dataset.banned = isBanned || isPerma ? '1' : '0';
-      banBtn.disabled      = isPerma;
+      banBtn.disabled       = isPerma;
     }
     if (permaBtn) {
       permaBtn.disabled    = isPerma;
@@ -1414,6 +1450,7 @@
   window._openAdminPanel         = openAdminPanel;
   window._adminSwitchTab         = adminSwitchTab;
   window._adminLookup            = adminLookup;
+  window._adminSelectUser        = adminSelectUser;
   window._adminBanUser           = adminBanUser;
   window._adminPermaBanUser      = adminPermaBanUser;
   window._adminClearScores       = adminClearScores;
