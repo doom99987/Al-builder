@@ -120,14 +120,18 @@
   }
 
   // ---- ban helpers ----
-  let _bannedSet = null; // cached Set of banned usernames
+  let _bannedSet        = null;       // Set of banned usernames (normal ban — username based)
+  let _permaBannedIdSet = new Set();  // Set of perma-banned UUIDs (uuid based)
 
   async function loadBannedCache() {
     const bansRes = await sb.from('banned_usernames').select('username');
     _bannedSet = new Set((bansRes.data || []).map(r => r.username));
     try {
-      const { data: permaData } = await sb.from('perma_banned_usernames').select('username');
-      (permaData || []).forEach(r => PERMA_BANNED.add(r.username));
+      const { data: permaData } = await sb.from('perma_banned_usernames').select('username, user_id');
+      (permaData || []).forEach(r => {
+        PERMA_BANNED.add(r.username);
+        if (r.user_id) _permaBannedIdSet.add(r.user_id);
+      });
     } catch (_) {}
   }
 
@@ -135,7 +139,9 @@
     return _bannedSet ? _bannedSet.has(username) : false;
   }
 
-  async function checkIfBanned(username) {
+  // Normal ban: username check. Perma ban: UUID check.
+  async function checkIfBanned(userId, username) {
+    if (userId && _permaBannedIdSet.has(userId)) return true;
     if (_bannedSet) return _bannedSet.has(username);
     const { data } = await sb.from('banned_usernames').select('username').eq('username', username).maybeSingle();
     return !!data;
@@ -249,8 +255,8 @@
       currentUser    = data.user;
       const username = data.user.user_metadata?.username
         || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
-      // Check ban before allowing login
-      const banned = await checkIfBanned(username);
+      // Check ban before allowing login (UUID-first, username fallback)
+      const banned = await checkIfBanned(data.user.id, username);
       if (banned) {
         await sb.auth.signOut();
         currentUser = null;
@@ -1264,36 +1270,41 @@
     }
     const banBtn = document.querySelector('.sb-admin-btn-ban');
     const isBanned = banBtn?.dataset.banned === '1';
+    const { username } = _adminCurrentUser;
     if (isBanned) {
-      await sb.from('banned_usernames').delete().eq('username', _adminCurrentUser.username);
-      _bannedSet?.delete(_adminCurrentUser.username);
+      await sb.from('banned_usernames').delete().eq('username', username);
+      _bannedSet?.delete(username);
       banBtn.textContent = '🚫 Ban'; banBtn.dataset.banned = '0';
-      adminSetStatus(`${_adminCurrentUser.username} unbanned.`, true);
-      _refreshBannedTab(_adminCurrentUser.username, 'remove');
+      adminSetStatus(`${username} unbanned.`, true);
+      _refreshBannedTab(username, 'remove');
     } else {
-      const { error } = await sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' });
+      const { error } = await sb.from('banned_usernames').upsert({ username }, { onConflict: 'username' });
       if (error) { adminSetStatus(error.message); return; }
-      _bannedSet?.add(_adminCurrentUser.username);
+      _bannedSet?.add(username);
       banBtn.textContent = '✅ Unban'; banBtn.dataset.banned = '1';
-      adminSetStatus(`${_adminCurrentUser.username} banned.`, true);
-      _refreshBannedTab(_adminCurrentUser.username, 'add');
+      adminSetStatus(`${username} banned.`, true);
+      _refreshBannedTab(username, 'add');
     }
   }
 
-  async function adminPermaBanUser(usernameArg) {
+  async function adminPermaBanUser(usernameArg, userIdArg) {
     if (!isAdmin()) return;
     const username = usernameArg || _adminCurrentUser?.username;
+    const userId   = userIdArg   || _adminCurrentUser?.id || null;
     if (!username) return;
     if (PERMA_BANNED.has(username)) { adminSetStatus(`${username} is already permanently banned.`); return; }
     if (!confirm(`Permanently ban "${username}"? This cannot be undone from the panel.`)) return;
 
     adminSetStatus('Applying permanent ban…');
-    const { error: e1 } = await sb.from('perma_banned_usernames').insert({ username });
+    const { error: e1 } = await sb.from('perma_banned_usernames')
+      .insert({ username, user_id: userId || null });
     if (e1 && !e1.message?.includes('duplicate')) { adminSetStatus(e1.message); return; }
-    await sb.from('banned_usernames').upsert({ username }, { onConflict: 'username' });
+    await sb.from('banned_usernames')
+      .upsert({ username, user_id: userId || null }, { onConflict: 'username' });
 
     PERMA_BANNED.add(username);
     _bannedSet?.add(username);
+    if (userId) _permaBannedIdSet.add(userId);
 
     // Remove from the ban list UI (perma banned are hidden there)
     _refreshBannedTab(username, 'remove');
@@ -1347,7 +1358,7 @@
       const div = document.createElement('div');
       div.className = 'sb-admin-ban-row';
       div.dataset.ban = username;
-      div.innerHTML = `<span>${esc(username)}</span><div style="display:flex;gap:6px"><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(username)}')">Unban</button><button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${esc(username)}')">🔒 Perma Ban</button></div>`;
+      div.innerHTML = `<span>${esc(username)}</span><div style="display:flex;gap:6px"><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(username)}')">Unban</button><button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${esc(username)}',null)">🔒 Perma Ban</button></div>`;
       rowsEl.appendChild(div);
     } else if (action === 'remove') {
       rowsEl.querySelector(`[data-ban="${username}"]`)?.remove();
