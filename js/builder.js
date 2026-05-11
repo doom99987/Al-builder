@@ -2806,6 +2806,7 @@ function toggleDmgDetail(rowEl, idx) {
     const _finalDmg0 = sMult !== 1 ? currentDmg * sMult : currentDmg;
     const { mult: bMult0, label: bLabel0 } = getBossResMult(effectiveMoveType);
     if (bMult0 !== 1) formula += ` × ${bMult0.toFixed(2)} <span class="dc-bonus-tag">[${bLabel0}]</span> = <b>${(_finalDmg0 * bMult0).toFixed(1)}</b>`;
+    else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _resFinalDmg0 = _finalDmg0 * bMult0;
     const _critMult0 = getCritDmgMult();
     if (hitCount > 1) {
@@ -2885,6 +2886,7 @@ function toggleDmgDetail(rowEl, idx) {
     if (_dsMult !== 1) formula += ` × ${_dsMult.toFixed(2)} <span class="dc-bonus-tag">[${_dsLabel}]</span> = <b>${_dCurDmg.toFixed(1)}</b>`;
     const { mult: _dbMult, label: _dbLabel } = getBossResMult(effectiveMoveType);
     if (_dbMult !== 1) formula += ` × ${_dbMult.toFixed(2)} <span class="dc-bonus-tag">[${_dbLabel}]</span> = <b>${(_dCurDmg * _dbMult).toFixed(1)}</b>`;
+    else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _dResFinal = _dCurDmg * _dbMult;
     const _dCritMult = getCritDmgMult();
     if (_dCritMult !== null) {
@@ -2918,6 +2920,7 @@ function toggleDmgDetail(rowEl, idx) {
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
   const { mult: bMult, label: bLabel } = getBossResMult(effectiveMoveType);
   if (bMult !== 1) formula += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${(_finalDmg * bMult).toFixed(1)}</b>`;
+  else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
   const _resFinalDmg = _finalDmg * bMult;
   const _critMult = getCritDmgMult();
   if (hitCount > 1) {
