@@ -624,9 +624,11 @@ function _buildStatDetail(statKey) {
     ? Math.round(coagNailStacks * 1.5 * 10) / 10 : 0;
   if (coagNailBonus) sources.push({ label: `Coag. Nail ×${coagNailStacks}`, val: coagNailBonus });
 
-  let displayTotal = Math.round(pctBase * (1 + totalPct / 100)) +
+  let displayTotal = Math.round(
+    Math.round(pctBase * (1 + totalPct / 100)) +
     (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) +
-    (gearStatBonuses[statKey] ?? 0) + crystalBonus + coagNailBonus;
+    (gearStatBonuses[statKey] ?? 0) + crystalBonus + coagNailBonus
+  );
   const permuthActive = permuthStat === statKey && markPicker?.value === 'Venia';
   if (permuthActive) {
     const permuthBonus = Math.round(displayTotal * 1.4) - displayTotal;
