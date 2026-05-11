@@ -326,6 +326,13 @@ const armourItems = {
     endFlat: 25,
     pct: { end: 2.5, arc: 10 }
     // Also grants: +10% Magic Armor, +5% Physical Armor, +10% Ice Armor, +15% Holy Armor, +20% Dark Armor
+  },
+  "Shadowy Crook": {
+    cost: 250,
+    spd: 1,
+    lck: 2,
+    endFlat: 10
+    // Also grants: +5% Physical Armor, +10% Run Speed
   }
 };
 const soulTreeBonuses = { "crit-dmg": 0, "crit-chance": 0, endFlat: 0 };
