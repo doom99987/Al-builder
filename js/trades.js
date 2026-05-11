@@ -122,7 +122,10 @@
     'your6foot9daddy',
     '6foot9daddy',
     'childabuserYour6Foot9_Daddy',
-    // child abuse / exploitation / grooming
+  ];
+
+  // Terms severe enough to block the message from sending entirely (not just censor)
+  const _BLOCK_LIST = [
     'childporn',
     'child porn',
     'cp',
@@ -154,7 +157,7 @@
     'hebe',
     'hebephile',
     'ephebophile',
-    'map',           // minor attracted person euphemism
+    'map',
     'nomap',
     'childlover',
     'child lover',
@@ -198,10 +201,20 @@
     return result;
   }
 
+  function containsBlocked(txt) {
+    const norm = normalizeLeet(txt);
+    return _BLOCK_LIST.some(w => {
+      const rx = new RegExp(`\\b${w}s?\\b`, 'i');
+      return rx.test(txt) || rx.test(norm);
+    });
+  }
+
   // Exposed so party.js (and others) can block a message outright if it contains profanity
   window._containsProfanity = function (txt) {
-    const check = s => _BANNED.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s));
-    return check(txt) || check(normalizeLeet(txt));
+    const norm = normalizeLeet(txt);
+    const check = s => _BANNED.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s))
+                    || _BLOCK_LIST.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s));
+    return check(txt) || check(norm);
   };
 
   // ---- tradeable items ----
@@ -1311,6 +1324,7 @@
     if (txt.length > 500) { inp.value = txt.slice(0, 500); return; } // enforce cap in code too
     const id = uid(), name = uname();
     if (!id || !name) return;
+    if (containsBlocked(txt)) { inp.value = ''; return; } // silently block severe terms
     _lastDmSend = now;
     const avatar_url = await myAvatar();
     const filtered = filterMsg(txt).slice(0, 500); // double-enforce before insert
