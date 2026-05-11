@@ -904,5 +904,5 @@
   };
 
   // Fire-and-forget cleanup on page load (pg_cron is the primary mechanism)
-  sb.rpc('cleanup_old_listings').catch(() => {});
+  (async () => { try { await sb.rpc('cleanup_old_listings'); } catch (_) {} })();
 })();

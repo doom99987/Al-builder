@@ -123,12 +123,12 @@
   let _bannedSet = null; // cached Set of banned usernames
 
   async function loadBannedCache() {
-    const [bansRes, permaRes] = await Promise.all([
-      sb.from('banned_usernames').select('username'),
-      sb.from('perma_banned_usernames').select('username').catch(() => ({ data: [] }))
-    ]);
+    const bansRes = await sb.from('banned_usernames').select('username');
     _bannedSet = new Set((bansRes.data || []).map(r => r.username));
-    (permaRes.data || []).forEach(r => PERMA_BANNED.add(r.username));
+    try {
+      const { data: permaData } = await sb.from('perma_banned_usernames').select('username');
+      (permaData || []).forEach(r => PERMA_BANNED.add(r.username));
+    } catch (_) {}
   }
 
   function isBannedCached(username) {
@@ -1288,11 +1288,9 @@
     if (!confirm(`Permanently ban "${username}"? This cannot be undone from the panel.`)) return;
 
     adminSetStatus('Applying permanent ban…');
-    const [permaRes, banRes] = await Promise.all([
-      sb.from('perma_banned_usernames').upsert({ username }, { onConflict: 'username' }),
-      sb.from('banned_usernames').upsert({ username }, { onConflict: 'username' })
-    ]);
-    if (permaRes.error) { adminSetStatus(permaRes.error.message); return; }
+    const { error: e1 } = await sb.from('perma_banned_usernames').insert({ username });
+    if (e1 && !e1.message?.includes('duplicate')) { adminSetStatus(e1.message); return; }
+    await sb.from('banned_usernames').upsert({ username }, { onConflict: 'username' });
 
     PERMA_BANNED.add(username);
     _bannedSet?.add(username);
