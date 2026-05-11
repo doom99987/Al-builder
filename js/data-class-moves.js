@@ -1085,31 +1085,8 @@ const classMoves = {
 
   // ── SLAYER TREE ───────────────────────────────────────────────────────────
   "Slayer": {
-    innatePassives: [
-      {
-        level: 1,
-        name: "Hunker Down",
-        description: "After you GUARD, gain a 15% defense buff for 3 turns."
-      },
-      {
-        level: 1,
-        name: "High Pressure",
-        description: "When combat starts apply 3 Pressure to all enemies."
-      }
-    ],
+    innatePassives: [],
     learns: [
-      {
-        slot: "Class Active",
-        level: 5,
-        type: "Active",
-        name: "Prepare",
-        quote: "Loosen your shoulders and get ready to strike.",
-        cost: 1,
-        cooldown: 4,
-        moveType: "Physical",
-        category: "Utility",
-        effect: "On your next hit, apply 3 Pressure and 2 Vulnerable."
-      },
       {
         slot: "1st Learn",
         level: 5,
