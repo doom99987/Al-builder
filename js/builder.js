@@ -533,13 +533,14 @@ function updatePecents() {
     if (stat === "crit-chance" && isStultus) {
       display = (parseFloat(display) + Math.min(100, stultusBonus)).toFixed(1);
     }
-    if (stat === "crit-chance" && frozenDiademIceActive && hasGearEquipped("Frozen Diadem")) {
-      display = (parseFloat(display) + 15).toFixed(1);
+    if (stat === "crit-chance" && hasGearEquipped("Frozen Diadem")) {
+      if (frozenDiademColdActive) display = (parseFloat(display) + 5).toFixed(1);
+      if (frozenDiademIceActive)  display = (parseFloat(display) + 10).toFixed(1);
     }
     if (stat === "crit-chance" && vasticLckProcActive) {
       display = (parseFloat(display) + 80).toFixed(1);
     }
-    if (stat === "crit-chance" && _pctCache.artifactPicker?.value === "Stellian Core" && dmgBonusActive["passive:Stellian Core"]) {
+    if (stat === "crit-chance" && _pctCache.artifactPicker?.value === "Stellian Core" && dmgBonusActive["passive:Stellian Core"] && playerHpPct >= 95) {
       display = (parseFloat(display) + 15).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
@@ -1188,7 +1189,6 @@ function renderGearInfo() {
 // Percentage bonuses granted by gear items (e.g. crit-chance, energy)
 const gearPctBonuses = {
   "Crystal Sphere":  { "crit-chance": 5 },
-  // Frozen Diadem crit (+5% vs Cold, +10% after applying Cold) is conditional — handled by frozenDiademIceActive toggle (+15 total)
   "Narthana's Leaf": { "out-heal": 75, "end": -25 },
 };
 
@@ -2503,8 +2503,7 @@ classPicker.addEventListener("change", () => {
 let dmgCalcMoveList = [];
 let energyCount = 0;
 let darkCoreCount = 0;
-let rageEmpHpConsumed = 0; // 0-65: % of max HP consumed → up to 65% dmg bonus
-let bloodyBersHp = 100; // 1-100: current HP% → (100 - bloodyBersHp)% dmg bonus
+let playerHpPct = 100; // 1-100: current player HP% — used by Bloody Berserker, Rage Empower, Stellian Core
 let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
 const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
@@ -3257,8 +3256,8 @@ function getActiveDmgMult(moveType = null) {
   let mult = 1;
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
     let bonus = null;
-    if      (p.name === "Rage Empower")          bonus = 30 + rageEmpHpConsumed;
-    else if (p.name === "Bloody Berserker")      bonus = 100 - bloodyBersHp;
+    if      (p.name === "Rage Empower")          bonus = 30 + Math.max(0, Math.min(65, 100 - playerHpPct));
+    else if (p.name === "Bloody Berserker")      bonus = 100 - playerHpPct;
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
@@ -3485,6 +3484,12 @@ function changeCrystalStarStacks(delta) {
   updatePecents();
 }
 
+function toggleFrozenDiademCold() {
+  frozenDiademColdActive = !frozenDiademColdActive;
+  renderDmgBonusSection(); recalcOpenDetails();
+  updatePecents();
+}
+
 function toggleFrozenDiademIce() {
   frozenDiademIceActive = !frozenDiademIceActive;
   renderDmgBonusSection(); recalcOpenDetails();
@@ -3526,24 +3531,18 @@ function getBossResMult(moveType) {
   return { mult, label: `${resPct}% res` };
 }
 
-function setRageEmpHp(val) {
-  rageEmpHpConsumed = +val;
-  const valEl = document.getElementById("dc-rage-hp-val");
-  const pctEl = document.querySelector(".dc-bonus-row[data-rage-emp] .dc-bonus-pct");
+function setPlayerHp(val) {
+  playerHpPct = +val;
+  const valEl = document.getElementById("dc-player-hp-val");
   if (valEl) valEl.textContent = val + "%";
-  if (pctEl) pctEl.textContent = `+${30 + rageEmpHpConsumed}%`;
-  recalcOpenDetails();
+  // Update Rage Empower and Bloody Berserker bonus displays live
+  const rageEl = document.querySelector(".dc-bonus-row[data-rage-emp] .dc-bonus-pct");
+  const bersEl = document.querySelector(".dc-bonus-row[data-bloody-bers] .dc-bonus-pct");
+  if (rageEl) rageEl.textContent = `+${30 + Math.max(0, Math.min(65, 100 - playerHpPct))}%`;
+  if (bersEl) bersEl.textContent = `×${(1 + (100 - playerHpPct) / 100).toFixed(2)}`;
+  updatePecents(); recalcOpenDetails();
 }
 
-function setBloodyBersHp(val) {
-  bloodyBersHp = +val;
-  const valEl = document.getElementById("dc-bloody-bers-hp-val");
-  const bonus = 100 - bloodyBersHp;
-  const pctEl = document.querySelector(".dc-bonus-row[data-bloody-bers] .dc-bonus-pct");
-  if (valEl) valEl.textContent = val + "%";
-  if (pctEl) pctEl.textContent = `×${(1 + bonus / 100).toFixed(2)}`;
-  recalcOpenDetails();
-}
 
 function renderDmgBonusSection() {
   const container = document.getElementById("dmg-bonus-section");
@@ -3561,6 +3560,10 @@ function renderDmgBonusSection() {
       <span class="dc-energy-val" id="dc-energy-val">${energyCount}</span>
       <button class="dc-energy-btn" onclick="changeEnergy(1)">+</button>
     </div>
+  </div>
+  <div class="dc-rage-slider-row" style="margin-bottom:6px">
+    <span class="dc-rage-slider-label">Your HP: <span id="dc-player-hp-val">${playerHpPct}%</span></span>
+    <input type="range" class="dc-rage-slider" min="1" max="100" value="${playerHpPct}" oninput="setPlayerHp(this.value)">
   </div>`;
 
   if (superPicker.value === "Darkwraith (Ch)") {
@@ -3590,12 +3593,16 @@ function renderDmgBonusSection() {
   const hasFrozenDiadem = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Frozen Diadem");
   if (hasFrozenDiadem) {
     html += `<div class="dc-energy-section">
-      <span class="dc-energy-label">Target has Cold/Ice <span style="color:#aaa;font-size:11px">(+15% crit chance)</span></span>
+      <span class="dc-energy-label">Target has Cold <span style="color:#aaa;font-size:11px">(+5% crit)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${frozenDiademColdActive ? " dc-bonus-on" : ""}" onclick="toggleFrozenDiademCold()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${frozenDiademColdActive ? "✓" : ""}</div>
+    </div>
+    <div class="dc-energy-section">
+      <span class="dc-energy-label">Applied Cold <span style="color:#aaa;font-size:11px">(+10% crit, 2 turns)</span></span>
       <div class="dc-bonus-check dc-toggle-btn${frozenDiademIceActive ? " dc-bonus-on" : ""}" onclick="toggleFrozenDiademIce()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${frozenDiademIceActive ? "✓" : ""}</div>
     </div>`;
-  } else if (frozenDiademIceActive) {
-    frozenDiademIceActive = false;
-    updatePecents();
+  } else {
+    if (frozenDiademColdActive) { frozenDiademColdActive = false; updatePecents(); }
+    if (frozenDiademIceActive)  { frozenDiademIceActive  = false; updatePecents(); }
   }
 
   if (dmgBonusPassives.length) {
@@ -3648,8 +3655,8 @@ function renderDmgBonusSection() {
     const isUnendingFlow      = p.name === "Unending Flow";
     const isRendingBarrage    = p.name === "Rending Barrage Proficiency";
     const isDemonicPresence   = p.name === "Demonic Presence";
-    const displayBonus   = isBloodyBers      ? 100 - bloodyBersHp
-                         : isRageEmp         ? 30 + rageEmpHpConsumed
+    const displayBonus   = isBloodyBers      ? 100 - playerHpPct
+                         : isRageEmp         ? 30 + Math.max(0, Math.min(65, 100 - playerHpPct))
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
                          : isHourglass       ? hourglassStacks * 20
                          : isOppression      ? oppressionCount * 5
@@ -3680,7 +3687,8 @@ function renderDmgBonusSection() {
       <span class="dc-bonus-pct">${displayBonusStr}</span>
     </div>`;
     if (isStellianCore) {
-      html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">Also grants <span style="color:#e0c97a">+15% Crit chance</span> while active (above 95% HP)</div>`;
+      const _scHpOk = playerHpPct >= 95;
+      html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">Also grants <span style="color:${_scHpOk ? '#e0c97a' : '#666'}">+15% Crit chance</span> ${_scHpOk ? '(active — HP ≥ 95%)' : `(inactive — HP ${playerHpPct}% < 95%)`}</div>`;
     }
     if (isCoagNail) {
       html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
@@ -3693,18 +3701,11 @@ function renderDmgBonusSection() {
       </div>`;
     }
     if (isRageEmp) {
-      html += `<div class="dc-rage-slider-row">
-        <span class="dc-rage-slider-label">HP Consumed: <span id="dc-rage-hp-val">${rageEmpHpConsumed}%</span></span>
-        <input type="range" class="dc-rage-slider" min="0" max="65" value="${rageEmpHpConsumed}" oninput="setRageEmpHp(this.value)">
-        <span class="dc-rage-slider-hint">0% → 65% dmg</span>
-      </div>`;
+      const _consumed = Math.max(0, Math.min(65, 100 - playerHpPct));
+      html += `<div class="dc-rage-slider-row"><span class="dc-rage-slider-hint" style="color:#aaa">HP consumed: ${_consumed}% (from HP slider above)</span></div>`;
     }
     if (isBloodyBers) {
-      html += `<div class="dc-rage-slider-row">
-        <span class="dc-rage-slider-label">Current HP: <span id="dc-bloody-bers-hp-val">${bloodyBersHp}%</span></span>
-        <input type="range" class="dc-rage-slider" min="1" max="100" value="${bloodyBersHp}" oninput="setBloodyBersHp(this.value)">
-        <span class="dc-rage-slider-hint">100% HP → 0% dmg | 1% HP → 99% dmg</span>
-      </div>`;
+      html += `<div class="dc-rage-slider-row"><span class="dc-rage-slider-hint" style="color:#aaa">Current HP: ${playerHpPct}% (from HP slider above)</span></div>`;
     }
     if (isAbsRad) {
       html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
@@ -6096,8 +6097,7 @@ function loadBuildState(state) {
 
   // Reset dmg-calc state so loaded builds start clean
   energyCount = 0;
-  rageEmpHpConsumed = 0;
-  bloodyBersHp = 100;
+  playerHpPct = 100;
   absRadTurn = 1;
   bulkUpStacks = 1;
   hourglassStacks = 1;
@@ -6115,6 +6115,7 @@ function loadBuildState(state) {
   shatteringDebuffCount = 1;
   reversingDebuffCount = 1;
   crystalStarStacks = 0;
+  frozenDiademColdActive = false;
   frozenDiademIceActive = false;
   flamingOverdriveStacks = 0;
   selectedBoss = null;
