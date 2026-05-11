@@ -46,7 +46,7 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: 6,
-        scaling: "STR",
+        scaling: "STR/75",
         effect: "Stab deep into the enemy, inflict 2 stacks of Bleed. This has a 40% extra chance to crit.",
         image: "https://trello.com/1/cards/67b3291ea782e28bbc86acf6/attachments/69788fa838e26d910277122c/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151243.png"
       },
@@ -61,7 +61,7 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: 8,
-        scaling: "STR",
+        scaling: "STR/75",
         effect: "Grab and throw sand into the enemy's eyes, inflict 2 stacks of Blind.",
         image: "https://trello.com/1/cards/67b3291ea782e28bbc86acf6/attachments/69788fa731f165ba13304300/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151225.png"
       }
@@ -283,7 +283,7 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: "5x2",
-        scaling: "STR",
+        scaling: "STR/75",
         effect: "N/A",
         image: "https://trello.com/1/cards/67b313126e03446ff0cdf04e/attachments/6978910ad0e2fa3f890407d4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151804.png"
       },
@@ -298,7 +298,7 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: 7,
-        scaling: "STR",
+        scaling: "STR/75",
         effect: "Chance to inflict 1 stack of Stun.",
         image: "https://trello.com/1/cards/67b313126e03446ff0cdf04e/attachments/6978910c094973ea6a4e797e/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151832.png"
       },
@@ -439,7 +439,21 @@ const classMoves = {
         type: "Passive",
         name: "Parry Training",
         quote: "Gives you the ability to 'Parry' attacks occasionally when you block.",
-        effect: "Now guaranteed on block regardless of mastery. Can trigger multiple times on a single attack and works whilst guarding. Only affects melee attacks and cannot crit or trigger any special effects. The parry damage scales on strength."
+        effect: "Now guaranteed on block regardless of mastery. Can trigger multiple times on a single attack and works whilst guarding. Only affects melee attacks and cannot crit or trigger any special effects.\n\nParry counter: 8 Base DMG + STR/40 scaling.\n\nParry Master (rm1 mastery node): upgrades counter to 12 Base DMG + STR/32 scaling."
+      },
+      {
+        slot: "4th Learn",
+        level: 21,
+        type: "Active",
+        name: "Parry Counter",
+        quote: "",
+        cost: 0,
+        cooldown: 0,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 8,
+        scaling: "STR/40",
+        effect: "Triggered automatically on block. Cannot crit or trigger special effects.\n\nParry Master (rm1): upgrades to 12 Base DMG + STR/32."
       },
       {
         slot: "5th Learn",
@@ -911,7 +925,7 @@ const classMoves = {
         moveType: "Fire",
         category: "Attack",
         damage: "2x8",
-        scaling: "STR/75",
+        scaling: "STR/55",
         effect: "Deals multi-hit damage to a single enemy. Each hit has a 25% chance to apply Burn.\n\nFlaming Overdrive: Has a chance to apply Ghostflame.",
         image: "https://trello.com/1/cards/67b329593631658cda777210/attachments/6980579e00a70394afe62013/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123424.png"
       }
@@ -1569,7 +1583,7 @@ const classMoves = {
         slot: 2, level: 5, type: "Active", name: "Mark",
         requireItem: "Sand Core",
         cost: 1, cooldown: 2, moveType: "Physical", category: "Utility",
-        damage: "7", scaling: "STR",
+        damage: "7", scaling: "STR/75",
         effect: "Unblockable and undodgeable, considered a ranged attack.",
         image: "https://trello.com/1/cards/67b630e1fa2791c18eef24eb/attachments/697cd12daf1ecfea86571d0e/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260130203958.png"
       },
@@ -1596,7 +1610,7 @@ const classMoves = {
         slot: "", level: 5, type: "Active", name: "Dangerous Mixture",
         requireItem: "Ferrus Skin Potion",
         cost: 2, cooldown: 6, moveType: "Poison", category: "Utility",
-        damage: "5", scaling: "STR/ARC",
+        damage: "5", scaling: "STR/80 + ARC/80",
         effect: "Applies 3 different stacks of 3 of vulnerable, blind, cursed, poison, burn and weakened. Unblockable and Undodgeable.",
         image: "https://trello.com/1/cards/67b6913c063ca71f8358c48f/attachments/697ccfd34fae77ea20108ebd/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260130203535.png"
       },
