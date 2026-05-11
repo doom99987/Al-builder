@@ -1301,3 +1301,49 @@ h2 {
   pointer-events: none;
 }
 
+/* ============================================================
+   MOBILE / RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  /* Stack dmg-calc columns vertically */
+  .dmg-calc-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .dmg-calc-right,
+  .dmg-calc-boss {
+    width: 100%;
+  }
+
+  /* Disable sticky on mobile — useless when stacked */
+  #dmg-bonus-section,
+  #dmg-boss-section {
+    position: static;
+  }
+
+  /* Move list: uncap height so all moves are visible without scrolling */
+  .dmg-calc-move-list {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /* Let move rows wrap so stats don't get clipped */
+  .dc-row {
+    flex-wrap: wrap;
+  }
+
+  /* Shrink the name column min-width so it fits narrow screens */
+  .dc-name {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  /* Let stats wrap below the name row */
+  .dc-stats {
+    flex-wrap: wrap;
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
