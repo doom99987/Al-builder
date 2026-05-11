@@ -261,7 +261,7 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: 10,
-        scaling: "STR",
+        scaling: "STR/75",
         effect: "Increases damage dealt by 100% if invisible while attacking. Applies 2 Cursed if the target is poisoned.",
         image: "https://trello.com/1/cards/67b32956205bcc638e52a56b/attachments/69800f95a11c466dc31c150c/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202074318.png"
       }
