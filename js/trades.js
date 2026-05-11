@@ -352,6 +352,7 @@
 
   // DM state
   let _dmOpen     = false;
+  let _dmPopped   = false; // true when panel is in floating pop-out mode
   let _dmView     = 'list'; // 'list' | 'thread'
   let _dmConvs    = [];
   let _dmThread   = [];
@@ -1548,10 +1549,85 @@
       }, 120);
     }, _dmOpen ? 0 : 80);
   }
+  // ── DM pop-out / drag ────────────────────────────────────────
+  function dmTogglePopout() {
+    const panel = document.getElementById('dm-panel');
+    const btn   = document.getElementById('dm-popout-btn');
+    if (!panel) return;
+    _dmPopped = !_dmPopped;
+    if (_dmPopped) {
+      // Centre the panel on screen as starting position
+      const w = Math.min(400, window.innerWidth - 32);
+      const h = Math.min(600, window.innerHeight - 32);
+      const x = Math.round((window.innerWidth  - w) / 2);
+      const y = Math.round((window.innerHeight - h) / 2);
+      panel.classList.add('dm-panel--popped');
+      panel.style.width     = w + 'px';
+      panel.style.height    = h + 'px';
+      panel.style.left      = x + 'px';
+      panel.style.top       = y + 'px';
+      panel.style.bottom    = '';
+      panel.style.right     = '';
+      if (btn) btn.title = 'Dock';
+      _dmInitDrag(panel);
+    } else {
+      panel.classList.remove('dm-panel--popped');
+      panel.style.cssText = 'display:flex'; // reset inline styles, CSS takes over
+      if (btn) btn.title = 'Pop out';
+      _dmDestroyDrag(panel);
+    }
+  }
+
+  function _dmInitDrag(panel) {
+    const hdr = panel.querySelector('.dm-panel-hdr');
+    if (!hdr || hdr._dragBound) return;
+    let ox = 0, oy = 0, startX = 0, startY = 0, dragging = false;
+
+    function onDown(e) {
+      // Don't drag when clicking buttons inside the header
+      if (e.target.closest('button')) return;
+      dragging = true;
+      startX = e.clientX; startY = e.clientY;
+      const r = panel.getBoundingClientRect();
+      ox = r.left; oy = r.top;
+      e.preventDefault();
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      const nx = ox + (e.clientX - startX);
+      const ny = oy + (e.clientY - startY);
+      // Clamp to viewport
+      const maxX = window.innerWidth  - panel.offsetWidth;
+      const maxY = window.innerHeight - panel.offsetHeight;
+      panel.style.left = Math.max(0, Math.min(nx, maxX)) + 'px';
+      panel.style.top  = Math.max(0, Math.min(ny, maxY)) + 'px';
+    }
+    function onUp() { dragging = false; }
+
+    hdr.addEventListener('mousedown', onDown);
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+    hdr.style.cursor = 'move';
+    hdr._dragBound   = true;
+    hdr._dragCleanup = () => {
+      hdr.removeEventListener('mousedown', onDown);
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup',   onUp);
+      hdr.style.cursor = '';
+      hdr._dragBound   = false;
+    };
+  }
+
+  function _dmDestroyDrag(panel) {
+    const hdr = panel.querySelector('.dm-panel-hdr');
+    hdr?._dragCleanup?.();
+  }
+
   window._grantChatConsent    = grantChatConsent;
   window._withdrawChatConsent = withdrawChatConsent;
   window._showChatConsentModal = showChatConsentModal;
   window._toggleDm      = toggleDm;
+  window._dmTogglePopout = dmTogglePopout;
   window._dmOpenThread  = openThread;
   window._dmBack        = backToConvs;
   window._dmDeleteConv  = deleteConversation;

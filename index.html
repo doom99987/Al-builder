@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="css/mobile.css?v=8">
   <link rel="stylesheet" href="css/auth.css?v=12">
   <link rel="stylesheet" href="css/saved-builds.css?v=7">
-  <link rel="stylesheet" href="css/trades.css?v=12">
+  <link rel="stylesheet" href="css/trades.css?v=13">
   <link rel="stylesheet" href="css/vl.css?v=7">
   <link rel="stylesheet" href="css/party.css?v=6">
 </head>
@@ -391,6 +391,7 @@
   <div class="dm-panel-hdr">
     <button id="dm-back-btn" class="dm-back-btn" onclick="window._dmBack()" style="display:none">‹ Back</button>
     <span id="dm-panel-title">Messages</span>
+    <button class="dm-popout-btn" id="dm-popout-btn" onclick="window._dmTogglePopout()" title="Pop out">⧉</button>
     <button class="dm-panel-close" onclick="window._toggleDm()">✕</button>
   </div>
   <div id="dm-thread-ctx" class="dm-thread-ctx" style="display:none"></div>
@@ -869,7 +870,7 @@
 <script src="js/builder.js?v=46"></script>
 <script src="js/qte.js?v=17"></script>
 <script src="js/saved-builds.js?v=9"></script>
-<script src="js/trades.js?v=36"></script>
+<script src="js/trades.js?v=37"></script>
 <script src="js/party.js?v=13"></script>
 <script>
 (function () {
