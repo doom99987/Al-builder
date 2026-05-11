@@ -2714,18 +2714,18 @@ function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
     if (!info) return '';
   }
   let out = '';
-  const orangeDmg = finalDmg * Math.pow(critMult, 2);
+  const orangeDmg = finalDmg * 2 * critMult;
   const orangeLabel = info.tier >= 2 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${critMult.toFixed(2)}²): <b>${orangeDmg.toFixed(1)}</b></span>`;
+  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${(critMult * 2).toFixed(2)}): <b>${orangeDmg.toFixed(1)}</b></span>`;
   if (info.cc > 200) {
-    const redDmg = finalDmg * Math.pow(critMult, 3);
+    const redDmg = finalDmg * 3 * critMult;
     const redLabel = info.tier >= 3 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${critMult.toFixed(2)}³): <b>${redDmg.toFixed(1)}</b></span>`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${(critMult * 3).toFixed(2)}): <b>${redDmg.toFixed(1)}</b></span>`;
   }
   if (info.cc > 300) {
-    const purpleDmg = finalDmg * Math.pow(critMult, 4);
+    const purpleDmg = finalDmg * 4 * critMult;
     const purpleLabel = info.tier >= 4 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${critMult.toFixed(2)}⁴): <b>${purpleDmg.toFixed(1)}</b></span>`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${(critMult * 4).toFixed(2)}): <b>${purpleDmg.toFixed(1)}</b></span>`;
   }
   return out;
 }
