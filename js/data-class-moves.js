@@ -1180,7 +1180,7 @@ const classMoves = {
         moveType: "Holy",
         category: "Utility",
         healing: 4,
-        scaling: "STR/ARC",
+        scaling: "STR/80 + ARC/80",
         effect: "Removes the target's status effects before the heal.",
         image: "https://trello.com/1/cards/67b32965d4aec03ba93fe899/attachments/697fc2c1ed1609ee1feed8a2/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202021615.png"
       },
@@ -1210,7 +1210,7 @@ const classMoves = {
         moveType: "Holy",
         category: "Utility",
         healing: 15,
-        scaling: "STR/ARC",
+        scaling: "STR/100 + ARC/100",
         effect: "Heals more than Cleansing Prayer.",
         image: "https://trello.com/1/cards/67b32965d4aec03ba93fe899/attachments/697fc2be8f54b204bf5b4134/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202021422.png"
       },
