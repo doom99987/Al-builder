@@ -1,3 +1,6 @@
+// Declared at top so updatePecents() (called early on load) can safely reference it.
+const dmgBonusActive = {};
+
 // § RACE SYSTEM
 // Base stat bonuses granted by each race. Values are added on top of the
 // player's invested points before percentage formulas are applied.
@@ -2960,7 +2963,7 @@ function toggleDmgDetail(rowEl, idx) {
 // Collects damage bonus passives from all equipped moves, then renders the
 // interactive toggle/slider panel in the Dmg Calculator tab.
 let dmgBonusPassives = [];
-const dmgBonusActive = {};
+// dmgBonusActive declared at top of file (hoisted) so updatePecents() can reference it safely.
 
 function parseDmgBonus(text) {
   if (!text) return null;
