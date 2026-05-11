@@ -20,7 +20,9 @@
       "Bash(grep -n \"switchPage\\\\s*=\" /c/Users/dkonv/OneDrive/david/Website/Al-builder/js/*.js)",
       "Bash(wc:*)",
       "Bash(pip install:*)",
-      "Bash(grep \"^  \\\\\".*\\\\\": {$\" \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/builder.js\")"
+      "Bash(grep \"^  \\\\\".*\\\\\": {$\" \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/builder.js\")",
+      "Bash(where node:*)",
+      "Bash(where node.exe)"
     ]
   }
 }
