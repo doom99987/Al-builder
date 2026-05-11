@@ -522,7 +522,7 @@
         <div class="trd-card-items">${itemsHtml}</div>
         ${lfHtml ? `<div class="trd-card-lf-block"><span class="${l.type === 'buying' ? 'trd-gv-label' : 'trd-lf-label'}">${l.type === 'buying' ? 'GV' : 'LF'}</span><div class="trd-card-items">${lfHtml}</div></div>` : ''}
         ${l.description?.trim() ? `<div class="trd-card-desc">${esc(l.description)}</div>` : ''}
-        ${!own ? `<button class="trd-msg-btn" onclick="window._trdMessage('${esc(l.user_id)}','${esc(l.username)}','${esc((Array.isArray(l.items)&&l.items.length)?l.items[0].item:(l.item||'your listing'))}')">💬 Accept Offer</button>` : ''}
+        ${!own ? `<button class="trd-msg-btn" onclick="window._trdMessage('${esc(l.user_id)}','${esc(l.username)}','${esc(l.id)}')">💬 Accept Offer</button>` : ''}
       </div>`;
     }).join('');
   }
@@ -1411,13 +1411,20 @@
       el.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
       return;
     }
-    el.innerHTML = _notifications.map(n => `
-      <div class="notif-item${n.read ? '' : ' notif-new'}" data-nid="${esc(n.id)}">
-        <div class="notif-item-title">${esc(n.title)}</div>
-        ${n.body ? `<div class="notif-item-body">${esc(n.body)}</div>` : ''}
-        ${window._notifExtra ? window._notifExtra(n) : ''}
-        <div class="notif-item-time">${timeAgo(n.created_at)}</div>
-      </div>`).join('');
+    el.innerHTML = _notifications.map(n => {
+      const isTradeAccepted = n.meta?.type === 'trade_accepted' && n.meta?.sender_id && n.meta?.sender_username;
+      const clickAttr = isTradeAccepted
+        ? `onclick="window._notifOpenDm('${esc(n.meta.sender_id)}','${esc(n.meta.sender_username)}')" style="cursor:pointer"`
+        : '';
+      return `
+        <div class="notif-item${n.read ? '' : ' notif-new'}${isTradeAccepted ? ' notif-item--clickable' : ''}" data-nid="${esc(n.id)}" ${clickAttr}>
+          <div class="notif-item-title">${esc(n.title)}</div>
+          ${n.body ? `<div class="notif-item-body">${esc(n.body)}</div>` : ''}
+          ${window._notifExtra ? window._notifExtra(n) : ''}
+          ${isTradeAccepted ? `<div class="notif-item-action-hint">Tap to open chat →</div>` : ''}
+          <div class="notif-item-time">${timeAgo(n.created_at)}</div>
+        </div>`;
+    }).join('');
   }
 
   async function markNotifRead() {
@@ -1524,21 +1531,50 @@
   window._trdAdvClear      = clearAdvFilter;
   window._trdAdvAddRow     = addAdvSearchRow;
   window._trdAdvRemoveRow  = removeAdvRow;
-  window._trdMessage    = function (userId, username, itemName) {
+  window._trdMessage = function (userId, username, listingId) {
     if (!authed()) { window._openAuthModal?.('login'); return; }
-    checkChatConsent(() => _trdMessageInner(userId, username, itemName));
+    checkChatConsent(() => _trdMessageInner(userId, username, listingId));
   };
-  async function _trdMessageInner(userId, username, itemName) {
-    // Send acceptance notification to the listing owner (skip for null/self)
+  async function _trdMessageInner(userId, username, listingId) {
     const myName = uname();
+
+    // Look up the listing so we can show full context in the notification
+    let listing = _allListings.find(l => l.id === listingId) || null;
+    if (!listing && listingId) {
+      const { data } = await sb.from('trade_listings').select('*').eq('id', listingId).maybeSingle();
+      listing = data || null;
+    }
+
+    // Build human-readable listing label
+    const itemNames  = listing
+      ? (Array.isArray(listing.items) ? listing.items.map(i => `${i.qty > 1 ? i.qty + 'x ' : ''}${i.item}`) : [listing.item]).filter(Boolean)
+      : [];
+    const lfNames    = listing
+      ? (Array.isArray(listing.lf_items) ? listing.lf_items.map(i => `${i.qty > 1 ? i.qty + 'x ' : ''}${i.item}`) : [listing.lf]).filter(Boolean)
+      : [];
+    const offerLabel = itemNames.length ? itemNames.join(', ') : 'your listing';
+    const lfLabel    = lfNames.length   ? lfNames.join(', ')   : null;
+    const bodyParts  = [`Offering: ${offerLabel}`];
+    if (lfLabel) bodyParts.push(`Wants: ${lfLabel}`);
+    if (listing?.gold_offer)  bodyParts.push(`+ ${listing.gold_offer.toLocaleString()}g`);
+    if (listing?.gold_want)   bodyParts.push(`for ${listing.gold_want.toLocaleString()}g`);
+
+    // Send notification to the listing owner
     if (myName && userId && userId !== uid()) {
       const { error: nErr } = await sb.from('notifications').insert({
         user_id: userId,
         title:   `${myName} accepted your offer!`,
-        body:    `${myName} wants to trade for: ${itemName}`,
+        body:    bodyParts.join(' · '),
+        meta: {
+          type:            'trade_accepted',
+          listing_id:      listingId || null,
+          sender_id:       uid(),
+          sender_username: myName,
+        }
       });
       if (nErr) console.warn('[trades] notification insert failed:', nErr.message);
     }
+
     // Open DM thread
     if (!_dmOpen) toggleDm();
     setTimeout(() => {
@@ -1632,6 +1668,11 @@
   window._dmBack        = backToConvs;
   window._dmDeleteConv  = deleteConversation;
   window._dmSend        = sendDm;
+  window._notifOpenDm = function (senderId, senderName) {
+    toggleNotifs(); // close notif panel
+    if (!_dmOpen) toggleDm();
+    setTimeout(() => openThread(senderId, senderName), _dmOpen ? 0 : 80);
+  };
   window._toggleNotifs  = toggleNotifs;
   window._syncNotifBell = syncBell;
   window._syncMsgBadge  = syncMsgBadge;
