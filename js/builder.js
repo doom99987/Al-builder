@@ -3489,8 +3489,8 @@ function getBossResMult(moveType) {
   const boss = BOSS_DATA[selectedBoss];
   if (!boss) return { mult: 1, label: "" };
   const mult = boss.res[moveType] ?? 1;
-  const pct = Math.round(mult * 100);
-  return { mult, label: `${pct}% res` };
+  const resPct = Math.round((1 - mult) * 100);
+  return { mult, label: `${resPct}% res` };
 }
 
 function setRageEmpHp(val) {
@@ -4062,41 +4062,45 @@ function renderDmgBonusSection() {
     }
   }
 
-  // --- Boss Target ---
-  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Boss Target</h3><div class="dc-boss-list">`;
-  Object.entries(BOSS_DATA).forEach(([name, boss]) => {
-    const active = selectedBoss === name;
-    const corruptedHp = boss.hpVariants?.['Corrupted'];
-    const displayHp = (active && bossCorrupted && corruptedHp) ? corruptedHp : boss.hp;
-    html += `<div class="dc-boss-btn${active ? ' dc-boss-selected' : ''}" data-boss-name="${name.replace(/"/g, '&quot;')}">
-      <span class="dc-boss-btn-name">${name}</span>
-      <span class="dc-boss-btn-hp">${displayHp} HP${corruptedHp ? ` <span style="color:#666">/ ${corruptedHp} corrupted</span>` : ''}</span>
-    </div>`;
-    if (active) {
-      if (corruptedHp) {
-        html += `<div class="dc-boss-corrupt-row">
-          <span class="dc-boss-corrupt-label">Corrupted</span>
-          <div class="dc-boss-corrupt-toggle${bossCorrupted ? ' dc-boss-corrupt-on' : ''}" data-boss-corrupt>
-            <span class="dc-boss-corrupt-knob"></span>
-          </div>
-        </div>`;
-      }
-      const resEntries = Object.entries(boss.res);
-      html += `<div class="dc-boss-res">`;
-      resEntries.forEach(([type, pct]) => {
-        const col = MOVE_TYPE_COLORS[type] || '#aaa';
-        const pctNum = Math.round(pct * 100);
-        const tag = pctNum > 100 ? `<span style="color:#88ff88">+${pctNum - 100}%</span>` : pctNum < 100 ? `<span style="color:#ff8888">-${100 - pctNum}%</span>` : `<span style="color:#aaa">—</span>`;
-        html += `<span class="dc-boss-res-row"><span style="color:${col}">${type}</span> ${tag}</span>`;
-      });
-      html += `</div>`;
-    }
-  });
-  html += `</div>`;
-
   const _searchWasFocused = document.activeElement?.id === "dmg-bonus-search";
   const _searchCaret = _searchWasFocused ? document.activeElement.selectionStart : null;
   container.innerHTML = html;
+
+  // --- Boss Target (separate column) ---
+  const bossContainer = document.getElementById("dmg-boss-section");
+  if (bossContainer) {
+    let bossHtml = `<h3 class="dc-bonus-title">Boss Target</h3><div class="dc-boss-list">`;
+    Object.entries(BOSS_DATA).forEach(([name, boss]) => {
+      const active = selectedBoss === name;
+      const corruptedHp = boss.hpVariants?.['Corrupted'];
+      const displayHp = (active && bossCorrupted && corruptedHp) ? corruptedHp : boss.hp;
+      bossHtml += `<div class="dc-boss-btn${active ? ' dc-boss-selected' : ''}" data-boss-name="${name.replace(/"/g, '&quot;')}">
+        <span class="dc-boss-btn-name">${name}</span>
+        <span class="dc-boss-btn-hp">${displayHp} HP${corruptedHp ? ` <span style="color:#666">/ ${corruptedHp} corrupted</span>` : ''}</span>
+      </div>`;
+      if (active) {
+        if (corruptedHp) {
+          bossHtml += `<div class="dc-boss-corrupt-row">
+            <span class="dc-boss-corrupt-label">Corrupted</span>
+            <div class="dc-boss-corrupt-toggle${bossCorrupted ? ' dc-boss-corrupt-on' : ''}" data-boss-corrupt>
+              <span class="dc-boss-corrupt-knob"></span>
+            </div>
+          </div>`;
+        }
+        const resEntries = Object.entries(boss.res);
+        bossHtml += `<div class="dc-boss-res">`;
+        resEntries.forEach(([type, pct]) => {
+          const col = MOVE_TYPE_COLORS[type] || '#aaa';
+          const pctNum = Math.round(pct * 100);
+          const tag = pctNum > 100 ? `<span style="color:#88ff88">+${pctNum - 100}%</span>` : pctNum < 100 ? `<span style="color:#ff8888">-${100 - pctNum}%</span>` : `<span style="color:#aaa">—</span>`;
+          bossHtml += `<span class="dc-boss-res-row"><span style="color:${col}">${type}</span> ${tag}</span>`;
+        });
+        bossHtml += `</div>`;
+      }
+    });
+    bossHtml += `</div>`;
+    bossContainer.innerHTML = bossHtml;
+  }
   if (_searchWasFocused) {
     const _searchEl = document.getElementById("dmg-bonus-search");
     if (_searchEl) { _searchEl.focus(); if (_searchCaret !== null) _searchEl.setSelectionRange(_searchCaret, _searchCaret); }
@@ -4107,7 +4111,7 @@ function renderDmgBonusSection() {
     renderDmgBonusSection();
   });
 
-  container.querySelectorAll(".dc-boss-btn").forEach(btn => {
+  (bossContainer || container).querySelectorAll(".dc-boss-btn").forEach(btn => {
     btn.addEventListener("click", () => {
       const name = btn.dataset.bossName;
       if (selectedBoss !== name) bossCorrupted = false;
@@ -4117,7 +4121,7 @@ function renderDmgBonusSection() {
     });
   });
 
-  container.querySelector("[data-boss-corrupt]")?.addEventListener("click", e => {
+  (bossContainer || container).querySelector("[data-boss-corrupt]")?.addEventListener("click", e => {
     e.stopPropagation();
     bossCorrupted = !bossCorrupted;
     renderDmgBonusSection();

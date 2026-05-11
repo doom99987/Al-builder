@@ -917,6 +917,16 @@ h2 {
   flex-shrink: 0;
 }
 
+.dmg-calc-boss {
+  width: 220px;
+  flex-shrink: 0;
+}
+
+#dmg-boss-section {
+  position: sticky;
+  top: 0;
+}
+
 #dmg-bonus-section {
   position: sticky;
   top: 0;
