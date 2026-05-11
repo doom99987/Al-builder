@@ -858,17 +858,9 @@
     if (e.key === 'Enter' && document.activeElement?.id === 'party-chat-input') sendMessage();
   });
 
-  // Hook into switchPage to load parties and profile when navigating here
-  const _orig = window.switchPage;
-  if (typeof _orig === 'function') {
-    window.switchPage = function (name) {
-      _orig(name);
-      if (name === 'lf-party') { loadParties(); loadMyPartyProfile(); }
-    };
-  }
-
   // ── Expose ────────────────────────────────────────────────
-  window._partyLoad        = loadParties;
+  window._partyLoad           = loadParties;
+  window._partyLoadMyProfile  = loadMyPartyProfile;
   window._partyHost        = openHost;
   window._partySetClass    = openSetClass;
   window._partySaveClass   = saveClass;
