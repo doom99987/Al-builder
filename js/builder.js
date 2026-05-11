@@ -854,6 +854,14 @@ const enchantItems = {
   "Ivory": {
     level: null,
     effect: "Gaining energy increases all your stats by 4% for 3 turns."
+  },
+  "Storm (mod)": {
+    level: null,
+    effect: "Attacks have a ?% chance to inflict Stun.\n\nAttacks have a ?% chance to increase damage dealt by 50%.\n\nOnly one effect can trigger per attack — Stun and the damage increase cannot proc simultaneously."
+  },
+  "Frost Burn (mod)": {
+    level: null,
+    effect: "Attacks have a ?% chance to inflict Stun.\n\nAttacks have a ?% chance to increase damage dealt by 50%.\n\nOnly one effect can trigger per attack — Stun and the damage increase cannot proc simultaneously."
   }
 };
 
