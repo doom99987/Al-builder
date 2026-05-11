@@ -478,8 +478,12 @@ function updatePecents() {
   const lvlStatBonus = Math.floor(lvl / 5);
 
   const masteryStats = getMasteryStatBonuses();
+  const coagNailActive = hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"];
+  const coagNailBonus = coagNailActive ? coagNailStacks * 1.5 : 0;
   const lckRow = _pctCache.lckInput;
-  const totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
+  let totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
+  if (coagNailActive) totalLck += coagNailBonus;
+  if (permuthStat === 'lck' && markPicker?.value === 'Venia') totalLck = Math.round(totalLck * 1.4);
 
   // Armour stat pct keys that boost the actual stat (not a direct % output bonus)
   const STAT_PCT_KEYS = new Set(["str", "arc", "spd"]);
@@ -509,6 +513,10 @@ function updatePecents() {
       val = pctBase * (1 + totalStatPct / 100) + otherFlat;
     } else {
       val = allocated + (raceBase[stat] ?? 0) + otherFlat + levelBonus;
+    }
+    if (statInput) {
+      if (coagNailActive) val += coagNailBonus;
+      if (permuthStat === stat && markPicker?.value === 'Venia') val = val * 1.4;
     }
     const base = calcPercentage(stat, val);
     const armourStatPct = isStatMult ? 0 : (armourPct[stat] ?? 0); // pct already in val for stat-mult stats
@@ -4245,9 +4253,7 @@ function renderDmgBonusSection() {
     row.addEventListener("click", () => {
       if ('mgLocked' in row.dataset) return; // locked by team buff MG
       dmgBonusActive[p.key] = !dmgBonusActive[p.key];
-      renderDmgBonusSection();
-      recalcOpenDetails();
-      if (p.name === "Stellian Core") updatePecents();
+      renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
     });
     row.addEventListener("mouseenter", () => showDcTooltip(row, p));
     row.addEventListener("mouseleave", hideDcTooltip);
