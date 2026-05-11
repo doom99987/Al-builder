@@ -343,7 +343,7 @@ const raceMoves = {
         moveType: "Magic",
         category: "Attack",
         damage: "1.2 x 6",
-        scaling: "STR/ARC",
+        scaling: "STR/80 + ARC/80",
         effect: "Send out a 6 hit attack of shards of blood, healing you for the damage they deal. If the enemy is vulnerable the last shard will apply 3 bleed onto the opponent.",
         image: "https://trello.com/1/cards/67c264bffc295942b39c2329/attachments/6976074f492874b8ee2e0210/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125170552.png"
       }
