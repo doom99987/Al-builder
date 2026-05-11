@@ -390,6 +390,8 @@ function updatePoints() {
   document.getElementById("points-left").textContent = getEffectiveTotal() - spent;
 }
 
+let permuthStat = ''; // chosen stat for Permuth (Venia mark) +40% buff: 'str'|'arc'|'end'|'spd'|'lck'|''
+
 // DOM references built once at startup and reused on every updatePecents() call
 // to avoid repeated querySelectorAll hits during stat recalculation.
 const _pctCache = (() => {
@@ -559,7 +561,7 @@ function updatePecents() {
     if (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"]) {
       displayTotal += coagNailStacks * 1.5;
     }
-    if (permuthStat === stat && markPicker.value === 'Venia') displayTotal = Math.round(displayTotal * 1.4);
+    if (permuthStat === stat && markPicker?.value === 'Venia') displayTotal = Math.round(displayTotal * 1.4);
     displayTotal = Math.round(displayTotal);
     if (totalEl) totalEl.textContent = displayTotal || "";
     if (investedEl) investedEl.textContent = allocated;
@@ -617,7 +619,7 @@ function _buildStatDetail(statKey) {
   let displayTotal = Math.round(pctBase * (1 + totalPct / 100)) +
     (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) +
     (gearStatBonuses[statKey] ?? 0) + crystalBonus + coagNailBonus;
-  const permuthActive = permuthStat === statKey && markPicker.value === 'Venia';
+  const permuthActive = permuthStat === statKey && markPicker?.value === 'Venia';
   if (permuthActive) {
     const permuthBonus = Math.round(displayTotal * 1.4) - displayTotal;
     sources.push({ label: "Permuth (+40%)", val: permuthBonus });
@@ -2535,7 +2537,6 @@ let overcoreActive = false;      // Overcore (Darkwraith rm1): crit mult squared
 let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
-let permuthStat = ''; // chosen stat for Permuth (Venia mark) +40% buff: 'str'|'arc'|'end'|'spd'|'lck'|''
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
