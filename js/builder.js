@@ -2902,9 +2902,14 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
 
   // Full formula: BaseDMG(1 + stat1/scl1 + stat2/scl2 ...)
   // Flowing Dance Proficiency (Blade Dancer rm2): override scaling to SPD/50
+  // Parry Master (Blade Dancer rm1): upgrades Parry Counter to 12 base + STR/32
   let _activeScalings = scalings;
   if (m.name === "Flowing Dance" && masteryState["rm2"] && superPicker.value === "Blade Dancer (N)") {
     _activeScalings = [{ stat: "spd", scaling: 50, label: "SPD" }];
+  }
+  if (m.name === "Parry Counter" && masteryState["rm1"] && superPicker.value === "Blade Dancer (N)") {
+    baseDmgNum = 12;
+    _activeScalings = [{ stat: "str", scaling: 32, label: "STR" }];
   }
   const statParts = _activeScalings.map(({ stat, scaling, label }) => {
     const val = getTotalStat(stat);
@@ -2913,6 +2918,14 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const totalContrib = statParts.reduce((sum, p) => sum + p.contrib, 0);
   const dmgPerHit = baseDmgNum * (1 + totalContrib);
   const totalDmg  = dmgPerHit * hitCount;
+
+  // Parry Counter: no damage buffs, no crit — output raw formula and exit
+  if (m.name === "Parry Counter") {
+    const _pcScalingStr = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
+    const _pcNote = `<span class="dc-bonus-tag" style="color:#777">[No dmg buffs · Cannot crit]</span>`;
+    detail.innerHTML = `<div class="dc-calc">${baseDmgNum}(1 + ${_pcScalingStr}) = <b>${dmgPerHit.toFixed(1)}</b> ${_pcNote}</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
+  }
 
   const effectiveMoveType = getEffectiveMoveType(m.moveType);
   const activeMult        = getActiveDmgMult(effectiveMoveType);
