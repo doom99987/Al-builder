@@ -440,6 +440,51 @@
 }
 .sb-admin-unban-btn:hover { background: #1a3a1a; color: #aaffaa; }
 .sb-admin-empty { font-size: 13px; color: #555; font-style: italic; padding: 8px 0; }
+.sb-admin-listing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.sb-admin-listing-list::-webkit-scrollbar { width: 4px; }
+.sb-admin-listing-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+.sb-admin-listing-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: #0f0f1a;
+  border: 1px solid #1e1e30;
+  border-radius: 6px;
+}
+.sb-admin-listing-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.sb-admin-listing-user  { font-size: 12px; font-weight: 600; color: #c0b8e8; }
+.sb-admin-listing-type  { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.sb-listing-selling { color: #66bb6a; }
+.sb-listing-buying  { color: #ffb74d; }
+.sb-admin-listing-items { font-size: 12px; color: #ccc; }
+.sb-admin-listing-lf    { font-size: 11px; color: #888; }
+.sb-admin-listing-age   { font-size: 11px; color: #444; }
+.sb-admin-del-listing-btn {
+  background: #2a1616;
+  border: 1px solid #4a2020;
+  border-radius: 4px;
+  color: #ef5350;
+  font-size: 13px;
+  padding: 3px 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.sb-admin-del-listing-btn:hover { background: #3a1e1e; }
 .sb-admin-results {
   display: flex;
   flex-direction: column;

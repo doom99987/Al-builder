@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AL Builder — Messages</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #1a1a2e;
+      color: #ccc;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* ── Header ── */
+    #hdr {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: #14141f;
+      border-bottom: 1px solid #2a2a44;
+      flex-shrink: 0;
+      -webkit-app-region: drag; /* allows dragging the window via header in Electron-style */
+    }
+    #hdr-back {
+      background: none; border: none; color: #7777cc; font-size: 15px;
+      cursor: pointer; padding: 0 4px; display: none;
+      -webkit-app-region: no-drag;
+    }
+    #hdr-back:hover { color: #ccccff; }
+    #hdr-title { flex: 1; font-weight: 700; font-size: 13px; color: #d0c8f0; }
+    #hdr-status { font-size: 11px; color: #555; }
+
+    /* ── Conv list ── */
+    #conv-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    #conv-list::-webkit-scrollbar { width: 4px; }
+    #conv-list::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    .conv-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      cursor: pointer;
+      transition: background 0.1s;
+      border-bottom: 1px solid #1a1a2e;
+    }
+    .conv-item:hover { background: #1e1e30; }
+    .conv-avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .conv-info { flex: 1; min-width: 0; }
+    .conv-name { font-weight: 600; color: #d0c8f0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-preview { font-size: 11px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+    .conv-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .conv-time { font-size: 11px; color: #444; }
+    .conv-unread { background: #5555cc; color: #fff; border-radius: 10px; padding: 1px 6px; font-size: 11px; font-weight: 700; }
+
+    /* ── Thread ── */
+    #thread-wrap { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    #thread-msgs {
+      flex: 1; overflow-y: auto; padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    #thread-msgs::-webkit-scrollbar { width: 4px; }
+    #thread-msgs::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+    .dm-msg { display: flex; gap: 6px; align-items: flex-end; }
+    .dm-msg.mine { flex-direction: row-reverse; }
+    .dm-bubble {
+      background: #1e1e32; border-radius: 8px; padding: 6px 10px;
+      max-width: 72%; word-break: break-word; font-size: 13px; color: #ccc;
+      line-height: 1.4;
+    }
+    .dm-msg.mine .dm-bubble { background: #222244; }
+    .dm-msg-name { font-size: 11px; color: #8877cc; font-weight: 600; margin-bottom: 2px; }
+    .dm-msg-time { font-size: 10px; color: #444; margin-top: 2px; }
+    #thread-footer {
+      display: flex; gap: 6px; padding: 8px 12px;
+      border-top: 1px solid #2a2a44; flex-shrink: 0;
+    }
+    #dm-input {
+      flex: 1; background: #1e1e30; border: 1px solid #44446a; border-radius: 6px;
+      padding: 7px 10px; color: #ccc; font-size: 13px; font-family: inherit;
+    }
+    #dm-input:focus { outline: none; border-color: #6666cc; }
+    #dm-send {
+      background: #2a2a5a; color: #ccccff; border: 1px solid #4444aa;
+      border-radius: 6px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    #dm-send:hover { background: #3a3a7a; }
+
+    /* ── States ── */
+    .state-msg {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: #555; font-size: 13px; text-align: center; padding: 20px;
+    }
+    .unread-dot {
+      width: 8px; height: 8px; background: #5555cc; border-radius: 50; flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="hdr">
+    <button id="hdr-back" onclick="showConvList()">‹</button>
+    <span id="hdr-title">Messages</span>
+    <span id="hdr-status"></span>
+  </div>
+  <div id="conv-list"><div class="state-msg">Loading…</div></div>
+  <div id="thread-wrap">
+    <div id="thread-msgs"></div>
+    <div id="thread-footer">
+      <input id="dm-input" type="text" placeholder="Message…" maxlength="500" autocomplete="off">
+      <button id="dm-send">Send</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/supabase.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  const SUPABASE_URL      = 'https://mpqohagljmvwftwqumnh.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcW9oYWdsam12d2Z0d3F1bW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzg1NzEsImV4cCI6MjA5MzYxNDU3MX0.WfU88Ell1Q6jCcef2YiohxIeTHBNfruIxYWoa1QRCUc';
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: false }
+  });
+
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  function timeAgo(iso) {
+    const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (s < 60)    return 'just now';
+    if (s < 3600)  return Math.floor(s / 60) + 'm ago';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+    return Math.floor(s / 86400) + 'd ago';
+  }
+
+  function mkAvatar(name, size) {
+    const hue = [...(name||'')].reduce((h,c) => (h*31+c.charCodeAt(0))&0xFFFFFF, 0) % 360;
+    const el = document.createElement('div');
+    el.className = 'conv-avatar';
+    el.style.background = `hsl(${hue},55%,30%)`;
+    el.style.width = el.style.height = size + 'px';
+    el.style.fontSize = Math.floor(size * 0.38) + 'px';
+    el.textContent = (name||'?').slice(0,2).toUpperCase();
+    return el;
+  }
+
+  let _me = null, _myName = null;
+  let _withId = null, _withName = null;
+  let _dmSub = null, _lastSend = 0;
+
+  // ── Auth ──────────────────────────────────────────────────
+  async function init() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      document.getElementById('conv-list').innerHTML =
+        '<div class="state-msg">Sign in on the main page first.</div>';
+      return;
+    }
+    _me = session.user.id;
+    _myName = session.user.user_metadata?.username || 'Me';
+    loadConvs();
+
+    // Listen for "open this thread" requests from the main window
+    const bc = new BroadcastChannel('alb-dm-popup');
+    bc.onmessage = e => {
+      if (e.data?.type === 'open-thread') openThread(e.data.userId, e.data.username);
+    };
+
+    // Also handle URL params (main window can pass ?uid=...&uname=... on open)
+    const p = new URLSearchParams(location.search);
+    if (p.get('uid') && p.get('uname')) openThread(p.get('uid'), p.get('uname'));
+  }
+
+  // ── Conv list ─────────────────────────────────────────────
+  async function loadConvs() {
+    const el = document.getElementById('conv-list');
+    el.innerHTML = '<div class="state-msg">Loading…</div>';
+    const { data: msgs } = await sb.from('direct_messages')
+      .select('*').or(`sender_id.eq.${_me},recipient_id.eq.${_me}`)
+      .order('created_at', { ascending: false }).limit(300);
+    if (!msgs?.length) { el.innerHTML = '<div class="state-msg">No messages yet.</div>'; return; }
+    const convMap = new Map();
+    for (const m of msgs) {
+      const isMe   = m.sender_id === _me;
+      const other  = isMe ? m.recipient_id   : m.sender_id;
+      const oname  = isMe ? m.recipient_name : m.sender_name;
+      const deleted = isMe ? m.deleted_by_sender : m.deleted_by_recipient;
+      if (deleted) continue;
+      if (!convMap.has(other)) convMap.set(other, { id: other, name: oname, last: m.content, time: m.created_at, unread: 0 });
+      if (!isMe && !m.read) convMap.get(other).unread++;
+    }
+    el.innerHTML = '';
+    [...convMap.values()].forEach(c => {
+      const row = document.createElement('div');
+      row.className = 'conv-item';
+      row.appendChild(mkAvatar(c.name, 36));
+      row.innerHTML += `
+        <div class="conv-info">
+          <div class="conv-name">${esc(c.name)}</div>
+          <div class="conv-preview">${esc((c.last||'').slice(0,55))}</div>
+        </div>
+        <div class="conv-right">
+          <div class="conv-time">${timeAgo(c.time)}</div>
+          ${c.unread > 0 ? `<div class="conv-unread">${c.unread}</div>` : ''}
+        </div>`;
+      row.onclick = () => openThread(c.id, c.name);
+      el.appendChild(row);
+    });
+  }
+
+  // ── Thread ────────────────────────────────────────────────
+  async function openThread(userId, username) {
+    _withId = userId; _withName = username;
+    document.getElementById('hdr-title').textContent = username;
+    document.getElementById('hdr-back').style.display = 'block';
+    document.getElementById('conv-list').style.display = 'none';
+    const tw = document.getElementById('thread-wrap');
+    tw.style.display = 'flex';
+
+    const msgs = document.getElementById('thread-msgs');
+    msgs.innerHTML = '<div class="state-msg">Loading…</div>';
+
+    const { data } = await sb.from('direct_messages')
+      .select('*')
+      .or(`and(sender_id.eq.${_me},recipient_id.eq.${userId}),and(sender_id.eq.${userId},recipient_id.eq.${_me})`)
+      .order('created_at').limit(100);
+
+    msgs.innerHTML = '';
+    (data||[]).forEach(m => appendMsg(m));
+    msgs.scrollTop = msgs.scrollHeight;
+
+    // Mark read
+    sb.from('direct_messages').update({ read: true })
+      .eq('recipient_id', _me).eq('sender_id', userId).eq('read', false).then(() => {});
+
+    subscribeMsgs(userId);
+    document.getElementById('dm-input').focus();
+  }
+
+  function showConvList() {
+    _withId = null; _withName = null;
+    document.getElementById('hdr-title').textContent = 'Messages';
+    document.getElementById('hdr-back').style.display = 'none';
+    document.getElementById('conv-list').style.display = 'block';
+    document.getElementById('thread-wrap').style.display = 'none';
+    if (_dmSub) { try { sb.removeChannel(_dmSub); } catch(_){} _dmSub = null; }
+    loadConvs();
+  }
+  window.showConvList = showConvList;
+
+  function appendMsg(m) {
+    const el = document.getElementById('thread-msgs');
+    const mine = m.sender_id === _me;
+    const empty = el.querySelector('.state-msg');
+    if (empty) empty.remove();
+    const wrap = document.createElement('div');
+    wrap.className = 'dm-msg' + (mine ? ' mine' : '');
+    if (!mine) {
+      const av = mkAvatar(m.sender_name, 24);
+      wrap.appendChild(av);
+    }
+    const bub = document.createElement('div');
+    bub.className = 'dm-bubble';
+    if (!mine) bub.innerHTML = `<div class="dm-msg-name">${esc(m.sender_name)}</div>`;
+    bub.innerHTML += `<div>${esc(m.content)}</div><div class="dm-msg-time">${timeAgo(m.created_at)}</div>`;
+    wrap.appendChild(bub);
+    el.appendChild(wrap);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function subscribeMsgs(userId) {
+    if (_dmSub) { try { sb.removeChannel(_dmSub); } catch(_){} }
+    _dmSub = sb.channel('popup-dm-' + userId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'direct_messages',
+        filter: `recipient_id=eq.${_me}`
+      }, p => {
+        if (p.new?.sender_id === userId) {
+          appendMsg(p.new);
+          sb.from('direct_messages').update({ read: true }).eq('id', p.new.id).then(() => {});
+        }
+      })
+      .subscribe();
+  }
+
+  // ── Send ──────────────────────────────────────────────────
+  async function sendMsg() {
+    const inp = document.getElementById('dm-input');
+    const txt = inp.value.trim();
+    if (!txt || !_withId || !_me) return;
+    const now = Date.now();
+    if (now - _lastSend < 1000) return;
+    _lastSend = now;
+    inp.value = '';
+    const row = {
+      sender_id: _me, sender_name: _myName,
+      recipient_id: _withId, recipient_name: _withName,
+      content: txt.slice(0, 500)
+    };
+    appendMsg({ ...row, created_at: new Date().toISOString() });
+    await sb.from('direct_messages').insert(row);
+  }
+
+  document.getElementById('dm-send').onclick = sendMsg;
+  document.getElementById('dm-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMsg();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>

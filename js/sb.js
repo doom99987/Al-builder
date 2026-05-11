@@ -1169,6 +1169,7 @@
       <div class="sb-admin-tabs">
         <button class="sb-admin-tab active" data-tab="actions" onclick="window._adminSwitchTab('actions')">User Actions</button>
         <button class="sb-admin-tab" data-tab="banned" onclick="window._adminSwitchTab('banned')">Banned (${(bans||[]).length})</button>
+        <button class="sb-admin-tab" data-tab="listings" onclick="window._adminSwitchTab('listings');window._adminLoadListings()">Listings</button>
         <button class="sb-admin-tab" data-tab="tools" onclick="window._adminSwitchTab('tools')">Tools</button>
       </div>
       <div id="sb-admin-status" class="sb-admin-status"></div>
@@ -1199,6 +1200,16 @@
 
       <div class="sb-admin-panel" data-panel="banned" style="display:none">
         <div id="sb-admin-ban-rows" class="sb-admin-ban-list">${banRows}</div>
+      </div>
+
+      <div class="sb-admin-panel" data-panel="listings" style="display:none">
+        <div class="sb-admin-search-row">
+          <input id="sb-admin-listing-filter" class="sb-input" type="text" placeholder="Filter by username…" autocomplete="off"
+            oninput="window._adminFilterListings(this.value)">
+        </div>
+        <div id="sb-admin-listing-rows" class="sb-admin-listing-list">
+          <div class="sb-admin-empty">Switch to this tab to load listings.</div>
+        </div>
       </div>
 
       <div class="sb-admin-panel" data-panel="tools" style="display:none">
@@ -1355,6 +1366,63 @@
     adminSetStatus(`${username} permanently banned.`, true);
   }
 
+  // ── Admin: trade listings tab ────────────────────────────────
+  let _adminListings = [];
+
+  async function adminLoadListings() {
+    if (!isAdmin()) return;
+    const rowsEl = document.getElementById('sb-admin-listing-rows');
+    if (!rowsEl) return;
+    rowsEl.innerHTML = '<div class="sb-admin-empty">Loading…</div>';
+    const { data, error } = await sb.from('trade_listings')
+      .select('id, username, type, items, lf_items, item, lf, gold_offer, gold_want, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) { rowsEl.innerHTML = `<div class="sb-admin-empty">${esc(error.message)}</div>`; return; }
+    _adminListings = data || [];
+    _adminRenderListingRows(_adminListings);
+  }
+
+  function _adminRenderListingRows(listings) {
+    const rowsEl = document.getElementById('sb-admin-listing-rows');
+    if (!rowsEl) return;
+    if (!listings.length) { rowsEl.innerHTML = '<div class="sb-admin-empty">No listings found.</div>'; return; }
+    rowsEl.innerHTML = listings.map(l => {
+      const items = Array.isArray(l.items) ? l.items.map(i => `${i.qty > 1 ? i.qty + 'x ' : ''}${i.item}`).join(', ') : (l.item || '—');
+      const lf    = Array.isArray(l.lf_items) ? l.lf_items.map(i => `${i.qty > 1 ? i.qty + 'x ' : ''}${i.item}`).join(', ') : (l.lf || '—');
+      const age   = l.created_at ? new Date(l.created_at).toLocaleDateString() : '';
+      return `<div class="sb-admin-listing-row" data-lid="${esc(l.id)}">
+        <div class="sb-admin-listing-info">
+          <span class="sb-admin-listing-user">${esc(l.username)}</span>
+          <span class="sb-admin-listing-type ${l.type === 'buying' ? 'sb-listing-buying' : 'sb-listing-selling'}">${esc(l.type)}</span>
+          <span class="sb-admin-listing-items">${esc(items)}</span>
+          ${lf !== '—' ? `<span class="sb-admin-listing-lf">LF: ${esc(lf)}</span>` : ''}
+          <span class="sb-admin-listing-age">${age}</span>
+        </div>
+        <button class="sb-admin-del-listing-btn" onclick="window._adminDeleteListing('${esc(l.id)}')">🗑</button>
+      </div>`;
+    }).join('');
+  }
+
+  function adminFilterListings(query) {
+    const q = (query || '').toLowerCase().trim();
+    const filtered = q ? _adminListings.filter(l => l.username?.toLowerCase().includes(q)) : _adminListings;
+    _adminRenderListingRows(filtered);
+  }
+
+  async function adminDeleteListing(listingId) {
+    if (!isAdmin()) return;
+    const row = document.querySelector(`.sb-admin-listing-row[data-lid="${listingId}"]`);
+    const { error } = await sb.from('trade_listings').delete().eq('id', listingId);
+    if (error) { adminSetStatus(error.message); return; }
+    _adminListings = _adminListings.filter(l => l.id !== listingId);
+    row?.remove();
+    const rowsEl = document.getElementById('sb-admin-listing-rows');
+    if (rowsEl && !rowsEl.querySelector('.sb-admin-listing-row'))
+      rowsEl.innerHTML = '<div class="sb-admin-empty">No listings found.</div>';
+    adminSetStatus('Listing removed.', true);
+  }
+
   async function adminClearScores() {
     if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Clearing scores…');
@@ -1449,6 +1517,9 @@
   window._loadAllLeaderboards  = loadAllLeaderboards;
   window._openAdminPanel         = openAdminPanel;
   window._adminSwitchTab         = adminSwitchTab;
+  window._adminLoadListings      = adminLoadListings;
+  window._adminFilterListings    = adminFilterListings;
+  window._adminDeleteListing     = adminDeleteListing;
   window._adminLookup            = adminLookup;
   window._adminSelectUser        = adminSelectUser;
   window._adminBanUser           = adminBanUser;
