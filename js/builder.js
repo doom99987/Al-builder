@@ -2502,6 +2502,7 @@ classPicker.addEventListener("change", () => {
 
 let dmgCalcMoveList = [];
 let energyCount = 0;
+let darkCoreCount = 0;
 let rageEmpHpConsumed = 0; // 0-65: % of max HP consumed → up to 65% dmg bonus
 let bloodyBersHp = 100; // 1-100: current HP% → (100 - bloodyBersHp)% dmg bonus
 let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
@@ -2517,6 +2518,7 @@ let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
 let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
 let sinisterGazeReflect = false; // Sinister Gaze: enemy has your Bulk Up defense debuff
+let overcoreActive = false;      // Overcore (Darkwraith rm1): crit mult squared at max darkcores
 let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
@@ -2739,6 +2741,13 @@ function toggleDmgDetail(rowEl, idx) {
   const m = dmgCalcMoveList[idx];
   const scalings = parseScaling(m.scaling);
 
+  // Overcore (Darkwraith rm1): at max darkcores, crit mult is squared
+  const getCritDmgMultEffective = () => {
+    const base = getCritDmgMult();
+    if (base === null) return null;
+    return overcoreActive ? base * base : base;
+  };
+
   // Move-specific crit chance bonus (e.g. Dark Smite +25%, or +50% with Dark Smite Proficiency lm2)
   const moveCritBonus = (() => {
     if (!m.critBonus) return 0;
@@ -2755,6 +2764,14 @@ function toggleDmgDetail(rowEl, idx) {
     const multiHit = dmgStr.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+)$/i);
     if (multiHit) { baseDmgNum = +multiHit[1]; hitCount = +multiHit[2]; }
     else if (/^\d+(\.\d+)?$/.test(dmgStr)) baseDmgNum = +dmgStr;
+    else if (/^\d+x\(Darkcores\)$/i.test(dmgStr)) {
+      if (darkCoreCount === 0) {
+        detail.innerHTML = `<div class="dc-calc-unavail">Fails with 0 Dark Cores.</div>`;
+        detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
+      }
+      baseDmgNum = +dmgStr.split(/x/i)[0];
+      hitCount = darkCoreCount;
+    }
   }
 
   if (baseDmgNum === null) {
@@ -2787,7 +2804,10 @@ function toggleDmgDetail(rowEl, idx) {
     const enchantMult       = getEnchantMult();
     const energyMult        = 1 + energyBonus / 100;
     const armourMult        = 1 + armourDmgPct / 100;
-    const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult;
+    const darkBeastMult     = (m.slot === "Darkbeast" && darkCoreCount > 0)
+      ? 1 + 0.05 * darkCoreCount + (darkCoreCount >= 6 ? 0.5 : 0)
+      : 1;
+    const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult * darkBeastMult;
     const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
     let formula; let currentDmg;
     if (totalMult > 1) {
@@ -2808,7 +2828,7 @@ function toggleDmgDetail(rowEl, idx) {
     if (bMult0 !== 1) formula += ` × ${bMult0.toFixed(2)} <span class="dc-bonus-tag">[${bLabel0}]</span> = <b>${(_finalDmg0 * bMult0).toFixed(1)}</b>`;
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _resFinalDmg0 = _finalDmg0 * bMult0;
-    const _critMult0 = getCritDmgMult();
+    const _critMult0 = getCritDmgMultEffective();
     if (hitCount > 1) {
       const _avgHit0 = _resFinalDmg0 / hitCount;
       formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit0.toFixed(1)}</b>`;
@@ -2867,7 +2887,10 @@ function toggleDmgDetail(rowEl, idx) {
   const enchantMult       = getEnchantMult();
   const energyMult        = 1 + energyBonus / 100;
   const armourMult        = 1 + armourDmgPct / 100;
-  const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult;
+  const darkBeastMult     = (m.slot === "Darkbeast" && darkCoreCount > 0)
+    ? 1 + 0.05 * darkCoreCount + (darkCoreCount >= 6 ? 0.5 : 0)
+    : 1;
+  const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult * darkBeastMult;
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
@@ -2888,7 +2911,7 @@ function toggleDmgDetail(rowEl, idx) {
     if (_dbMult !== 1) formula += ` × ${_dbMult.toFixed(2)} <span class="dc-bonus-tag">[${_dbLabel}]</span> = <b>${(_dCurDmg * _dbMult).toFixed(1)}</b>`;
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _dResFinal = _dCurDmg * _dbMult;
-    const _dCritMult = getCritDmgMult();
+    const _dCritMult = getCritDmgMultEffective();
     if (_dCritMult !== null) {
       if (moveCritBonus > 0) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
       formula += `<br><span class="dc-crit-line">All crits: <b>${_dResFinal.toFixed(1)}</b> × ${_dCritMult.toFixed(2)}x = <b>${(_dResFinal * _dCritMult).toFixed(1)}</b></span>`;
@@ -2922,7 +2945,7 @@ function toggleDmgDetail(rowEl, idx) {
   if (bMult !== 1) formula += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${(_finalDmg * bMult).toFixed(1)}</b>`;
   else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
   const _resFinalDmg = _finalDmg * bMult;
-  const _critMult = getCritDmgMult();
+  const _critMult = getCritDmgMultEffective();
   if (hitCount > 1) {
     const _avgHit = _resFinalDmg / hitCount;
     formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit.toFixed(1)}</b>`;
@@ -3317,6 +3340,11 @@ function toggleSinisterGaze() {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
+function toggleOvercore() {
+  overcoreActive = !overcoreActive;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
 function changeUnendingFlowStacks(delta) {
   unendingFlowStacks = Math.min(10, Math.max(1, unendingFlowStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
@@ -3383,6 +3411,11 @@ document.addEventListener('pointerdown', e => {
 
 function changeEnergy(delta) {
   energyCount = Math.min(6, Math.max(0, energyCount + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeDarkCores(delta) {
+  darkCoreCount = Math.min(6, Math.max(0, darkCoreCount + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3529,6 +3562,17 @@ function renderDmgBonusSection() {
       <button class="dc-energy-btn" onclick="changeEnergy(1)">+</button>
     </div>
   </div>`;
+
+  if (superPicker.value === "Darkwraith (Ch)") {
+    html += `<div class="dc-energy-section">
+      <span class="dc-energy-label">Dark Cores <span style="color:#aaa;font-size:11px">(max 6)</span></span>
+      <div class="dc-energy-counter">
+        <button class="dc-energy-btn" onclick="changeDarkCores(-1)">−</button>
+        <span class="dc-energy-val">${darkCoreCount}</span>
+        <button class="dc-energy-btn" onclick="changeDarkCores(1)">+</button>
+      </div>
+    </div>`;
+  }
 
   if (hasCrystalStar) {
     html += `<div class="dc-energy-section">
@@ -4047,6 +4091,23 @@ function renderDmgBonusSection() {
 
   // --- Sinister Gaze (Amorus racial — shown when Bulk Up is active) ---
   {
+    const _isDarkwraith = superPicker.value === "Darkwraith (Ch)";
+    const _overcoreUnlocked = _isDarkwraith && masteryState["rm1"] && darkCoreCount >= 6;
+    if (!_overcoreUnlocked && overcoreActive) overcoreActive = false;
+    if (_overcoreUnlocked) {
+      const baseCrit = getCritDmgMult();
+      const squaredCrit = baseCrit !== null ? (baseCrit * baseCrit).toFixed(2) : "?";
+      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Overcore</h3><div class="dc-bonus-list">
+        <div class="dc-bonus-row${overcoreActive ? " dc-bonus-on" : ""}" data-overcore title="Overcore (rm1): at max Darkcores, crit multiplier is squared.">
+          <div class="dc-bonus-check">${overcoreActive ? "✓" : ""}</div>
+          <span class="dc-bonus-name">Crit squared (max cores)</span>
+          <span class="dc-bonus-pct">${baseCrit !== null ? `×${squaredCrit}` : "—"}</span>
+        </div>
+      </div>`;
+    }
+  }
+
+  {
     const _isAmorus = racePicker.value === "Amorus (Ob)";
     const _bulkUpOn = dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key]);
     if (!_isAmorus && sinisterGazeReflect) sinisterGazeReflect = false;
@@ -4154,6 +4215,10 @@ function renderDmgBonusSection() {
     }
     if ('sinisterGaze' in row.dataset) {
       row.addEventListener("click", () => toggleSinisterGaze());
+      return;
+    }
+    if ('overcore' in row.dataset) {
+      row.addEventListener("click", () => toggleOvercore());
       return;
     }
     if (row.dataset.teamKey) {
@@ -6043,6 +6108,7 @@ function loadBuildState(state) {
   ramiIdolStacks = 1;
   vaingLocketTurn = 1;
   sinisterGazeReflect = false;
+  overcoreActive = false;
   overheatStacks = 1;
   crusherStacks = 1;
   oppressionCount = 1;
