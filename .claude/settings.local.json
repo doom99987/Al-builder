@@ -26,7 +26,8 @@
       "Bash(grep -iv \"comment\\\\|//.*boss\")",
       "Bash(sed -n '1095,1105p' css/builder.css)",
       "Bash(sed -n '1287,1295p' css/builder.css)",
-      "Bash(git -C \"C:/Users/dkonv/OneDrive/david/Website/Al-builder\" show 3b82a3a -- index.html)"
+      "Bash(git -C \"C:/Users/dkonv/OneDrive/david/Website/Al-builder\" show 3b82a3a -- index.html)",
+      "Bash(grep -v \"^\\\\s*//\")"
     ]
   }
 }
