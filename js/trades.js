@@ -116,11 +116,57 @@
     'dildo',
     'bdsm',
     'xxx',
+    // specific abuse / harmful terms
+    'childabuser',
+    'child abuser',
+    'your6foot9daddy',
+    '6foot9daddy',
+    'childabuserYour6Foot9_Daddy',
   ];
-  function filterMsg(txt) {
-    return _BANNED.reduce((s, w) =>
-      s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), txt);
+  // Normalise leet-speak / symbol substitutions character-for-character
+  // (preserves string length so positions map 1:1 back to the original)
+  function normalizeLeet(s) {
+    return s
+      .replace(/0/g,  'o')
+      .replace(/1/g,  'i')
+      .replace(/3/g,  'e')
+      .replace(/4/g,  'a')
+      .replace(/5/g,  's')
+      .replace(/6/g,  'g')
+      .replace(/7/g,  't')
+      .replace(/8/g,  'b')
+      .replace(/9/g,  'g')
+      .replace(/@/g,  'a')
+      .replace(/\$/g, 's')
+      .replace(/!/g,  'i')
+      .replace(/\|/g, 'i')
+      .replace(/\+/g, 't')
+      .replace(/\(/g, 'c')
+      .replace(/\)/g, 'o');
   }
+
+  function filterMsg(txt) {
+    // Pass 1: catch literal matches
+    let out = _BANNED.reduce((s, w) =>
+      s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), txt);
+
+    // Pass 2: catch leet-speak by running the filter on the normalised copy,
+    // then masking any newly-censored positions back onto the original characters
+    const norm = normalizeLeet(txt);
+    const normCensored = _BANNED.reduce((s, w) =>
+      s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), norm);
+    let result = '';
+    for (let i = 0; i < out.length; i++) {
+      result += (normCensored[i] === '*' && out[i] !== '*') ? '*' : out[i];
+    }
+    return result;
+  }
+
+  // Exposed so party.js (and others) can block a message outright if it contains profanity
+  window._containsProfanity = function (txt) {
+    const check = s => _BANNED.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s));
+    return check(txt) || check(normalizeLeet(txt));
+  };
 
   // ---- tradeable items ----
   const TRADEABLE_GROUPS = [
