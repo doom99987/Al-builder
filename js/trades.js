@@ -418,7 +418,10 @@
               <span class="trd-card-age">${timeAgo(l.created_at)}</span>
             </div>
           </div>
-          ${own ? `<button class="trd-del-btn" onclick="window._trdDelete('${l.id}')" title="Remove">✕</button>` : ''}
+          ${own ? `<div class="trd-own-actions">
+            <button class="trd-edit-btn" onclick="window._trdEdit('${l.id}')" title="Edit">✎</button>
+            <button class="trd-del-btn"  onclick="window._trdDelete('${l.id}')" title="Delete">✕</button>
+          </div>` : ''}
         </div>
         <div class="trd-card-items">${itemsHtml}</div>
         ${lfHtml ? `<div class="trd-card-lf-block"><span class="${l.type === 'buying' ? 'trd-gv-label' : 'trd-lf-label'}">${l.type === 'buying' ? 'GV' : 'LF'}</span><div class="trd-card-items">${lfHtml}</div></div>` : ''}
@@ -429,9 +432,138 @@
   }
 
   async function deleteListing(id) {
-    if (!authed() || !confirm('Remove this listing?')) return;
-    try { await sb.from('trade_listings').update({ status: 'cancelled' }).eq('id', id); loadListings(); }
+    if (!authed() || !confirm('Delete this listing?')) return;
+    try { await sb.from('trade_listings').update({ status: 'cancelled' }).eq('id', id).eq('user_id', uid()); loadListings(); }
     catch (e) { console.error('[trades] delete error', e); }
+  }
+
+  // ---- edit listing ----
+  function openEditModal(listingId) {
+    if (!authed()) { window._openAuthModal?.('login'); return; }
+    const listing = _allListings.find(l => l.id === listingId);
+    if (!listing) return;
+    if (document.getElementById('trd-post-modal')) return;
+    const m = document.createElement('div');
+    m.id        = 'trd-post-modal';
+    m.className = 'trd-modal-overlay';
+    m.innerHTML = `
+      <div class="trd-modal" role="dialog" aria-modal="true">
+        <div class="trd-modal-hdr">
+          <span>Edit Listing</span>
+          <button class="trd-modal-x" onclick="window._trdClosePost()">✕</button>
+        </div>
+        <div class="trd-modal-body">
+          <div class="trd-form-row">
+            <label class="trd-label">Type</label>
+            <div class="trd-type-row">
+              <button class="trd-type-btn active" data-ttype="selling" onclick="window._trdTypeSelect(this)">Selling</button>
+              <button class="trd-type-btn"        data-ttype="buying"  onclick="window._trdTypeSelect(this)">Buying</button>
+            </div>
+          </div>
+          <div class="trd-form-row">
+            <label class="trd-label">Items <span class="trd-req">*</span></label>
+            <div id="trd-items-container">${itemRowHtml()}</div>
+            <button class="trd-add-item-btn" type="button" onclick="window._trdAddItem('trd-items-container')">+ Add item</button>
+            <div class="trd-gold-row">
+              <span class="trd-gold-label">🪙 Gold</span>
+              <input id="trd-gold-offer" class="trd-input trd-gold-input" type="number" min="0" max="50000" value="0" placeholder="0">
+              <span class="trd-gold-hint">max 50,000</span>
+            </div>
+          </div>
+          <div class="trd-form-row">
+            <label class="trd-label" id="trd-lf-section-label">Looking For <span class="trd-req">*</span></label>
+            <div id="trd-lf-container">${itemRowHtml()}</div>
+            <button class="trd-add-item-btn" type="button" onclick="window._trdAddItem('trd-lf-container')">+ Add item</button>
+            <div class="trd-gold-row">
+              <span class="trd-gold-label">🪙 Gold</span>
+              <input id="trd-gold-lf" class="trd-input trd-gold-input" type="number" min="0" max="50000" value="0" placeholder="0">
+              <span class="trd-gold-hint">max 50,000</span>
+            </div>
+          </div>
+          <div class="trd-form-row">
+            <label class="trd-label">Notes</label>
+            <textarea id="trd-post-desc" class="trd-input trd-textarea" placeholder="Optional details..." maxlength="300"></textarea>
+          </div>
+          <div id="trd-post-err" class="trd-form-err"></div>
+          <button class="trd-submit-btn" onclick="window._trdSubmitEdit('${esc(listingId)}')">Save Changes</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m) window._trdClosePost(); });
+    m.querySelectorAll('.trd-pick-wrap').forEach(w => buildTrdItemPicker(w));
+    _prefillEditModal(listing);
+  }
+
+  function _prefillEditModal(listing) {
+    // Type
+    const typeBtn = document.querySelector(`.trd-type-btn[data-ttype="${listing.type}"]`);
+    if (typeBtn) typeSelect(typeBtn);
+
+    const nonGoldItems = (listing.items    || []).filter(i => i.item !== 'Gold');
+    const goldOffer    = (listing.items    || []).find(i => i.item === 'Gold')?.quantity || 0;
+    const nonGoldLf    = (listing.lf_items || []).filter(i => i.item !== 'Gold');
+    const goldLf       = (listing.lf_items || []).find(i => i.item === 'Gold')?.quantity || 0;
+
+    function fillContainer(containerId, arr) {
+      const container = document.getElementById(containerId);
+      if (!container) return;
+      arr.forEach((item, i) => {
+        if (i > 0) {
+          container.insertAdjacentHTML('beforeend', itemRowHtml());
+          buildTrdItemPicker(container.lastElementChild.querySelector('.trd-pick-wrap'));
+        }
+        const row     = container.children[i];
+        if (!row) return;
+        const hidden  = row.querySelector('.trd-item-name');
+        const display = row.querySelector('.trd-pick-display');
+        const qty     = row.querySelector('.trd-item-qty');
+        if (hidden)  hidden.value = item.item;
+        if (display) { display.textContent = item.item; display.classList.add('trd-pick-has-value'); }
+        if (qty)     qty.value = item.quantity || 1;
+      });
+    }
+
+    fillContainer('trd-items-container', nonGoldItems);
+    fillContainer('trd-lf-container', nonGoldLf);
+
+    const goEl = document.getElementById('trd-gold-offer');
+    if (goEl) goEl.value = goldOffer;
+    const glEl = document.getElementById('trd-gold-lf');
+    if (glEl) glEl.value = goldLf;
+
+    const descEl = document.getElementById('trd-post-desc');
+    if (descEl) descEl.value = listing.description || '';
+  }
+
+  async function submitEdit(listingId) {
+    const desc   = document.getElementById('trd-post-desc')?.value.trim();
+    const ttype  = document.querySelector('.trd-type-btn.active')?.dataset.ttype || 'selling';
+    const errEl  = document.getElementById('trd-post-err');
+    const goldOffer = Math.min(50000, Math.max(0, parseInt(document.getElementById('trd-gold-offer')?.value) || 0));
+    const goldLf    = Math.min(50000, Math.max(0, parseInt(document.getElementById('trd-gold-lf')?.value)    || 0));
+    const items    = collectRows('trd-items-container');
+    const lf_items = collectRows('trd-lf-container');
+    if (goldOffer > 0) items.unshift({ item: 'Gold', quantity: goldOffer });
+    if (goldLf    > 0) lf_items.unshift({ item: 'Gold', quantity: goldLf });
+    if (!items.length)    { if (errEl) errEl.textContent = 'Add at least one item or gold amount.'; return; }
+    if (!lf_items.length) { if (errEl) errEl.textContent = 'Add at least one Looking For item or gold amount.'; return; }
+    const bad = [...items, ...lf_items].find(i => i.item !== 'Gold' && !TRADEABLE_ITEMS.includes(i.item));
+    if (bad) { if (errEl) errEl.textContent = `Invalid item: "${bad.item}"`; return; }
+    if (desc && desc.length > 300) { if (errEl) errEl.textContent = 'Description must be 300 characters or fewer.'; return; }
+    if (errEl) errEl.textContent = '';
+    const btn = document.querySelector('.trd-submit-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    try {
+      const { error } = await sb.from('trade_listings')
+        .update({ type: ttype, items, lf_items, description: desc || '' })
+        .eq('id', listingId).eq('user_id', uid());
+      if (error) throw error;
+      closePostModal();
+      loadListings();
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message || 'Failed to save.';
+      if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+    }
   }
 
   // ---- post listing modal ----
@@ -924,11 +1056,24 @@
     const footer = document.getElementById('dm-footer');
     if (footer) footer.style.display = 'none';
 
-    if (!_dmConvs.length) {
+    const partyEntry = window._partyGetConvEntry?.();
+    const partyHtml = partyEntry ? `
+      <div class="dm-conv-item dm-conv-party" onclick="window._partyOpenFromMessages?.()">
+        <div class="dm-party-icon">⚔️</div>
+        <div class="dm-conv-info">
+          <div class="dm-conv-name">Party Chat</div>
+          <div class="dm-conv-preview">${esc(partyEntry.boss)}</div>
+        </div>
+        <div class="dm-conv-right">
+          <div class="dm-conv-time" style="color:#66bb6a">active</div>
+        </div>
+      </div>` : '';
+
+    if (!_dmConvs.length && !partyHtml) {
       body.innerHTML = '<div class="dm-state">No messages yet.<br>Message someone from a trade listing.</div>';
       return;
     }
-    body.innerHTML = _dmConvs.map(c => `
+    body.innerHTML = partyHtml + _dmConvs.map(c => `
       <div class="dm-conv-item" onclick="window._dmOpenThread('${esc(c.other_id)}','${esc(c.other_name)}')">
         ${mkAvatar(c.other_name, c.other_avatar, 36)}
         <div class="dm-conv-info">
@@ -1036,6 +1181,8 @@
               markThreadRead(m.sender_id);
             } else {
               syncMsgBadge();
+              // Refresh the conv list live so unread counts + previews update without reopening
+              if (_dmOpen && _dmView === 'list') loadConvList();
             }
           })
         .subscribe();
@@ -1168,9 +1315,10 @@
       return;
     }
     el.innerHTML = _notifications.map(n => `
-      <div class="notif-item${n.read ? '' : ' notif-new'}">
+      <div class="notif-item${n.read ? '' : ' notif-new'}" data-nid="${esc(n.id)}">
         <div class="notif-item-title">${esc(n.title)}</div>
         ${n.body ? `<div class="notif-item-body">${esc(n.body)}</div>` : ''}
+        ${window._notifExtra ? window._notifExtra(n) : ''}
         <div class="notif-item-time">${timeAgo(n.created_at)}</div>
       </div>`).join('');
   }
@@ -1269,6 +1417,8 @@
   window._trdTypeSelect    = typeSelect;
   window._trdSubmit        = submitPost;
   window._trdDelete        = deleteListing;
+  window._trdEdit          = openEditModal;
+  window._trdSubmitEdit    = submitEdit;
   window._trdAddItem       = addItemRow;
   window._trdRemoveItem    = removeItemRow;
   window._trdAdvSearch     = openAdvSearchModal;
@@ -1313,4 +1463,7 @@
   window._toggleNotifs  = toggleNotifs;
   window._syncNotifBell = syncBell;
   window._syncMsgBadge  = syncMsgBadge;
+  window._trdGetNotifs     = () => _notifications;
+  window._trdRenderNotifs  = renderNotifList;
+  window._trdRenderConvList = renderConvList;
 })();

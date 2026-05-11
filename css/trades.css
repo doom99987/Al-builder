@@ -232,6 +232,26 @@
 }
 .trd-del-btn:hover { background: #2a1a1a; color: #ff8888; }
 
+.trd-own-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.trd-edit-btn {
+  background: none;
+  border: none;
+  color: #556;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.trd-edit-btn:hover { background: #1a1a2e; color: #aab; }
+
 .trd-card-items {
   display: flex;
   flex-direction: column;
@@ -937,6 +957,20 @@ input[type="number"].trd-input { width: 90px; }
 }
 .dm-conv-del:hover { color: #cc4444; }
 .dm-conv-item:hover .dm-conv-del { display: block; }
+
+.dm-conv-party { border-left: 2px solid #4444aa; }
+.dm-conv-party:hover { background: rgba(68,68,170,0.08); }
+.dm-party-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #2a2a5a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
 
 /* --- Thread messages --- */
 .dm-msg {
