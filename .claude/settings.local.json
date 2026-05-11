@@ -22,7 +22,10 @@
       "Bash(pip install:*)",
       "Bash(grep \"^  \\\\\".*\\\\\": {$\" \"/c/Users/dkonv/OneDrive/david/Website/Al-builder/js/builder.js\")",
       "Bash(where node:*)",
-      "Bash(where node.exe)"
+      "Bash(where node.exe)",
+      "Bash(grep -iv \"comment\\\\|//.*boss\")",
+      "Bash(sed -n '1095,1105p' css/builder.css)",
+      "Bash(sed -n '1287,1295p' css/builder.css)"
     ]
   }
 }
