@@ -555,7 +555,12 @@ function updatePecents() {
     const totalStatPct = (INNATE_STAT_PCT[stat] ?? 0) + (STAT_PCT_KEYS.has(stat) ? (armourPct[stat] ?? 0) : 0);
     // pct only boosts: invested + race base + level bonus
     const pctBase = allocated + (raceBase[stat] ?? 0) + lvlStatBonus;
-    const displayTotal = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+    let displayTotal = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
+    if (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"]) {
+      displayTotal += coagNailStacks * 1.5;
+    }
+    if (permuthStat === stat && markPicker.value === 'Venia') displayTotal = Math.round(displayTotal * 1.4);
+    displayTotal = Math.round(displayTotal);
     if (totalEl) totalEl.textContent = displayTotal || "";
     if (investedEl) investedEl.textContent = allocated;
     if (bonusEl) {
@@ -605,10 +610,19 @@ function _buildStatDetail(statKey) {
   const gear = gearStatBonuses[statKey] ?? 0;
   if (gear)        sources.push({ label: "Gear",         val: gear });
   if (crystalBonus) sources.push({ label: "Crystal Stars", val: crystalBonus });
+  const coagNailBonus = (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"])
+    ? Math.round(coagNailStacks * 1.5 * 10) / 10 : 0;
+  if (coagNailBonus) sources.push({ label: `Coag. Nail ×${coagNailStacks}`, val: coagNailBonus });
 
-  const displayTotal = Math.round(pctBase * (1 + totalPct / 100)) +
+  let displayTotal = Math.round(pctBase * (1 + totalPct / 100)) +
     (armourData[statKey] ?? 0) + (masteryStats[statKey] ?? 0) +
-    (gearStatBonuses[statKey] ?? 0) + crystalBonus;
+    (gearStatBonuses[statKey] ?? 0) + crystalBonus + coagNailBonus;
+  const permuthActive = permuthStat === statKey && markPicker.value === 'Venia';
+  if (permuthActive) {
+    const permuthBonus = Math.round(displayTotal * 1.4) - displayTotal;
+    sources.push({ label: "Permuth (+40%)", val: permuthBonus });
+    displayTotal = Math.round(displayTotal * 1.4);
+  }
 
   const rows = sources.length
     ? sources.map(s => `<div class="stat-detail-row"><span class="stat-detail-label">${s.label}</span><span class="stat-detail-val">+${s.val}</span></div>`).join('')
@@ -2643,10 +2657,7 @@ function recalcOpenDetails() {
     if (!rowEl) return;
     const idx = rowEl.dataset.idx;
     if (idx === undefined) return;
-    // Close then reopen to recalculate
-    detail.style.display = "none";
-    rowEl.classList.remove("dc-row-open");
-    toggleDmgDetail(rowEl, +idx);
+    toggleDmgDetail(rowEl, +idx, true); // forceOpen: update in-place without closing first
   });
 }
 
@@ -2732,10 +2743,10 @@ function moveAppliesStatusEffect(m) {
     || /\bchance to (?:apply|inflict)\b/i.test(text);
 }
 
-function toggleDmgDetail(rowEl, idx) {
+function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const detail = rowEl.nextElementSibling;
   if (!detail || !detail.classList.contains("dc-detail")) return;
-  if (detail.style.display !== "none") { detail.style.display = "none"; rowEl.classList.remove("dc-row-open"); return; }
+  if (!forceOpen && detail.style.display !== "none") { detail.style.display = "none"; rowEl.classList.remove("dc-row-open"); return; }
 
   const m = dmgCalcMoveList[idx];
   const scalings = parseScaling(m.scaling);
@@ -3314,14 +3325,12 @@ function getEnchantMult() {
 
 function toggleTeamBuff(key) {
   teamBuffsActive[key] = !teamBuffsActive[key];
-  renderDmgBonusSection(); recalcOpenDetails();
-  updatePecents();
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function toggleStatBuff(key) {
   statBuffsActive[key] = !statBuffsActive[key];
-  renderDmgBonusSection(); recalcOpenDetails();
-  updatePecents();
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function changeRamiIdolStacks(delta) {
@@ -3445,7 +3454,7 @@ function changeHourglassStacks(delta) {
 
 function changeCoagNailStacks(delta) {
   coagNailStacks = Math.min(10, Math.max(1, coagNailStacks + delta));
-  renderDmgBonusSection(); recalcOpenDetails();
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function toggleStatusEffect(name) {
@@ -3480,20 +3489,17 @@ function changeReversingDebuffs(delta) {
 
 function changeCrystalStarStacks(delta) {
   crystalStarStacks = Math.min(5, Math.max(0, crystalStarStacks + delta));
-  renderDmgBonusSection(); recalcOpenDetails();
-  updatePecents();
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function toggleFrozenDiademCold() {
   frozenDiademColdActive = !frozenDiademColdActive;
-  renderDmgBonusSection(); recalcOpenDetails();
-  updatePecents();
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function toggleFrozenDiademIce() {
   frozenDiademIceActive = !frozenDiademIceActive;
-  renderDmgBonusSection(); recalcOpenDetails();
-  updatePecents();
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function toggleShardCondition(key) {
@@ -4202,7 +4208,7 @@ function renderDmgBonusSection() {
       row.addEventListener("click", () => {
         vasticLckProcActive = !vasticLckProcActive;
         renderDmgBonusSection();
-        updatePecents();
+        updatePecents(); recalcOpenDetails();
       });
       return;
     }
@@ -4250,7 +4256,7 @@ function renderDmgBonusSection() {
       e.stopPropagation();
       const s = btn.dataset.permuthStat;
       permuthStat = (permuthStat === s) ? '' : s;
-      renderDmgBonusSection(); recalcOpenDetails(); updatePecents();
+      renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
     });
   });
 }
