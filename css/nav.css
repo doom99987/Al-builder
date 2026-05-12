@@ -263,6 +263,36 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
+/* Credits */
+.home-credits-section {
+  margin-top: 20px;
+}
+.home-credits-panel {
+  width: 100%;
+}
+.home-credits-grid {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+}
+.home-credits-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.home-credits-role {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #555;
+  margin-bottom: 4px;
+}
+.home-credits-name {
+  font-size: 14px;
+  color: #ccc;
+}
+
 .home-panel {
   background: #080808;
   border: 1px solid #181818;
