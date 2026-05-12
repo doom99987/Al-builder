@@ -1,0 +1,53 @@
+/* ── Encyclopedia page ──────────────────────────────────────────────────── */
+
+.enc-wrap {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.enc-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.enc-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  letter-spacing: 0.5px;
+}
+
+.enc-subtitle {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
+}
+
+.enc-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 80px 20px;
+  background: #0e0e0e;
+  border: 1px solid #1e1e1e;
+  border-radius: 10px;
+  color: #555;
+}
+
+.enc-cs-icon {
+  font-size: 48px;
+}
+
+.enc-cs-text {
+  font-size: 15px;
+  color: #666;
+}

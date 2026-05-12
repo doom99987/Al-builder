@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="css/vl.css?v=10">
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=4">
+  <link rel="stylesheet" href="css/encyclopedia.css?v=1">
 </head>
 
 <body>
@@ -51,6 +52,7 @@
     <button class="site-nav-btn" data-page="trades">Trades</button>
     <button class="site-nav-btn" data-page="value-list">Value List</button>
     <button class="site-nav-btn" data-page="lf-party">Lf Party</button>
+    <button class="site-nav-btn" data-page="encyclopedia">Encyclopedia</button>
   </div>
   <div id="auth-bar">
     <button class="auth-btn" onclick="window._openAuthModal && window._openAuthModal('login')">Login</button>
@@ -1013,6 +1015,20 @@
   </div>
 </div>
 
+<!-- Encyclopedia page -->
+<div id="page-encyclopedia" class="site-page">
+  <div class="enc-wrap">
+    <div class="enc-header">
+      <h2 class="enc-title">Mator's Encyclopedia</h2>
+      <p class="enc-subtitle">Coming soon — a full reference for bosses, items, and game mechanics.</p>
+    </div>
+    <div class="enc-coming-soon">
+      <div class="enc-cs-icon">📖</div>
+      <div class="enc-cs-text">This section is under construction.</div>
+    </div>
+  </div>
+</div>
+
 <!-- Mastery node instant tooltip -->
 <div id="mastery-tip"></div>
 
@@ -1279,7 +1295,7 @@
   // On load, navigate to the page in the URL hash
   // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
-  const _validPages = ['home', 'builder', 'builds', 'qte', 'leaderboards', 'trades'];
+  const _validPages = ['home', 'builder', 'builds', 'qte', 'leaderboards', 'trades', 'encyclopedia'];
   const _hasSharedBuild = new URLSearchParams(location.search).has('id');
 
   // ── Home page live stats ──────────────────────────────────
