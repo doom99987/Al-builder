@@ -81,6 +81,7 @@
   let _myPartyId      = null;   // party the current user is a member of
   let _currentPartyId = null;   // party panel currently open
   let _chatSub        = null;   // realtime channel
+  let _memberSub      = null;   // watches for accepted invites
   let _myClass        = '';
   let _attachedBuild  = null;
   let _selectedSize   = 4;
@@ -315,12 +316,28 @@
     }
   }
 
+  // ── Watch for accepted party invites ─────────────────────
+  function _setupMemberWatch() {
+    if (_memberSub || !authed()) return;
+    const myId = uid();
+    _memberSub = sb.channel('party-member-watch-' + myId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'party_members',
+        filter: `user_id=eq.${myId}`
+      }, () => {
+        // Only auto-refresh if the party tab is visible
+        if (document.getElementById('party-list')) loadParties();
+      })
+      .subscribe();
+  }
+
   // ── Load & render parties ─────────────────────────────────
   async function loadParties() {
     const el = document.getElementById('party-list');
     if (!el) return;
 
     if (authed()) {
+      _setupMemberWatch();
       const { data: mem } = await sb.from('party_members').select('party_id').eq('user_id', uid()).maybeSingle();
       _myPartyId = mem?.party_id || null;
 
@@ -815,6 +832,19 @@
         const msg = payload.new;
         _partyPopupBc?.postMessage({ type: 'new-msg', msg });
         if (msg?.sender_id !== uid()) _appendMsg(msg);
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'party_listings',
+        filter: `id=eq.${partyId}`
+      }, payload => {
+        if (payload.new?.status === 'closed') {
+          _partyPopupBc?.postMessage({ type: 'party-closed' });
+          _myPartyId   = null;
+          _myPartyData = null;
+          closePartyPanel();
+          window._trdRenderConvList?.();
+          loadParties();
+        }
       })
       .subscribe();
   }
