@@ -880,12 +880,13 @@
 
   // ── Expose ────────────────────────────────────────────────
   // ── Invite link ───────────────────────────────────────────
-  window._partyCopyInvite = function (partyId, btn) {
-    const party = _myPartyData;
-    const params = new URLSearchParams({ party: partyId });
-    if (party?.host_name) params.set('host', party.host_name);
-    if (party?.boss)      params.set('boss', party.boss);
-    const url = location.origin + location.pathname + '?' + params.toString() + '#party';
+  window._partyCopyInvite = async function (partyId, btn) {
+    // Fetch invite_code for this party
+    const { data } = await sb.from('party_listings').select('invite_code').eq('id', partyId).maybeSingle();
+    const code = data?.invite_code;
+    const url  = code
+      ? `https://mpqohagljmvwftwqumnh.supabase.co/functions/v1/party-invite?id=${code}`
+      : location.origin + location.pathname + '?party=' + encodeURIComponent(partyId) + '#party';
     navigator.clipboard.writeText(url).then(() => {
       if (btn) { const t = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = t; }, 2000); }
     }).catch(() => { prompt('Copy this invite link:', url); });
