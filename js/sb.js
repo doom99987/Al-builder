@@ -1529,6 +1529,7 @@
   window._adminBanAndWipe        = adminBanAndWipe;
   window._unbanUser              = unbanUser;
   window._banAllProfanityUsers   = banAllProfanityUsers;
+  window._sbIsAdmin              = isAdmin;
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)
   window._switchLbMode = function (btn) {

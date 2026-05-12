@@ -231,6 +231,8 @@
   flex-shrink: 0;
 }
 .trd-del-btn:hover { background: #2a1a1a; color: #ff8888; }
+.trd-del-btn--admin { color: #6a3a6a; }
+.trd-del-btn--admin:hover { background: #1e0f1e; color: #cc66cc; }
 
 .trd-own-actions {
   display: flex;

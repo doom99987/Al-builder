@@ -322,6 +322,14 @@
       }
     }
 
+    // Expire open parties older than 5 hours, full parties older than 2 days (fire-and-forget)
+    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+    const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    sb.from('party_listings').update({ status: 'closed' })
+      .eq('status', 'open').lt('created_at', fiveHoursAgo).then(() => {});
+    sb.from('party_listings').update({ status: 'closed' })
+      .eq('status', 'full').lt('created_at', twoDaysAgo).then(() => {});
+
     try {
       // Fetch user's own party (any non-closed status)
       _myPartyData = null;
@@ -393,6 +401,7 @@
   function _buildPartyCard(p, myId) {
     const memberCount = p.party_members?.[0]?.count ?? 1;
     const isFull  = memberCount >= p.party_size;
+    const isAdmin = typeof window._sbIsAdmin === 'function' && window._sbIsAdmin();
     let actionBtn;
     if (_myPartyId) {
       actionBtn = `<button class="party-join-btn" disabled>Leave your party first</button>`;
@@ -418,6 +427,7 @@
       <div class="party-card-actions">
         ${actionBtn}
         <button class="party-profile-btn" onclick="window._partyViewProfile('${esc(p.host_id)}','${esc(p.host_name)}')">Profile</button>
+        ${isAdmin ? `<button class="party-admin-remove-btn" onclick="window._partyAdminRemove('${esc(p.id)}')" title="Remove listing (admin)">✕</button>` : ''}
       </div>
       <div class="party-card-age">${timeAgo(p.created_at)}</div>
     </div>`;
@@ -628,6 +638,16 @@
       return `<div class="notif-action-result notif-accepted">You're in! Open the Lf Party tab to chat.</div>`;
     }
     return '';
+  };
+
+  // ── Admin remove party listing ────────────────────────────
+  window._partyAdminRemove = async function (partyId) {
+    if (typeof window._sbIsAdmin !== 'function' || !window._sbIsAdmin()) return;
+    if (!confirm('Remove this party listing as admin? This cannot be undone.')) return;
+    await sb.from('party_listings').update({ status: 'closed' }).eq('id', partyId);
+    await sb.from('party_members').delete().eq('party_id', partyId);
+    _allParties = _allParties.filter(p => p.id !== partyId);
+    renderParties();
   };
 
   // ── Close party directly from card (host only) ───────────

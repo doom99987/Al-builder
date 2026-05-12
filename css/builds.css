@@ -304,6 +304,15 @@
   border-color: #7a2e2e;
   color: #e05c5c;
 }
+.blds-delete-btn--admin {
+  border-color: #2a1a2a;
+  color: #6a3a6a;
+}
+.blds-delete-btn--admin:hover {
+  background: #150a15;
+  border-color: #8a3a8a;
+  color: #cc66cc;
+}
 
 /* ── Mobile ───────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {

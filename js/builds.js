@@ -128,9 +128,11 @@
   }
 
   function _buildCard(b) {
-    const liked = _likedSet.has(b.id);
-    const owner = _isOwner(b);
-    const date  = new Date(b.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    const liked   = _likedSet.has(b.id);
+    const owner   = _isOwner(b);
+    const isAdmin = typeof window._sbIsAdmin === 'function' && window._sbIsAdmin();
+    const date    = new Date(b.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    const canRemove = owner || isAdmin;
     return `
       <div class="blds-card" data-id="${b.id}">
         <div class="blds-card-body">
@@ -148,7 +150,7 @@
             <span class="blds-like-icon">${liked ? '♥' : '♡'}</span>
             <span class="blds-like-count">${b.likes}</span>
           </button>
-          ${owner ? `<button class="blds-delete-btn" onclick="window._buildsDelete('${b.id}', this)" title="Delete your build">✕</button>` : ''}
+          ${canRemove ? `<button class="blds-delete-btn${isAdmin && !owner ? ' blds-delete-btn--admin' : ''}" onclick="window._buildsDelete('${b.id}', this)" title="${isAdmin && !owner ? 'Remove (admin)' : 'Delete your build'}">✕</button>` : ''}
         </div>
       </div>`;
   }
@@ -260,7 +262,11 @@
   };
 
   window._buildsDelete = async function (buildId, btn) {
-    if (!confirm('Delete this build? This cannot be undone.')) return;
+    const isAdmin = typeof window._sbIsAdmin === 'function' && window._sbIsAdmin();
+    const msg = isAdmin && !_isOwner(_allBuilds.find(b => b.id === buildId) || {})
+      ? 'Remove this build as admin? This cannot be undone.'
+      : 'Delete this build? This cannot be undone.';
+    if (!confirm(msg)) return;
     const sb = window._sbClient;
     const fp = _getFingerprint();
 
