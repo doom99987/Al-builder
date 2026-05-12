@@ -483,8 +483,8 @@
     if (!myClass) { alert('You need to set a class before joining a party. Use the 🎭 Set Class button.'); return; }
 
     try {
-      // Insert join request (unique constraint prevents duplicates)
-      const { data: req, error: reqErr } = await sb.from('party_requests').insert({
+      // Upsert so a re-request after leaving resets the row to pending
+      const { data: req, error: reqErr } = await sb.from('party_requests').upsert({
         party_id:        partyId,
         host_id:         party.host_id,
         requester_id:    uid(),
@@ -493,10 +493,9 @@
         requester_class: myClass,
         requester_build: myBuild,
         status:          'pending'
-      }).select().single();
+      }, { onConflict: 'party_id,requester_id' }).select().single();
       if (reqErr) throw reqErr;
 
-      // Notify the host via the notifications table
       await sb.from('notifications').insert({
         user_id: party.host_id,
         title:   `${profile.username || 'Someone'} wants to join your party`,
@@ -514,7 +513,6 @@
 
       alert('Request sent! Waiting for the host to accept.');
     } catch (e) {
-      if (e.message?.includes('unique')) { alert('You already sent a request to this party.'); return; }
       alert('Failed to send request: ' + e.message);
     }
   }
@@ -1010,7 +1008,7 @@
     if (!myClass) { alert('You need to set a class before joining a party. Use the 🎭 Set Class button.'); return; }
 
     try {
-      const { data: req, error: reqErr } = await sb.from('party_requests').insert({
+      const { data: req, error: reqErr } = await sb.from('party_requests').upsert({
         party_id:         partyId,
         host_id:          party.host_id,
         requester_id:     uid(),
@@ -1019,11 +1017,8 @@
         requester_class:  myClass,
         requester_build:  myBuild,
         status:           'pending'
-      }).select().single();
-      if (reqErr) {
-        if (reqErr.message?.includes('unique')) { alert('You already sent a request to this party.'); return; }
-        throw reqErr;
-      }
+      }, { onConflict: 'party_id,requester_id' }).select().single();
+      if (reqErr) throw reqErr;
 
       await sb.from('notifications').insert({
         user_id: party.host_id,
