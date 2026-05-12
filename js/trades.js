@@ -1296,6 +1296,8 @@
     body.scrollTop = body.scrollHeight;
   }
 
+  const _dmPopupBc = (() => { try { return new BroadcastChannel('alb-dm-popup'); } catch(_) { return null; } })();
+
   function subscribeDm() {
     if (_dmSub) return;
     const id = uid(); if (!id) return;
@@ -1306,12 +1308,13 @@
           { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: `recipient_id=eq.${id}` },
           p => {
             const m = p.new;
+            // Forward to popup window if open
+            _dmPopupBc?.postMessage({ type: 'new-msg', msg: m });
             if (_dmOpen && _dmView === 'thread' && m.sender_id === _dmWithId) {
               appendDmMsg(m);
               markThreadRead(m.sender_id);
             } else {
               syncMsgBadge();
-              // Refresh the conv list live so unread counts + previews update without reopening
               if (_dmOpen && _dmView === 'list') loadConvList();
             }
           })

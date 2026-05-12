@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AL Builder — Party Chat</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      background: #1a1a2e;
+      color: #ccc;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+    }
+    #app { display: flex; flex-direction: column; height: 100%; }
+
+    /* ── Header ── */
+    #hdr {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: #14141f;
+      border-bottom: 1px solid #2a2a44;
+      flex-shrink: 0;
+    }
+    #hdr-boss { flex: 1; font-weight: 700; font-size: 13px; color: #d0c8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #hdr-meta { font-size: 11px; color: #555; flex-shrink: 0; }
+
+    /* ── Members bar ── */
+    #members-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #16162a;
+      border-bottom: 1px solid #22223a;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .mb-member {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #1e1e32;
+      border-radius: 20px;
+      padding: 3px 8px 3px 4px;
+      font-size: 11px;
+    }
+    .mb-avatar {
+      width: 18px; height: 18px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 8px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .mb-name { color: #b0a8d8; }
+    .mb-host { color: #9988ee; font-weight: 600; }
+    .mb-class { color: #666; font-size: 10px; margin-left: 2px; }
+
+    /* ── Chat ── */
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #chat::-webkit-scrollbar { width: 4px; }
+    #chat::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+
+    .p-msg { display: flex; gap: 6px; align-items: flex-end; }
+    .p-msg.own { flex-direction: row-reverse; }
+    .p-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 8px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .p-bubble {
+      background: #1e1e32; border-radius: 8px; padding: 6px 10px;
+      max-width: 75%; word-break: break-word; font-size: 13px; color: #ccc;
+      line-height: 1.4;
+    }
+    .p-msg.own .p-bubble { background: #222244; }
+    .p-name { font-size: 11px; color: #8877cc; font-weight: 600; margin-bottom: 2px; }
+
+    /* ── Footer ── */
+    #footer {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid #2a2a44;
+      flex-shrink: 0;
+    }
+    #chat-input {
+      flex: 1; background: #1e1e30; border: 1px solid #44446a; border-radius: 6px;
+      padding: 7px 10px; color: #ccc; font-size: 13px; font-family: inherit;
+    }
+    #chat-input:focus { outline: none; border-color: #6666cc; }
+    #chat-send {
+      background: #2a2a5a; color: #ccccff; border: 1px solid #4444aa;
+      border-radius: 6px; padding: 7px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    #chat-send:hover { background: #3a3a7a; }
+    #chat-input:disabled, #chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── States ── */
+    .state-msg {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: #555; font-size: 13px; text-align: center; padding: 20px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="hdr">
+    <span id="hdr-boss">Party Chat</span>
+    <span id="hdr-meta"></span>
+  </div>
+  <div id="members-bar"></div>
+  <div id="chat"><div class="state-msg">Loading…</div></div>
+  <div id="footer">
+    <input id="chat-input" type="text" placeholder="Message your party…" maxlength="500" autocomplete="off" disabled>
+    <button id="chat-send" disabled>Send</button>
+  </div>
+</div>
+
+<script src="js/supabase.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  const SUPABASE_URL      = 'https://mpqohagljmvwftwqumnh.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wcW9oYWdsam12d2Z0d3F1bW5oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMzg1NzEsImV4cCI6MjA5MzYxNDU3MX0.WfU88Ell1Q6jCcef2YiohxIeTHBNfruIxYWoa1QRCUc';
+
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: false }
+  });
+
+  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+  function mkAvatar(name, url, size) {
+    if (url) {
+      const img = document.createElement('img');
+      img.src = url; img.alt = '';
+      img.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;`;
+      return img;
+    }
+    const hue = [...(name||'')].reduce((h,c) => (h*31+c.charCodeAt(0))&0xFFFFFF, 0) % 360;
+    const el = document.createElement('div');
+    el.className = 'p-avatar';
+    el.style.background = `hsl(${hue},55%,30%)`;
+    el.style.width = el.style.height = size + 'px';
+    el.style.fontSize = Math.floor(size * 0.38) + 'px';
+    el.textContent = (name||'?').slice(0,2).toUpperCase();
+    return el;
+  }
+
+  let _me = null, _myName = null, _myAvatar = null;
+  let _partyId = null, _party = null, _chatSub = null;
+  let _isMember = false;
+
+  async function init() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      document.getElementById('chat').innerHTML = '<div class="state-msg">Sign in on the main page first.</div>';
+      return;
+    }
+    _me = session.user.id;
+    _myName = session.user.user_metadata?.username || 'Me';
+
+    const { data: prof } = await sb.from('profiles').select('username, avatar_url').eq('id', _me).maybeSingle();
+    _myName   = prof?.username || _myName;
+    _myAvatar = prof?.avatar_url || null;
+
+    const p = new URLSearchParams(location.search);
+    _partyId = p.get('party');
+    if (!_partyId) {
+      document.getElementById('chat').innerHTML = '<div class="state-msg">No party specified.</div>';
+      return;
+    }
+
+    await loadParty();
+
+    // Listen for new messages forwarded from the main window
+    try {
+      const bc = new BroadcastChannel('alb-party-popup');
+      bc.onmessage = e => {
+        if (e.data?.type === 'new-msg' && e.data.msg?.party_id === _partyId) {
+          if (e.data.msg.sender_id !== _me) appendMsg(e.data.msg);
+        }
+      };
+    } catch(_) {}
+  }
+
+  async function loadParty() {
+    const { data: party, error } = await sb.from('party_listings')
+      .select('*, party_members(*)').eq('id', _partyId).maybeSingle();
+    if (error || !party) {
+      document.getElementById('chat').innerHTML = '<div class="state-msg">Party not found or closed.</div>';
+      return;
+    }
+    _party = party;
+
+    // Update header
+    document.getElementById('hdr-boss').textContent = party.boss || 'Party Chat';
+    document.title = (party.boss || 'Party') + ' — AL Builder';
+    const members = party.party_members || [];
+    document.getElementById('hdr-meta').textContent = `${members.length}/${party.party_size}`;
+
+    // Members bar
+    renderMembers(members, party.host_id);
+
+    // Check membership
+    _isMember = members.some(m => m.user_id === _me);
+    const inp  = document.getElementById('chat-input');
+    const btn  = document.getElementById('chat-send');
+    if (_isMember) { inp.disabled = false; btn.disabled = false; }
+
+    await loadMsgs();
+    subscribeChat();
+    if (_isMember) inp.focus();
+  }
+
+  function renderMembers(members, hostId) {
+    const bar = document.getElementById('members-bar');
+    if (!members.length) { bar.style.display = 'none'; return; }
+    bar.innerHTML = members.map(m => {
+      const isHost = m.user_id === hostId;
+      return `<div class="mb-member">
+        <div class="mb-avatar" style="background:hsl(${[...(m.username||'')].reduce((h,c)=>(h*31+c.charCodeAt(0))&0xFFFFFF,0)%360},55%,30%)">
+          ${(m.username||'?').slice(0,2).toUpperCase()}
+        </div>
+        <span class="${isHost ? 'mb-host' : 'mb-name'}">${esc(m.username)}${isHost ? ' ★' : ''}</span>
+        ${m.user_class ? `<span class="mb-class">${esc(m.user_class)}</span>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  async function loadMsgs() {
+    const el = document.getElementById('chat');
+    const { data: msgs } = await sb.from('party_messages')
+      .select('*').eq('party_id', _partyId).order('created_at').limit(100);
+    el.innerHTML = '';
+    if (!msgs?.length) { el.innerHTML = '<div class="state-msg">No messages yet. Say hi!</div>'; return; }
+    msgs.forEach(m => appendMsg(m));
+  }
+
+  function appendMsg(msg) {
+    const el = document.getElementById('chat');
+    const own = msg.sender_id === _me;
+    const empty = el.querySelector('.state-msg');
+    if (empty) empty.remove();
+
+    const wrap = document.createElement('div');
+    wrap.className = 'p-msg' + (own ? ' own' : '');
+
+    if (!own) wrap.appendChild(mkAvatar(msg.sender_name, msg.sender_avatar, 22));
+
+    const bub = document.createElement('div');
+    bub.className = 'p-bubble';
+    if (!own) bub.innerHTML = `<div class="p-name">${esc(msg.sender_name)}</div>`;
+    bub.innerHTML += `<div>${esc(msg.content)}</div>`;
+    wrap.appendChild(bub);
+    el.appendChild(wrap);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function subscribeChat() {
+    if (_chatSub) { try { sb.removeChannel(_chatSub); } catch(_) {} }
+    _chatSub = sb.channel('party-popup-chat-' + _partyId)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'party_messages',
+        filter: `party_id=eq.${_partyId}`
+      }, payload => {
+        if (payload.new?.sender_id !== _me) appendMsg(payload.new);
+      })
+      .subscribe();
+  }
+
+  async function sendMsg() {
+    if (!_isMember) return;
+    const inp = document.getElementById('chat-input');
+    const txt = inp.value.trim();
+    if (!txt) return;
+    inp.value = '';
+    const row = {
+      party_id:      _partyId,
+      sender_id:     _me,
+      sender_name:   _myName,
+      sender_avatar: _myAvatar,
+      content:       txt.slice(0, 500)
+    };
+    appendMsg({ ...row, created_at: new Date().toISOString() });
+    await sb.from('party_messages').insert(row);
+  }
+
+  document.getElementById('chat-send').onclick = sendMsg;
+  document.getElementById('chat-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendMsg();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
