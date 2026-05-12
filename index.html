@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="css/vl.css?v=10">
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=4">
-  <link rel="stylesheet" href="css/encyclopedia.css?v=1">
+  <link rel="stylesheet" href="css/encyclopedia.css?v=3">
 </head>
 
 <body>
@@ -1020,11 +1020,68 @@
   <div class="enc-wrap">
     <div class="enc-header">
       <h2 class="enc-title">Mator's Encyclopedia</h2>
-      <p class="enc-subtitle">Coming soon — a full reference for bosses, items, and game mechanics.</p>
     </div>
-    <div class="enc-coming-soon">
-      <div class="enc-cs-icon">📖</div>
-      <div class="enc-cs-text">This section is under construction.</div>
+    <div class="enc-toolbar">
+      <input id="enc-search" class="enc-search" type="text" placeholder="Search items…" autocomplete="off" oninput="window._encSearch(this.value)">
+    </div>
+    <div class="enc-type-tabs">
+      <button class="enc-type-tab active" data-type="all" onclick="window._encFilter('all', this)">All</button>
+      <button class="enc-type-tab" data-type="Base Class" onclick="window._encFilter('Base Class', this)">Base Class</button>
+      <button class="enc-type-tab" data-type="Super Class" onclick="window._encFilter('Super Class', this)">Super Class</button>
+      <button class="enc-type-tab" data-type="Sub Class" onclick="window._encFilter('Sub Class', this)">Sub Class</button>
+      <button class="enc-type-tab" data-type="Race" onclick="window._encFilter('Race', this)">Race</button>
+      <button class="enc-type-tab" data-type="Enchant" onclick="window._encFilter('Enchant', this)">Enchant</button>
+      <button class="enc-type-tab" data-type="Ore" onclick="window._encFilter('Ore', this)">Ore</button>
+      <button class="enc-type-tab" data-type="Ingredient" onclick="window._encFilter('Ingredient', this)">Ingredient</button>
+      <button class="enc-type-tab" data-type="Weapon" onclick="window._encFilter('Weapon', this)">Weapon</button>
+      <button class="enc-type-tab" data-type="Gear" onclick="window._encFilter('Gear', this)">Gear</button>
+      <button class="enc-type-tab" data-type="Artifact" onclick="window._encFilter('Artifact', this)">Artifact</button>
+      <button class="enc-type-tab" data-type="Lesser Artifact" onclick="window._encFilter('Lesser Artifact', this)">Lesser Artifact</button>
+      <button class="enc-type-tab" data-type="Weapon Modifier" onclick="window._encFilter('Weapon Modifier', this)">Weapon Modifier</button>
+      <button class="enc-type-tab" data-type="Boss" onclick="window._encFilter('Boss', this)">Boss</button>
+      <button class="enc-type-tab" data-type="Mob" onclick="window._encFilter('Mob', this)">Mob</button>
+    </div>
+    <div class="enc-body">
+      <div class="enc-list-wrap">
+        <div id="enc-list"></div>
+        <div id="enc-no-results" class="enc-no-results" style="display:none">No items found.</div>
+      </div>
+      <div class="enc-detail-wrap">
+
+        <!-- Empty state -->
+        <div class="enc-detail-empty" id="enc-detail-empty">
+          <div class="enc-de-icon">📖</div>
+          <div class="enc-de-text">Select an entry to view details</div>
+        </div>
+
+        <!-- Item / Boss detail -->
+        <div class="enc-detail-card" id="enc-detail-card" style="display:none">
+          <div id="enc-detail-type" class="enc-detail-type"></div>
+          <div id="enc-detail-name" class="enc-detail-name"></div>
+          <div id="enc-detail-desc" class="enc-detail-desc"></div>
+          <div id="enc-detail-extra"></div>
+        </div>
+
+        <!-- Class / Race detail -->
+        <div class="enc-detail-card" id="enc-class-card" style="display:none">
+          <div class="enc-class-type"></div>
+          <div class="enc-class-name enc-detail-name"></div>
+          <div class="enc-class-desc enc-detail-desc"></div>
+          <div class="enc-class-passives"></div>
+          <div class="enc-class-moves"></div>
+        </div>
+
+        <!-- Move detail -->
+        <div class="enc-detail-card" id="enc-move-card" style="display:none">
+          <button class="enc-back-btn" onclick="window._encMoveBack()">← Back</button>
+          <div class="enc-move-type-badge"></div>
+          <div class="enc-move-name enc-detail-name"></div>
+          <div class="enc-move-quote"></div>
+          <div class="enc-move-stats"></div>
+          <div class="enc-move-effect enc-detail-desc"></div>
+        </div>
+
+      </div>
     </div>
   </div>
 </div>
@@ -1069,6 +1126,7 @@
 <script src="js/trades.js?v=47"></script>
 <script src="js/party.js?v=30"></script>
 <script src="js/builds.js?v=4"></script>
+<script src="js/encyclopedia.js?v=3"></script>
 <script>
 (function () {
   // ── Value List data: [name, category, value, demand] ─────────────────────

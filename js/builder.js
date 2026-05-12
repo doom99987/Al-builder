@@ -2620,6 +2620,11 @@ const BOSS_DATA = {
     hpVariants: { "Corrupted": 13500 },
     res: { Physical: 0.50, Magic: 0.50, Fire: 1.25 },
   },
+  "Shadeblade": {
+    hp: 200,
+    hpVariants: { "Corrupted": 300 },
+    res: {},
+  },
 };
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
