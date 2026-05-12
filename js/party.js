@@ -389,6 +389,7 @@
       </div>
       <div class="party-banner-actions">
         <button class="party-open-btn party-open-btn--wide" onclick="window._partyOpenPanel('${esc(p.id)}')">Open Chat</button>
+        ${isMine ? `<button class="party-share-btn" onclick="window._partyCopyInvite('${esc(p.id)}', this)" title="Copy invite link">🔗 Share Link</button>` : ''}
         ${closeOrLeave}
       </div>
     </div>`;
@@ -466,6 +467,8 @@
     const { data: prof2 } = await sb.from('profiles').select('party_class, attached_build').eq('id', uid()).maybeSingle();
     const myClass = prof2?.party_class || _myClass || null;
     const myBuild = prof2?.attached_build || null;
+
+    if (!myClass) { alert('You need to set a class before joining a party. Use the 🎭 Set Class button.'); return; }
 
     try {
       // Insert join request (unique constraint prevents duplicates)
@@ -876,6 +879,106 @@
   });
 
   // ── Expose ────────────────────────────────────────────────
+  // ── Invite link ───────────────────────────────────────────
+  window._partyCopyInvite = function (partyId, btn) {
+    const party = _myPartyData;
+    const params = new URLSearchParams({ party: partyId });
+    if (party?.host_name) params.set('host', party.host_name);
+    if (party?.boss)      params.set('boss', party.boss);
+    const url = location.origin + location.pathname + '?' + params.toString() + '#party';
+    navigator.clipboard.writeText(url).then(() => {
+      if (btn) { const t = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = t; }, 2000); }
+    }).catch(() => { prompt('Copy this invite link:', url); });
+  };
+
+  // ── Auto-join from invite link ────────────────────────────
+  async function handlePartyInvite(partyId) {
+    if (!authed()) { window._openAuthModal?.('login'); return; }
+    if (_myPartyId) { alert('You are already in a party. Leave it first.'); return; }
+
+    const { data: party, error } = await sb.from('party_listings')
+      .select('*, party_members(count)').eq('id', partyId).neq('status', 'closed').maybeSingle();
+    if (error || !party) { alert('This party no longer exists or has been closed.'); return; }
+    if (party.status === 'full') { alert('This party is full.'); return; }
+
+    const memberCount = party.party_members?.[0]?.count ?? 1;
+    if (memberCount >= party.party_size) { alert('This party is full.'); return; }
+
+    // Check already a member
+    const { data: already } = await sb.from('party_members').select('id').eq('party_id', partyId).eq('user_id', uid()).maybeSingle();
+    if (already) {
+      _myPartyId = partyId;
+      await loadParties();
+      window._partyOpenPanel?.(partyId);
+      return;
+    }
+
+    const profile = await getMyProfile();
+    const { data: prof2 } = await sb.from('profiles').select('party_class, attached_build').eq('id', uid()).maybeSingle();
+    const myClass = prof2?.party_class || null;
+    const myBuild = prof2?.attached_build || null;
+
+    if (!myClass) { alert('You need to set a class before joining a party. Use the 🎭 Set Class button.'); return; }
+
+    try {
+      const { data: req, error: reqErr } = await sb.from('party_requests').insert({
+        party_id:         partyId,
+        host_id:          party.host_id,
+        requester_id:     uid(),
+        requester_name:   profile.username || 'Unknown',
+        requester_avatar: profile.avatar_url || null,
+        requester_class:  myClass,
+        requester_build:  myBuild,
+        status:           'pending'
+      }).select().single();
+      if (reqErr) {
+        if (reqErr.message?.includes('unique')) { alert('You already sent a request to this party.'); return; }
+        throw reqErr;
+      }
+
+      await sb.from('notifications').insert({
+        user_id: party.host_id,
+        title:   `${profile.username || 'Someone'} wants to join via invite link`,
+        body:    myClass ? `Class: ${myClass}` : 'No class set',
+        meta: {
+          type:            'party_join',
+          request_id:      req.id,
+          party_id:        partyId,
+          requester_id:    uid(),
+          requester_name:  profile.username || 'Unknown',
+          requester_class: myClass,
+          requester_build: myBuild
+        }
+      });
+
+      alert('Request sent! Waiting for the host to accept.');
+    } catch (e) {
+      alert('Failed to send request: ' + e.message);
+    }
+  }
+
+  // Check for ?party= param on load (after auth resolves)
+  const _invitePartyId = new URLSearchParams(location.search).get('party');
+  if (_invitePartyId) {
+    const _inviteParams = new URLSearchParams(location.search);
+    const _inviteHost = _inviteParams.get('host');
+    const _inviteBoss = _inviteParams.get('boss');
+    if (_inviteHost || _inviteBoss) {
+      const parts = [];
+      if (_inviteHost) parts.push(_inviteHost + "'s party");
+      if (_inviteBoss) parts.push(_inviteBoss);
+      document.title = parts.join(' · ') + ' — AL Builder';
+    }
+    // Wait for auth to settle before attempting join
+    const _inviteUnsub = sb.auth.onAuthStateChange((evt, session) => {
+      if (evt === 'INITIAL_SESSION' || evt === 'SIGNED_IN') {
+        _inviteUnsub?.unsubscribe?.();
+        if (session?.user) handlePartyInvite(_invitePartyId);
+        else window._openAuthModal?.('login');
+      }
+    });
+  }
+
   window._partyLoad           = loadParties;
   window._partyLoadMyProfile  = loadMyPartyProfile;
   window._partyHost        = openHost;
