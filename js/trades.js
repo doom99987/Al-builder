@@ -562,7 +562,10 @@
   async function adminDeleteListing(id) {
     if (typeof window._sbIsAdmin !== 'function' || !window._sbIsAdmin()) return;
     if (!confirm('Remove this trade listing as admin? This cannot be undone.')) return;
-    try { await sb.from('trade_listings').update({ status: 'cancelled' }).eq('id', id); loadListings(); }
+    // Remove from local list immediately so it vanishes without waiting for reload
+    _allListings = _allListings.filter(l => l.id !== id);
+    applySearch();
+    try { await sb.from('trade_listings').delete().eq('id', id); }
     catch (e) { console.error('[trades] admin delete error', e); }
   }
 
