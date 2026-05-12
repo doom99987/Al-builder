@@ -650,10 +650,27 @@
     return '';
   };
 
+  // ── Notify members when party is closed ──────────────────
+  async function _notifyMembersClosed(partyId, boss) {
+    const { data: members } = await sb.from('party_members').select('user_id').eq('party_id', partyId);
+    if (!members?.length) return;
+    const others = members.filter(m => m.user_id !== uid());
+    if (!others.length) return;
+    const notifs = others.map(m => ({
+      user_id: m.user_id,
+      title:   'Your party was closed by the host',
+      body:    boss ? `Boss: ${boss}` : null,
+      meta:    { type: 'party_closed' }
+    }));
+    sb.from('notifications').insert(notifs).then(() => {});
+  }
+
   // ── Admin remove party listing ────────────────────────────
   window._partyAdminRemove = async function (partyId) {
     if (typeof window._sbIsAdmin !== 'function' || !window._sbIsAdmin()) return;
     if (!confirm('Remove this party listing as admin? This cannot be undone.')) return;
+    const p = _allParties.find(x => x.id === partyId);
+    await _notifyMembersClosed(partyId, p?.boss);
     await sb.from('party_listings').update({ status: 'closed' }).eq('id', partyId);
     await sb.from('party_members').delete().eq('party_id', partyId);
     _allParties = _allParties.filter(p => p.id !== partyId);
@@ -664,6 +681,8 @@
   async function closePartyFromCard(partyId) {
     if (!authed()) return;
     if (!confirm('Close your party? All members will be removed.')) return;
+    const party = _myPartyData?.id === partyId ? _myPartyData : _allParties.find(p => p.id === partyId);
+    await _notifyMembersClosed(partyId, party?.boss);
     await sb.from('party_listings').update({ status: 'closed' }).eq('id', partyId);
     await sb.from('party_members').delete().eq('party_id', partyId);
     if (_currentPartyId === partyId) closePartyPanel();
@@ -710,6 +729,7 @@
 
     if (isHost) {
       if (!confirm('Closing the party will remove all members. Continue?')) return;
+      await _notifyMembersClosed(partyId, party?.boss);
       await sb.from('party_listings').update({ status: 'closed' }).eq('id', partyId);
       await sb.from('party_members').delete().eq('party_id', partyId);
     } else {
