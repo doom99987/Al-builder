@@ -1482,7 +1482,8 @@
   }
 
   async function deleteNotif(notifId) {
-    try { await sb.from('notifications').delete().eq('id', notifId); } catch(_) {}
+    const { error } = await sb.from('notifications').delete().eq('id', notifId);
+    if (error) { console.error('deleteNotif:', error.message); return; }
     _notifications = _notifications.filter(n => n.id !== notifId);
     renderNotifList();
     syncBell();
@@ -1490,7 +1491,8 @@
 
   async function deleteAllNotifs() {
     const id = uid(); if (!id) return;
-    try { await sb.from('notifications').delete().eq('user_id', id); } catch(_) {}
+    const { error } = await sb.from('notifications').delete().eq('user_id', id);
+    if (error) { console.error('deleteAllNotifs:', error.message); return; }
     _notifications = [];
     renderNotifList();
     syncBell();
