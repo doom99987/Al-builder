@@ -403,6 +403,75 @@
   margin-top: 2px;
 }
 
+/* Private toggle in host modal */
+.party-private-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #1e1e30;
+  border: 1px solid #44446a;
+  border-radius: 6px;
+  padding: 9px 12px;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+.party-private-toggle:hover {
+  background: #23233a;
+  border-color: #5c5c9a;
+}
+.party-private-toggle input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background: #12121e;
+  border: 1px solid #55558a;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: background 0.15s, border-color 0.15s;
+}
+.party-private-toggle input[type="checkbox"]:checked {
+  background: #5c3fc0;
+  border-color: #7c5fe8;
+}
+.party-private-toggle input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: 2px solid #fff;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+.party-private-label {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.3;
+}
+
+/* Private badge on banner */
+.party-private-badge {
+  font-size: 11px;
+  color: #9e84d4;
+  background: rgba(100,70,180,0.15);
+  border: 1px solid rgba(100,70,180,0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  vertical-align: middle;
+  margin-left: 6px;
+  font-weight: 500;
+}
+.party-banner--private {
+  border-color: rgba(100,70,180,0.3);
+}
+
 /* ============================================================
    PARTY PANEL OVERLAY
    ============================================================ */
