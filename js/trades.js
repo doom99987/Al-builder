@@ -483,17 +483,15 @@
     if (!el) return;
     el.innerHTML = '<div class="trd-state">Loading...</div>';
 
-    // Expire listings older than 2 days (fire-and-forget)
-    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('trade_listings').delete()
-      .eq('status', 'active').lt('created_at', twoDaysAgo).then(() => {});
 
     try {
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await sb
         .from('trade_listings')
         .select('*')
         .eq('type',   _tradeTab)
         .eq('status', 'active')
+        .gt('created_at', twoDaysAgo)
         .order('created_at', { ascending: false })
         .limit(60);
       if (error) throw error;
@@ -1705,10 +1703,4 @@
   window._trdRenderNotifs  = renderNotifList;
   window._trdRenderConvList = renderConvList;
 
-  // Sweep stale listings on script load (catches records over the limit regardless of which page is open)
-  (function sweepStaleTrades() {
-    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('trade_listings').update({ status: 'cancelled' })
-      .eq('status', 'active').lt('created_at', twoDaysAgo).then(() => {});
-  })();
 })();

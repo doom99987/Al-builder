@@ -322,32 +322,29 @@
       }
     }
 
-    // Expire open parties older than 5 hours, full parties older than 2 days (fire-and-forget)
-    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
-    const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('party_listings').delete()
-      .eq('status', 'open').lt('created_at', fiveHoursAgo).then(() => {});
-    sb.from('party_listings').delete()
-      .eq('status', 'full').lt('created_at', twoDaysAgo).then(() => {});
 
     try {
       // Fetch user's own party (any non-closed status)
       _myPartyData = null;
       if (_myPartyId) {
+        const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
         const { data: mp } = await sb
           .from('party_listings')
           .select('*, party_members(count)')
           .eq('id', _myPartyId)
           .neq('status', 'closed')
+          .gt('created_at', twoDaysAgo)
           .maybeSingle();
         _myPartyData = mp || null;
       }
 
-      // Fetch public open parties, excluding user's own
+      // Fetch public open parties, excluding user's own and expired ones
+      const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
       const query = sb
         .from('party_listings')
         .select('*, party_members(count)')
         .eq('status', 'open')
+        .gt('created_at', fiveHoursAgo)
         .order('created_at', { ascending: false })
         .limit(60);
       const { data, error } = await query;
@@ -915,13 +912,4 @@
     setTimeout(() => openPartyPanel(_myPartyId), 120);
   };
 
-  // Sweep stale listings on script load (catches records over the limit regardless of which page is open)
-  (function sweepStaleParties() {
-    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
-    const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('party_listings').delete()
-      .eq('status', 'open').lt('created_at', fiveHoursAgo).then(() => {});
-    sb.from('party_listings').delete()
-      .eq('status', 'full').lt('created_at', twoDaysAgo).then(() => {});
-  })();
 })();
