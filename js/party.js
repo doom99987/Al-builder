@@ -215,13 +215,15 @@
   }
 
   // ── Host modal ────────────────────────────────────────────
-  let _selectedBoss = '';
+  let _selectedBoss    = '';
+  let _selectedPrivate = false;
 
   function openHost() {
     if (!authed()) { window._openAuthModal?.('login'); return; }
     _removeModal('party-host-modal');
-    _selectedSize = 4;
-    _selectedBoss = '';
+    _selectedSize    = 4;
+    _selectedBoss    = '';
+    _selectedPrivate = false;
     const d = document.createElement('div');
     d.id = 'party-host-modal';
     d.className = 'party-modal-overlay';
@@ -235,6 +237,11 @@
       <div class="party-modal-size-row" id="party-size-btns">
         ${[2,3,4,5].map(n => `<button class="party-size-btn${n===_selectedSize?' selected':''}" onclick="window._partySelectSize(${n})">${n}</button>`).join('')}
       </div>
+      <label class="party-modal-label" style="margin-top:12px">Visibility</label>
+      <label class="party-private-toggle">
+        <input type="checkbox" id="phm-private-chk" onchange="window._partyTogglePrivate(this.checked)">
+        <span class="party-private-label">🔒 Private — invite link only, hidden from public listing</span>
+      </label>
       <div class="party-modal-btns">
         <button class="party-modal-cancel" onclick="window._partyCloseModal('party-host-modal')">Cancel</button>
         <button class="party-modal-submit" onclick="window._partySubmitHost()">Host</button>
@@ -249,6 +256,8 @@
       });
     });
   }
+
+  function togglePrivate(val) { _selectedPrivate = !!val; }
 
   function selectSize(n) {
     _selectedSize = n;
@@ -283,7 +292,8 @@
         host_class: _myClass || null,
         boss,
         party_size: _selectedSize,
-        status:     'open'
+        status:     'open',
+        is_private: _selectedPrivate
       }).select().single();
       if (error) throw error;
 
@@ -338,12 +348,13 @@
         _myPartyData = mp || null;
       }
 
-      // Fetch public open parties, excluding user's own and expired ones
+      // Fetch public open parties, excluding user's own, expired, and private ones
       const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
       const query = sb
         .from('party_listings')
         .select('*, party_members(count)')
         .eq('status', 'open')
+        .eq('is_private', false)
         .gt('created_at', fiveHoursAgo)
         .order('created_at', { ascending: false })
         .limit(60);
@@ -366,14 +377,15 @@
   // Full-width banner for the user's own party
   function _buildMyPartyBanner(p, myId) {
     const memberCount = p.party_members?.[0]?.count ?? 1;
-    const isFull  = memberCount >= p.party_size;
-    const isMine  = p.host_id === myId;
+    const isFull    = memberCount >= p.party_size;
+    const isMine    = p.host_id === myId;
+    const isPrivate = !!p.is_private;
     const closeOrLeave = isMine
       ? `<button class="party-close-btn" onclick="window._partyCloseFromCard('${esc(p.id)}')">Close Party</button>`
       : `<button class="party-close-btn" onclick="window._partyLeaveFromCard('${esc(p.id)}')">Leave Party</button>`;
 
-    return `<div class="party-banner">
-      <div class="party-banner-boss">${esc(p.boss)}</div>
+    return `<div class="party-banner${isPrivate ? ' party-banner--private' : ''}">
+      <div class="party-banner-boss">${esc(p.boss)}${isPrivate ? ' <span class="party-private-badge">🔒 Private</span>' : ''}</div>
       <div class="party-banner-row">
         <div class="party-banner-host">
           ${mkAvatar(p.host_name, p.host_avatar, 26)}
@@ -881,24 +893,33 @@
   // ── Expose ────────────────────────────────────────────────
   // ── Invite link ───────────────────────────────────────────
   window._partyCopyInvite = async function (partyId, btn) {
-    // Fetch invite_code for this party
-    const { data } = await sb.from('party_listings').select('invite_code').eq('id', partyId).maybeSingle();
+    const { data } = await sb.from('party_listings').select('invite_code, host_name, boss').eq('id', partyId).maybeSingle();
     const code = data?.invite_code;
-    const url  = code
-      ? `https://mpqohagljmvwftwqumnh.supabase.co/functions/v1/party-invite?id=${code}`
-      : location.origin + location.pathname + '?party=' + encodeURIComponent(partyId) + '#party';
+    if (!code) { alert('Invite code not ready yet. Try again in a moment.'); return; }
+    // Build slug: strip non-alphanumeric from each part, join with dashes
+    const slugPart = s => (s || '').replace(/[^a-zA-Z0-9]/g, '');
+    const slug = `${slugPart(data.host_name)}-${slugPart(data.boss)}-${code}`;
+    const base = location.origin + location.pathname;
+    const url  = `${base}?party=${slug}#party`;
     navigator.clipboard.writeText(url).then(() => {
       if (btn) { const t = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = t; }, 2000); }
     }).catch(() => { prompt('Copy this invite link:', url); });
   };
 
   // ── Auto-join from invite link ────────────────────────────
-  async function handlePartyInvite(partyId) {
+  async function handlePartyInvite(codeOrId) {
     if (!authed()) { window._openAuthModal?.('login'); return; }
     if (_myPartyId) { alert('You are already in a party. Leave it first.'); return; }
 
-    const { data: party, error } = await sb.from('party_listings')
-      .select('*, party_members(count)').eq('id', partyId).neq('status', 'closed').maybeSingle();
+    // Slug format: "Username-BossName-xxxx" → extract last dash-segment as invite code
+    // UUID format: 36 chars with hyphens → look up by id
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(codeOrId);
+    const inviteCode = isUUID ? null : codeOrId.includes('-') ? codeOrId.split('-').pop() : codeOrId;
+    const query = sb.from('party_listings').select('*, party_members(count)').neq('status', 'closed');
+    const { data: party, error } = isUUID
+      ? await query.eq('id', codeOrId).maybeSingle()
+      : await query.eq('invite_code', inviteCode).maybeSingle();
+    const partyId = party?.id;
     if (error || !party) { alert('This party no longer exists or has been closed.'); return; }
     if (party.status === 'full') { alert('This party is full.'); return; }
 
@@ -980,6 +1001,7 @@
     });
   }
 
+  window._partyTogglePrivate  = togglePrivate;
   window._partyLoad           = loadParties;
   window._partyLoadMyProfile  = loadMyPartyProfile;
   window._partyHost        = openHost;
