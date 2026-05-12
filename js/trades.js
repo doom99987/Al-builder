@@ -116,6 +116,9 @@
     'dildo',
     'bdsm',
     'xxx',
+    // abuse
+    'abuser','_abuser','abuse','abusing','abused','abuses','abusive',
+    'childabuser','animalabuser',
     // specific abuse / harmful terms
     'childabuser',
     'child abuser',
@@ -130,6 +133,8 @@
     'child porn',
     'cp',
     'csam',
+    'childabuser','child abuser',
+    'animalabuser','animal abuser',
     'childmolester',
     'child molester',
     'childrapist',
@@ -184,15 +189,27 @@
       .replace(/\)/g, 'o');
   }
 
+  // Merge trades-specific list with the shared master list from sb.js at call-time
+  // so any update to PROFANITY_LIST in sb.js is automatically reflected here
+  function _getBanned() {
+    const master = window._sbProfanityList;
+    if (!master) return _BANNED;
+    // Deduplicate: master first (it's the source of truth), then any trades-only extras
+    const set = new Set(master.map(w => w.toLowerCase()));
+    _BANNED.forEach(w => set.add(w.toLowerCase()));
+    return Array.from(set);
+  }
+
   function filterMsg(txt) {
+    const banned = _getBanned();
     // Pass 1: catch literal matches
-    let out = _BANNED.reduce((s, w) =>
+    let out = banned.reduce((s, w) =>
       s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), txt);
 
     // Pass 2: catch leet-speak by running the filter on the normalised copy,
     // then masking any newly-censored positions back onto the original characters
     const norm = normalizeLeet(txt);
-    const normCensored = _BANNED.reduce((s, w) =>
+    const normCensored = banned.reduce((s, w) =>
       s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), norm);
     let result = '';
     for (let i = 0; i < out.length; i++) {
@@ -211,8 +228,9 @@
 
   // Exposed so party.js (and others) can block a message outright if it contains profanity
   window._containsProfanity = function (txt) {
+    const banned = _getBanned();
     const norm = normalizeLeet(txt);
-    const check = s => _BANNED.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s))
+    const check = s => banned.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s))
                     || _BLOCK_LIST.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s));
     return check(txt) || check(norm);
   };
