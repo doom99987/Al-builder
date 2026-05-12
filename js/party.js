@@ -325,9 +325,9 @@
     // Expire open parties older than 5 hours, full parties older than 2 days (fire-and-forget)
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
     const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('party_listings').update({ status: 'closed' })
+    sb.from('party_listings').delete()
       .eq('status', 'open').lt('created_at', fiveHoursAgo).then(() => {});
-    sb.from('party_listings').update({ status: 'closed' })
+    sb.from('party_listings').delete()
       .eq('status', 'full').lt('created_at', twoDaysAgo).then(() => {});
 
     try {
@@ -919,9 +919,9 @@
   (function sweepStaleParties() {
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
     const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('party_listings').update({ status: 'closed' })
+    sb.from('party_listings').delete()
       .eq('status', 'open').lt('created_at', fiveHoursAgo).then(() => {});
-    sb.from('party_listings').update({ status: 'closed' })
+    sb.from('party_listings').delete()
       .eq('status', 'full').lt('created_at', twoDaysAgo).then(() => {});
   })();
 })();

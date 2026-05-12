@@ -1501,9 +1501,9 @@
     const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
 
     const [t1, t2, t3] = await Promise.all([
-      sb.from('trade_listings').update({ status: 'cancelled' }).eq('status', 'active').lt('created_at', twoDaysAgo),
-      sb.from('party_listings').update({ status: 'closed' }).eq('status', 'open').lt('created_at', fiveHoursAgo),
-      sb.from('party_listings').update({ status: 'closed' }).eq('status', 'full').lt('created_at', twoDaysAgo),
+      sb.from('trade_listings').delete().eq('status', 'active').lt('created_at', twoDaysAgo),
+      sb.from('party_listings').delete().eq('status', 'open').lt('created_at', fiveHoursAgo),
+      sb.from('party_listings').delete().eq('status', 'full').lt('created_at', twoDaysAgo),
     ]);
 
     const errors = [t1.error, t2.error, t3.error].filter(Boolean);

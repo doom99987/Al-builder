@@ -485,7 +485,7 @@
 
     // Expire listings older than 2 days (fire-and-forget)
     const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    sb.from('trade_listings').update({ status: 'cancelled' })
+    sb.from('trade_listings').delete()
       .eq('status', 'active').lt('created_at', twoDaysAgo).then(() => {});
 
     try {
