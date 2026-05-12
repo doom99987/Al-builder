@@ -365,6 +365,21 @@
 }
 .party-profile-btn:hover { background: #2a2a44; color: #aaa; }
 
+.party-share-btn {
+  background: #0e1a0e;
+  border: 1px solid #1a3a1a;
+  border-radius: 6px;
+  color: #4caf7d;
+  font-size: 12px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.party-share-btn:hover { background: #142814; border-color: #2a5a2a; }
+
 .party-admin-remove-btn {
   background: transparent;
   border: 1px solid #2a1a1a;
