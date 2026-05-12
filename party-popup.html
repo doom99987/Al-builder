@@ -161,6 +161,7 @@
   let _me = null, _myName = null, _myAvatar = null;
   let _partyId = null, _party = null, _chatSub = null;
   let _isMember = false;
+  let _bc = null; // BroadcastChannel to main window
 
   async function init() {
     const { data: { session } } = await sb.auth.getSession();
@@ -184,13 +185,20 @@
 
     await loadParty();
 
-    // Listen for new messages forwarded from the main window
+    // BroadcastChannel — syncs with main window
     try {
-      const bc = new BroadcastChannel('alb-party-popup');
-      bc.onmessage = e => {
-        if (e.data?.type === 'new-msg' && e.data.msg?.party_id === _partyId) {
-          if (e.data.msg.sender_id !== _me) appendMsg(e.data.msg);
-        } else if (e.data?.type === 'party-closed') {
+      _bc = new BroadcastChannel('alb-party-popup');
+      _bc.onmessage = e => {
+        const { type, msg, from } = e.data || {};
+        if (type === 'own-msg' && from === 'main' && msg?.party_id === _partyId) {
+          // Main window sent this — show it in popup
+          appendMsg(msg);
+        } else if (type === 'other-msg' && msg?.party_id === _partyId) {
+          // Another party member's message forwarded from main window
+          // Only append if popup's own Supabase sub didn't already show it
+          // (deduplicate by checking if it came from someone else)
+          if (msg.sender_id !== _me) appendMsg(msg);
+        } else if (type === 'party-closed') {
           document.getElementById('chat').innerHTML = '<div class="state-msg">The host closed this party.</div>';
           document.getElementById('chat-input').disabled = true;
           document.getElementById('chat-send').disabled  = true;
@@ -275,14 +283,8 @@
 
   function subscribeChat() {
     if (_chatSub) { try { sb.removeChannel(_chatSub); } catch(_) {} }
-    _chatSub = sb.channel('party-popup-chat-' + _partyId)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'party_messages',
-        filter: `party_id=eq.${_partyId}`
-      }, payload => {
-        if (payload.new?.sender_id !== _me) appendMsg(payload.new);
-      })
-      .subscribe();
+    // Popup uses the same Supabase channel to send broadcasts to other party members
+    _chatSub = sb.channel('party-chat-' + _partyId).subscribe();
   }
 
   async function sendMsg() {
@@ -298,7 +300,12 @@
       sender_avatar: _myAvatar,
       content:       txt.slice(0, 500)
     };
-    appendMsg({ ...row, created_at: new Date().toISOString() });
+    const msg = { ...row, created_at: new Date().toISOString() };
+    appendMsg(msg); // optimistic in popup
+    // Sync own message to main window via browser BroadcastChannel
+    _bc?.postMessage({ type: 'own-msg', msg, from: 'popup' });
+    // Broadcast to other party members via Supabase
+    _chatSub?.send({ type: 'broadcast', event: 'chat', payload: msg });
     await sb.from('party_messages').insert(row);
   }
 

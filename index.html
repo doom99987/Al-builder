@@ -31,7 +31,7 @@
   <link rel="stylesheet" href="css/mobile.css?v=11">
   <link rel="stylesheet" href="css/auth.css?v=16">
   <link rel="stylesheet" href="css/saved-builds.css?v=10">
-  <link rel="stylesheet" href="css/trades.css?v=18">
+  <link rel="stylesheet" href="css/trades.css?v=19">
   <link rel="stylesheet" href="css/vl.css?v=10">
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=4">
@@ -488,7 +488,10 @@
 
 <!-- Notification panel (fixed dropdown, positioned by JS) -->
 <div id="notif-panel">
-  <div class="notif-panel-hdr">Notifications</div>
+  <div class="notif-panel-hdr">
+    <span>Notifications</span>
+    <button class="notif-clear-all-btn" onclick="window._notifDeleteAll()">Clear all</button>
+  </div>
   <div id="notif-list"></div>
 </div>
 
@@ -1027,8 +1030,8 @@
 <script src="js/builder.js?v=51"></script>
 <script src="js/qte.js?v=20"></script>
 <script src="js/saved-builds.js?v=12"></script>
-<script src="js/trades.js?v=43"></script>
-<script src="js/party.js?v=23"></script>
+<script src="js/trades.js?v=44"></script>
+<script src="js/party.js?v=26"></script>
 <script src="js/builds.js?v=4"></script>
 <script>
 (function () {
