@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="css/trades.css?v=14">
   <link rel="stylesheet" href="css/vl.css?v=7">
   <link rel="stylesheet" href="css/party.css?v=6">
+  <link rel="stylesheet" href="css/builds.css?v=1">
 </head>
 
 <body>
@@ -39,6 +40,7 @@
   <div class="site-nav-tabs">
     <button class="site-nav-btn active" data-page="home">Home</button>
     <button class="site-nav-btn" data-page="builder">Builder</button>
+    <button class="site-nav-btn" data-page="builds">Builds</button>
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
     <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
     <button class="site-nav-btn" data-page="trades">Trades</button>
@@ -940,6 +942,52 @@
   <img class="builder-logo-watermark" src="Logo.png" alt="">
 </div><!-- end page-builder -->
 
+<!-- Community Builds page -->
+<div id="page-builds" class="site-page">
+  <div class="blds-wrap">
+
+    <div class="blds-header">
+      <h2 class="blds-title">Community Builds</h2>
+    </div>
+
+    <!-- Submit panel -->
+    <div class="blds-submit-panel">
+      <div class="blds-submit-heading">Share a Build</div>
+      <div class="blds-submit-fields">
+        <input id="blds-link-input" class="blds-input blds-input-link" type="text"
+               placeholder="Paste share link or build code (e.g. https://…?id=bz_…)" autocomplete="off">
+        <input id="blds-name-input" class="blds-input blds-input-name" type="text"
+               placeholder="Build name (e.g. Arc Wizard)" maxlength="60" autocomplete="off">
+        <input id="blds-desc-input" class="blds-input blds-input-desc" type="text"
+               placeholder="Short description (optional)" maxlength="120" autocomplete="off">
+        <button class="blds-submit-btn" onclick="window._buildsSubmit()">Upload</button>
+      </div>
+      <div id="blds-submit-msg" class="blds-submit-msg" style="display:none"></div>
+    </div>
+
+    <!-- Search + filter bar -->
+    <div class="blds-toolbar">
+      <input id="blds-search" class="blds-search" type="text"
+             placeholder="Search builds, names, descriptions…" autocomplete="off"
+             oninput="window._buildsSearch(this.value)">
+      <button class="blds-filter-btn" onclick="window._buildsToggleFilter()">⚙ Filter</button>
+    </div>
+
+    <!-- Filter panel -->
+    <div id="blds-filter-panel" class="blds-filter-panel" style="display:none">
+      <span class="blds-filter-label">Sort by</span>
+      <button class="blds-chip active" data-sort="likes" onclick="window._buildsSetSort('likes',this)">Most Liked</button>
+      <button class="blds-chip" data-sort="newest" onclick="window._buildsSetSort('newest',this)">Newest</button>
+    </div>
+
+    <!-- Build list -->
+    <div id="blds-list" class="blds-list">
+      <div class="blds-state">Loading builds…</div>
+    </div>
+
+  </div>
+</div>
+
 <!-- Mastery node instant tooltip -->
 <div id="mastery-tip"></div>
 
@@ -979,6 +1027,7 @@
 <script src="js/saved-builds.js?v=9"></script>
 <script src="js/trades.js?v=39"></script>
 <script src="js/party.js?v=14"></script>
+<script src="js/builds.js?v=1"></script>
 <script>
 (function () {
   // ── Value List data: [name, category, value, demand] ─────────────────────
@@ -1188,6 +1237,7 @@
       if (typeof window._partyLoadMyProfile === 'function') window._partyLoadMyProfile();
     }
     if (name === 'home') loadHomeStats();
+    if (name === 'builds' && typeof window._buildsLoad === 'function') window._buildsLoad();
     // Auto-activate the Build tab if no builder tab is active yet
     if (name === 'builder') {
       const activeBuildTab = document.querySelector('.tabbar .tab.active[data-tab]');
@@ -1204,12 +1254,13 @@
   // On load, navigate to the page in the URL hash
   // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
-  const _validPages = ['home', 'builder', 'qte', 'leaderboards', 'trades'];
+  const _validPages = ['home', 'builder', 'builds', 'qte', 'leaderboards', 'trades'];
   const _hasSharedBuild = new URLSearchParams(location.search).has('id');
-  switchPage(_hasSharedBuild ? 'builder' : (_validPages.includes(_initPage) ? _initPage : 'home'));
 
   // ── Home page live stats ──────────────────────────────────
   let _homeStatsFetched = false;
+
+  switchPage(_hasSharedBuild ? 'builder' : (_validPages.includes(_initPage) ? _initPage : 'home'));
   async function loadHomeStats() {
     if (_homeStatsFetched) return;
     const sb = window._sbClient;

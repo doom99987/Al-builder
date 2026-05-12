@@ -3602,6 +3602,7 @@ function renderDmgBonusSection() {
   const container = document.getElementById("dmg-bonus-section");
   if (!container) return;
 
+  const raceName = racePicker.value;
   dmgBonusPassives = collectDmgBonusPassives();
 
   const hasCrystalStar = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Crystallized Star");
@@ -6305,6 +6306,9 @@ function autoSave() {
 }
 
 // Load build on page start
+// Expose for builds page — resolves a build code to { n, summ, summc }
+window._builderParseBuildCode = async function(code) { return _loadById(code); };
+
 (async function () {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
