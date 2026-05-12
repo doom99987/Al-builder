@@ -97,6 +97,9 @@
     'homo','dyke','lesbo','poofter','poof','fudgepacker',
     // disability slurs
     'retard','retarded','spaz','spastic','mongoloid','cripple',
+    // abuse
+    'abuser','_abuser','abuse','abusing','abused','abuses','abusive',
+    'childabuser','animalabuser',
     // self-harm
     'kys','kms',
     // extremist
@@ -131,6 +134,9 @@
       (permaData || []).forEach(r => {
         PERMA_BANNED.add(r.username);
         if (r.user_id) _permaBannedIdSet.add(r.user_id);
+        // Also block the username from future registrations
+        const lname = r.username.toLowerCase();
+        if (!PROFANITY_LIST.includes(lname)) PROFANITY_LIST.push(lname);
       });
     } catch (_) {}
   }
@@ -1352,6 +1358,9 @@
     PERMA_BANNED.add(username);
     _bannedSet?.add(username);
     if (userId) _permaBannedIdSet.add(userId);
+    // Block the username from future registrations via the profanity filter
+    const lname = username.toLowerCase();
+    if (!PROFANITY_LIST.includes(lname)) PROFANITY_LIST.push(lname);
 
     // Remove from the ban list UI (perma banned are hidden there)
     _refreshBannedTab(username, 'remove');
@@ -1530,6 +1539,7 @@
   window._unbanUser              = unbanUser;
   window._banAllProfanityUsers   = banAllProfanityUsers;
   window._sbIsAdmin              = isAdmin;
+  window._sbProfanityList        = PROFANITY_LIST; // live reference — mutations are reflected immediately
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)
   window._switchLbMode = function (btn) {
