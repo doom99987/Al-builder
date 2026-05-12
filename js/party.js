@@ -697,9 +697,20 @@
     await sb.from('party_members').delete().eq('party_id', partyId).eq('user_id', uid());
 
     // If the party was full, re-open it now that a slot freed up
-    const { data: listing } = await sb.from('party_listings').select('status').eq('id', partyId).maybeSingle();
+    const { data: listing } = await sb.from('party_listings').select('status, host_id, boss').eq('id', partyId).maybeSingle();
     if (listing?.status === 'full') {
       await sb.from('party_listings').update({ status: 'open' }).eq('id', partyId);
+    }
+
+    // Notify host
+    if (listing?.host_id && listing.host_id !== uid()) {
+      const profile = await getMyProfile();
+      sb.from('notifications').insert({
+        user_id: listing.host_id,
+        title:   `${profile.username || 'Someone'} left your party`,
+        body:    listing.boss ? `Boss: ${listing.boss}` : null,
+        meta:    { type: 'party_left' }
+      }).then(() => {});
     }
 
     _myPartyId   = null;
@@ -725,6 +736,16 @@
       // Re-open if it was full so it returns to public listings
       if (party?.status === 'full') {
         await sb.from('party_listings').update({ status: 'open' }).eq('id', partyId);
+      }
+      // Notify host
+      if (party?.host_id && party.host_id !== uid()) {
+        const profile = await getMyProfile();
+        sb.from('notifications').insert({
+          user_id: party.host_id,
+          title:   `${profile.username || 'Someone'} left your party`,
+          body:    party.boss ? `Boss: ${party.boss}` : null,
+          meta:    { type: 'party_left' }
+        }).then(() => {});
       }
     }
 
@@ -822,17 +843,28 @@
   const _partyPopupBc = (() => { try { return new BroadcastChannel('alb-party-popup'); } catch(_) { return null; } })();
   let _partyPopupWin = null;
 
+  // Listen for own messages sent FROM the popup → show them in the main window
+  if (_partyPopupBc) {
+    _partyPopupBc.onmessage = e => {
+      if (e.data?.type === 'own-msg' && e.data.from === 'popup') {
+        if (_currentPartyId && e.data.msg?.party_id === _currentPartyId) {
+          _appendMsg(e.data.msg);
+        }
+      }
+    };
+  }
+
   function subscribeChat(partyId) {
     if (_chatSub) { try { sb.removeChannel(_chatSub); } catch (_) {} }
     _chatSub = sb.channel('party-chat-' + partyId)
-      .on('postgres_changes', {
-        event: 'INSERT', schema: 'public', table: 'party_messages',
-        filter: `party_id=eq.${partyId}`
-      }, payload => {
-        const msg = payload.new;
-        _partyPopupBc?.postMessage({ type: 'new-msg', msg });
-        if (msg?.sender_id !== uid()) _appendMsg(msg);
+      // Broadcast: real-time delivery for messages from other party members
+      .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        if (!payload || payload.sender_id === uid()) return;
+        // Forward to popup so it stays in sync with other members' messages
+        _partyPopupBc?.postMessage({ type: 'other-msg', msg: payload });
+        _appendMsg(payload);
       })
+      // postgres_changes: only used to detect party being closed
       .on('postgres_changes', {
         event: 'UPDATE', schema: 'public', table: 'party_listings',
         filter: `id=eq.${partyId}`
@@ -863,7 +895,12 @@
       sender_avatar: profile.avatar_url || null,
       content:      text
     };
-    _appendMsg({ ...row, created_at: new Date().toISOString() }); // optimistic
+    const msg = { ...row, created_at: new Date().toISOString() };
+    _appendMsg(msg); // optimistic in main window
+    // Sync own message to popup window via browser BroadcastChannel
+    _partyPopupBc?.postMessage({ type: 'own-msg', msg, from: 'main' });
+    // Broadcast to other party members via Supabase
+    _chatSub?.send({ type: 'broadcast', event: 'chat', payload: msg });
     await sb.from('party_messages').insert(row);
   }
 

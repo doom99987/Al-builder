@@ -1457,6 +1457,7 @@
         : '';
       return `
         <div class="notif-item${n.read ? '' : ' notif-new'}${isTradeAccepted ? ' notif-item--clickable' : ''}" data-nid="${esc(n.id)}" ${clickAttr}>
+          <button class="notif-del-btn" onclick="event.stopPropagation();window._notifDelete('${esc(n.id)}')" title="Dismiss">✕</button>
           <div class="notif-item-title">${esc(n.title)}</div>
           ${n.body ? `<div class="notif-item-body">${esc(n.body)}</div>` : ''}
           ${window._notifExtra ? window._notifExtra(n) : ''}
@@ -1470,6 +1471,21 @@
           <div class="notif-item-time">${timeAgo(n.created_at)}</div>
         </div>`;
     }).join('');
+  }
+
+  async function deleteNotif(notifId) {
+    try { await sb.from('notifications').delete().eq('id', notifId); } catch(_) {}
+    _notifications = _notifications.filter(n => n.id !== notifId);
+    renderNotifList();
+    syncBell();
+  }
+
+  async function deleteAllNotifs() {
+    const id = uid(); if (!id) return;
+    try { await sb.from('notifications').delete().eq('user_id', id); } catch(_) {}
+    _notifications = [];
+    renderNotifList();
+    syncBell();
   }
 
   async function markNotifRead() {
@@ -1704,6 +1720,8 @@
   window._syncMsgBadge  = syncMsgBadge;
   window._trdGetNotifs     = () => _notifications;
   window._trdRenderNotifs  = renderNotifList;
+  window._notifDelete      = deleteNotif;
+  window._notifDeleteAll   = deleteAllNotifs;
   window._trdRenderConvList = renderConvList;
 
 })();

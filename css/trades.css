@@ -702,17 +702,49 @@ input[type="number"].trd-input { width: 90px; }
   color: #ccccff;
   border-bottom: 1px solid #252540;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
+.notif-clear-all-btn {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color 0.12s;
+}
+.notif-clear-all-btn:hover { color: #cc5555; }
 
 #notif-list { overflow-y: auto; flex: 1; }
 
 .notif-item {
-  padding: 9px 14px;
+  padding: 9px 14px 9px 14px;
+  padding-right: 30px;
   border-bottom: 1px solid #1e1e38;
   transition: background 0.1s;
+  position: relative;
 }
 .notif-item:last-child { border-bottom: none; }
 .notif-item:hover { background: rgba(255,255,255,0.03); }
+.notif-del-btn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: #444;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+.notif-del-btn:hover { color: #cc5555; }
 
 .notif-new { background: rgba(68,68,180,0.10); border-left: 2px solid #5555cc; }
 
