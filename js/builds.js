@@ -127,6 +127,37 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // Sanitize build summary HTML: allow only <span style="color:..."> and <br>, strip everything else
+  function _sanitizeSumm(html) {
+    if (!html) return '';
+    const root = document.createElement('div');
+    root.innerHTML = html;
+    function clean(node) {
+      const frag = document.createDocumentFragment();
+      node.childNodes.forEach(child => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          frag.appendChild(document.createTextNode(child.textContent));
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          if (child.tagName === 'BR') {
+            frag.appendChild(document.createElement('br'));
+          } else if (child.tagName === 'SPAN') {
+            const span = document.createElement('span');
+            const color = child.style.color;
+            if (color) span.style.color = color;
+            span.appendChild(clean(child));
+            frag.appendChild(span);
+          } else {
+            frag.appendChild(clean(child));
+          }
+        }
+      });
+      return frag;
+    }
+    const out = document.createElement('div');
+    out.appendChild(clean(root));
+    return out.innerHTML;
+  }
+
   function _buildCard(b) {
     const liked   = _likedSet.has(b.id);
     const owner   = _isOwner(b);
@@ -137,7 +168,7 @@
       <div class="blds-card" data-id="${b.id}">
         <div class="blds-card-body">
           <div class="blds-card-name">${_esc(b.build_name)}</div>
-          ${b.build_summary ? `<div class="blds-card-summary">${_esc(b.build_summary)}</div>` : ''}
+          ${b.build_summary ? `<div class="blds-card-summary">${_sanitizeSumm(b.build_summary)}</div>` : ''}
           <div class="blds-card-meta">
             <span class="blds-card-by">by ${_esc(b.submitted_by)}</span>
             <span class="blds-card-dot">·</span>

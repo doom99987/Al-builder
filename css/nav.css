@@ -188,6 +188,18 @@ body {
   height: 32px;
   background: #1a1a1a;
 }
+.home-stat-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #4caf7d;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  position: relative;
+  top: -2px;
+  box-shadow: 0 0 6px #4caf7d88;
+}
 
 /* Content wrapper */
 .home-content {

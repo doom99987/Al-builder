@@ -915,6 +915,13 @@
     setTimeout(() => openPartyPanel(_myPartyId), 120);
   };
 
-  // Fire-and-forget cleanup on page load (pg_cron is the primary mechanism)
-  (async () => { try { await sb.rpc('cleanup_old_listings'); } catch (_) {} })();
+  // Sweep stale listings on script load (catches records over the limit regardless of which page is open)
+  (function sweepStaleParties() {
+    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+    const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    sb.from('party_listings').update({ status: 'closed' })
+      .eq('status', 'open').lt('created_at', fiveHoursAgo).then(() => {});
+    sb.from('party_listings').update({ status: 'closed' })
+      .eq('status', 'full').lt('created_at', twoDaysAgo).then(() => {});
+  })();
 })();

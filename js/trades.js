@@ -1427,7 +1427,9 @@
       return;
     }
     el.innerHTML = _notifications.map(n => {
-      const isTradeAccepted = n.meta?.type === 'trade_accepted' && n.meta?.sender_id && n.meta?.sender_username;
+      const isTradeAccepted   = n.meta?.type === 'trade_accepted' && n.meta?.sender_id && n.meta?.sender_username;
+      const isClosePrompt     = n.meta?.type === 'trade_close_prompt' && n.meta?.listing_id;
+      const alreadyClosed     = n.meta?._closed === true;
       const clickAttr = isTradeAccepted
         ? `onclick="window._notifOpenDm('${esc(n.meta.sender_id)}','${esc(n.meta.sender_username)}')" style="cursor:pointer"`
         : '';
@@ -1437,6 +1439,12 @@
           ${n.body ? `<div class="notif-item-body">${esc(n.body)}</div>` : ''}
           ${window._notifExtra ? window._notifExtra(n) : ''}
           ${isTradeAccepted ? `<div class="notif-item-action-hint">Tap to open chat →</div>` : ''}
+          ${isClosePrompt && !alreadyClosed ? `
+            <div class="notif-actions">
+              <button class="notif-action-btn notif-action-btn--accept" onclick="window._trdCloseFromNotif('${esc(n.meta.listing_id)}','${esc(n.id)}',this)">Yes, close it</button>
+              <button class="notif-action-btn notif-action-btn--decline" onclick="window._trdDismissClosePrompt('${esc(n.id)}',this)">Keep it open</button>
+            </div>` : ''}
+          ${isClosePrompt && alreadyClosed ? `<div class="notif-action-result notif-accepted">Listing closed.</div>` : ''}
           <div class="notif-item-time">${timeAgo(n.created_at)}</div>
         </div>`;
     }).join('');
@@ -1530,6 +1538,29 @@
   // ============================================================
   //  GLOBALS
   // ============================================================
+  window._trdCloseFromNotif = async function (listingId, notifId, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = 'Closing…'; }
+    try {
+      await sb.from('trade_listings').update({ status: 'cancelled' }).eq('id', listingId).eq('user_id', uid());
+      // Mark the notification as handled in-memory so it re-renders as "Listing closed."
+      const notif = _notifications.find(n => n.id === notifId);
+      if (notif) { notif.meta = { ...notif.meta, _closed: true }; }
+      renderNotifList();
+      _allListings = _allListings.filter(l => l.id !== listingId);
+      applySearch();
+    } catch (e) {
+      console.error('[trades] close from notif error', e);
+      if (btn) { btn.disabled = false; btn.textContent = 'Yes, close it'; }
+    }
+  };
+
+  window._trdDismissClosePrompt = function (notifId, btn) {
+    const notif = _notifications.find(n => n.id === notifId);
+    if (notif) { notif.meta = { ...notif.meta, _closed: 'dismissed' }; }
+    const row = btn?.closest('.notif-actions');
+    if (row) row.remove();
+  };
+
   window._trdLoad          = loadListings;
   window._trdPost          = openPostModal;
   window._trdClosePost     = closePostModal;
@@ -1575,7 +1606,7 @@
     if (listing?.gold_offer)  bodyParts.push(`+ ${listing.gold_offer.toLocaleString()}g`);
     if (listing?.gold_want)   bodyParts.push(`for ${listing.gold_want.toLocaleString()}g`);
 
-    // Send notification to the listing owner
+    // Send notifications to the listing owner
     if (myName && userId && userId !== uid()) {
       const { error: nErr } = await sb.from('notifications').insert({
         user_id: userId,
@@ -1589,6 +1620,19 @@
         }
       });
       if (nErr) console.warn('[trades] notification insert failed:', nErr.message);
+
+      // Second notification: ask owner if they want to close the listing
+      if (listingId) {
+        await sb.from('notifications').insert({
+          user_id: userId,
+          title:   'Close your listing?',
+          body:    'Would you like to remove it now that someone accepted?',
+          meta: {
+            type:       'trade_close_prompt',
+            listing_id: listingId,
+          }
+        });
+      }
     }
 
     // Open DM thread
@@ -1639,4 +1683,11 @@
   window._trdGetNotifs     = () => _notifications;
   window._trdRenderNotifs  = renderNotifList;
   window._trdRenderConvList = renderConvList;
+
+  // Sweep stale listings on script load (catches records over the limit regardless of which page is open)
+  (function sweepStaleTrades() {
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    sb.from('trade_listings').update({ status: 'cancelled' })
+      .eq('status', 'active').lt('created_at', twoDaysAgo).then(() => {});
+  })();
 })();
