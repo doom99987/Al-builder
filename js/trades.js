@@ -1418,7 +1418,15 @@
         .channel('alb-notifs-' + id)
         .on('postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${id}` },
-          p => { _notifications.unshift(p.new); syncBell(); })
+          p => {
+            _notifications.unshift(p.new);
+            syncBell();
+            if (_notifOpen) renderNotifList();
+            // Auto-refresh party list when accepted into a party
+            if (p.new?.meta?.type === 'party_accepted') {
+              window._partyLoad?.();
+            }
+          })
         .subscribe();
     } catch (_) {}
   }
