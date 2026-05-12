@@ -948,7 +948,7 @@
     if (!_currentPartyId) return;
     if (_partyPopupWin && !_partyPopupWin.closed) { _partyPopupWin.focus(); return; }
     _partyPopupWin = window.open(
-      'party-popup.html?party=' + encodeURIComponent(_currentPartyId),
+      'html/party-popup.html?party=' + encodeURIComponent(_currentPartyId),
       'alb-party-popup',
       'width=380,height=620,resizable=yes,scrollbars=no'
     );

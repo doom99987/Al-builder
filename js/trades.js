@@ -1702,7 +1702,7 @@
       ? '?uid=' + encodeURIComponent(_dmWithId) + '&uname=' + encodeURIComponent(_dmWithName)
       : '';
     _dmPopupWin = window.open(
-      'dm-popup.html' + params,
+      'html/dm-popup.html' + params,
       'alb-dm-popup',
       'width=380,height=600,resizable=yes,scrollbars=no'
     );
