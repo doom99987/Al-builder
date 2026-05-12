@@ -464,6 +464,12 @@
     const el = document.getElementById('trades-list');
     if (!el) return;
     el.innerHTML = '<div class="trd-state">Loading...</div>';
+
+    // Expire listings older than 2 days (fire-and-forget)
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    sb.from('trade_listings').update({ status: 'cancelled' })
+      .eq('status', 'active').lt('created_at', twoDaysAgo).then(() => {});
+
     try {
       const { data, error } = await sb
         .from('trade_listings')
@@ -500,6 +506,7 @@
           }).join('')
         : '';
 
+    const isAdmin = typeof window._sbIsAdmin === 'function' && window._sbIsAdmin();
     el.innerHTML = list.map(l => {
       const own      = l.user_id === myId;
       const itemsHtml = itemList(l.items) || (l.item ? `<div class="trd-card-item">${esc(l.item)}${l.quantity > 1 ? ` <span class="trd-card-qty">×${l.quantity}</span>` : ''}</div>` : '');
@@ -516,6 +523,8 @@
           ${own ? `<div class="trd-own-actions">
             <button class="trd-edit-btn" onclick="window._trdEdit('${l.id}')" title="Edit">✎</button>
             <button class="trd-del-btn"  onclick="window._trdDelete('${l.id}')" title="Delete">✕</button>
+          </div>` : isAdmin ? `<div class="trd-own-actions">
+            <button class="trd-del-btn trd-del-btn--admin" onclick="window._trdAdminDelete('${l.id}')" title="Remove (admin)">✕</button>
           </div>` : ''}
         </div>
         <div class="trd-card-items">${itemsHtml}</div>
@@ -530,6 +539,13 @@
     if (!authed() || !confirm('Delete this listing?')) return;
     try { await sb.from('trade_listings').update({ status: 'cancelled' }).eq('id', id).eq('user_id', uid()); loadListings(); }
     catch (e) { console.error('[trades] delete error', e); }
+  }
+
+  async function adminDeleteListing(id) {
+    if (typeof window._sbIsAdmin !== 'function' || !window._sbIsAdmin()) return;
+    if (!confirm('Remove this trade listing as admin? This cannot be undone.')) return;
+    try { await sb.from('trade_listings').update({ status: 'cancelled' }).eq('id', id); loadListings(); }
+    catch (e) { console.error('[trades] admin delete error', e); }
   }
 
   // ---- edit listing ----
@@ -1520,6 +1536,7 @@
   window._trdTypeSelect    = typeSelect;
   window._trdSubmit        = submitPost;
   window._trdDelete        = deleteListing;
+  window._trdAdminDelete   = adminDeleteListing;
   window._trdEdit          = openEditModal;
   window._trdSubmitEdit    = submitEdit;
   window._trdAddItem       = addItemRow;

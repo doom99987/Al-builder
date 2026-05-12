@@ -365,6 +365,23 @@
 }
 .party-profile-btn:hover { background: #2a2a44; color: #aaa; }
 
+.party-admin-remove-btn {
+  background: transparent;
+  border: 1px solid #2a1a1a;
+  border-radius: 6px;
+  color: #5a3333;
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.party-admin-remove-btn:hover {
+  background: #1a0a0a;
+  border-color: #7a2e2e;
+  color: #e05c5c;
+}
+
 .party-card-age {
   font-size: 11px;
   color: #555;
