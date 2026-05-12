@@ -2550,6 +2550,7 @@ const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
+let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (×1.20 each)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
 const summonBuffsActive = { spiritAwakening: false };
@@ -3182,7 +3183,7 @@ function collectDmgBonusPassives() {
     const fsKey = "passive:Frost Stacks";
     if (!seen.has(fsKey)) {
       seen.add(fsKey);
-      rawEntries.push({ key: fsKey, name: "Frost Stacks", bonus: 20, kind: "passive", desc: "Each Ice move grants 1 stack (20% dmg + 10% DR). Max 10 stacks = 200% dmg." });
+      rawEntries.push({ key: fsKey, name: "Frost Stacks", bonus: 20, kind: "passive", desc: "Each Ice move grants 1 stack (10% dmg + 10% DR). Max 10 stacks = 200% dmg (×2.0)." });
     }
   }
 
@@ -3310,7 +3311,7 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Bloody Berserker")      bonus = 100 - playerHpPct;
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
-    else if (p.name === "Frost Stacks")          { mult *= Math.pow(1.20, boreasStacks); return; }
+    else if (p.name === "Frost Stacks")          { mult *= (1 + 0.10 * boreasStacks); return; }
     else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
     else if (p.name === "Rending Barrage Proficiency") { bonus = 2.5 * rendingBarrageStacks; }
     else if (p.name === "Demonic Presence")            { bonus = 5 * demonicPresenceStacks; }
@@ -3338,6 +3339,7 @@ function getActiveDmgMult(moveType = null) {
     if (!teamBuffsActive[b.key]) return;
     if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
     if ((b.key === 'castAmplify' || b.key === 'arcaneRitual') && moveType && !_amplifyTypes.includes(moveType)) return;
+    if (b.key === 'castAmplify') { mult *= Math.pow(1.20, castAmplifyStacks); return; }
     mult *= b.mult;
   });
   if (summonBuffsActive.spiritAwakening) mult *= 1.50;
@@ -3478,6 +3480,13 @@ function changeBulkUpStacks(delta) {
 
 function changeBoreasStacks(delta) {
   boreasStacks = Math.min(10, Math.max(1, boreasStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeCastAmplifyStacks(delta) {
+  const isCorvolus = racePicker.value === "Corvolus (3%)";
+  const maxStacks = isCorvolus ? 5 : 4;
+  castAmplifyStacks = Math.min(maxStacks, Math.max(1, castAmplifyStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -4112,28 +4121,43 @@ function renderDmgBonusSection() {
       return;
     }
     const on = teamBuffsActive[b.key];
+    const dispMult = b.key === 'castAmplify' ? Math.pow(1.20, castAmplifyStacks).toFixed(2) : b.mult.toFixed(2);
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-team-key="${b.key}" title="${b.desc}">
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${b.label}</span>
-      <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+      <span class="dc-bonus-pct">×${dispMult}</span>
     </div>`;
+    if (b.key === 'castAmplify' && on) {
+      const _isCorvolus = raceName === "Corvolus (3%)";
+      const _maxCA = _isCorvolus ? 5 : 4;
+      html += `<div class="dc-energy-section" style="margin:2px 0 6px 0">
+        <span class="dc-energy-label">Stacks (max ${_maxCA}${_isCorvolus ? ", +1 Corvolus" : ""})</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeCastAmplifyStacks(-1)">−</button>
+          <span class="dc-energy-val">${castAmplifyStacks}</span>
+          <button class="dc-energy-btn" onclick="changeCastAmplifyStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
   });
   html += `</div>`;
 
-  // --- Summon Buffs ---
-  html += `<h3 class="dc-bonus-title" style="margin-top:12px">Summon Buffs</h3><div class="dc-bonus-list">`;
-  const _summonBufDefs = [
-    { key: 'spiritAwakening', label: "Spirit Awakening", mult: 1.50, desc: "Vastayan racial active: +50% damage buff to summons for 4 turns." },
-  ];
-  _summonBufDefs.forEach(b => {
-    const on = summonBuffsActive[b.key];
-    html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-summon-key="${b.key}" title="${b.desc}">
-      <div class="dc-bonus-check">${on ? "✓" : ""}</div>
-      <span class="dc-bonus-name">${b.label}</span>
-      <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
-    </div>`;
-  });
-  html += `</div>`;
+  // --- Summon Buffs (Vastayan only) ---
+  if (raceName === "Vastayan (9%)") {
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Summon Buffs</h3><div class="dc-bonus-list">`;
+    const _summonBufDefs = [
+      { key: 'spiritAwakening', label: "Spirit Awakening", mult: 1.50, desc: "Vastayan racial active: +50% damage buff to summons for 4 turns." },
+    ];
+    _summonBufDefs.forEach(b => {
+      const on = summonBuffsActive[b.key];
+      html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-summon-key="${b.key}" title="${b.desc}">
+        <div class="dc-bonus-check">${on ? "✓" : ""}</div>
+        <span class="dc-bonus-name">${b.label}</span>
+        <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+      </div>`;
+    });
+    html += `</div>`;
+  }
 
   // --- Sinister Gaze (Amorus racial — shown when Bulk Up is active) ---
   {
