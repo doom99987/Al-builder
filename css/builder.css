@@ -943,6 +943,27 @@ h2 {
 
 .dc-heal-val b { color: #88ee88; }
 
+.dc-heal-out-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #88ee88;
+}
+.dc-heal-out-line b {
+  color: #66dd66;
+  font-size: 14px;
+}
+.dc-heal-inc-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #66bbff;
+}
+.dc-heal-inc-line b {
+  color: #44aaff;
+  font-size: 14px;
+}
+
 .dc-bonus-title {
   margin: 0 0 8px 0;
   font-family: 'Rajdhani', sans-serif;

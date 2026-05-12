@@ -2542,6 +2542,7 @@ classPicker.addEventListener("change", () => {
 // All of these are toggled or adjusted via the UI in renderDmgBonusSection().
 
 let dmgCalcMoveList = [];
+let healCalcMoveList = [];
 let energyCount = 0;
 let darkCoreCount = 0;
 let playerHpPct = 100; // 1-100: current player HP% — used by Bloody Berserker, Rage Empower, Stellian Core
@@ -2682,10 +2683,71 @@ function recalcOpenDetails() {
     if (detail.style.display === "none") return;
     const rowEl = detail.previousElementSibling;
     if (!rowEl) return;
+    if (rowEl.dataset.hidx !== undefined) { toggleHealDetail(rowEl, +rowEl.dataset.hidx, true); return; }
     const idx = rowEl.dataset.idx;
     if (idx === undefined) return;
-    toggleDmgDetail(rowEl, +idx, true); // forceOpen: update in-place without closing first
+    toggleDmgDetail(rowEl, +idx, true);
   });
+}
+
+// Returns outgoing / incoming heal multipliers from displayed stat panel
+function getOutHealMult() {
+  const el = document.querySelector('.percent-item[data-stat="out-heal"] .percent-val');
+  return el ? (parseFloat(el.textContent) || 100) / 100 : 1;
+}
+function getIncHealMult() {
+  const el = document.querySelector('.percent-item[data-stat="inc-heal"] .percent-val');
+  return el ? (parseFloat(el.textContent) || 100) / 100 : 1;
+}
+
+function toggleHealDetail(rowEl, idx, forceOpen = false) {
+  const detail = rowEl.nextElementSibling;
+  if (!detail || !detail.classList.contains("dc-detail")) return;
+  if (!forceOpen && detail.style.display !== "none") {
+    detail.style.display = "none"; rowEl.classList.remove("dc-row-open"); return;
+  }
+
+  const m = healCalcMoveList[idx];
+  const scalings = parseScaling(m.scaling);
+  const baseHeal = +m.healing;
+
+  let statLine = "";
+  let scaledHeal = baseHeal;
+
+  if (scalings) {
+    const statParts = scalings.map(({ stat, scaling, label }) => {
+      const val = getTotalStat(stat);
+      return { label, val, scaling, contrib: val / scaling };
+    });
+    const totalContrib = statParts.reduce((s, p) => s + p.contrib, 0);
+    scaledHeal = baseHeal * (1 + totalContrib);
+    const partsStr = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
+    statLine = `${baseHeal}(1 + ${partsStr}) = <b>${scaledHeal.toFixed(1)}</b>`;
+  } else {
+    statLine = `Base heal: <b>${baseHeal}</b>`;
+  }
+
+  const outMult = getOutHealMult();
+  const incMult = getIncHealMult();
+  const outgoing = scaledHeal * outMult;
+  const received = outgoing * incMult;
+
+  let formula = statLine;
+
+  if (outMult !== 1) {
+    formula += ` × ${outMult.toFixed(2)} <span class="dc-bonus-tag">[outgoing heal]</span> = <b>${outgoing.toFixed(1)}</b>`;
+  }
+
+  formula += `<br><span class="dc-heal-out-line">Outgoing heal: <b>${outgoing.toFixed(1)}</b></span>`;
+
+  if (incMult !== 1) {
+    formula += `<br><span class="dc-heal-inc-line">Received by target: ${outgoing.toFixed(1)} × ${incMult.toFixed(2)} <span class="dc-bonus-tag">[incoming heal]</span> = <b>${received.toFixed(1)}</b></span>`;
+  } else {
+    formula += `<br><span class="dc-heal-inc-line">Received by target: <b>${outgoing.toFixed(1)}</b></span>`;
+  }
+
+  detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
+  detail.style.display = "block"; rowEl.classList.add("dc-row-open");
 }
 
 function getCritDmgMult() {
@@ -4433,20 +4495,23 @@ function renderDmgCalc() {
     <div class="dc-detail" style="display:none"></div>`;
   });
 
+  healCalcMoveList = healMoves;
   if (healMoves.length) {
     html += `<h3 class="dc-support-title">Support</h3>`;
-    healMoves.forEach(m => {
+    healMoves.forEach((m, hi) => {
       const effectiveMoveType = getEffectiveMoveType(m.moveType);
-      const color = MOVE_TYPE_COLORS[effectiveMoveType] || "#cccccc";
+      const color    = MOVE_TYPE_COLORS[effectiveMoveType] || "#cccccc";
       const healStr  = `<span class="dc-stat dc-heal-val">Heal: <b>${m.healing}</b></span>`;
       const sclStr   = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
       const costStr  = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
       const cdStr    = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
-      html += `<div class="dc-row" style="border-left:3px solid ${color}">
+      html += `<div class="dc-row dc-row-clickable" style="border-left:3px solid ${color}" data-hidx="${hi}" onclick="toggleHealDetail(this,${hi})">
         <span class="dc-name" style="color:${color}">${m.name}</span>
         <span class="dc-type" style="color:${color}">[${effectiveMoveType || "—"}]</span>
         <span class="dc-stats">${healStr}${sclStr}${costStr}${cdStr}</span>
-      </div>`;
+        <span class="dc-hint">click to calculate</span>
+      </div>
+      <div class="dc-detail" style="display:none"></div>`;
     });
   }
 
