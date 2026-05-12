@@ -1222,6 +1222,9 @@
         <button id="sb-ban-profanity-btn" class="sb-admin-tool-btn" onclick="window._banAllProfanityUsers()">
           🔍 Scan &amp; Ban All Profanity Usernames
         </button>
+        <button id="sb-purge-expired-btn" class="sb-admin-tool-btn" onclick="window._adminPurgeExpired(this)">
+          🗑 Purge Expired Trades &amp; Parties
+        </button>
       </div>
     `);
     document.querySelector('.sb-modal-box')?.classList.add('sb-admin-modal-box');
@@ -1488,6 +1491,30 @@
     adminSetStatus(`${username} unbanned.`, true);
   }
 
+  async function adminPurgeExpired(btn) {
+    if (!isAdmin()) return;
+    if (!confirm('Purge all expired trades (>2 days) and parties (open >5 h, full >2 days)?')) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Purging…'; }
+    adminSetStatus('Purging expired records…');
+
+    const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
+
+    const [t1, t2, t3] = await Promise.all([
+      sb.from('trade_listings').update({ status: 'cancelled' }).eq('status', 'active').lt('created_at', twoDaysAgo),
+      sb.from('party_listings').update({ status: 'closed' }).eq('status', 'open').lt('created_at', fiveHoursAgo),
+      sb.from('party_listings').update({ status: 'closed' }).eq('status', 'full').lt('created_at', twoDaysAgo),
+    ]);
+
+    const errors = [t1.error, t2.error, t3.error].filter(Boolean);
+    if (errors.length) {
+      adminSetStatus('Partial error: ' + errors.map(e => e.message).join('; '));
+    } else {
+      adminSetStatus('Expired records purged.', true);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '🗑 Purge Expired Trades & Parties'; }
+  }
+
   async function banAllProfanityUsers() {
     if (!isAdmin()) return;
     const btn = document.getElementById('sb-ban-profanity-btn');
@@ -1538,6 +1565,7 @@
   window._adminBanAndWipe        = adminBanAndWipe;
   window._unbanUser              = unbanUser;
   window._banAllProfanityUsers   = banAllProfanityUsers;
+  window._adminPurgeExpired      = adminPurgeExpired;
   window._sbIsAdmin              = isAdmin;
   window._sbProfanityList        = PROFANITY_LIST; // live reference — mutations are reflected immediately
 
