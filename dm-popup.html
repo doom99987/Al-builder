@@ -180,10 +180,21 @@
     _myName = session.user.user_metadata?.username || 'Me';
     loadConvs();
 
-    // Listen for "open this thread" requests from the main window
+    // Listen for messages from the main window
     const bc = new BroadcastChannel('alb-dm-popup');
     bc.onmessage = e => {
-      if (e.data?.type === 'open-thread') openThread(e.data.userId, e.data.username);
+      if (e.data?.type === 'open-thread') { openThread(e.data.userId, e.data.username); return; }
+      if (e.data?.type === 'new-msg') {
+        const m = e.data.msg;
+        // Append if we're in the right thread
+        if (_withId && m?.sender_id === _withId) {
+          appendMsg(m);
+          sb.from('direct_messages').update({ read: true }).eq('id', m.id).then(() => {});
+        } else {
+          // Refresh conv list so unread badge updates
+          loadConvs();
+        }
+      }
     };
 
     // Also handle URL params (main window can pass ?uid=...&uname=... on open)

@@ -515,6 +515,17 @@
   font-size: 14px;
 }
 
+.party-panel-popout {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.party-panel-popout:hover { color: #9988ee; }
+
 .party-panel-close {
   background: none;
   border: none;

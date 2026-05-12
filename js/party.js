@@ -802,6 +802,9 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  const _partyPopupBc = (() => { try { return new BroadcastChannel('alb-party-popup'); } catch(_) { return null; } })();
+  let _partyPopupWin = null;
+
   function subscribeChat(partyId) {
     if (_chatSub) { try { sb.removeChannel(_chatSub); } catch (_) {} }
     _chatSub = sb.channel('party-chat-' + partyId)
@@ -809,7 +812,9 @@
         event: 'INSERT', schema: 'public', table: 'party_messages',
         filter: `party_id=eq.${partyId}`
       }, payload => {
-        if (payload.new?.sender_id !== uid()) _appendMsg(payload.new);
+        const msg = payload.new;
+        _partyPopupBc?.postMessage({ type: 'new-msg', msg });
+        if (msg?.sender_id !== uid()) _appendMsg(msg);
       })
       .subscribe();
   }
@@ -889,6 +894,18 @@
   document.addEventListener('keydown', e => {
     if (e.key === 'Enter' && document.activeElement?.id === 'party-chat-input') sendMessage();
   });
+
+  // ── Party chat pop-out ───────────────────────────────────
+  function partyPopout() {
+    if (!_currentPartyId) return;
+    if (_partyPopupWin && !_partyPopupWin.closed) { _partyPopupWin.focus(); return; }
+    _partyPopupWin = window.open(
+      'party-popup.html?party=' + encodeURIComponent(_currentPartyId),
+      'alb-party-popup',
+      'width=380,height=620,resizable=yes,scrollbars=no'
+    );
+    if (_partyPopupWin) _partyPopupWin.focus();
+  }
 
   // ── Expose ────────────────────────────────────────────────
   // ── Invite link ───────────────────────────────────────────
@@ -1001,6 +1018,7 @@
     });
   }
 
+  window._partyPopout         = partyPopout;
   window._partyTogglePrivate  = togglePrivate;
   window._partyLoad           = loadParties;
   window._partyLoadMyProfile  = loadMyPartyProfile;
