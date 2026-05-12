@@ -1497,18 +1497,9 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Purging…'; }
     adminSetStatus('Purging expired records…');
 
-    const twoDaysAgo   = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-    const fiveHoursAgo = new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString();
-
-    const [t1, t2, t3] = await Promise.all([
-      sb.from('trade_listings').delete().eq('status', 'active').lt('created_at', twoDaysAgo),
-      sb.from('party_listings').delete().eq('status', 'open').lt('created_at', fiveHoursAgo),
-      sb.from('party_listings').delete().eq('status', 'full').lt('created_at', twoDaysAgo),
-    ]);
-
-    const errors = [t1.error, t2.error, t3.error].filter(Boolean);
-    if (errors.length) {
-      adminSetStatus('Partial error: ' + errors.map(e => e.message).join('; '));
+    const { error } = await sb.rpc('purge_expired_listings');
+    if (error) {
+      adminSetStatus('Error: ' + error.message);
     } else {
       adminSetStatus('Expired records purged.', true);
     }
