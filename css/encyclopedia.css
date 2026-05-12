@@ -1,53 +1,476 @@
 /* ── Encyclopedia page ──────────────────────────────────────────────────── */
 
+#page-encyclopedia.active { overflow-y: auto; }
+
 .enc-wrap {
-  max-width: 960px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 32px 20px 60px;
+  padding: 28px 20px 60px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
-.enc-header {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
+/* Header */
 .enc-title {
   font-family: 'Rajdhani', Arial, sans-serif;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
   color: #fff;
   margin: 0;
   letter-spacing: 0.5px;
 }
 
-.enc-subtitle {
+/* Search */
+.enc-search {
+  width: 320px;
+  background: #0e0e0e;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  color: #e0e0e0;
   font-size: 13px;
-  color: #888;
-  margin: 0;
+  padding: 8px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.enc-search:focus { border-color: #6655cc; }
+.enc-search::placeholder { color: #444; }
+
+/* Type filter tabs */
+.enc-type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.enc-coming-soon {
+.enc-type-tab {
+  background: #0e0e0e;
+  border: 1px solid #1e1e1e;
+  border-radius: 20px;
+  color: #666;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.enc-type-tab:hover { border-color: #444; color: #ccc; background: #151515; }
+
+/* Per-type active colours */
+.enc-type-tab.active                               { background: #1c1540; border-color: #6655cc; color: #a899ff; }
+.enc-type-tab[data-type="Base Class"].active       { background: #2a1508; border-color: #e07030; color: #f09050; }
+.enc-type-tab[data-type="Super Class"].active      { background: #1e0e38; border-color: #aa66ee; color: #cc99ff; }
+.enc-type-tab[data-type="Sub Class"].active        { background: #061e1c; border-color: #33bbaa; color: #55ddcc; }
+.enc-type-tab[data-type="Race"].active             { background: #0a1e0c; border-color: #55cc66; color: #77ee88; }
+.enc-type-tab[data-type="Enchant"].active          { background: #1e1800; border-color: #ddaa00; color: #ffcc33; }
+.enc-type-tab[data-type="Ore"].active              { background: #1e1208; border-color: #cc8833; color: #eeaa55; }
+.enc-type-tab[data-type="Ingredient"].active       { background: #0a1a0a; border-color: #55aa55; color: #77cc77; }
+.enc-type-tab[data-type="Weapon"].active           { background: #1e0a0a; border-color: #cc4444; color: #ee6666; }
+.enc-type-tab[data-type="Gear"].active             { background: #0a0e22; border-color: #5577cc; color: #7799ee; }
+.enc-type-tab[data-type="Artifact"].active         { background: #1e0a1e; border-color: #cc55cc; color: #ee77ee; }
+.enc-type-tab[data-type="Lesser Artifact"].active  { background: #160d26; border-color: #9966cc; color: #bb88ee; }
+.enc-type-tab[data-type="Weapon Modifier"].active  { background: #0d1a0e; border-color: #66aa44; color: #88cc66; }
+.enc-type-tab[data-type="Boss"].active             { background: #1a0808; border-color: #cc3333; color: #ee5555; }
+.enc-type-tab[data-type="Mob"].active              { background: #100e0a; border-color: #aa8844; color: #ccaa55; }
+
+/* ── Two-column body ────────────────────────────────────────────────────── */
+.enc-body {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.enc-list-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.enc-no-results {
+  color: #555;
+  font-size: 13px;
+  padding: 32px 0;
+  text-align: center;
+}
+
+/* Section headers */
+.enc-section { display: flex; flex-direction: column; gap: 10px; }
+
+.enc-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #666;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #1a1a1a;
+}
+.enc-section-icon { font-size: 13px; }
+.enc-section-count { margin-left: auto; font-size: 11px; color: #444; font-weight: 500; letter-spacing: 0; }
+
+/* Item grid */
+.enc-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.enc-grid-column { flex-direction: column; align-items: flex-start; }
+
+.enc-item-btn {
+  background: #0e0e0e;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  color: #999;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  text-align: left;
+  font-family: inherit;
+}
+.enc-item-btn:hover { background: #141420; border-color: #333; color: #ddd; }
+.enc-item-btn.active { background: #1c1540; border-color: #6655cc; color: #c0b0ff; }
+
+/* Parent item (has expand toggle) */
+.enc-item-btn-parent {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.enc-expand-icon {
+  font-size: 9px;
+  color: #555;
+  padding-left: 10px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: color 0.12s;
+}
+.enc-item-btn-parent:hover .enc-expand-icon { color: #aaa; }
+.enc-item-btn-parent.active .enc-expand-icon { color: #9988ff; }
+
+/* Child items (indented under parent) */
+.enc-boss-children {
+  padding-left: 18px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.enc-item-btn-child {
+  font-size: 11px;
+  padding: 4px 10px;
+  opacity: 0.85;
+  border-color: #181818;
+}
+
+/* ── Right: sticky detail panel ─────────────────────────────────────────── */
+.enc-detail-wrap {
+  width: 320px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+}
+
+/* Empty state */
+.enc-detail-empty {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 10px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
-  padding: 80px 20px;
+  gap: 10px;
+  padding: 56px 20px;
+  color: #444;
+}
+.enc-de-icon { font-size: 36px; }
+.enc-de-text { font-size: 12px; text-align: center; line-height: 1.5; }
+
+/* Shared detail card shell */
+.enc-detail-card {
+  background: #0a0a0a;
+  border: 1px solid #252525;
+  border-radius: 10px;
+  padding: 20px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+/* ── Shared type badge ──────────────────────────────────────────────────── */
+.enc-detail-type,
+.enc-class-type,
+.enc-move-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  background: #1a1a1a;
+  color: #777;
+}
+
+/* ── Type colours ───────────────────────────────────────────────────────── */
+.enc-type-Ore             { background: #1a130a; color: #cc8833; border: 1px solid #3a2810; }
+.enc-type-Ingredient      { background: #0a160a; color: #55aa55; border: 1px solid #103310; }
+.enc-type-Weapon          { background: #1a0a0a; color: #cc4444; border: 1px solid #3a1010; }
+.enc-type-Gear            { background: #0a0d1a; color: #5577cc; border: 1px solid #101833; }
+.enc-type-Artifact        { background: #180a1a; color: #cc55cc; border: 1px solid #331033; }
+.enc-type-Lesser-Artifact { background: #110d1a; color: #9966cc; border: 1px solid #271040; }
+.enc-type-Weapon-Modifier { background: #0d1510; color: #66aa44; border: 1px solid #162810; }
+.enc-type-Enchant         { background: #1a1500; color: #ddaa00; border: 1px solid #3a3000; }
+.enc-type-Boss            { background: #1a0808; color: #cc3333; border: 1px solid #3a1010; }
+.enc-type-Mob             { background: #100e0a; color: #aa8844; border: 1px solid #2a2210; }
+.enc-type-Base-Class      { background: #1a0e06; color: #e07030; border: 1px solid #3a2010; }
+.enc-type-Super-Class     { background: #140a1e; color: #aa66ee; border: 1px solid #2e1055; }
+.enc-type-Sub-Class       { background: #061818; color: #33bbaa; border: 1px solid #0e3030; }
+.enc-type-Race            { background: #0e1a10; color: #55cc66; border: 1px solid #143318; }
+
+/* ── Shared name + desc ─────────────────────────────────────────────────── */
+.enc-detail-name {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+  word-break: break-word;
+}
+.enc-detail-desc {
+  font-size: 13px;
+  color: #aaa;
+  line-height: 1.65;
+}
+.enc-detail-nodesc { color: #444; font-style: italic; }
+
+/* ── Class / Race card extras ───────────────────────────────────────────── */
+.enc-moves-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-top: 4px;
+}
+
+/* Innate passive rows */
+.enc-passive-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+}
+.enc-passive-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #c8b8ff;
+}
+.enc-passive-desc {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+
+/* Move buttons */
+.enc-move-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  background: #0d0d0d;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  color: #bbb;
+  font-size: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.enc-move-btn:hover { background: #161628; border-color: #333; color: #ddd; }
+.enc-move-btn-name { font-weight: 600; }
+.enc-move-btn-meta { display: flex; align-items: center; gap: 5px; flex-shrink: 0; color: #555; font-size: 11px; }
+
+/* Move type pills (small) */
+.enc-move-type-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #1a1a1a;
+  color: #666;
+  letter-spacing: 0.4px;
+}
+.enc-mpill-active  { background: #1a1040; color: #8877dd; }
+.enc-mpill-passive { background: #0e1a10; color: #44aa55; }
+
+/* ── Move detail card ────────────────────────────────────────────────────── */
+.enc-back-btn {
+  background: none;
+  border: 1px solid #252525;
+  border-radius: 6px;
+  color: #777;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  width: fit-content;
+  transition: color 0.12s, border-color 0.12s;
+}
+.enc-back-btn:hover { color: #ccc; border-color: #555; }
+
+.enc-move-quote {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+  line-height: 1.5;
+  border-left: 2px solid #252525;
+  padding-left: 10px;
+}
+
+/* Stat chips */
+.enc-move-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.enc-stat-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 6px;
+  padding: 5px 10px;
+  min-width: 44px;
+}
+.enc-stat-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+.enc-stat-val   { font-size: 12px; color: #ddd; font-weight: 600; white-space: nowrap; }
+
+/* ── Boss detail ─────────────────────────────────────────────────────────── */
+.enc-boss-hp,
+.enc-boss-res,
+.enc-boss-passives,
+.enc-boss-moves {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.enc-boss-section-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-top: 4px;
+}
+
+.enc-boss-hp-rows { display: flex; flex-direction: column; gap: 4px; }
+
+.enc-boss-hp-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  background: #0d0d0d;
+  border: 1px solid #1a1a1a;
+  border-radius: 5px;
+}
+.enc-boss-hp-label { font-size: 12px; color: #777; }
+.enc-boss-hp-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ddd;
+  font-family: 'Rajdhani', Arial, sans-serif;
+}
+.enc-boss-hp-corrupted { color: #dd6644; }
+
+.enc-boss-res-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.enc-res-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid #222;
+  background: #111;
+  min-width: 58px;
+}
+.enc-res-type {
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 700;
+}
+.enc-res-val { font-size: 12px; font-weight: 700; color: #ddd; }
+
+.enc-res-resist { background: #081a0d; border-color: #1a4a25; }
+.enc-res-resist .enc-res-type { color: #4a8855; }
+.enc-res-resist .enc-res-val  { color: #55ee77; }
+
+.enc-res-weak { background: #1a0808; border-color: #4a1a1a; }
+.enc-res-weak .enc-res-type { color: #885555; }
+.enc-res-weak .enc-res-val  { color: #ee5555; }
+
+/* Boss move detail extras */
+.enc-boss-move-category {
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 6px;
+  font-style: italic;
+}
+.enc-boss-move-condition {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+  color: #888;
   background: #0e0e0e;
   border: 1px solid #1e1e1e;
-  border-radius: 10px;
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.enc-boss-move-cond-label {
+  font-size: 9px;
+  font-weight: 700;
   color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  flex-shrink: 0;
 }
 
-.enc-cs-icon {
-  font-size: 48px;
-}
-
-.enc-cs-text {
-  font-size: 15px;
-  color: #666;
+/* ── Mobile ─────────────────────────────────────────────────────────────── */
+@media (max-width: 680px) {
+  .enc-body { flex-direction: column; }
+  .enc-detail-wrap { width: 100%; position: static; }
+  .enc-search { width: 100%; }
+  .enc-detail-card { max-height: none; }
 }
