@@ -87,6 +87,11 @@
       <span class="home-stat-num" id="stat-parties">—</span>
       <span class="home-stat-label">Open Parties</span>
     </div>
+    <div class="home-stat-divider"></div>
+    <div class="home-stat">
+      <span class="home-stat-num" id="stat-online"><span class="home-stat-dot"></span>—</span>
+      <span class="home-stat-label">Online Now</span>
+    </div>
   </div>
 
   <!-- Main feature sections -->
@@ -1283,6 +1288,28 @@
   }
   // Load stats on initial home page visit (sb.js may not be ready yet, so defer slightly)
   window.addEventListener('load', () => setTimeout(loadHomeStats, 800));
+
+  // ── Online presence counter ───────────────────────────────
+  let _presenceChannel = null;
+  function initPresence() {
+    const sb = window._sbClient;
+    if (!sb || _presenceChannel) return;
+    const fp = localStorage.getItem('alb_visitor') ||
+      (() => { const v = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('alb_visitor', v); return v; })();
+    _presenceChannel = sb.channel('alb-online', { config: { presence: { key: fp } } });
+    _presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const count = Object.keys(_presenceChannel.presenceState()).length;
+        const el = document.getElementById('stat-online');
+        if (el) el.innerHTML = `<span class="home-stat-dot"></span>${count}`;
+      })
+      .subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          await _presenceChannel.track({ t: Date.now() });
+        }
+      });
+  }
+  window.addEventListener('load', () => setTimeout(initPresence, 900));
 
   function switchQteTab(name) {
     if (typeof window._onFistQteHide === 'function') window._onFistQteHide();
