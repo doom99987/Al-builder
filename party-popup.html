@@ -190,6 +190,11 @@
       bc.onmessage = e => {
         if (e.data?.type === 'new-msg' && e.data.msg?.party_id === _partyId) {
           if (e.data.msg.sender_id !== _me) appendMsg(e.data.msg);
+        } else if (e.data?.type === 'party-closed') {
+          document.getElementById('chat').innerHTML = '<div class="state-msg">The host closed this party.</div>';
+          document.getElementById('chat-input').disabled = true;
+          document.getElementById('chat-send').disabled  = true;
+          document.getElementById('hdr-meta').textContent = 'Closed';
         }
       };
     } catch(_) {}

@@ -832,18 +832,6 @@ input[type="number"].trd-input { width: 90px; }
 }
 .dm-back-btn:hover { color: #ccccff; }
 
-.dm-popout-btn {
-  background: none;
-  border: none;
-  color: #555;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 0 3px;
-  line-height: 1;
-  flex-shrink: 0;
-  transition: color 0.12s;
-}
-.dm-popout-btn:hover { color: #aaaaee; }
 
 .dm-panel-close {
   background: none;
