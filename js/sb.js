@@ -335,10 +335,11 @@
 
   // ---- fetch top-10 for a QTE (current month only) ----
   // platform: 'all' (no filter) | 'M' | 'C'
-  async function fetchLeaderboard(qteType, platform) {
+  // profileMap: optional pre-fetched { userId: profileObj } — avoids redundant DB calls
+  async function fetchLeaderboard(qteType, platform, profileMap) {
     let query = sb
       .from('leaderboard')
-      .select('user_id, score, platform, profiles(username, avatar_url)')
+      .select('user_id, score, platform')
       .eq('qte_type', qteType)
       .eq('score_month', currentMonth())
       .order('score', { ascending: false })
@@ -346,11 +347,20 @@
     if (platform && platform !== 'all') query = query.eq('platform', platform);
     const { data, error } = await query;
     if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
-    return (data || [])
+    const rows = data || [];
+    let pm = profileMap;
+    if (!pm) {
+      const ids = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
+      const { data: profs } = ids.length
+        ? await sb.from('profiles').select('id, username, avatar_url').in('id', ids)
+        : { data: [] };
+      pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    }
+    return rows
       .map(r => ({
         user_id:    r.user_id,
-        username:   r.profiles?.username   || '???',
-        avatar_url: r.profiles?.avatar_url || null,
+        username:   pm[r.user_id]?.username   || '???',
+        avatar_url: pm[r.user_id]?.avatar_url || null,
         score:      r.score,
         platform:   r.platform || null,
       }))
@@ -358,7 +368,7 @@
       .slice(0, 10);
   }
 
-  // ---- fetch all-time record holder for a QTE ----
+  // ---- fetch all-time record holder for a single QTE ----
   async function fetchRecord(qteType) {
     const { data, error } = await sb
       .from('leaderboard_records')
@@ -380,6 +390,38 @@
       score:      data.score,
       platform:   data.platform || null,
     };
+  }
+
+  // ---- batch fetch records for multiple QTE types (2 queries total) ----
+  async function fetchRecordsBatch(qteTypes) {
+    const { data: recs, error } = await sb
+      .from('leaderboard_records')
+      .select('qte_type, score, platform, user_id')
+      .in('qte_type', qteTypes);
+    if (error) { console.error('[sb] fetchRecordsBatch error', error.message); return {}; }
+    if (!recs || !recs.length) return {};
+
+    const userIds = [...new Set(recs.map(r => r.user_id).filter(Boolean))];
+    const { data: profs, error: profsErr } = await sb
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', userIds);
+    if (profsErr) { console.error('[sb] fetchRecordsBatch profiles error', profsErr.message); return {}; }
+    const profMap = Object.fromEntries((profs || []).map(p => [p.id, p]));
+
+    const result = {};
+    for (const r of recs) {
+      const prof = profMap[r.user_id];
+      if (!prof?.username) continue;
+      result[r.qte_type] = {
+        user_id:    r.user_id,
+        username:   prof.username,
+        avatar_url: prof.avatar_url || null,
+        score:      r.score,
+        platform:   r.platform || null,
+      };
+    }
+    return result;
   }
 
   // ---- fetch the current user's rank for a QTE (current month only) ----
@@ -1058,10 +1100,10 @@
     body.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
 
     const [rows, myRank, record, myBest] = await Promise.all([
-      loadBannedCache().then(() => fetchLeaderboard(type, platform)),
-      currentUser ? fetchMyRank(type, platform) : Promise.resolve(null),
-      fetchRecord(type),
-      currentUser ? fetchMyBest(type) : Promise.resolve(null),
+      loadBannedCache().then(() => fetchLeaderboard(type, platform)).catch(() => []),
+      currentUser ? fetchMyRank(type, platform).catch(() => null) : Promise.resolve(null),
+      fetchRecord(type).catch(() => null),
+      currentUser ? fetchMyBest(type).catch(() => null) : Promise.resolve(null),
     ]);
 
     if (!document.getElementById('sb-lb-body')) return; // modal closed
@@ -1153,16 +1195,65 @@
     const suffix = mode === 'comp' ? '-comp' : '';
 
     grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
+    try {
     await loadBannedCache();
-    const [results, records] = await Promise.all([
-      Promise.all(QTE_TYPES.map(t => fetchLeaderboard(t + suffix, plat))),
-      Promise.all(QTE_TYPES.map(t => fetchRecord(t + suffix))),
+    const allTypes = QTE_TYPES.map(t => t + suffix);
+
+    // Step 1: fetch all leaderboard rows + all records in parallel (no JOINs)
+    // No global LIMIT — month + type filter already bounds the result set,
+    // and a global limit would starve lower-scoring QTE types.
+    let lbQuery = sb
+      .from('leaderboard')
+      .select('user_id, score, platform, qte_type')
+      .in('qte_type', allTypes)
+      .eq('score_month', currentMonth())
+      .order('score', { ascending: false });
+    if (plat && plat !== 'all') lbQuery = lbQuery.eq('platform', plat);
+
+    const [lbRes, recordMap] = await Promise.all([
+      lbQuery,
+      fetchRecordsBatch(allTypes).catch(() => ({})),
     ]);
 
+    if (lbRes.error) console.error('[sb] loadAllLeaderboards lb error', lbRes.error.message);
+
+    // Step 2: batch fetch all profiles needed
+    const lbRows = lbRes.data || [];
+    const allUserIds = [...new Set([
+      ...lbRows.map(r => r.user_id),
+      ...Object.values(recordMap).map(r => r.user_id),
+    ].filter(Boolean))];
+    const { data: profs, error: profsErr } = allUserIds.length
+      ? await sb.from('profiles').select('id, username, avatar_url').in('id', allUserIds)
+      : { data: [], error: null };
+    if (profsErr) console.error('[sb] loadAllLeaderboards profiles error', profsErr.message);
+    const pm = Object.fromEntries((profs || []).map(p => [p.id, p]));
+
+    // Step 3: group leaderboard rows by qte_type, top 10 each
+    const grouped = {};
+    for (const r of lbRows) {
+      if (!grouped[r.qte_type]) grouped[r.qte_type] = [];
+      if (grouped[r.qte_type].length >= 10) continue;
+      const username = pm[r.user_id]?.username || '???';
+      if (isBannedCached(username)) continue;
+      grouped[r.qte_type].push({
+        user_id:    r.user_id,
+        username,
+        avatar_url: pm[r.user_id]?.avatar_url || null,
+        score:      r.score,
+        platform:   r.platform || null,
+      });
+    }
+    // Patch recordMap with full profile data
+    for (const [qt, rec] of Object.entries(recordMap)) {
+      const p = pm[rec.user_id];
+      if (p) { rec.username = p.username; rec.avatar_url = p.avatar_url || null; }
+    }
+
     const myName = currentProfile?.username || null;
-    grid.innerHTML = QTE_TYPES.map((type, idx) => {
-      const rec = records[idx];
-      const monthRows = results[idx];
+    grid.innerHTML = QTE_TYPES.map((type) => {
+      const rec = recordMap[type + suffix];
+      const monthRows = grouped[type + suffix] || [];
       const recordRowHtml = rec ? `
         <tr class="sb-lb-record-row${myName && myName === rec.username ? ' sb-lb-me' : ''}">
           <td class="all-lb-rank">👑</td>
@@ -1187,6 +1278,10 @@
           </table>
         </div>`;
     }).join('');
+    } catch (e) {
+      console.error('[sb] loadAllLeaderboards error', e);
+      grid.innerHTML = '<p class="sb-empty">Failed to load leaderboards. Please refresh.</p>';
+    }
   }
 
   // ================================================================
