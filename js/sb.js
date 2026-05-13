@@ -429,6 +429,9 @@
       </div>
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item" onclick="window._openSettings()">&#9881;&nbsp; Settings</button>
+      <button class="sb-menu-item sb-menu-item-venia" onclick="window._closeProfileMenu();window._veniaTrackerOpen?.()">&#9711;&nbsp; Venia Orb Tracker</button>
+      <button class="sb-menu-item sb-menu-item-petent" onclick="window._closeProfileMenu();window._petentTrackerOpen?.()">&#9632;&nbsp; Petent Tracker</button>
+      <button class="sb-menu-item sb-menu-item-astra" onclick="window._closeProfileMenu();window._astraTrackerOpen?.()">&#9733;&nbsp; Astra Tracker</button>
       ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
@@ -478,12 +481,14 @@
       <div class="sb-err" id="sb-settings-err"></div>
       <button class="auth-btn sb-submit" onclick="window._saveUsername()">Save Username</button>
       <div class="sb-menu-divider" style="margin:16px 0 12px"></div>
-      <p class="sb-field-label">Change Password</p>
-      <input class="sb-input" id="sb-old-pass" type="password" placeholder="Current password" autocomplete="current-password">
-      <input class="sb-input" id="sb-new-pass" type="password" placeholder="New password" autocomplete="new-password">
-      <input class="sb-input" id="sb-conf-pass" type="password" placeholder="Confirm new password" autocomplete="new-password">
-      <div class="sb-err" id="sb-pw-err"></div>
-      <button class="auth-btn sb-btn-full" id="sb-pw-btn" onclick="window._changePassword()">Change Password</button>
+      <button class="auth-btn sb-btn-full sb-btn-toggle-pw" id="sb-toggle-pw-btn" onclick="window._togglePasswordFields()">Change Password</button>
+      <div id="sb-pw-fields" style="display:none;margin-top:10px">
+        <input class="sb-input" id="sb-old-pass" type="password" placeholder="Current password" autocomplete="current-password">
+        <input class="sb-input" id="sb-new-pass" type="password" placeholder="New password" autocomplete="new-password">
+        <input class="sb-input" id="sb-conf-pass" type="password" placeholder="Confirm new password" autocomplete="new-password">
+        <div class="sb-err" id="sb-pw-err"></div>
+        <button class="auth-btn sb-btn-full" id="sb-pw-btn" onclick="window._changePassword()">Confirm Change</button>
+      </div>
       <div class="sb-menu-divider" style="margin:16px 0 12px"></div>
       <p class="sb-field-label">Messaging Consent</p>
       <div id="sb-consent-status" class="sb-consent-status">Loading...</div>
@@ -1534,9 +1539,18 @@
   window._sbGetUsername      = () => currentProfile?.username || null;
   window._sbGetUserId        = () => currentUser?.id ?? null;
   window._toggleProfileMenu  = toggleProfileMenu;
+  window._closeProfileMenu   = closeProfileMenu;
   window._openSettings       = openSettings;
   window._saveUsername       = saveUsername;
   window._changePassword     = changePassword;
+  window._togglePasswordFields = function () {
+    const fields = document.getElementById('sb-pw-fields');
+    const btn    = document.getElementById('sb-toggle-pw-btn');
+    if (!fields) return;
+    const open = fields.style.display === 'none';
+    fields.style.display = open ? 'block' : 'none';
+    if (btn) btn.textContent = open ? 'Cancel Password Change' : 'Change Password';
+  };
   window._uploadAvatar       = uploadAvatar;
   window._deleteAccount        = deleteAccount;
   window._confirmDeleteAccount = confirmDeleteAccount;

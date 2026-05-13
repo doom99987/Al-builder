@@ -274,6 +274,12 @@
 .sb-menu-item-danger:hover { background: #2a1a1a; color: #ffbbbb; }
 .sb-menu-item-admin { color: #f4a460; }
 .sb-menu-item-admin:hover { background: #2a1e0a; color: #ffcc80; }
+.sb-menu-item-venia { color: #a090e0; }
+.sb-menu-item-venia:hover { background: #18102a; color: #c4b5fd; }
+.sb-menu-item-petent { color: #88bbaa; }
+.sb-menu-item-petent:hover { background: #0e1a18; color: #aaddcc; }
+.sb-menu-item-astra { color: #aaa870; }
+.sb-menu-item-astra:hover { background: #1a1a0e; color: #dddd99; }
 
 /* ---- Admin panel ---- */
 .sb-admin-modal-box {
