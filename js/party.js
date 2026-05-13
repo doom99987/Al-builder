@@ -81,6 +81,7 @@
   let _myPartyId      = null;   // party the current user is a member of
   let _currentPartyId = null;   // party panel currently open
   let _chatSub        = null;   // realtime channel
+  let _chatDoc        = document; // document target (main or PiP)
   let _myClass        = '';
   let _attachedBuild  = null;
   let _selectedSize   = 4;
@@ -760,38 +761,39 @@
   // ── Party Panel ───────────────────────────────────────────
   async function openPartyPanel(partyId) {
     _currentPartyId = partyId;
-    const overlay = document.getElementById('party-overlay');
-    if (!overlay) return;
-    overlay.style.display = 'flex';
+    if (_chatDoc === document) {
+      const overlay = document.getElementById('party-overlay');
+      if (!overlay) return;
+      overlay.style.display = 'flex';
+    }
 
     const party = _allParties.find(p => p.id === partyId) || (_myPartyData?.id === partyId ? _myPartyData : {});
-    const titleEl = document.getElementById('party-panel-title');
+    const titleEl = _chatDoc.getElementById('party-panel-title');
     if (titleEl) titleEl.textContent = `${party.boss || 'Party'} · ${party.party_size || '?'} players`;
 
-    const leaveBtn = document.getElementById('party-leave-btn');
+    const leaveBtn = _chatDoc.getElementById('party-leave-btn');
     if (leaveBtn) leaveBtn.textContent = party.host_id === uid() ? 'Close Party' : 'Leave Party';
 
     await refreshMembers(partyId);
 
-    const chatEl = document.getElementById('party-panel-chat');
+    const chatEl = _chatDoc.getElementById('party-panel-chat');
     if (chatEl) {
       chatEl.innerHTML = '<div class="party-chat-empty">Loading messages…</div>';
       await loadChat(partyId);
     }
 
     subscribeChat(partyId);
-    document.getElementById('party-chat-input')?.focus();
+    _chatDoc.getElementById('party-chat-input')?.focus();
   }
 
   function closePartyPanel() {
-    const overlay = document.getElementById('party-overlay');
-    if (overlay) overlay.style.display = 'none';
+    if (_chatDoc === document) { const overlay = document.getElementById('party-overlay'); if (overlay) overlay.style.display = 'none'; }
     if (_chatSub) { try { sb.removeChannel(_chatSub); } catch (_) {} _chatSub = null; }
     _currentPartyId = null;
   }
 
   async function refreshMembers(partyId) {
-    const el = document.getElementById('party-panel-members');
+    const el = _chatDoc.getElementById('party-panel-members');
     if (!el) return;
     const { data: members } = await sb.from('party_members').select('*').eq('party_id', partyId).order('joined_at');
     const party = _allParties.find(p => p.id === partyId);
@@ -812,7 +814,7 @@
 
   // ── Chat ──────────────────────────────────────────────────
   async function loadChat(partyId) {
-    const el = document.getElementById('party-panel-chat');
+    const el = _chatDoc.getElementById('party-panel-chat');
     if (!el) return;
     const { data: msgs } = await sb.from('party_messages').select('*').eq('party_id', partyId).order('created_at').limit(100);
     el.innerHTML = '';
@@ -824,13 +826,13 @@
   }
 
   function _appendMsg(msg) {
-    const el = document.getElementById('party-panel-chat');
+    const el = _chatDoc.getElementById('party-panel-chat');
     if (!el) return;
     const own = msg.sender_id === uid();
     // Remove "no messages" placeholder if present
     const empty = el.querySelector('.party-chat-empty');
     if (empty) empty.remove();
-    const div = document.createElement('div');
+    const div = _chatDoc.createElement('div');
     div.className = 'party-msg' + (own ? ' own' : '');
     div.innerHTML = (own ? '' : mkAvatar(msg.sender_name, msg.sender_avatar, 22))
       + `<div class="party-msg-body">`
@@ -883,7 +885,7 @@
   }
 
   async function sendMessage() {
-    const input = document.getElementById('party-chat-input');
+    const input = _chatDoc.getElementById('party-chat-input');
     if (!input || !_currentPartyId || !authed()) return;
     const text = cleanMsg(input.value);
     if (!text) { input.value = ''; return; }
@@ -960,7 +962,7 @@
 
   // Send on Enter
   document.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && document.activeElement?.id === 'party-chat-input') sendMessage();
+    if (e.key === 'Enter' && (document.activeElement?.id === 'party-chat-input' || _chatDoc.activeElement?.id === 'party-chat-input')) sendMessage();
   });
 
   // ── Party chat pop-out ───────────────────────────────────
@@ -1106,6 +1108,17 @@
   window._partyViewBuildFromNotif = viewBuildFromNotif;
   window._partyCloseFromCard     = closePartyFromCard;
   window._partyLeaveFromCard     = leavePartyFromCard;
+
+  window._chatSetDoc = d => { _chatDoc = d || document; };
+  window._chatOpenInPip = async function () {
+    const partyId = _currentPartyId || _myPartyId;
+    if (!partyId) {
+      const el = _chatDoc.getElementById('party-panel-chat');
+      if (el) el.innerHTML = '<div class="party-chat-empty">You\'re not in a party.</div>';
+      return;
+    }
+    await openPartyPanel(partyId);
+  };
 
   // Hook for DM panel: returns party entry if user is in a party
   window._partyGetConvEntry = function () {

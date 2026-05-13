@@ -308,7 +308,7 @@
     ['Venerated Legionnaire',  'Armour', 'Cost: 250g.\n\nStats: +17 Endurance, +12.5% Endurance.\n\nDamage Reduction: +15% Physical, +15% Fire, +10% Ice, +10% Nature, +5% Dark, +5% Magic.'],
     ['Fortified Seer',         'Armour', 'Cost: 250g.\n\nStats: +35 Endurance, +5% Endurance.\n\nDamage Reduction: +15% Dark, +15% Hex, +10% Holy, +10% Ice, +10% Fire, +10% Physical.'],
     ['Deathmantle',            'Armour', 'Cost: 3,000g.\n\nStats: +25 Endurance, +2.5% Endurance, +10% Arcane.\n\nDamage Reduction: +20% Dark, +15% Holy, +10% Magic, +10% Ice, +5% Physical.'],
-    ['Shadowy Crook',          'Armour', 'Cost: 250g.\n\nStats: +1 Speed, +2 Luck, +10 Endurance, +10% Movement Speed.\n\nDamage Reduction: +5% Physical.'],
+    ['Shadowy Crook',          'Armour', 'Cost: 100g.\n\nStats: +1 Speed, +2 Luck, +10 Endurance, +10% Movement Speed.\n\nDamage Reduction: +5% Physical.'],
 
     /* ── MOBS ─────────────────────────────────────────────────────────── */
     ['Goblin',            'Mob', ''],
@@ -1602,6 +1602,94 @@
   }
 
   /* ── Public API ──────────────────────────────────────────────────────────── */
+  /* ── Overlay API ─────────────────────────────────────────────────────────── */
+  window._ENC_ITEMS    = ENC_ITEMS;
+  window._encGotoItem  = function (idx) {
+    if (window.switchPage) window.switchPage('encyclopedia');
+    setTimeout(() => selectItem(idx), 80);
+  };
+
+  window._encGetDetail = function (idx) {
+    const it = ENC_ITEMS[idx];
+    if (!it) return '';
+    const [name, type, desc] = it;
+    const S = (css) => `style="${css}"`;
+    const sectionLabel = `font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#555;margin:10px 0 4px;`;
+    const passiveName  = `font-size:12px;font-weight:600;color:#ddd;margin-bottom:2px;`;
+    const passiveDesc  = `font-size:12px;color:#aaa;line-height:1.5;margin-bottom:8px;`;
+    const moveName     = `font-size:12px;font-weight:600;color:#ddd;margin-bottom:2px;`;
+    const moveMeta     = `font-size:10px;color:#555;margin-left:6px;`;
+    const moveEff      = `font-size:12px;color:#aaa;line-height:1.5;margin-bottom:8px;`;
+
+    let h = `<div ${S('display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap;')}>
+      <span ${S('font-size:10px;padding:2px 7px;border-radius:3px;background:#1a1a2a;color:#888;font-family:Rajdhani,Arial,sans-serif;font-weight:600;')}>${type}</span>
+      <span ${S('font-family:Rajdhani,Arial,sans-serif;font-size:16px;font-weight:700;color:#fff;')}>${name}</span>
+    </div>`;
+
+    if (desc) h += `<div ${S('font-size:12px;color:#aaa;line-height:1.6;margin-bottom:10px;')}>${desc.replace(/\n/g,'<br>')}</div>`;
+
+    // Artifact / Enchant / Weapon Modifier
+    if (['Artifact','Lesser Artifact','Enchant','Weapon Modifier'].includes(type)) {
+      const a = ARTIFACT_DATA?.[name];
+      if (a) {
+        if (a.obtainableFrom?.length) {
+          h += `<div ${S(sectionLabel)}>Obtainable From</div>`;
+          a.obtainableFrom.forEach(s => { h += `<div ${S('font-size:12px;color:#999;padding:2px 0;')}>${s.label}</div>`; });
+        }
+        if (a.passives?.length) {
+          h += `<div ${S(sectionLabel)}>Passives</div>`;
+          a.passives.forEach(p => {
+            if (p.name) h += `<div ${S(passiveName)}>${p.name}</div>`;
+            h += `<div ${S(passiveDesc)}>${(p.description||p.effect||'').replace(/\n/g,'<br>')}</div>`;
+          });
+        }
+        if (a.moves?.length) {
+          h += `<div ${S(sectionLabel)}>Moves</div>`;
+          a.moves.forEach(m => {
+            const meta = [m.cost!=null?`Cost:${m.cost}`:'',m.cooldown!=null?`CD:${m.cooldown}`:'',m.moveType||''].filter(Boolean).join(' · ');
+            h += `<div ${S(moveName)}>${m.name}${meta?`<span ${S(moveMeta)}>${meta}</span>`:''}</div>`;
+            h += `<div ${S(moveEff)}>${(m.effect||'').replace(/\n/g,'<br>')}</div>`;
+          });
+        }
+      }
+    }
+
+    // Classes / Races / Weapons / Covenants / Marks / Gear
+    if (CLASS_TYPES.has(type)) {
+      const md = getMoveData(idx);
+      if (md?.innatePassives?.length) {
+        h += `<div ${S(sectionLabel)}>Innate Passives</div>`;
+        md.innatePassives.forEach(p => {
+          if (p.name) h += `<div ${S(passiveName)}>${p.name}</div>`;
+          h += `<div ${S(passiveDesc)}>${(p.description||p.effect||'').replace(/\n/g,'<br>')}</div>`;
+        });
+      }
+      if (md?.learns?.length) {
+        h += `<div ${S(sectionLabel)}>Moves</div>`;
+        md.learns.forEach(m => {
+          const lvl = m.level!=null?(type==='Covenant'?`Rank ${m.level}`:`Lv${m.level}`):'';
+          h += `<div ${S(moveName)}>${m.name}${lvl?`<span ${S(moveMeta)}>${lvl}</span>`:''}${m.type?`<span ${S(moveMeta)}>${m.type}</span>`:''}</div>`;
+          h += `<div ${S(moveEff)}>${(m.effect||'').replace(/\n/g,'<br>')}</div>`;
+        });
+      }
+    }
+
+    // Bosses / Mobs / Mini Bosses
+    if (type === 'Boss' || type === 'Mini Boss' || type === 'Mob') {
+      const bossKey = type === 'Mob' ? Object.keys(BOSS_MOVE_DATA).find(k => k.toLowerCase() === name.toLowerCase()) || name : name;
+      const bd = BOSS_MOVE_DATA?.[bossKey]?.learns || BOSS_MOVE_DATA?.[bossKey];
+      if (Array.isArray(bd) && bd.length) {
+        h += `<div ${S(sectionLabel)}>Moves & Passives</div>`;
+        bd.forEach(m => {
+          h += `<div ${S(moveName)}>${m.name}${m.category?`<span ${S(moveMeta)}>${m.category}</span>`:''}</div>`;
+          h += `<div ${S(moveEff)}>${(m.effect||'').replace(/\n/g,'<br>')}</div>`;
+        });
+      }
+    }
+
+    return h;
+  };
+
   window._encFilter = function (type, btn) {
     _activeType  = type;
     _selectedIdx = -1;
@@ -1646,6 +1734,7 @@
   ];
 
   const VT_KEY = 'al-venia-tracker';
+  let _vtDoc = document; let _ptDoc = document; let _atDoc = document;
 
   function vtGetMeta() {
     try {
@@ -1667,7 +1756,7 @@
   function vtSetTier(meta, tier) { vtActiveTab(meta).tier = tier; }
 
   function vtRenderTier() {
-    const el = document.getElementById('venia-tracker-tier');
+    const el = _vtDoc.getElementById('venia-tracker-tier');
     if (!el) return;
     const meta = vtGetMeta();
     const tier = vtGetTier(meta);
@@ -1688,7 +1777,7 @@
   }
 
   function vtRenderTabs(meta) {
-    const tabsEl = document.getElementById('venia-tracker-tabs');
+    const tabsEl = _vtDoc.getElementById('venia-tracker-tabs');
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     meta.tabs.forEach(tab => {
@@ -1759,7 +1848,7 @@
     vtRenderTabs(meta);
     vtRenderTier();
 
-    const grid = document.getElementById('venia-tracker-grid');
+    const grid = _vtDoc.getElementById('venia-tracker-grid');
     if (!grid) return;
     grid.innerHTML = '';
     VENIA_ORBS.forEach(orb => {
@@ -1835,11 +1924,11 @@
   }
 
   window._veniaTrackerOpen = function () {
-    document.getElementById('venia-tracker-overlay').style.display = 'flex';
+    if (_vtDoc === document) document.getElementById('venia-tracker-overlay').style.display = 'flex';
     vtRender();
   };
   window._veniaTrackerClose = function () {
-    document.getElementById('venia-tracker-overlay').style.display = 'none';
+    if (_vtDoc === document) document.getElementById('venia-tracker-overlay').style.display = 'none';
   };
   let _veniaPopupWin = null;
   window._veniaTrackerPopout = function () {
@@ -1967,7 +2056,7 @@
   function ptSetData(meta, d) { ptActiveTab(meta).data = d; }
 
   function ptRenderTabs(meta) {
-    const tabsEl = document.getElementById('petent-tracker-tabs');
+    const tabsEl = _ptDoc.getElementById('petent-tracker-tabs');
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     meta.tabs.forEach(tab => {
@@ -2016,7 +2105,7 @@
   }
 
   function ptRenderTier() {
-    const el = document.getElementById('petent-tracker-tier');
+    const el = _ptDoc.getElementById('petent-tracker-tier');
     if (!el) return;
     const meta = ptGetMeta();
     const tier = ptGetTier(meta);
@@ -2080,7 +2169,7 @@
     const tier = ptGetTier(meta);
     ptRenderTabs(meta);
     ptRenderTier();
-    const grid = document.getElementById('petent-tracker-grid');
+    const grid = _ptDoc.getElementById('petent-tracker-grid');
     if (!grid) return;
     grid.innerHTML = '';
 
@@ -2096,11 +2185,11 @@
   }
 
   window._petentTrackerOpen = function () {
-    document.getElementById('petent-tracker-overlay').style.display = 'flex';
+    if (_ptDoc === document) document.getElementById('petent-tracker-overlay').style.display = 'flex';
     ptRender();
   };
   window._petentTrackerClose = function () {
-    document.getElementById('petent-tracker-overlay').style.display = 'none';
+    if (_ptDoc === document) document.getElementById('petent-tracker-overlay').style.display = 'none';
   };
   let _petentPopupWin = null;
   window._petentTrackerPopout = function () {
@@ -2146,7 +2235,7 @@
   function atSetData(meta, d) { atActiveTab(meta).data = d; }
 
   function atRenderTabs(meta) {
-    const tabsEl = document.getElementById('astra-tracker-tabs');
+    const tabsEl = _atDoc.getElementById('astra-tracker-tabs');
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     meta.tabs.forEach(tab => {
@@ -2208,7 +2297,7 @@
     const meta = atGetMeta();
     const data = atGetData(meta);
     atRenderTabs(meta);
-    const grid = document.getElementById('astra-tracker-grid');
+    const grid = _atDoc.getElementById('astra-tracker-grid');
     if (!grid) return;
     grid.innerHTML = '';
 
@@ -2250,11 +2339,11 @@
   }
 
   window._astraTrackerOpen = function () {
-    document.getElementById('astra-tracker-overlay').style.display = 'flex';
+    if (_atDoc === document) document.getElementById('astra-tracker-overlay').style.display = 'flex';
     atRender();
   };
   window._astraTrackerClose = function () {
-    document.getElementById('astra-tracker-overlay').style.display = 'none';
+    if (_atDoc === document) document.getElementById('astra-tracker-overlay').style.display = 'none';
   };
   let _astraPopupWin = null;
   window._astraTrackerPopout = function () {
@@ -2265,10 +2354,17 @@
 
   // Re-render open trackers when popup saves changes back to localStorage
   window.addEventListener('storage', e => {
-    if (e.key === VT_KEY && document.getElementById('venia-tracker-overlay').style.display !== 'none') vtRender();
-    if (e.key === PT_KEY && document.getElementById('petent-tracker-overlay').style.display !== 'none') ptRender();
-    if (e.key === AT_KEY && document.getElementById('astra-tracker-overlay').style.display !== 'none') atRender();
+    if (e.key === VT_KEY && (_vtDoc !== document || document.getElementById('venia-tracker-overlay')?.style.display !== 'none')) vtRender();
+    if (e.key === PT_KEY && (_ptDoc !== document || document.getElementById('petent-tracker-overlay')?.style.display !== 'none')) ptRender();
+    if (e.key === AT_KEY && (_atDoc !== document || document.getElementById('astra-tracker-overlay')?.style.display !== 'none')) atRender();
   });
+
+  window._vtSetDoc = d => { _vtDoc = d || document; };
+  window._ptSetDoc = d => { _ptDoc = d || document; };
+  window._atSetDoc = d => { _atDoc = d || document; };
+  window._vtRender = () => vtRender();
+  window._ptRender = () => ptRender();
+  window._atRender = () => atRender();
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
   if (document.readyState === 'loading') {

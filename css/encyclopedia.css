@@ -592,7 +592,7 @@
   gap: 4px;
   padding-bottom: 10px;
   border-bottom: 1px solid #1a1a1a;
-  margin-bottom: 2px;
+  margin-bottom: 8px;
 }
 .vt-tab-wrap {
   display: flex;
@@ -800,7 +800,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 0 2px;
+  padding: 6px 0 12px;
 }
 .pt-tier-label {
   font-family: 'Rajdhani', Arial, sans-serif;
