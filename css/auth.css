@@ -189,6 +189,25 @@
 .sb-lb-table td:last-child  { text-align: right; }
 .sb-my-rank { margin: 10px 0 0; font-size: 13px; color: #aaffaa; text-align: center; }
 
+/* ---- Current Highest — inline record row ---- */
+.sb-lb-record-row td { background: #16120a; border-color: #3a2e0a !important; }
+.sb-lb-record-row td:first-child { font-size: 14px; }
+.sb-lb-record-row .lb-player-cell span:first-of-type { color: #d4a830; font-weight: 700; }
+.lb-inline-record {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #8a6010;
+  background: #2a1e04;
+  border: 1px solid #3a2e0a;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 /* ---- Profile avatar (nav bar) ---- */
 .sb-avatar {
   width: 32px;
