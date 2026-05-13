@@ -224,8 +224,8 @@
     function renderTracker(root, trackerKey) {
       const configs = {
         venia:  { ids: [['venia-tracker-tabs', 'vt-tabs-bar'], ['venia-tracker-tier', 'pt-tier-bar'], ['venia-tracker-grid', 'vt-grid']],   setDoc: '_vtSetDoc', render: '_vtRender' },
-        petent: { ids: [['petent-tracker-tabs', 'vt-tabs-bar'], ['petent-tracker-tier', 'pt-tier-bar'], ['petent-tracker-grid', 'vt-grid']], setDoc: '_ptSetDoc', render: '_ptRender' },
-        astra:  { ids: [['astra-tracker-tabs', 'vt-tabs-bar'], ['astra-tracker-grid', 'vt-grid']],                                          setDoc: '_atSetDoc', render: '_atRender' },
+        petent: { ids: [['petent-tracker-tabs', 'vt-tabs-bar'], ['petent-tracker-tier', 'pt-tier-bar'], ['petent-tracker-grid', 'pt-tracker-grid']], setDoc: '_ptSetDoc', render: '_ptRender' },
+        astra:  { ids: [['astra-tracker-tabs', 'vt-tabs-bar'], ['astra-tracker-grid', 'pt-tracker-grid']],                                           setDoc: '_atSetDoc', render: '_atRender' },
       };
       const cfg = configs[trackerKey];
       if (!cfg) return;
