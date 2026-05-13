@@ -1,3 +1,15 @@
+/* ── Encyclopedia + Tracker System ───────────────────────────────────────────
+   Single IIFE that owns:
+     • ENC_ITEMS / TYPE_ORDER / boss-move / artifact / mark / covenant data
+     • Encyclopedia list + detail render (main page)
+     • Venia Orb Tracker · Petent Tracker · Astra Tracker
+   PiP support: _vtDoc / _ptDoc / _atDoc / _chatDoc (set by overlay.js) let
+   each tracker render into the Document PiP window instead of the main page.
+   Exposes: _ENC_ITEMS, _encGetDetail, _encFilter, _encSearch, _encGotoItem,
+            _encMoveBack, _veniaTrackerOpen/Close/Popout, _petentTrackerOpen/
+            Close/Popout, _astraTrackerOpen/Close/Popout,
+            _vtSetDoc, _ptSetDoc, _atSetDoc, _vtRender, _ptRender, _atRender
+   ──────────────────────────────────────────────────────────────────────────── */
 (function () {
   /* ── Item data: [name, type, description] ────────────────────────────────
      description = '' means no known in-game description yet               */
@@ -154,6 +166,7 @@
     ['Darkblood Spear',       'Weapon',          'A spear of darkblood. High-tier weapon with dark affinity.'],
     ['Darkblood Staff',       'Weapon',          'A staff channeling darkblood. High-tier magical weapon.'],
     ['Darkblood Sword',       'Weapon',          'A sword soaked in darkblood. A deadly high-tier blade.'],
+    ['Star-Seeing Hammer',    'Weapon',          ''],
     ['Sandstone Cestus',      'Weapon',          'Cestus of reinforced sandstone. A solid high-tier brawler weapon.'],
     ['Sandstone Dagger',      'Weapon',          'A dagger of sandstone. High-tier weapon from desert materials.'],
     ['Sandstone Hammer',      'Weapon',          'A hammer of sandstone. Heavy high-tier blunt weapon.'],
@@ -176,7 +189,7 @@
     ['Chaos Orb',             'Artifact',        ''],
     ['Dark Sigil',            'Artifact',        ''],
     ["Heaven's Authority",    'Artifact',        ''],
-    ['Metroms Amulet',        'Artifact',        ''],
+    ["Metrom's Amulet",       'Artifact',        ''],
     ["Narthana's Sigil",      'Artifact',        ''],
     ['Paranoxian Crux',       'Artifact',        ''],
     ['Reality Watch',         'Artifact',        ''],
@@ -195,7 +208,7 @@
 
     /* ── WEAPON MODIFIERS ─────────────────────────────────────────────── */
     ['arcanium crystal',      'Weapon Modifier', ''],
-    ['temperus gem',          'Weapon Modifier', ''],
+    ['Tempurus Gem',          'Weapon Modifier', ''],
 
     /* ── ENCHANTS ─────────────────────────────────────────────────────── */
     ['Blessed',               'Enchant',         "Obtained from Raphion's Blessing (Seraphon)."],
@@ -267,14 +280,14 @@
     ['Gynx (Obtainable)',        'Race', 'How to obtain:\n\n1. Defeat Handaconda on the character slot where you want the race. (Normal or Corrupted both work)\n2. Have a Forgotten Relic in your inventory while having 3 gear drops from Handaconda equipped. These include: Open Hand, Dust Devil\'s Eye, Eroded Blade, and The Smallest Boulder.\n3. Talk to the Handaconda fight NPC Thuriaz to obtain Gynx.'],
 
     /* ── BOSSES (ordered by progression) ─────────────────────────────── */
-    ["Yar'Thul, The Blazing Dragon", 'Boss', 'A fierce blazing dragon encountered mid-game. Highly resistant to fire but susceptible to hex damage.'],
-    ['Pterathanaian',                'Boss', 'A pterosaur-like mini boss. Resistant to hex and dark, but vulnerable to holy, fire, and nature.'],
-    ['Thorian, The Rotten',          'Boss', 'An ancient, rotten undead lord. Heavily resistant to dark, physical, hex, and poison. Vulnerable to holy and fire.'],
-    ['Seraphon',                     'Boss', 'A powerful divine creature. Resistant to physical attacks. Vulnerable to dark magic.'],
-    ['Arkhaia',                      'Boss', 'An ancient divine entity. Resistant to dark and physical. Vulnerable to holy damage.'],
-    ["Metrom's Vessel",              'Boss', 'A vessel containing Metrom\'s immense power. One of the game\'s strongest raid bosses. Resistant to hex and dark.'],
+    ["Yar'Thul, The Blazing Dragon", 'Boss', 'The boss of Mount Thul. This enemy can block attacks.'],
+    ['Thorian, The Rotten',          'Boss', 'The boss of Cessgrounds. This enemy can block attacks.'],
+    ['Pterathanaian',                'Mini Boss', 'The mini boss of Deeproot Canopy. Spawns upon using the Warbing Whistle.'],
+    ['Seraphon',                     'Boss', 'The boss of Illustris. Available in the Church of Raphion at rank 20. This enemy can block and dodge attacks.'],
+    ['Arkhaia',                      'Boss', 'The boss of the Temple of Norn. Available in the Cult of Thanasius at rank 20. This enemy can block attacks.\n\nNote: Starting the fight with a Celestial Emblem equipped allows Arkhaia to summon a weak version of Sentient Darkness.'],
+    ["Metrom's Vessel",              'Boss', "A vessel containing Metrom's immense power. One of the game's strongest raid bosses. This enemy can block and dodge attacks."],
     ['Shadeblade',                   'Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
-    ['Handaconda',                   'Boss', 'A colossal serpentine raid boss. Extremely resistant to physical and magic damage, but highly vulnerable to fire.'],
+    ['Handaconda',                   'Boss', 'A colossal serpentine raid boss. Resistant to physical, holy, and arcane damage. Vulnerable to fire.'],
     ['Slime King',                   'Mini Boss', 'The ruler of slimes. A mini boss encountered in the early game.'],
     ['Carnis',                       'Mini Boss', 'A carnivorous beast. A mini boss known for aggressive melee attacks.'],
 
@@ -369,6 +382,253 @@
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
   const BOSS_MOVE_DATA = {
+    "Yar'Thul, The Blazing Dragon": {
+      passives: [
+        { name: 'Can Block',           description: 'This enemy can block attacks.' },
+        { name: 'Energy Surge',        description: 'Unknown chance to gain 2 energy instead of 1 per turn.' },
+        { name: 'Inferno Immunity',    description: 'Immune to the Inferno status.' },
+        { name: 'Lifesteal (Corrupted)', description: '[Corrupted exclusive] When dealing damage, has slight lifesteal that increases the more inferno stacks you have.' },
+      ],
+      learns: [
+        // ── Priority moves ────────────────────────────────────────────────────
+        { name: 'Inferno',           type: 'Active', cost: 0, cooldown: 0,  moveType: 'Fire',
+          category: 'Status · AOE',
+          condition: "It is Yar'thul's first turn",
+          effect: 'Applies 1 Inferno to all opponents. The stacks gradually increase over the course of the fight (may increase more when fighting solo).' },
+        { name: 'Blaze Eruption',    type: 'Active', cost: 2, cooldown: 7,  moveType: 'Fire',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: 'An opponent has the Burning status and Yar\'thul has 2 energy',
+          effect: '15 Base Damage. Can only target opponents who are Burning. Cannot be countered.' },
+        { name: 'Blaze Core',        type: 'Active', cost: 3, cooldown: 8,  moveType: 'Fire',
+          category: 'Status',
+          condition: "Yar'thul is under ~75% HP and has 3 energy",
+          effect: "Consumes half of Yar'thul's current Inferno stacks to heal. Healing increases with the number of stacks consumed." },
+        { name: 'Armageddon',        type: 'Active', cost: 6, cooldown: 13, moveType: 'Fire',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: "Yar'thul is under 50% HP and has 6 energy",
+          effect: '? Base Damage. Applies 50% Heal Down, 3(?) Burning, and has a chance to apply 1 Stun. Bypasses all forms of counters.' },
+        // ── Non-priority moves ────────────────────────────────────────────────
+        { name: 'Fire Claw',         type: 'Active', cost: 0, cooldown: 0,  moveType: 'Fire',
+          category: 'Single Hit · Single Target · Blockable',
+          condition: '',
+          effect: '15 Base Damage. Ignores half of defense on block / guard.' },
+        { name: 'Hellfire',          type: 'Active', cost: 1, cooldown: 5,  moveType: 'Fire',
+          category: 'Multihit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: '8 Base Damage. Hits 3×. Each hit applies 3 Burning (9 Burning total).' },
+        { name: 'Magma Pillar',      type: 'Active', cost: 2, cooldown: 8,  moveType: 'Fire',
+          category: 'Status · 3 turn duration',
+          condition: '',
+          effect: "Places a magma pillar. When a player attacks Yar'thul, they take damage and receive 2 Burning and 2(?) Inferno. Can trigger multiple times per attack." },
+        { name: 'Magma Beam',        type: 'Active', cost: 4, cooldown: 9,  moveType: 'Fire',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: '30 Base Damage. Charges on the first turn, then attacks on the second turn. Ignores half of the target\'s defense when they guard.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',            items: ["Yarthul's Wrath", 'Blazing Perforator', 'Frostburned Rune'] },
+          { label: 'Weapons',          items: ['Dragon Weapons'] },
+          { label: 'Artifacts',        items: ['Reality Watch', "Narthana's Sigil", 'Shifting Hourglass', 'Skyward Totem'] },
+          { label: 'Lesser Artifacts', items: ['All Lesser Artifacts'] },
+        ],
+        notes: [
+          'Can drop Void Key while Corrupted.',
+          "Can also drop Weapon Shards of any tier, any scroll including Lost Scrolls (excluding Metrom's Grasp), and blueprints.",
+        ],
+      },
+    },
+
+    'Thorian, The Rotten': {
+      passives: [
+        { name: 'Can Block',            description: 'This enemy can block attacks.' },
+        { name: 'Elemental Adaptation', description: 'Adapts to the last damage type used against it. If hit by the same element while adapted to it, that hit heals Thorian instead of dealing damage.' },
+        { name: 'Status Immunity',      description: 'Immune to Plague, Cursed, and Hex. Any applied Hex is converted into Vulnerable instead.' },
+        { name: 'Energy Surge',         description: 'Chance to gain 2 energy instead of 1 per turn.' },
+      ],
+      learns: [
+        // ── Priority moves (highest → lowest priority) ────────────────────────
+        { name: 'Blasphemous Obliteration', type: 'Active', cost: 5, cooldown: 13, moveType: 'Hex',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: 'Thorian is below 50% HP and has 5 energy',
+          effect: 'Heavy damage that ignores defense and scales with the target\'s Plague stacks. Applies 1 Plague and 3 Cursed.\n\nIf this attack deals no damage, additionally applies 2 Hexed.\n\nIgnores traps and all forms of counter.' },
+        { name: 'Overflowing Curse',        type: 'Active', cost: 0, cooldown: 4,  moveType: 'Hex',
+          category: 'Debuff · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: 'Puts all players into a QTE window. Players must defend their soul from Thorian\'s corruption — failing the QTE applies 1 Plague stack.\n\nIgnores traps and all forms of counter.' },
+        { name: 'Hexing Burst',             type: 'Active', cost: 1, cooldown: 6,  moveType: 'Hex',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: 'Heals Thorian on use. Can apply Cursed and Hexed.\n\n• Applies Hex to players above ~95% HP.\n• Applies Cursed to players who have Vulnerable or Weakened.\n\nNote: Loses hard priority if any party member is not at full health — the more hurt the party is, the more likely a different move is chosen instead.' },
+        { name: 'Plague Rupture',           type: 'Active', cost: 2, cooldown: 5,  moveType: 'Poison',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: '8 Base Damage per hit. Ignores defense. Number of hits, Vulnerable, Weakness, and Cursed stacks applied all scale with the target\'s Plague stacks (e.g. 4 Plague = 4 hits + 4 of each status = 32 total damage).' },
+        // ── Standard moves (no fixed priority, chosen at random) ──────────────
+        { name: 'Cess Breath',              type: 'Active', cost: 1, cooldown: 4,  moveType: 'Poison',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: '18 Base Damage. Ignores half of defense on block / guard.' },
+        { name: 'Cursed Wave',              type: 'Active', cost: 2, cooldown: 5,  moveType: 'Hex',
+          category: 'Single Hit · AOE · Blockable',
+          condition: '',
+          effect: '25 Base Damage. Deals adjacent damage to up to three players. Has a chance to apply 2 Cursed to the main target.\n\nIgnores traps and all forms of counter.' },
+        { name: 'Warped Crush',             type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Single Hit · AOE · Blockable / Dodgeable',
+          condition: '',
+          effect: '16 Base Damage. Deals adjacent damage to up to three players. Ignores half of defense on block / guard.\n\nNote: Much lower chance of being used compared to Cess Breath and Cursed Wave.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',            items: ['Aspect of Maladaptation', 'Tainted Quiver'] },
+          { label: 'Weapons',          items: ['Blight Weapons'] },
+          { label: 'Weapon Modifiers', items: ['Arcanium Crystal', 'Tempurus Gem'] },
+          { label: 'Artifacts',        items: ['Dark Sigil', "Metrom's Amulet", 'Stellian Core', 'Skyward Totem'] },
+          { label: 'Lesser Artifacts', items: ['All Lesser Artifacts'] },
+        ],
+        notes: [
+          'Can drop Void Key while Corrupted.',
+          "Can also drop Weapon Shards of any tier, any scroll including Lost Scrolls (excluding Metrom's Grasp), and blueprints.",
+        ],
+      },
+    },
+
+    'Pterathanaian': {
+      passives: [
+        { name: 'HP Regeneration',    description: 'Regenerates 10 HP per turn.' },
+        { name: 'Status Immunity',    description: 'Immune to Ghostflame and Burn.' },
+        { name: 'Amulet Immunity',    description: "Immune to Metrom's Amulet." },
+        { name: 'Elemental Adaptation', description: 'Adapts to the last damage type used against it. If hit by the same element while adapted to it, that hit heals Pterathanaian instead of dealing damage.' },
+      ],
+      learns: [
+        { name: 'Humming Strike',   type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical',
+          category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          condition: '',
+          effect: '??? Base Damage.' },
+        { name: 'Shrieking Soul',   type: 'Active', cost: 2, cooldown: 4, moveType: 'Dark',
+          category: 'Status',
+          condition: '',
+          effect: 'Summons 2 Ptoruco.' },
+        { name: 'Wicked Element',   type: 'Active', cost: 2, cooldown: 4, moveType: 'Physical',
+          category: 'Single Hit · Single Target · Blockable / Undodgeable',
+          condition: '',
+          effect: 'Applies 3 Sundered and 3 stacks of a random debuff (Fire, Cursed, Vulnerable, or Weakened).' },
+        { name: 'Dark Descension',  type: 'Active', cost: 3, cooldown: 0, moveType: 'Dark',
+          category: '??? · AOE · Unblockable / Undodgeable',
+          condition: 'Pterathanaian is below 50% HP and has 3 energy',
+          effect: 'Goes invisible for 1 turn before attacking. Applies 3 Cursed and 10 Poison.\n\nNote: Cooldown unknown.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Elemental Infuser', "Ptera's Heart"] },
+        ],
+        notes: [
+          'Can drop Weapon Arcanium Shards up to Pure rarity, all Basic Scrolls, and blueprints.',
+        ],
+      },
+    },
+
+    'Seraphon': {
+      passives: [
+        { name: 'Can Block & Dodge',    description: 'This enemy can block and dodge attacks.' },
+        { name: 'Amulet Immunity',      description: "Immune to Metrom's Amulet." },
+        { name: 'Status Immunity',      description: 'Immune to Purified, Weakened, Blinded, and Cursed.' },
+        { name: 'Energy Surge',         description: 'Chance to gain 2 energy instead of 1 per turn.' },
+      ],
+      learns: [
+        // ── Priority moves (always used in strict priority order) ─────────────
+        { name: 'Searing Light',    type: 'Active', cost: 3, cooldown: 4, moveType: 'Holy',
+          category: 'Single Hit · Single Target · Blockable',
+          condition: '',
+          effect: '33 Base Damage. Applies 2 Purified, 2 Sundered, 2 Blinded.' },
+        { name: 'Calling Light',    type: 'Active', cost: 2, cooldown: 9, moveType: 'Holy',
+          category: 'Summon',
+          condition: '',
+          effect: 'Summons a Sheea Saint, Elementalist, or Paladin. Summoned allies have all skills from their class plus Skyward Bolt.\n\nAt less than 50% HP, summons 2 allies instead of 1.' },
+        { name: 'Justice',          type: 'Active', cost: 1, cooldown: 4, moveType: 'Holy',
+          category: 'Multihit · AOE · Blockable',
+          condition: '',
+          effect: '3 Base Damage. Hits 8×. Applies 2 Purified and 2 Blinded.' },
+        { name: 'High Retribution', type: 'Active', cost: 2, cooldown: 6, moveType: 'Holy',
+          category: 'Healing',
+          condition: '',
+          effect: 'Heals Seraphon. Healing scales with the number of debuff stacks currently on Seraphon.\n\nNote: Priority increases the more status effects and stacks Seraphon has.' },
+        { name: 'Holy Javelin',     type: 'Active', cost: 0, cooldown: 0, moveType: 'Holy',
+          category: 'Single Hit · Single Target · Blockable',
+          condition: '',
+          effect: '22 Base Damage. Applies 2 Purified.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',            items: ['Imbuement Reliquary'] },
+          { label: 'Weapons',          items: ['Sun Weapons'] },
+          { label: 'Weapon Modifiers', items: ['Arcanium Crystal', 'Tempurus Gem'] },
+          { label: 'Enchants',         items: ['Blessed'] },
+          { label: 'Artifacts',        items: ['Shifting Hourglass', 'Stellian Core', 'Skyward Totem'] },
+          { label: 'Lesser Artifacts', items: ['All Lesser Artifacts'] },
+        ],
+        notes: [
+          'Can drop Void Key while Corrupted.',
+          "Can also drop Weapon Shards of any tier, any scroll including Lost Scrolls (excluding Metrom's Grasp), and blueprints.",
+        ],
+      },
+    },
+
+    'Arkhaia': {
+      passives: [
+        { name: 'Can Block',         description: 'This enemy can block attacks.' },
+        { name: 'HP Regeneration',   description: 'Regenerates 2 HP per turn.' },
+        { name: 'Amulet Immunity',   description: "Immune to Metrom's Amulet." },
+        { name: 'Status Immunity',   description: 'Immune to Ghostflame and Burn.' },
+        { name: 'Energy Surge',      description: 'Chance to gain 2 energy instead of 1 per turn.' },
+      ],
+      learns: [
+        // ── Priority moves (always used in strict priority order) ─────────────
+        { name: 'Styx',                              type: 'Active', cost: 3, cooldown: 8,  moveType: 'Dark',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: '65 Base Damage. Applies Heavy Stun to Arkhaia, then on the next turn slams all players for heavy damage and applies 4 Weakened and 2 Sundered.\n\nChains the target for 3 turns if no chain is currently active.\n\nAt less than 50% HP, no longer inflicts Heavy Stun on itself.' },
+        { name: 'Phlegethon',                        type: 'Active', cost: 2, cooldown: 5,  moveType: 'Fire',
+          category: 'Single Hit · AOE · Blockable',
+          condition: '',
+          effect: '45 Base Damage. Applies 4 Ghostflame. The Ghostflame is always inflicted, even on dodge.' },
+        { name: 'Cocytus',                           type: 'Active', cost: 2, cooldown: 5,  moveType: 'Ice',
+          category: 'Single Hit · AOE · Dodgeable',
+          condition: '',
+          effect: '36 Base Damage. Applies 3 Cold.' },
+        { name: 'Acheron',                           type: 'Active', cost: 1, cooldown: 5,  moveType: 'Dark',
+          category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          condition: '',
+          effect: '25 Base Damage. Applies 3 Bleed.' },
+        { name: 'Banshee Wail',                      type: 'Active', cost: 0, cooldown: 7,  moveType: 'Dark',
+          category: 'Trap · Single Target · 3 turn duration',
+          condition: 'No chain is currently active',
+          effect: 'Chains 1 player for 3 turns. All damage and statuses applied to Arkhaia are redirected to the chained player.\n\n• If redirected damage brings the chained player below 50% HP, the chain is removed early.\n• If redirected damage exceeds the chained player\'s current HP, they are incapacitated — the next hit against them will be fatal and unrevivable.\n\nWill not be used if a chain is already active.' },
+        { name: 'Malfeasance (Celestial Emblem only)', type: 'Active', cost: 1, cooldown: 10, moveType: 'Dark',
+          category: 'Summon',
+          condition: 'Fight started with Celestial Emblem equipped',
+          effect: 'Summons a Sentient Darkness with 360 HP and all of its skills. Disappears after 3 turns.' },
+        { name: 'Maul',                              type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          condition: '',
+          effect: '21 Base Damage. Applies 2 Cursed.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',            items: ['Vow of Ruin', 'Frozen Diadem', 'Frostburned Rune'] },
+          { label: 'Weapons',          items: ['Star-Seeing Hammer', 'Sun Weapons'] },
+          { label: 'Weapon Modifiers', items: ['Arcanium Crystal', 'Tempurus Gem'] },
+          { label: 'Enchants',         items: ['Spectral'] },
+          { label: 'Artifacts',        items: ["Arkhaia's Visage", 'Dark Sigil', "Metrom's Amulet", 'Skyward Totem'] },
+          { label: 'Lesser Artifacts', items: ['All Lesser Artifacts'] },
+        ],
+        notes: [
+          'Can drop Void Key while Corrupted.',
+          "Can also drop Weapon Shards of any tier, any scroll including Lost Scrolls (excluding Metrom's Grasp), and blueprints.",
+        ],
+      },
+    },
+
     "Metrom's Vessel": {
       passives: [
         { name: 'Double Turn',             description: 'Has two turns where most enemies would have one. Statuses decay and DoT activates on both turns.' },
@@ -416,7 +676,63 @@
           condition: '',
           effect: '16 base damage.\n\nDefensive state (Phase 1): Single target, dodgeable (blockable for most builds). Applies 1 Hexed + 1 Cursed on hit.\n\nOffensive state / Phase 2: Full AOE, unblockable/undodgeable. Loses status application.' },
       ],
+      loot: {
+        categories: [
+          { label: 'Gears',            items: ['Vainglorious Locket'] },
+          { label: 'Weapons',          items: ['Darkblood Weapons'] },
+          { label: 'Weapon Modifiers', items: ['Arcanium Crystal', 'Tempurus Gem'] },
+          { label: 'Artifacts',        items: ['Chaos Orb', 'Skyward Totem'] },
+          { label: 'Lesser Artifacts', items: ['All Lesser Artifacts'] },
+        ],
+        notes: [
+          'Can drop Void Key while Corrupted.',
+          'Can also drop Weapon Shards of any tier, any scroll including Lost Scrolls, and blueprints.',
+        ],
+      },
     },
+    'Handaconda': {
+      passives: [
+        { name: 'Thousand Screams', description: "Gains a 5% damage increase every time Handaconda uses 'One More Time'." },
+      ],
+      learns: [
+        { name: 'Grand Slam',      type: 'Active', cost: 0, cooldown: 12, moveType: 'Physical',
+          category: 'Single Hit · AOE · Unblockable / Undodgeable',
+          condition: '',
+          effect: '30 Base Damage + 20% of target\'s max HP. Applies Self Heavy Stun to Handaconda, then attacks. Applies Heavy Stun 2 to all targets.' },
+        { name: 'Crushing Lunge',  type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Single Hit · Single Target',
+          condition: '',
+          effect: 'Applies 1 Stunned.' },
+        { name: 'Pulverize',       type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Single Hit · AOE',
+          condition: '',
+          effect: 'Deals 10% of target\'s max HP as damage. Applies 1 Soulless (applies even outside of Corrupted).' },
+        { name: 'Parting Dunes',   type: 'Active', cost: 0, cooldown: 2,  moveType: 'Physical',
+          category: 'Single Hit · AOE',
+          condition: '',
+          effect: 'Damage uses a new formula (buffed). Details unknown.' },
+        { name: 'Desert Deadeye',  type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Single Hit · Single Target',
+          condition: '',
+          effect: '28 Base Damage.' },
+        { name: 'Megido',          type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Single Hit · AOE',
+          condition: '',
+          effect: '45 Base Damage.' },
+        { name: 'Scissors Stance', type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical',
+          category: 'Stance',
+          condition: '',
+          effect: 'Has 3 modes. In scissors mode, Handaconda has thorns that deal damage to attackers (no longer reflects incoming damage).' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',   items: ['The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand'] },
+          { label: 'Weapons', items: ['Sandstone Weapons', 'Primordial Weapons (Corrupted only)'] },
+        ],
+        notes: [],
+      },
+    },
+
     'Shadeblade': {
       passives: [
         { name: 'Summon Only', description: "Can only be summoned by Metrom's Vessel. Has no exclusive drops." },
@@ -1298,26 +1614,178 @@
     }
 
     if (moveData) {
+      // Loot Table
+      if (moveData.loot) {
+        const lootWrap = document.createElement('div');
+        lootWrap.className = 'enc-loot-section';
+
+        const lootBtn = document.createElement('button');
+        lootBtn.className = 'enc-loot-btn';
+        const arrow = document.createElement('span');
+        arrow.className = 'enc-loot-btn-arrow';
+        arrow.textContent = '▾';
+        lootBtn.append('Loot Table', arrow);
+
+        const lootBody = document.createElement('div');
+        lootBody.className = 'enc-loot-body';
+        lootBody.style.display = 'none';
+
+        const WEAPON_PREFIX_MAP = {
+          'Dragon Weapons':                      'Dragon Bone ',
+          'Blight Weapons':                      'Blightrock/wood ',
+          'Sun Weapons':                         'Sun ',
+          'Darkblood Weapons':                   'Darkblood ',
+          'Sandstone Weapons':                   'Sandstone ',
+          'Primordial Weapons (Corrupted only)': 'Primordial ',
+        };
+
+        moveData.loot.categories.forEach(cat => {
+          const catDiv = document.createElement('div');
+          const label = document.createElement('div');
+          label.className = 'enc-loot-cat-label';
+          label.textContent = cat.label;
+          catDiv.appendChild(label);
+
+          const chips = document.createElement('div');
+          chips.className = 'enc-loot-chips';
+          const weaponSets = [];
+
+          cat.items.forEach(item => {
+            const weaponPrefix = WEAPON_PREFIX_MAP[item];
+            if (weaponPrefix) {
+              weaponSets.push({ item, prefix: weaponPrefix });
+              return;
+            }
+
+            let encIdx;
+            if (item === 'All Lesser Artifacts') {
+              encIdx = ENC_ITEMS.findIndex(e => e[1] === 'Lesser Artifact');
+            } else {
+              const lower = item.toLowerCase();
+              encIdx = ENC_ITEMS.findIndex(e => e[0].toLowerCase() === lower);
+            }
+            if (encIdx !== -1) {
+              const chip = document.createElement('button');
+              chip.className = 'enc-loot-chip enc-loot-chip-link';
+              chip.textContent = item;
+              chip.addEventListener('click', () => selectItem(encIdx));
+              chips.appendChild(chip);
+            } else {
+              const chip = document.createElement('span');
+              chip.className = 'enc-loot-chip';
+              chip.textContent = item;
+              chips.appendChild(chip);
+            }
+          });
+
+          if (chips.children.length) catDiv.appendChild(chips);
+
+          weaponSets.forEach(({ item, prefix }) => {
+            const setWrap = document.createElement('div');
+            setWrap.style.cssText = 'margin-top:4px;';
+
+            const setBtn = document.createElement('button');
+            setBtn.className = 'enc-loot-chip enc-loot-chip-link';
+            setBtn.style.cssText = 'display:inline-flex;align-items:center;gap:5px;';
+            const setArrow = document.createElement('span');
+            setArrow.style.cssText = 'font-size:9px;opacity:0.6;';
+            setArrow.textContent = '▾';
+            setBtn.append(item, setArrow);
+
+            const setList = document.createElement('div');
+            setList.className = 'enc-loot-chips';
+            setList.style.cssText = 'display:none;margin-top:5px;padding-left:6px;';
+
+            ENC_ITEMS.forEach((e, i) => {
+              if (e[1] === 'Weapon' && e[0].startsWith(prefix)) {
+                const wBtn = document.createElement('button');
+                wBtn.className = 'enc-loot-chip enc-loot-chip-link';
+                wBtn.textContent = e[0];
+                wBtn.addEventListener('click', ev => { ev.stopPropagation(); selectItem(i); });
+                setList.appendChild(wBtn);
+              }
+            });
+
+            setBtn.addEventListener('click', () => {
+              const open = setList.style.display !== 'none';
+              setList.style.display = open ? 'none' : 'flex';
+              setArrow.textContent = open ? '▾' : '▴';
+            });
+
+            setWrap.appendChild(setBtn);
+            setWrap.appendChild(setList);
+            catDiv.appendChild(setWrap);
+          });
+
+          lootBody.appendChild(catDiv);
+        });
+
+        if (moveData.loot.notes?.length) {
+          const notesDiv = document.createElement('div');
+          notesDiv.className = 'enc-loot-notes';
+          notesDiv.innerHTML = moveData.loot.notes.join('<br>');
+          lootBody.appendChild(notesDiv);
+        }
+
+        lootBtn.addEventListener('click', () => {
+          const open = lootBody.style.display !== 'none';
+          lootBody.style.display = open ? 'none' : 'flex';
+          arrow.textContent = open ? '▾' : '▴';
+        });
+
+        lootWrap.appendChild(lootBtn);
+        lootWrap.appendChild(lootBody);
+        extraEl.appendChild(lootWrap);
+      }
+
       // Passives
       if (moveData.passives?.length) {
-        const passDiv = document.createElement('div');
-        passDiv.className = 'enc-boss-passives';
-        let html = `<div class="enc-boss-section-label">Passives</div>`;
+        const wrap = document.createElement('div');
+        wrap.className = 'enc-loot-section';
+
+        const hdr = document.createElement('button');
+        hdr.className = 'enc-loot-btn';
+        const arr = document.createElement('span');
+        arr.className = 'enc-loot-btn-arrow';
+        arr.textContent = '▾';
+        hdr.append('Passives', arr);
+
+        const body = document.createElement('div');
+        body.className = 'enc-boss-passives';
+        body.style.display = 'none';
         moveData.passives.forEach(p => {
-          html += `<div class="enc-passive-row"><span class="enc-passive-name">${p.name}</span><span class="enc-passive-desc">${p.description}</span></div>`;
+          const row = document.createElement('div');
+          row.className = 'enc-passive-row';
+          row.innerHTML = `<span class="enc-passive-name">${p.name}</span><span class="enc-passive-desc">${p.description}</span>`;
+          body.appendChild(row);
         });
-        passDiv.innerHTML = html;
-        extraEl.appendChild(passDiv);
+
+        hdr.addEventListener('click', () => {
+          const open = body.style.display !== 'none';
+          body.style.display = open ? 'none' : 'flex';
+          arr.textContent = open ? '▾' : '▴';
+        });
+
+        wrap.appendChild(hdr);
+        wrap.appendChild(body);
+        extraEl.appendChild(wrap);
       }
 
       // Moves
       if (moveData.learns?.length) {
-        const movesDiv = document.createElement('div');
-        movesDiv.className = 'enc-boss-moves';
-        const lbl = document.createElement('div');
-        lbl.className = 'enc-boss-section-label';
-        lbl.textContent = 'Moves';
-        movesDiv.appendChild(lbl);
+        const wrap = document.createElement('div');
+        wrap.className = 'enc-loot-section';
+
+        const hdr = document.createElement('button');
+        hdr.className = 'enc-loot-btn';
+        const arr = document.createElement('span');
+        arr.className = 'enc-loot-btn-arrow';
+        arr.textContent = '▾';
+        hdr.append('Moves', arr);
+
+        const body = document.createElement('div');
+        body.className = 'enc-boss-moves';
+        body.style.display = 'none';
 
         moveData.learns.forEach((m, mi) => {
           const btn = document.createElement('button');
@@ -1327,10 +1795,18 @@
           const metaStr  = [costText, cdText].filter(Boolean).join(' · ');
           btn.innerHTML  = `<span class="enc-move-btn-name">${m.name}</span><span class="enc-move-btn-meta"><span style="font-size:10px;color:#555">${metaStr}</span></span>`;
           btn.addEventListener('click', () => showBossMoveDetail(idx, mi));
-          movesDiv.appendChild(btn);
+          body.appendChild(btn);
         });
 
-        extraEl.appendChild(movesDiv);
+        hdr.addEventListener('click', () => {
+          const open = body.style.display !== 'none';
+          body.style.display = open ? 'none' : 'flex';
+          arr.textContent = open ? '▾' : '▴';
+        });
+
+        wrap.appendChild(hdr);
+        wrap.appendChild(body);
+        extraEl.appendChild(wrap);
       }
     }
   }
@@ -1734,7 +2210,13 @@
   ];
 
   const VT_KEY = 'al-venia-tracker';
-  let _vtDoc = document; let _ptDoc = document; let _atDoc = document;
+
+  /* Document targets for PiP support — overlay.js calls _vtSetDoc/_ptSetDoc/
+     _atSetDoc to redirect renders into the PiP window. Reset to `document`
+     when PiP closes or the user switches tabs.                             */
+  let _vtDoc = document;
+  let _ptDoc = document;
+  let _atDoc = document;
 
   function vtGetMeta() {
     try {
@@ -1761,12 +2243,12 @@
     const meta = vtGetMeta();
     const tier = vtGetTier(meta);
     el.innerHTML = '';
-    const label = document.createElement('span');
+    const label = _vtDoc.createElement('span');
     label.className = 'pt-tier-label';
     label.textContent = 'Tier:';
     el.appendChild(label);
     [1, 2, 3, 4, 5].forEach(t => {
-      const btn = document.createElement('button');
+      const btn = _vtDoc.createElement('button');
       btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '');
       btn.textContent = `Tier ${t}`;
       btn.addEventListener('click', () => {
@@ -1781,10 +2263,10 @@
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     meta.tabs.forEach(tab => {
-      const wrap = document.createElement('div');
+      const wrap = _vtDoc.createElement('div');
       wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
 
-      const nameBtn = document.createElement('button');
+      const nameBtn = _vtDoc.createElement('button');
       nameBtn.className = 'vt-tab-btn';
       nameBtn.textContent = tab.name;
       nameBtn.title = 'Click to switch · Double-click to rename';
@@ -1805,7 +2287,7 @@
       wrap.appendChild(nameBtn);
 
       if (meta.tabs.length > 1) {
-        const delBtn = document.createElement('button');
+        const delBtn = _vtDoc.createElement('button');
         delBtn.className = 'vt-tab-del';
         delBtn.textContent = '×';
         delBtn.title = 'Delete tab';
@@ -1826,7 +2308,7 @@
       tabsEl.appendChild(wrap);
     });
 
-    const addBtn = document.createElement('button');
+    const addBtn = _vtDoc.createElement('button');
     addBtn.className = 'vt-tab-add';
     addBtn.textContent = '+ Add Tab';
     addBtn.addEventListener('click', () => {
@@ -1852,14 +2334,14 @@
     if (!grid) return;
     grid.innerHTML = '';
     VENIA_ORBS.forEach(orb => {
-      const col = document.createElement('div');
+      const col = _vtDoc.createElement('div');
       col.className = 'vt-col';
 
       // Per-column T1 validation: need exactly 3 green before T2+ view activates
       const greenCount = VENIA_ARTIFACTS.filter(a => vtGet(data, orb, a.name) === 1).length;
       const colReady   = tier === 1 || greenCount === 3;
 
-      const hdr = document.createElement('div');
+      const hdr = _vtDoc.createElement('div');
       hdr.className = 'vt-col-hdr';
       const warnSpan = (tier > 1 && !colReady)
         ? `<span class="vt-col-warn">${greenCount}/3 T1 picks</span>` : '';
@@ -1869,7 +2351,7 @@
       let lastCat = null;
       VENIA_ARTIFACTS.forEach(a => {
         if (a.category !== lastCat) {
-          const catDiv = document.createElement('div');
+          const catDiv = _vtDoc.createElement('div');
           catDiv.className = 'vt-cat-label';
           catDiv.textContent = a.category;
           col.appendChild(catDiv);
@@ -1894,7 +2376,7 @@
           cls  = val === 1 ? 'vt-state-green' : val === 2 ? 'vt-state-red' : '';
           icon = val === 1 ? '✓' : val === 2 ? '✕' : '○';
         }
-        const row = document.createElement('button');
+        const row = _vtDoc.createElement('button');
         row.className = `vt-artifact-row ${cls}`;
         row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${a.name}</span>`;
         row.addEventListener('click', () => {
@@ -2060,9 +2542,9 @@
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     meta.tabs.forEach(tab => {
-      const wrap = document.createElement('div');
+      const wrap = _ptDoc.createElement('div');
       wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
-      const nameBtn = document.createElement('button');
+      const nameBtn = _ptDoc.createElement('button');
       nameBtn.className = 'vt-tab-btn';
       nameBtn.textContent = tab.name;
       nameBtn.title = 'Click to switch · Double-click to rename';
@@ -2074,7 +2556,7 @@
       });
       wrap.appendChild(nameBtn);
       if (meta.tabs.length > 1) {
-        const delBtn = document.createElement('button');
+        const delBtn = _ptDoc.createElement('button');
         delBtn.className = 'vt-tab-del';
         delBtn.textContent = '×';
         delBtn.title = 'Delete tab';
@@ -2090,7 +2572,7 @@
       }
       tabsEl.appendChild(wrap);
     });
-    const addBtn = document.createElement('button');
+    const addBtn = _ptDoc.createElement('button');
     addBtn.className = 'vt-tab-add';
     addBtn.textContent = '+ Add Tab';
     addBtn.addEventListener('click', () => {
@@ -2110,12 +2592,12 @@
     const meta = ptGetMeta();
     const tier = ptGetTier(meta);
     el.innerHTML = '';
-    const label = document.createElement('span');
+    const label = _ptDoc.createElement('span');
     label.className = 'pt-tier-label';
     label.textContent = 'Tier:';
     el.appendChild(label);
     [1, 2, 3, 4, 5].forEach(t => {
-      const btn = document.createElement('button');
+      const btn = _ptDoc.createElement('button');
       btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '');
       btn.textContent = `Tier ${t}`;
       btn.addEventListener('click', () => {
@@ -2128,7 +2610,7 @@
   function ptMakeRow(label, note, val, onClick) {
     const cls  = val === 1 ? 'vt-state-green' : '';
     const icon = val === 1 ? '✓' : '○';
-    const row  = document.createElement('button');
+    const row  = _ptDoc.createElement('button');
     row.className = `vt-artifact-row ${cls}`;
     row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${label}${note ? `<span class="pt-mob-note"> (${note})</span>` : ''}</span>`;
     row.addEventListener('click', onClick);
@@ -2136,7 +2618,7 @@
   }
 
   function ptMakeNote(text) {
-    const d = document.createElement('div');
+    const d = _ptDoc.createElement('div');
     d.className = 'pt-info-note';
     d.textContent = text;
     return d;
@@ -2144,13 +2626,13 @@
 
   function ptAddSection(grid, title, items, dataObj, sectionKey, tier, noteText, questKeys) {
     const visible = tier > 1 ? items.filter(i => !i.t1) : items;
-    const hdr = document.createElement('div');
+    const hdr = _ptDoc.createElement('div');
     hdr.className = 'pt-section-hdr';
     hdr.textContent = title;
     grid.appendChild(hdr);
     if (noteText) grid.appendChild(ptMakeNote(noteText));
     if (visible.length === 0) return;
-    const g = document.createElement('div');
+    const g = _ptDoc.createElement('div');
     g.className = 'pt-loc-grid';
     visible.forEach((item, idx) => {
       const key = questKeys ? `${idx}:${item.name}` : item.name;
@@ -2239,9 +2721,9 @@
     if (!tabsEl) return;
     tabsEl.innerHTML = '';
     meta.tabs.forEach(tab => {
-      const wrap = document.createElement('div');
+      const wrap = _atDoc.createElement('div');
       wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
-      const nameBtn = document.createElement('button');
+      const nameBtn = _atDoc.createElement('button');
       nameBtn.className = 'vt-tab-btn';
       nameBtn.textContent = tab.name;
       nameBtn.title = 'Click to switch · Double-click to rename';
@@ -2253,7 +2735,7 @@
       });
       wrap.appendChild(nameBtn);
       if (meta.tabs.length > 1) {
-        const delBtn = document.createElement('button');
+        const delBtn = _atDoc.createElement('button');
         delBtn.className = 'vt-tab-del';
         delBtn.textContent = '×';
         delBtn.title = 'Delete tab';
@@ -2269,7 +2751,7 @@
       }
       tabsEl.appendChild(wrap);
     });
-    const addBtn = document.createElement('button');
+    const addBtn = _atDoc.createElement('button');
     addBtn.className = 'vt-tab-add';
     addBtn.textContent = '+ Add Tab';
     addBtn.addEventListener('click', () => {
@@ -2286,7 +2768,7 @@
   function atMakeRow(label, note, val, onClick) {
     const cls  = val === 1 ? 'vt-state-green' : '';
     const icon = val === 1 ? '✓' : '○';
-    const row  = document.createElement('button');
+    const row  = _atDoc.createElement('button');
     row.className = `vt-artifact-row ${cls}`;
     row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${label}${note ? `<span class="pt-mob-note"> (${note})</span>` : ''}</span>`;
     row.addEventListener('click', onClick);
@@ -2302,11 +2784,11 @@
     grid.innerHTML = '';
 
     // Celestial Emblem section
-    const emblemHdr = document.createElement('div');
+    const emblemHdr = _atDoc.createElement('div');
     emblemHdr.className = 'pt-section-hdr';
     emblemHdr.textContent = 'Celestial Emblem';
     grid.appendChild(emblemHdr);
-    const emblemGrid = document.createElement('div');
+    const emblemGrid = _atDoc.createElement('div');
     emblemGrid.className = 'pt-loc-grid';
     ASTRA_EMBLEM.forEach(({ name, note }) => {
       emblemGrid.appendChild(atMakeRow(name, note, data.emblem[name] || 0, () => {
@@ -2316,17 +2798,17 @@
       }));
     });
     grid.appendChild(emblemGrid);
-    const wipeNote = document.createElement('div');
+    const wipeNote = _atDoc.createElement('div');
     wipeNote.className = 'pt-info-note';
     wipeNote.textContent = 'Make sure to wipe while having the Celestial Emblem equipped.';
     grid.appendChild(wipeNote);
 
     // Celestial Enemies section
-    const enemyHdr = document.createElement('div');
+    const enemyHdr = _atDoc.createElement('div');
     enemyHdr.className = 'pt-section-hdr';
     enemyHdr.textContent = 'Celestial Enemies';
     grid.appendChild(enemyHdr);
-    const enemyGrid = document.createElement('div');
+    const enemyGrid = _atDoc.createElement('div');
     enemyGrid.className = 'pt-loc-grid';
     ASTRA_ENEMIES.forEach(({ name, note }) => {
       enemyGrid.appendChild(atMakeRow(name, note, data.enemies[name] || 0, () => {

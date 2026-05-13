@@ -384,12 +384,91 @@
 
 /* ── Boss detail ─────────────────────────────────────────────────────────── */
 .enc-boss-hp,
-.enc-boss-res,
+.enc-boss-res {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
 .enc-boss-passives,
 .enc-boss-moves {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  margin-top: 8px;
+}
+
+/* Loot table collapsible */
+.enc-loot-section {
+  margin-bottom: 16px;
+}
+.enc-loot-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: #0d0d12;
+  border: 1px solid #2a2a40;
+  border-radius: 6px;
+  color: #aaa8cc;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.enc-loot-btn:hover { background: #13131e; border-color: #3a3a55; color: #ccc; }
+.enc-loot-btn-arrow { font-size: 11px; flex-shrink: 0; color: #555; }
+.enc-loot-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.enc-loot-cat-label {
+  font-size: 10px;
+  color: #555;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+.enc-loot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.enc-loot-chip {
+  background: #111;
+  border: 1px solid #1e1e1e;
+  border-radius: 4px;
+  color: #bbb;
+  font-size: 11px;
+  padding: 2px 8px;
+}
+.enc-loot-chip-link {
+  cursor: pointer;
+  border-color: #2a2a40;
+  color: #9090cc;
+  font-family: inherit;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.enc-loot-chip-link:hover {
+  background: #13131e;
+  border-color: #4a4a66;
+  color: #bbb;
+}
+.enc-loot-notes {
+  font-size: 11px;
+  color: #666;
+  line-height: 1.6;
+  padding-top: 4px;
+  border-top: 1px solid #1a1a1a;
 }
 
 .enc-boss-section-label {

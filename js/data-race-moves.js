@@ -699,7 +699,7 @@ const raceMoves = {
         cooldown: 7,
         moveType: "Hex",
         category: "Attack/Buff",
-        duration: "?",
+        duration: "2 turns",
         damage: 7,
         scaling: "STR/80 + ARC/80",
         effect: "Deal damage to a target, copying their stat buffs (damage up, defense up) and sharing your negative status effects.",

@@ -1,8 +1,8 @@
 /* ── UI Overlay System ────────────────────────────────────────────────────────
    Opens a Document Picture-in-Picture window (always on top).
-   Keybinds open the PiP and switch to that widget's tab.
-   Settings accessible via "⚙ Change UI Overlay" in account settings.
+   Toggle via keybind or the "UI Overlay" button in the profile dropdown.
    Requires Chrome 116+ for PiP; shows an alert otherwise.
+   Tabs: Encyclopedia · Venia Tracker · Petent Tracker · Astra Tracker · Party Chat · Settings
    ──────────────────────────────────────────────────────────────────────────── */
 (function () {
   'use strict';
@@ -296,26 +296,6 @@
       window._chatOpenInPip?.();
     }
 
-    /* ── Tracker / Chat opener tab ── */
-    function renderOpener(root, label, fn) {
-      const desc = doc.createElement('div');
-      desc.style.cssText = 'font-size:12px;color:#555;margin-bottom:8px;';
-      desc.textContent = `Opens ${label} in the main window.`;
-      root.appendChild(desc);
-
-      const btn = doc.createElement('button');
-      btn.style.cssText =
-        'display:flex;align-items:center;justify-content:space-between;width:100%;' +
-        'background:#111;border:1px solid #1e1e1e;border-radius:6px;color:#bbb;' +
-        'font-size:13px;font-family:Rajdhani,Arial,sans-serif;font-weight:600;' +
-        'padding:10px 12px;cursor:pointer;box-sizing:border-box;';
-      btn.innerHTML = `<span>Open ${label}</span><span style="color:#444;font-size:16px;">›</span>`;
-      btn.addEventListener('mouseover', () => { btn.style.background='#1a1a28'; btn.style.borderColor='#333'; });
-      btn.addEventListener('mouseout',  () => { btn.style.background='#111';    btn.style.borderColor='#1e1e1e'; });
-      btn.addEventListener('click', fn);
-      root.appendChild(btn);
-    }
-
     /* ── Settings tab (keybinds) ── */
     function renderSettings(root) {
       const heading = doc.createElement('div');
@@ -377,8 +357,7 @@
   });
 
   /* ── Public API ─────────────────────────────────────────────────────────── */
-  window._overlaySettings = () => openOverlay('enc');
-  window._overlayToggle   = openOverlay;
+  window._overlayToggle = openOverlay;
 
   // No DOMContentLoaded needed — no in-page elements to wire up
 })();
