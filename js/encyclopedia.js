@@ -1028,7 +1028,36 @@
       });
     }
 
-    if (effectEl) effectEl.innerHTML = (m.effect || '').replace(/\n/g, '<br>');
+    if (effectEl) {
+      effectEl.innerHTML = (m.effect || '').replace(/\n/g, '<br>');
+      if (m.hpCalc) {
+        const calc = document.createElement('div');
+        calc.className = 'enc-hp-calc';
+        calc.innerHTML = `
+          <div class="enc-hp-calc-label">Damage Calculator</div>
+          <div class="enc-hp-calc-row">
+            <span class="enc-hp-calc-stat">Summon HP</span>
+            <input type="range" min="0" max="100" value="90" id="enc-summon-hp-slider" class="enc-hp-slider">
+            <span id="enc-summon-hp-val" class="enc-hp-calc-pct">90%</span>
+          </div>
+          <div class="enc-hp-calc-row">
+            <span class="enc-hp-calc-stat">Damage</span>
+            <span id="enc-summon-dmg-val" class="enc-hp-calc-dmg">≈ 121.5</span>
+          </div>`;
+        effectEl.appendChild(calc);
+        const slider = calc.querySelector('#enc-summon-hp-slider');
+        const hpVal  = calc.querySelector('#enc-summon-hp-val');
+        const dmgVal = calc.querySelector('#enc-summon-dmg-val');
+        function updateCalc() {
+          const pct = slider.value / 100;
+          const dmg = -110.59717 * pct + 220.07394;
+          hpVal.textContent  = slider.value + '%';
+          dmgVal.textContent = '≈ ' + dmg.toFixed(1);
+        }
+        slider.addEventListener('input', updateCalc);
+        updateCalc();
+      }
+    }
   }
 
   /* ── Public API ──────────────────────────────────────────────────────────── */

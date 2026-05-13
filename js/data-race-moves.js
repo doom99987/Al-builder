@@ -129,7 +129,7 @@ const raceMoves = {
     ],
     learns: [
       {
-        slot: "1st Learn",
+        slot: "Sylph",
         level: 5,
         type: "Active",
         name: "Call Sylph",
