@@ -1219,8 +1219,49 @@ function renderGearInfo() {
         if (stats) html += `<div class="enchant-level" style="margin-top:2px">${stats}</div>`;
         html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
         if (m.image) html += `<img class="move-image" src="${m.image}" alt="${m.name}" style="margin-top:6px;max-width:100%">`;
+        if (m.hpCalc) {
+          html += `
+            <div class="gear-hp-calc" style="margin-top:10px;padding:10px 12px;background:#0e0e16;border:1px solid #2a2a3a;border-radius:6px;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#555">Damage Calculator</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">Summon HP</span>
+                <input type="range" min="0" max="100" value="90" style="flex:1;accent-color:#7755cc;cursor:pointer"
+                  oninput="(function(s){var pct=s.value/100;var dmg=-110.59717*pct+220.07394;s.parentNode.querySelector('.sd-hp-pct').textContent=s.value+'%';s.parentNode.parentNode.querySelector('.sd-dmg').textContent='≈ '+dmg.toFixed(1)})(this)">
+                <span class="sd-hp-pct" style="font-size:12px;font-weight:600;color:#aaa;width:34px;text-align:right;flex-shrink:0">90%</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">Damage</span>
+                <span class="sd-dmg" style="font-size:14px;font-weight:700;color:#cc4444">≈ 121.5</span>
+              </div>
+            </div>`;
+        }
       }
     });
+    // Summon moves grouped by slot (e.g. Snowman, Sylph)
+    const _sumMoves = (data.learns || []).filter(isSummonMove);
+    if (_sumMoves.length) {
+      const _sumGroups = {};
+      _sumMoves.forEach(m => { if (!_sumGroups[m.slot]) _sumGroups[m.slot] = []; _sumGroups[m.slot].push(m); });
+      Object.entries(_sumGroups).forEach(([slotName, gmoves]) => {
+        html += `<div style="margin-top:8px;border-top:1px solid rgba(255,255,255,0.07);padding-top:6px">`;
+        html += `<div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#5577aa;margin-bottom:4px">${slotName}</div>`;
+        gmoves.forEach(m => {
+          if (m.type === "Active") {
+            const stats = [
+              m.cost !== undefined ? `Cost: ${m.cost}` : null,
+              m.cooldown !== undefined ? `CD: ${m.cooldown}` : null,
+              m.moveType ? `Type: ${m.moveType}` : null,
+              m.damage !== undefined ? `Dmg: ${m.damage}` : null,
+              m.scaling ? `Scl: ${m.scaling}` : null,
+            ].filter(Boolean).join(" | ");
+            html += `<div style="margin-top:4px"><strong>${m.name}</strong> <span class="enchant-level">Active</span></div>`;
+            if (stats) html += `<div class="enchant-level" style="margin-top:2px">${stats}</div>`;
+            html += `<div class="enchant-desc" style="margin-top:2px">${m.effect.replace(/\n/g, "<br>")}</div>`;
+          }
+        });
+        html += `</div>`;
+      });
+    }
   });
   content.innerHTML = html;
   section.style.display = "";
@@ -1590,7 +1631,7 @@ const gearMoves = {
     mkPassive("Elementary Resonance", "Changes colour every turn. If you use an attack that's under the same type/colour as the colour of this gear it does a special effect and makes that attack do 10% more damage.\n\nPhysical — Your attack applies 2 Weakened and 2 Vulnerable.\nArcane — You regain 1 Energy.\nFire — Your attack applies 5 Burn.\nIce — Your attack applies 3 Cold.\nNature — Heal 10% of your MAX HP.\nPoison — Your attack applies 6 Poison.\nHoly — You gain 1 Resist.\nDark — Your attack gains 25% Lifesteal.\nHex — Your attack applies 3 Sundered."),
   ]},
   "Frosty Topper": { learns: [
-    { slot: "", level: 1, type: "Active", name: "Call Snowman", quote: "", cost: 2, cooldown: 10, moveType: "Ice", scaling: "ARC/6", effect: "Summon a Snowman when used. The Snowman has 75 base HP." },
+    { slot: "Snowman", level: 1, type: "Active", name: "Call Snowman", quote: "", cost: 2, cooldown: 10, moveType: "Ice", scaling: "ARC/6", effect: "Summon a Snowman when used. The Snowman has 75 base HP." },
     { slot: "Snowman", level: 1, type: "Active", name: "Snowball", quote: "", cost: 0, cooldown: 0, moveType: "Ice", damage: 4, scaling: "ARC/75", effect: "The Snowman pelts an enemy with a Snowball, applying 1 Blinded and having a chance to apply 1 Cold.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab13ec8f2e26741ea1f0/previews/69abab14ec8f2e26741ea23b/download/image.webp" },
     { slot: "Snowman", level: 1, type: "Active", name: "Hidden Presents", quote: "", cost: 2, cooldown: 6, moveType: "Ice", effect: "Creates a bundle of presents, healing the party for 12 base HP and granting 5% DR for 4 turns.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab18abe4d8d8191e1fde/previews/69abab19abe4d8d8191e2033/download/image.webp" },
     { slot: "Snowman", level: 1, type: "Active", name: "Jolly Spirit", quote: "", cost: 3, cooldown: 8, moveType: "Ice", effect: "Target an ally and infuse them with energy.\n\nIf they are a player: provides an additional hit on their attack, fully AoE, applying 2 Cold to all enemies. Base damage equals the triggering move's base damage, scaling ARC/75 + STR/75.\n\nIf they are a summon: provides approximately 50% of their health as a shield for an indefinite duration.", image: "https://trello.com/1/cards/694bb3dd24c8b1bf9c0bcb02/attachments/69abab2c4c4cb2217416cb3d/previews/69abab2c4c4cb2217416cba6/download/image.webp" },
@@ -1708,7 +1749,7 @@ const gearMoves = {
 
   // Volcano
   "Imperial Headband": { learns: [
-    { slot: "", level: 1, type: "Active", name: "Self Destruct", quote: "", cost: 2, cooldown: 0, moveType: "Physical", scaling: "ARC", effect: "When your summons drop below 90% HP, blow up your summons, dealing damage to all targets (scales with the summon's total HP × 2). Also has a chance to apply 2 Stun and 2 Weakened.\n\nNote: Can be blocked, and can be dodged with enough speed.", image: "https://trello.com/1/cards/67c45621e05f17e3f3e34bf1/attachments/697ed0babef5ea81d42c5af8/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131204217.png" },
+    { slot: "", level: 1, type: "Active", name: "Self Destruct", quote: "", cost: 2, cooldown: 0, moveType: "Physical", scaling: "ARC", effect: "When your summons drop below 90% HP, blow up your summons, dealing damage to all targets (scales with the summon's total HP × 2). Also has a chance to apply 2 Stun and 2 Weakened.\n\nNote: Can be blocked, and can be dodged with enough speed.", image: "https://trello.com/1/cards/67c45621e05f17e3f3e34bf1/attachments/697ed0babef5ea81d42c5af8/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131204217.png", hpCalc: true },
   ]},
   "Magma Charm": { learns: [
     mkPassive("Magma Charm", "Give 10% resistance to fire attacks and increase movement speed by 15%."),
@@ -4459,10 +4500,11 @@ function renderDmgCalc() {
   const allMoves = [
     ...allData.flatMap(d => (d.learns || []).filter(m =>
       m.type === "Active" &&
-      (
-        (m.category === "Summon" && (m.damage !== undefined || m.scaling) && m.name !== "Calling Light" && m.name !== "Call Sylph") ||
-        (m.category !== "Buff" && m.damage !== undefined && /^\d/.test(String(m.damage)))
-      )
+      !isSummonMove(m) &&
+      m.category !== "Summon" &&
+      m.category !== "Buff" &&
+      m.damage !== undefined &&
+      /^\d/.test(String(m.damage))
     )),
     ..._sheeaExtraMoves.filter(m => m.damage !== undefined && /^\d/.test(String(m.damage)))
   ];
@@ -4471,7 +4513,10 @@ function renderDmgCalc() {
     m.type === "Active" && m.healing !== undefined
   ));
 
-  if (!allMoves.length && !healMoves.length) {
+  const allSummonMoves = allData.flatMap(d => (d.learns || []).filter(isSummonMove));
+  const hasIH = gearSlots.includes("Imperial Headband");
+
+  if (!allMoves.length && !healMoves.length && !allSummonMoves.length) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     renderDmgBonusSection();
     return;
@@ -4517,6 +4562,62 @@ function renderDmgCalc() {
         <span class="dc-hint">click to calculate</span>
       </div>
       <div class="dc-detail" style="display:none"></div>`;
+    });
+  }
+
+  // Summons section — grouped by slot, with per-summon Self Destruct HP slider if IH is equipped
+  if (allSummonMoves.length) {
+    const summonGroups = {};
+    allSummonMoves.forEach(m => {
+      if (!summonGroups[m.slot]) summonGroups[m.slot] = [];
+      summonGroups[m.slot].push(m);
+    });
+    html += `<h3 class="dc-support-title">Summons</h3>`;
+    Object.entries(summonGroups).forEach(([slotName, moves]) => {
+      html += `<div style="margin-bottom:14px">`;
+      html += `<div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#6688aa;padding:4px 0 4px 6px;border-left:3px solid #336688;margin-bottom:4px">${slotName}</div>`;
+      moves.forEach(m => {
+        const effectiveMoveType = getEffectiveMoveType(m.moveType);
+        const color = MOVE_TYPE_COLORS[effectiveMoveType] || "#cccccc";
+        const canCalc = m.damage !== undefined && /^\d/.test(String(m.damage));
+        const dmgStr  = m.damage   !== undefined ? `<span class="dc-stat">Dmg: <b>${m.damage}</b></span>` : "";
+        const sclStr  = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
+        const costStr = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
+        const cdStr   = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
+        if (canCalc) {
+          const sidx = dmgCalcMoveList.length;
+          dmgCalcMoveList.push(m);
+          html += `<div class="dc-row dc-row-clickable" style="border-left:3px solid ${color}" data-idx="${sidx}" onclick="toggleDmgDetail(this,${sidx})">
+            <span class="dc-name" style="color:${color}">${m.name}</span>
+            <span class="dc-type" style="color:${color}">[${effectiveMoveType || "—"}]</span>
+            <span class="dc-stats">${dmgStr}${sclStr}${costStr}${cdStr}</span>
+            <span class="dc-hint">click to calculate</span>
+          </div>
+          <div class="dc-detail" style="display:none"></div>`;
+        } else {
+          html += `<div class="dc-row" style="border-left:3px solid ${color}">
+            <span class="dc-name" style="color:${color}">${m.name}</span>
+            <span class="dc-type" style="color:${color}">[${effectiveMoveType || "—"}]</span>
+            <span class="dc-stats">${sclStr}${costStr}${cdStr}</span>
+          </div>`;
+        }
+      });
+      if (hasIH) {
+        html += `<div style="margin-top:8px;padding:10px 12px;background:#0e0e16;border:1px solid #2a2a3a;border-radius:6px;display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#555">Self Destruct</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">${slotName} HP</span>
+            <input type="range" min="0" max="100" value="90" style="flex:1;accent-color:#cc4444;cursor:pointer"
+              oninput="(function(s){var pct=s.value/100;var dmg=-110.59717*pct+220.07394;s.parentNode.querySelector('.sd-hp-pct').textContent=s.value+'%';s.parentNode.parentNode.querySelector('.sd-dmg').textContent='≈ '+dmg.toFixed(1)})(this)">
+            <span class="sd-hp-pct" style="font-size:12px;font-weight:600;color:#aaa;width:34px;text-align:right;flex-shrink:0">90%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">Damage</span>
+            <span class="sd-dmg" style="font-size:14px;font-weight:700;color:#cc4444">≈ 121.5</span>
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
     });
   }
 

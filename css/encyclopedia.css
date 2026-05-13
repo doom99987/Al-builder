@@ -799,6 +799,54 @@
   font-style: italic;
 }
 
+/* ── Self Destruct HP Calculator ────────────────────────────────────────── */
+.enc-hp-calc {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #0e0e16;
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.enc-hp-calc-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #555;
+}
+.enc-hp-calc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.enc-hp-calc-stat {
+  font-size: 11px;
+  color: #666;
+  width: 72px;
+  flex-shrink: 0;
+}
+.enc-hp-slider {
+  flex: 1;
+  accent-color: #7755cc;
+  cursor: pointer;
+}
+.enc-hp-calc-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: #aaa;
+  width: 34px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.enc-hp-calc-dmg {
+  font-size: 14px;
+  font-weight: 700;
+  color: #cc4444;
+}
+
 /* ── Mobile ─────────────────────────────────────────────────────────────── */
 @media (max-width: 680px) {
   .enc-body { flex-direction: column; }
