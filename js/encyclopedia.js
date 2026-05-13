@@ -260,11 +260,11 @@
     ['Dullahan (1%)',    'Race', 'Legendary race (1% chance). A headless race with 4 lives, 20% fire resistance, extra essence from kills, and 3 additional stat points per 10 levels (12 extra by lv40).'],
     ['Vydeer (1%)',      'Race', 'Legendary race (1% chance). A sensory race immune to Blind, gaining 1.5% crit per turn (cap 15%). Has the Sense status — at 3+ stacks, automatically dodges any damaging attack.'],
     ['Boreas (1%)',      'Race', 'Legendary race (1% chance). A frost race that stacks ice power: each Ice affinity move grants 1 stack (+20% dmg, +10% DR per stack). Non-Ice moves remove 1 stack. Attacks have ~25% chance to apply 2 Cold.'],
-    ['Lentum (Ob)',      'Race', 'Obscure race. A rare hidden race with unique mechanics not commonly seen.'],
-    ['Amorus (Ob)',      'Race', 'Obscure race. A rare hidden race with unique mechanics not commonly seen.'],
-    ['Sheea (Ob)',       'Race', 'Obscure race. A rare hidden race with unique mechanics not commonly seen.'],
-    ['Inferion (Ob)',    'Race', 'Obscure race. A rare hidden race with unique mechanics not commonly seen.'],
-    ['Gynx (Ob)',        'Race', 'Obscure race. A rare hidden race with unique mechanics not commonly seen.'],
+    ['Lentum (Obtainable)',      'Race', 'How to obtain:\n\nNote: Always have Gelat Band equipped and do it all in the same server.\n\n1. Equip Gelat Band and speak with King Slime Statue to get quest.\n2. Find 4 Slime Statues, speak with them and return to King Slime Statue.\n3. Give him 100 Slime Chunks. (Should get "my fallen subjects" dialogue)\n4. Kill King Slime and return to statue to obtain Lentum.'],
+    ['Amorus (Obtainable)',      'Race', 'How to obtain:\n\n1. Have 35+ level and speak with Thanasius in Amoran Chasm.\n2. Offer him the following: Phoenix Tear, Lineage Shard, Memory Fragment, Soul Dust, Narthana\'s Sigil, Dark Sigil, Reality Watch, Stellian Core, Shifting Hourglass, Chaos Orb, Metrom\'s Amulet, Void Key.\n3. Speak with him again to obtain Amorus.'],
+    ['Sheea (Obtainable)',       'Race', 'How to obtain:\n\n1. Speak with Sky Man, give him Mushroom Cap, Sand Core and Rot Core, then speak with him again and teleport.\n2. Join the Church of Raphion and progress it to Rank 20.\n3. Return to the Church and speak with Mael to start the Seraphon fight.\n4. Win the fight and speak with Mael to obtain Sheea.'],
+    ['Inferion (Obtainable)',    'Race', 'How to obtain:\n\n1. Come to Deeproot Depths and find the mirror, speak with it and choose the middle dialogue to get "Prayer" in your inventory.\n2. Use "Prayer" to start a fight with the Sheea Elementalist.\n3. Fight the Sheea Elementalist (you can fight in a party, just get the final blow) and speak with the mirror again to teleport.\n4. Join the Cult of Thanasius and progress it to Rank 20.\n5. Come back to the Cult and speak with Mephisto to start the Arkhaia fight.\n6. Win the fight and speak with Mephisto again to obtain Inferion.'],
+    ['Gynx (Obtainable)',        'Race', 'How to obtain:\n\n1. Defeat Handaconda on the character slot where you want the race. (Normal or Corrupted both work)\n2. Have a Forgotten Relic in your inventory while having 3 gear drops from Handaconda equipped. These include: Open Hand, Dust Devil\'s Eye, Eroded Blade, and The Smallest Boulder.\n3. Talk to the Handaconda fight NPC Thuriaz to obtain Gynx.'],
 
     /* ── BOSSES (ordered by progression) ─────────────────────────────── */
     ["Yar'Thul, The Blazing Dragon", 'Boss', 'A fierce blazing dragon encountered mid-game. Highly resistant to fire but susceptible to hex damage.'],
@@ -923,7 +923,10 @@
     const type = ENC_ITEMS[idx][1];
     if (type === 'Mark')     return MARK_DATA[name]     || null;
     if (type === 'Covenant') return COVENANT_DATA[name] || null;
-    if (type === 'Race')   return raceMoves?.[name]   || null;
+    if (type === 'Race') {
+      const raceKey = name.replace('(Obtainable)', '(Ob)');
+      return raceMoves?.[raceKey] || raceMoves?.[name] || null;
+    }
     if (type === 'Weapon') {
       const key = WEAPON_NAME_MAP[name] ?? name;
       return key ? (weaponMoves?.[key] || null) : null;
@@ -1009,6 +1012,11 @@
 
         const orderedItems = NO_SORT_TYPES.has(type)
           ? items
+          : type === 'Race'
+          ? [...items].sort((a, b) => {
+              const pct = n => { const m = n.match(/\((\d+)%\)/); return m ? parseFloat(m[1]) : -1; };
+              return pct(b.it[0]) - pct(a.it[0]);
+            })
           : [...items].sort((a, b) => a.it[0].localeCompare(b.it[0]));
 
         orderedItems.forEach(({ it, i }) => {
@@ -1402,7 +1410,16 @@
     const descEl = card.querySelector('.enc-class-desc');
     if (descEl) {
       if (it[2]) {
-        descEl.innerHTML = it[2].replace(/\n/g, '<br>');
+        if (name.includes('(Obtainable)')) {
+          descEl.innerHTML = '';
+          const btn = document.createElement('button');
+          btn.className = 'enc-move-btn';
+          btn.innerHTML = `<span class="enc-move-btn-name">How to Obtain</span><span class="enc-move-btn-meta">›</span>`;
+          btn.addEventListener('click', () => showObtainDetail(idx));
+          descEl.appendChild(btn);
+        } else {
+          descEl.innerHTML = it[2].replace(/\n/g, '<br>');
+        }
         descEl.classList.remove('enc-detail-nodesc');
       } else {
         descEl.textContent = 'No description available.';
@@ -1560,6 +1577,28 @@
         updateCalc();
       }
     }
+  }
+
+  function showObtainDetail(idx) {
+    const it = ENC_ITEMS[idx];
+    _moveSource  = { classIdx: idx, isRace: true };
+    _currentView = 'move';
+    showPanel('enc-move-card');
+
+    const card = document.getElementById('enc-move-card');
+    if (!card) return;
+
+    const badge   = card.querySelector('.enc-move-type-badge');
+    const nameEl  = card.querySelector('.enc-move-name');
+    const quoteEl = card.querySelector('.enc-move-quote');
+    const statsEl = card.querySelector('.enc-move-stats');
+    const effectEl = card.querySelector('.enc-move-effect');
+
+    if (badge)   { badge.textContent = ''; badge.className = 'enc-move-type-badge'; }
+    if (nameEl)  nameEl.textContent = `How to Obtain (${it[0].replace(' (Obtainable)', '')})`;
+    if (quoteEl) { quoteEl.textContent = ''; quoteEl.style.display = 'none'; }
+    if (statsEl) statsEl.innerHTML = '';
+    if (effectEl) effectEl.innerHTML = (it[2] || '').replace(/\n/g, '<br>');
   }
 
   /* ── Public API ──────────────────────────────────────────────────────────── */
