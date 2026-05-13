@@ -272,6 +272,27 @@
     ['Venia',  'Mark', 'A cross-wipe progression system centered around artifact sacrifice and the Midas enchant. Advancing a tier requires wiping while holding the Midas enchant and 50k gold. Grants artifact trading and gold-generating abilities.'],
     ['Astra',  'Mark', 'A cross-wipe progression system centered around the Celestial Emblem. Requires crafting the emblem, defeating specific enemies, and wiping with it equipped. Grants a star-based ability system that powers support and healing moves.'],
 
+    /* ── ARMOUR ──────────────────────────────────────────────────────── */
+    ['Paladin Cuirass',        'Armour', 'Cost: 250g.\n\nStats: +20 Endurance, +17.5% Endurance.\n\nDamage Reduction: +10% Physical, +5% Holy, +5% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
+    ['Adept Warrior',          'Armour', 'Cost: 250g.\n\nStats: +15 Endurance, +10% Endurance, +5% Strength, +16.6% Energy.\n\nDamage Reduction: +5% Physical, +10% Dark.\n\nBonus: +20% Fall Resistance.'],
+    ['Raging Warrior',         'Armour', 'Cost: 250g.\n\nStats: +16 Endurance, +10% Endurance, +10% Increased Healing, +10% Energy.\n\nDamage Reduction: +5% Physical, +10% Hex, +5% Fire.'],
+    ['Arcane Robes',           'Armour', 'Cost: 250g.\n\nStats: +4 Arcane, +15 Endurance, +7.5% Arcane.\n\nDamage Reduction: +10% Magic, +10% Poison, +10% Holy, +10% Fire.'],
+    ['Magister Apprentice',    'Armour', 'Cost: 250g.\n\nStats: +3 Arcane, +15 Endurance, +5% Arcane, +1 HP Regen/turn.\n\nDamage Reduction: +15% Magic, +10% Poison, +10% Fire.'],
+    ['Corrupt Caster',         'Armour', 'Cost: 250g.\n\nStats: +2 Arcane, +16 Endurance, +5% Endurance, +5% Arcane, +10% Energy.\n\nDamage Reduction: +15% Magic, +10% Poison, +10% Holy.'],
+    ['Lifebound Archer',       'Armour', 'Cost: 250g.\n\nStats: +3 Arcane, +15 Endurance, +5% Endurance, +5% Arcane, +1 HP Regen/turn, +15% Movement Speed.\n\nDamage Reduction: +10% Magic, +10% Poison, +10% Nature.'],
+    ['Rogue Hunter',           'Armour', 'Cost: 250g.\n\nStats: +15 Endurance, +7.5% Endurance, +10% Speed, +10% Energy, +1 HP Regen/turn, +20% Movement Speed, +25% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Fire.'],
+    ['Shadow Cloak',           'Armour', 'Cost: 250g.\n\nStats: +13 Endurance, +7.5% Endurance, +12.5% Energy, +1 HP Regen/turn, +30% Movement Speed, +30% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Dark.'],
+    ['Traveling Pasmark',      'Armour', 'Cost: 250g.\n\nStats: +5 Strength, +16 Endurance, +7.5% Endurance, +5% Strength, +1 HP Regen/turn, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Holy, +5% Fire, +5% Dark.'],
+    ['Wandering Practitioner', 'Armour', 'Cost: 250g.\n\nStats: +18 Endurance, +7.5% Endurance, +10% Strength, +16.6% Energy, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +10% Fire.'],
+    ['Shade Walker',           'Armour', 'Cost: 250g.\n\nStats: +18 Endurance, +7.5% Endurance, +5% Arcane, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +10% Hex, +20% Dark.'],
+    ['Pathfinder Martyr',      'Armour', 'Cost: 250g.\n\nStats: +3 Arcane, +1 Speed, +20 Endurance, +7.5% Endurance, +1 HP Regen/turn.\n\nDamage Reduction: +5% Physical, +15% Holy.'],
+    ['Armored Lancer',         'Armour', 'Cost: 250g.\n\nStats: +20 Endurance, +15% Endurance, +12.5% Energy.\n\nDamage Reduction: +10% Physical, +10% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
+    ['Bloody Menace',          'Armour', 'Cost: 250g.\n\nStats: +22 Endurance, +10% Endurance, +20% Increased Healing.\n\nDamage Reduction: +10% Physical, +5% Hex, +5% Poison.'],
+    ['Venerated Legionnaire',  'Armour', 'Cost: 250g.\n\nStats: +17 Endurance, +12.5% Endurance.\n\nDamage Reduction: +15% Physical, +15% Fire, +10% Ice, +10% Nature, +5% Dark, +5% Magic.'],
+    ['Fortified Seer',         'Armour', 'Cost: 250g.\n\nStats: +35 Endurance, +5% Endurance.\n\nDamage Reduction: +15% Dark, +15% Hex, +10% Holy, +10% Ice, +10% Fire, +10% Physical.'],
+    ['Deathmantle',            'Armour', 'Cost: 3,000g.\n\nStats: +25 Endurance, +2.5% Endurance, +10% Arcane.\n\nDamage Reduction: +20% Dark, +15% Holy, +10% Magic, +10% Ice, +5% Physical.'],
+    ['Shadowy Crook',          'Armour', 'Cost: 250g.\n\nStats: +1 Speed, +2 Luck, +10 Endurance, +10% Movement Speed.\n\nDamage Reduction: +5% Physical.'],
+
     /* ── MOBS ─────────────────────────────────────────────────────────── */
     ['Goblin',            'Mob', ''],
     ['Malevolent Bunny',  'Mob', '~215 HP. Does not gain energy.\n\nHop Kick — 1 hit, 0 energy cost. Blockable and dodgeable.\n\nBlack Warren — Summons another Malevolent Bunny with half the summoner\'s current max HP. Found in Easter encounters.'],
@@ -285,6 +306,7 @@
     'Enchant',
     'Ore', 'Ingredient', 'Weapon', 'Gear',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
+    'Armour',
     'Boss', 'Mob', 'Mark',
   ];
 
@@ -301,6 +323,7 @@
     'Artifact':        '◆',
     'Lesser Artifact': '◇',
     'Weapon Modifier': '💎',
+    'Armour':          '🛡',
     'Boss':            '☠',
     'Mob':             '👾',
     'Mark':            '◉',
