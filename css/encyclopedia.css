@@ -869,10 +869,22 @@
   flex-direction: column;
   gap: 12px;
 }
+/* Vertical layout for petent/astra in the PiP overlay */
+.pt-tracker-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .pt-loc-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
+}
+
+/* In the PiP window (340px wide) 3 columns is too cramped — use 2 */
+#pip-content .pt-loc-grid {
+  grid-template-columns: repeat(2, 1fr);
 }
 /* Tier bar */
 .pt-tier-bar {
