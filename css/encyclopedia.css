@@ -243,6 +243,7 @@
 .enc-type-Artifact        { background: #180a1a; color: #cc55cc; border: 1px solid #331033; }
 .enc-type-Lesser-Artifact { background: #110d1a; color: #9966cc; border: 1px solid #271040; }
 .enc-type-Weapon-Modifier { background: #0d1510; color: #66aa44; border: 1px solid #162810; }
+.enc-type-Armour          { background: #0a1218; color: #44aacc; border: 1px solid #102030; }
 .enc-type-Enchant         { background: #1a1500; color: #ddaa00; border: 1px solid #3a3000; }
 .enc-type-Boss            { background: #1a0808; color: #cc3333; border: 1px solid #3a1010; }
 .enc-type-Mob             { background: #100e0a; color: #aa8844; border: 1px solid #2a2210; }

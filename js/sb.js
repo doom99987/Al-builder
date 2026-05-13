@@ -160,7 +160,8 @@
   // Each QTE stores highscores in localStorage and only submits to the server
   // when a new local high is achieved. After a monthly wipe those stale values
   // gate new submissions. Reset them whenever the month rolls over.
-  (function checkMonthlyReset() {
+  // Deferred to window.load so qte.js listeners are registered before the event fires.
+  window.addEventListener('load', function checkMonthlyReset() {
     const MONTH_KEY = 'alb:hs-month';
     const stored = localStorage.getItem(MONTH_KEY);
     const now    = new Date().toISOString().slice(0, 7); // "2026-05"
@@ -168,7 +169,7 @@
       localStorage.setItem(MONTH_KEY, now);
       window.dispatchEvent(new Event('alb-scores-reset'));
     }
-  })();
+  });
 
   // ---- state ----
   let currentUser    = null;

@@ -35,7 +35,7 @@
   <link rel="stylesheet" href="css/vl.css?v=10">
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=4">
-  <link rel="stylesheet" href="css/encyclopedia.css?v=4">
+  <link rel="stylesheet" href="css/encyclopedia.css?v=5">
 </head>
 
 <body>
@@ -1038,6 +1038,7 @@
       <button class="enc-type-tab" data-type="Artifact" onclick="window._encFilter('Artifact', this)">Artifact</button>
       <button class="enc-type-tab" data-type="Lesser Artifact" onclick="window._encFilter('Lesser Artifact', this)">Lesser Artifact</button>
       <button class="enc-type-tab" data-type="Weapon Modifier" onclick="window._encFilter('Weapon Modifier', this)">Weapon Modifier</button>
+      <button class="enc-type-tab" data-type="Armour" onclick="window._encFilter('Armour', this)">Armour</button>
       <button class="enc-type-tab" data-type="Boss" onclick="window._encFilter('Boss', this)">Boss</button>
       <button class="enc-type-tab" data-type="Mob" onclick="window._encFilter('Mob', this)">Mob</button>
       <button class="enc-type-tab" data-type="Mark" onclick="window._encFilter('Mark', this)">Mark</button>
@@ -1107,7 +1108,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=96"></script>
+<script src="js/sb.js?v=97"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
     core.js            : global constants, QTE SFX, ping sim, LB hook, dmgcalc state
@@ -1128,7 +1129,7 @@
 <script src="js/trades.js?v=47"></script>
 <script src="js/party.js?v=30"></script>
 <script src="js/builds.js?v=4"></script>
-<script src="js/encyclopedia.js?v=4"></script>
+<script src="js/encyclopedia.js?v=5"></script>
 
 <!-- Venia Orb Tracker Modal -->
 <div id="venia-tracker-overlay" onclick="if(event.target===this)window._veniaTrackerClose()" style="display:none">
