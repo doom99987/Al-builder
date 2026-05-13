@@ -130,10 +130,59 @@
     padding: 6px 8px;
     overflow-x: auto;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     justify-content: flex-start;
     align-items: flex-start;
     min-height: 0;
   }
+
+  /* Encyclopedia page scroll on mobile */
+  #page-encyclopedia.active {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* === Community Builds page === */
+  .blds-wrap {
+    padding: 16px 12px 40px;
+    gap: 12px;
+  }
+  .blds-title { font-size: 20px; }
+
+  .blds-submit-panel { padding: 14px 14px; gap: 10px; }
+  .blds-submit-fields {
+    grid-template-columns: 1fr;
+  }
+  .blds-input-desc,
+  .blds-submit-btn { grid-column: 1 / -1; }
+  .blds-submit-btn { padding: 10px; }
+  .blds-input { font-size: 13px; padding: 8px 10px; }
+
+  .blds-search { font-size: 13px; padding: 8px 10px; }
+  .blds-filter-btn { font-size: 12px; padding: 8px 12px; }
+
+  .blds-card { padding: 12px 14px; flex-direction: column; gap: 10px; }
+  .blds-card-actions {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .blds-card-name {
+    font-size: 15px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+  .blds-card-summary {
+    font-size: 12px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+  .blds-card-meta { font-size: 11px; flex-wrap: wrap; }
+  .blds-open-btn { font-size: 12px; padding: 6px 12px; }
+  .blds-like-btn { font-size: 12px; padding: 5px 10px; }
 
   /* Stats panel: natural width so columns sit side by side */
   #page-builder #stats {

@@ -24,8 +24,10 @@ body {
   min-height: 0;
 }
 
-#page-home.active {
+#page-home.active,
+#page-builds.active {
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   /* safe-area padding for iPhone home indicator */
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
