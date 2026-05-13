@@ -338,7 +338,7 @@
   async function fetchLeaderboard(qteType, platform) {
     let query = sb
       .from('leaderboard')
-      .select('score, platform, profiles(username, avatar_url)')
+      .select('user_id, score, platform, profiles(username, avatar_url)')
       .eq('qte_type', qteType)
       .eq('score_month', currentMonth())
       .order('score', { ascending: false })
@@ -348,6 +348,7 @@
     if (error) { console.error('[sb] fetchLeaderboard error', error.message); return []; }
     return (data || [])
       .map(r => ({
+        user_id:    r.user_id,
         username:   r.profiles?.username   || '???',
         avatar_url: r.profiles?.avatar_url || null,
         score:      r.score,
@@ -359,23 +360,21 @@
 
   // ---- fetch all-time record holder for a QTE ----
   async function fetchRecord(qteType) {
-    console.log('[sb] fetchRecord called for', qteType);
     const { data, error } = await sb
       .from('leaderboard_records')
       .select('score, platform, user_id')
       .eq('qte_type', qteType)
       .maybeSingle();
-    console.log('[sb] fetchRecord row:', data, 'error:', error);
     if (error) { console.error('[sb] fetchRecord error', error.message); return null; }
-    if (!data) { console.warn('[sb] fetchRecord: no row for', qteType); return null; }
-    const { data: prof, error: profErr } = await sb
+    if (!data) return null;
+    const { data: prof } = await sb
       .from('profiles')
       .select('username, avatar_url')
       .eq('id', data.user_id)
       .maybeSingle();
-    console.log('[sb] fetchRecord prof:', prof, 'profErr:', profErr);
-    if (!prof?.username) { console.warn('[sb] fetchRecord: no profile for user_id', data.user_id); return null; }
+    if (!prof?.username) return null;
     return {
+      user_id:    data.user_id,
       username:   prof.username,
       avatar_url: prof.avatar_url || null,
       score:      data.score,
@@ -1073,7 +1072,7 @@
     const recordRowHtml = record ? `
       <tr class="sb-lb-record-row${myName === record.username ? ' sb-lb-me' : ''}">
         <td>👑</td>
-        <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22)}<span>${esc(record.username)}</span><span class="lb-inline-record">All-time Best</span></div></td>
+        <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22)}<span>${esc(record.username)}</span></div></td>
         <td style="white-space:nowrap"><b>${record.score}</b> ${platformBadge(record.platform)}</td>
       </tr>` : '';
 
@@ -1094,7 +1093,7 @@
     }
 
     // Filter out the record holder from monthly rows — they're already shown with the crown
-    const monthlyRows = record ? rows.filter(r => r.username !== record.username) : rows;
+    const monthlyRows = record ? rows.filter(r => r.user_id !== record.user_id) : rows;
     let rank = 0;
     const monthlyRowsHtml = monthlyRows.map(r => {
       rank++;
@@ -1168,11 +1167,11 @@
       const recordRowHtml = rec ? `
         <tr class="sb-lb-record-row${myName && myName === rec.username ? ' sb-lb-me' : ''}">
           <td class="all-lb-rank">👑</td>
-          <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20)}<span>${esc(rec.username)}</span><span class="lb-inline-record">Record</span></div></td>
+          <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20)}<span>${esc(rec.username)}</span></div></td>
           <td class="all-lb-score"><b>${rec.score}</b> ${platformBadge(rec.platform)}</td>
         </tr>` : '';
       // Filter out record holder from monthly rows — already shown with crown
-      const filteredRows = rec ? monthRows.filter(r => r.username !== rec.username) : monthRows;
+      const filteredRows = rec ? monthRows.filter(r => r.user_id !== rec.user_id) : monthRows;
       const monthlyHtml = filteredRows.length
         ? filteredRows.map((r, i) => `
             <tr class="${myName && myName === r.username ? 'sb-lb-me' : ''}">
