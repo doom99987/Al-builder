@@ -679,14 +679,14 @@
   let trackX, trackY, trackW, zoneX, zoneW;
 
   function getSpeed()     { return window._qteCompMode
-    ? (IS_MOBILE ? Math.min(220 + streak * 8, 420)  : Math.min(420 + streak * 14, 640))
+    ? (IS_MOBILE ? Math.min(220 + streak * 8, 420)  : Math.min(400 + streak * 9, 610))
     : (IS_MOBILE ? Math.min(160 + streak * 6, 320)  : Math.min(300 + streak * 10, 520)); }
   function getBarCount()  { return window._qteCompMode
     ? (IS_MOBILE ? Math.min(3 + Math.floor(streak / 3), 6) : Math.min(4 + Math.floor(streak / 2), 8))
     : (IS_MOBILE ? Math.min(2 + Math.floor(streak / 4), 5) : Math.min(3 + Math.floor(streak / 3), 7)); }
   function getZoneStart() { return 0.70; }
   function getZoneWidth() { return window._qteCompMode
-    ? (IS_MOBILE ? Math.max(0.21 - streak * 0.007, 0.10) : Math.max(0.12 - streak * 0.004, 0.06))
+    ? (IS_MOBILE ? Math.max(0.21 - streak * 0.007, 0.10) : Math.max(0.14 - streak * 0.004, 0.07))
     : (IS_MOBILE ? Math.max(0.28 - streak * 0.007, 0.14) : Math.max(0.16 - streak * 0.004, 0.10)); }
 
   function updateHighscore(v) {
