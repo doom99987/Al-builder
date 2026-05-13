@@ -541,6 +541,7 @@
       <button class="sb-menu-item sb-menu-item-venia" onclick="window._closeProfileMenu();window._veniaTrackerOpen?.()">&#9711;&nbsp; Venia Orb Tracker</button>
       <button class="sb-menu-item sb-menu-item-petent" onclick="window._closeProfileMenu();window._petentTrackerOpen?.()">&#9632;&nbsp; Petent Tracker</button>
       <button class="sb-menu-item sb-menu-item-astra" onclick="window._closeProfileMenu();window._astraTrackerOpen?.()">&#9733;&nbsp; Astra Tracker</button>
+      <button class="sb-menu-item" onclick="window._closeProfileMenu();window._overlayToggle?.()">&#9707;&nbsp; UI Overlay</button>
       ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
