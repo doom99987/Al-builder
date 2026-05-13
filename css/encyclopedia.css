@@ -72,6 +72,7 @@
 .enc-type-tab[data-type="Weapon Modifier"].active  { background: #0d1a0e; border-color: #66aa44; color: #88cc66; }
 .enc-type-tab[data-type="Boss"].active             { background: #1a0808; border-color: #cc3333; color: #ee5555; }
 .enc-type-tab[data-type="Mob"].active              { background: #100e0a; border-color: #aa8844; color: #ccaa55; }
+.enc-type-tab[data-type="Mark"].active             { background: #0e0818; border-color: #cc55ee; color: #ee77ff; }
 
 /* ── Two-column body ────────────────────────────────────────────────────── */
 .enc-body {
@@ -96,7 +97,8 @@
 }
 
 /* Section headers */
-.enc-section { display: flex; flex-direction: column; gap: 10px; }
+.enc-section { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.enc-section:has(.enc-weapon-group) { gap: 0; }
 
 .enc-section-hdr {
   display: flex;
@@ -117,6 +119,18 @@
 /* Item grid */
 .enc-grid { display: flex; flex-wrap: wrap; gap: 6px; }
 .enc-grid-column { flex-direction: column; align-items: flex-start; }
+
+/* Weapon family groups */
+.enc-weapon-group { display: flex; flex-direction: column; gap: 6px; }
+.enc-weapon-group-hdr {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #555;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding-top: 6px;
+}
 
 .enc-item-btn {
   background: #0e0e0e;
@@ -232,6 +246,7 @@
 .enc-type-Enchant         { background: #1a1500; color: #ddaa00; border: 1px solid #3a3000; }
 .enc-type-Boss            { background: #1a0808; color: #cc3333; border: 1px solid #3a1010; }
 .enc-type-Mob             { background: #100e0a; color: #aa8844; border: 1px solid #2a2210; }
+.enc-type-Mark            { background: #0e0818; color: #cc55ee; border: 1px solid #2a1040; }
 .enc-type-Base-Class      { background: #1a0e06; color: #e07030; border: 1px solid #3a2010; }
 .enc-type-Super-Class     { background: #140a1e; color: #aa66ee; border: 1px solid #2e1055; }
 .enc-type-Sub-Class       { background: #061818; color: #33bbaa; border: 1px solid #0e3030; }
@@ -467,10 +482,329 @@
   flex-shrink: 0;
 }
 
+/* ── Venia Orb Tracker ───────────────────────────────────────────────────── */
+#venia-tracker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+#venia-tracker-modal {
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 24px;
+  width: min(96vw, 920px);
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.vt-modal-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.vt-modal-title {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+.vt-close-btn {
+  background: none;
+  border: 1px solid #333;
+  border-radius: 5px;
+  color: #777;
+  font-size: 14px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.vt-close-btn:hover { color: #fff; border-color: #666; }
+
+/* Tabs bar */
+.vt-tabs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #1a1a1a;
+  margin-bottom: 2px;
+}
+.vt-tab-wrap {
+  display: flex;
+  align-items: stretch;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #252525;
+  background: #111;
+}
+.vt-tab-wrap.vt-tab-active {
+  border-color: #4a3a88;
+  background: #1a1230;
+}
+.vt-tab-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: color 0.15s;
+  white-space: nowrap;
+}
+.vt-tab-wrap.vt-tab-active .vt-tab-btn { color: #c4b5fd; }
+.vt-tab-btn:hover { color: #aaa; }
+.vt-tab-del {
+  background: none;
+  border: none;
+  border-left: 1px solid #252525;
+  color: #444;
+  font-size: 14px;
+  padding: 4px 7px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+}
+.vt-tab-del:hover { color: #ee5555; background: #2a0f0f; }
+.vt-tab-add {
+  background: none;
+  border: 1px dashed #2a2a2a;
+  border-radius: 4px;
+  color: #484848;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.vt-tab-add:hover { color: #9988dd; border-color: #4a3a88; }
+
+.vt-modal-hint { font-size: 12px; color: #555; margin: 0; }
+.vt-hint-green { color: #55ee77; font-weight: 600; }
+.vt-hint-red   { color: #ee5555; font-weight: 600; }
+
+.vt-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.vt-col { display: flex; flex-direction: column; gap: 3px; }
+.vt-col-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #252525;
+  margin-bottom: 4px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #aaa;
+}
+.vt-col-warn {
+  font-size: 10px;
+  font-weight: 700;
+  color: #cc8833;
+  letter-spacing: 0.3px;
+  margin-left: auto;
+  margin-right: 6px;
+}
+.vt-reset-btn {
+  background: none;
+  border: 1px solid #252525;
+  border-radius: 3px;
+  color: #555;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.12s, border-color 0.12s;
+}
+.vt-reset-btn:hover { color: #cc5555; border-color: #cc5555; }
+
+.vt-cat-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 7px 0 2px;
+}
+.vt-artifact-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: #111;
+  border: 1px solid #1e1e1e;
+  border-radius: 4px;
+  color: #777;
+  font-size: 11px;
+  padding: 5px 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.vt-artifact-row:hover { background: #181818; border-color: #333; color: #ccc; }
+.vt-artifact-icon { font-size: 11px; flex-shrink: 0; width: 12px; text-align: center; }
+
+.vt-state-green { background: #081a0d; border-color: #1a4a25; color: #55ee77; }
+.vt-state-green:hover { background: #0a2010; border-color: #255530; color: #77ff99; }
+.vt-state-red   { background: #1a0808; border-color: #4a1a1a; color: #ee5555; }
+.vt-state-red:hover   { background: #200d0d; border-color: #552525; color: #ff7777; }
+.vt-state-collected { background: #0a0a0a; border-color: #1a1a1a; color: #2a2a2a; }
+.vt-state-collected:hover { background: #111; border-color: #222; color: #333; }
+
+/* Open tracker button inside class card */
+.vt-open-btn {
+  background: #0e0a1a;
+  border: 1px solid #3a2a6a;
+  border-radius: 6px;
+  color: #9977dd;
+  font-size: 12px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 9px 14px;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 4px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.vt-open-btn:hover { background: #150f26; border-color: #5540aa; color: #bbaaff; }
+
+/* ── Astra Tracker ───────────────────────────────────────────────────────── */
+#astra-tracker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#astra-tracker-modal {
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 20px 24px;
+  width: min(560px, 94vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ── Petent Tracker ──────────────────────────────────────────────────────── */
+#petent-tracker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#petent-tracker-modal {
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  padding: 20px 24px;
+  width: min(640px, 94vw);
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pt-loc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+/* Tier bar */
+.pt-tier-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+.pt-tier-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #444;
+  margin-right: 2px;
+}
+.pt-tier-btn {
+  background: #111;
+  border: 1px solid #252525;
+  border-radius: 4px;
+  color: #555;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 14px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.pt-tier-btn:hover { color: #aaa; border-color: #3a3a3a; }
+.pt-tier-btn.pt-tier-active { background: #1a1230; border-color: #4a3a88; color: #c4b5fd; }
+
+/* Info note */
+.pt-info-note {
+  font-size: 11px;
+  color: #4a4a4a;
+  font-style: italic;
+  padding: 2px 0 4px;
+  line-height: 1.5;
+}
+
+.pt-section-hdr {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #444;
+  padding: 8px 0 4px;
+  border-top: 1px solid #1a1a1a;
+  margin-top: 4px;
+}
+.pt-section-hdr:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+.pt-mob-note {
+  font-size: 10px;
+  color: #555;
+  font-style: italic;
+}
+
 /* ── Mobile ─────────────────────────────────────────────────────────────── */
 @media (max-width: 680px) {
   .enc-body { flex-direction: column; }
   .enc-detail-wrap { width: 100%; position: static; }
   .enc-search { width: 100%; }
   .enc-detail-card { max-height: none; }
+  .vt-grid { grid-template-columns: repeat(2, 1fr); }
+  .pt-loc-grid { grid-template-columns: repeat(2, 1fr); }
+  #petent-tracker-modal { padding: 16px; }
 }

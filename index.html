@@ -1040,6 +1040,7 @@
       <button class="enc-type-tab" data-type="Weapon Modifier" onclick="window._encFilter('Weapon Modifier', this)">Weapon Modifier</button>
       <button class="enc-type-tab" data-type="Boss" onclick="window._encFilter('Boss', this)">Boss</button>
       <button class="enc-type-tab" data-type="Mob" onclick="window._encFilter('Mob', this)">Mob</button>
+      <button class="enc-type-tab" data-type="Mark" onclick="window._encFilter('Mark', this)">Mark</button>
     </div>
     <div class="enc-body">
       <div class="enc-list-wrap">
@@ -1069,6 +1070,7 @@
           <div class="enc-class-desc enc-detail-desc"></div>
           <div class="enc-class-passives"></div>
           <div class="enc-class-moves"></div>
+          <div id="enc-class-extras"></div>
         </div>
 
         <!-- Move detail -->
@@ -1127,6 +1129,47 @@
 <script src="js/party.js?v=30"></script>
 <script src="js/builds.js?v=4"></script>
 <script src="js/encyclopedia.js?v=3"></script>
+
+<!-- Venia Orb Tracker Modal -->
+<div id="venia-tracker-overlay" onclick="if(event.target===this)window._veniaTrackerClose()" style="display:none">
+  <div id="venia-tracker-modal">
+    <div class="vt-modal-hdr">
+      <span class="vt-modal-title">Venia Orb Tracker</span>
+      <button class="vt-close-btn" onclick="window._veniaTrackerClose()">✕</button>
+    </div>
+    <div class="vt-tabs-bar" id="venia-tracker-tabs"></div>
+    <div class="pt-tier-bar" id="venia-tracker-tier"></div>
+    <p class="vt-modal-hint">Click once for <span class="vt-hint-green">accepted ✓</span>, again for <span class="vt-hint-red">rejected ✕</span>, once more to clear. Double-click a tab to rename it.</p>
+    <div class="vt-grid" id="venia-tracker-grid"></div>
+  </div>
+</div>
+
+<!-- Petent Tracker Modal -->
+<div id="petent-tracker-overlay" onclick="if(event.target===this)window._petentTrackerClose()" style="display:none">
+  <div id="petent-tracker-modal">
+    <div class="vt-modal-hdr">
+      <span class="vt-modal-title">Petent Tracker</span>
+      <button class="vt-close-btn" onclick="window._petentTrackerClose()">✕</button>
+    </div>
+    <div class="vt-tabs-bar" id="petent-tracker-tabs"></div>
+    <div class="pt-tier-bar" id="petent-tracker-tier"></div>
+    <p class="vt-modal-hint">Click once for <span class="vt-hint-green">done ✓</span>, again for <span class="vt-hint-red">skipped ✕</span>, once more to clear. Tier 1-only items hide when Tier 2+ is selected.</p>
+    <div id="petent-tracker-grid"></div>
+  </div>
+</div>
+
+<!-- Astra Tracker Modal -->
+<div id="astra-tracker-overlay" onclick="if(event.target===this)window._astraTrackerClose()" style="display:none">
+  <div id="astra-tracker-modal">
+    <div class="vt-modal-hdr">
+      <span class="vt-modal-title">Astra Tracker</span>
+      <button class="vt-close-btn" onclick="window._astraTrackerClose()">✕</button>
+    </div>
+    <div class="vt-tabs-bar" id="astra-tracker-tabs"></div>
+    <p class="vt-modal-hint">Click to mark <span class="vt-hint-green">done ✓</span>, click again to clear.</p>
+    <div id="astra-tracker-grid"></div>
+  </div>
+</div>
 <script>
 (function () {
   // ── Value List data: [name, category, value, demand] ─────────────────────

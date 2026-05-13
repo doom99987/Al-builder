@@ -170,6 +170,7 @@
     ['Primordial Sword',      'Weapon',          'A primordial sword. One of the most powerful blades in existence.'],
 
     /* ── ARTIFACTS ────────────────────────────────────────────────────── */
+    ['Celestial Emblem',      'Artifact',        'Crafted by El\'heith at The Forgotten Sanctum using 5 Astral Shards, a Stellian Core, and 15,000 gold. Required to obtain the Astra mark. Must be equipped when initiating fights against specific enemies and Arkhaia, and worn during the wipe.'],
     ['Ancient Insignia',      'Artifact',        'A mark of ancient prestige engraved in metal. Increases all outgoing damage dealt by the wearer.'],
     ["Arkhaia's Visage",      'Artifact',        'A divine mask of mysterious origin. Enhances skill damage and grants a unique defensive passive.'],
     ['Chaos Orb',             'Artifact',        'An orb crackling with unstable chaotic energy. Provides powerful but unpredictable stat bonuses.'],
@@ -266,6 +267,11 @@
     ['Slime King',                   'Boss', 'The ruler of slimes. A mini boss encountered in the early game.'],
     ['Carnis',                       'Boss', 'A carnivorous beast. A mini boss known for aggressive melee attacks.'],
 
+    /* ── MARKS ────────────────────────────────────────────────────────── */
+    ['Petent', 'Mark', 'A cross-wipe progression system earned by completing specific in-game requirements. Advancing a tier requires placing a Void Key in your Soul Vault and wiping. Grants permanent abilities that persist through all future wipes.'],
+    ['Venia',  'Mark', 'A cross-wipe progression system centered around artifact sacrifice and the Midas enchant. Advancing a tier requires wiping while holding the Midas enchant and 50k gold. Grants artifact trading and gold-generating abilities.'],
+    ['Astra',  'Mark', 'A cross-wipe progression system centered around the Celestial Emblem. Requires crafting the emblem, defeating specific enemies, and wiping with it equipped. Grants a star-based ability system that powers support and healing moves.'],
+
     /* ── MOBS ─────────────────────────────────────────────────────────── */
     ['Goblin',            'Mob', ''],
     ['Malevolent Bunny',  'Mob', '~215 HP. Does not gain energy.\n\nHop Kick — 1 hit, 0 energy cost. Blockable and dodgeable.\n\nBlack Warren — Summons another Malevolent Bunny with half the summoner\'s current max HP. Found in Easter encounters.'],
@@ -279,7 +285,7 @@
     'Enchant',
     'Ore', 'Ingredient', 'Weapon', 'Gear',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
-    'Boss', 'Mob',
+    'Boss', 'Mob', 'Mark',
   ];
 
   const TYPE_ICONS = {
@@ -297,10 +303,27 @@
     'Weapon Modifier': '💎',
     'Boss':            '☠',
     'Mob':             '👾',
+    'Mark':            '◉',
   };
 
-  const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear']);
+  const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Mark']);
   const NO_SORT_TYPES = new Set(['Boss', 'Mob']);
+
+  /* Weapon families — order defines display order, prefix used for matching */
+  const WEAPON_GROUPS = [
+    { label: 'Ferrus',      prefix: 'Ferrus ' },
+    { label: 'Blacksteel',  prefix: 'Blacksteel ' },
+    { label: 'Dragon Bone', prefix: 'Dragon Bone ' },
+    { label: 'Corealloy',   prefix: 'Corealloy ' },
+    { label: 'Sun',         prefix: 'Sun ' },
+    { label: 'Ivory',       prefix: 'Ivory ' },
+    { label: 'Jade',        prefix: 'Jade ' },
+    { label: 'Blightrock',  prefix: 'Blightrock/wood ' },
+    { label: 'Icerind',     prefix: 'Icerind ' },
+    { label: 'Darkblood',   prefix: 'Darkblood ' },
+    { label: 'Sandstone',   prefix: 'Sandstone ' },
+    { label: 'Primordial',  prefix: 'Primordial ' },
+  ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
   const BOSS_MOVE_DATA = {
@@ -360,6 +383,60 @@
         { name: 'Shade Slash', type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
           condition: '',
           effect: '30 base damage. Applies 1 Sunder and steals 1 energy if the attack is not blocked or dodged.' },
+      ],
+    },
+  };
+
+  /* ── Mark (Petent) data ─────────────────────────────────────────────────── */
+  const MARK_DATA = {
+    'Petent': {
+      innatePassives: [
+        { name: 'Step 1 — Exploration',  description: 'Visit every location and kill every enemy and boss in the game (with a few exclusions — see the checklist). After completing this, holding a Void Key will make it glow bright pink.' },
+        { name: 'Step 2 — Void Trials',  description: 'Hold a Void Key (only required for the first tier) and jump into the void in Caldera, Desert, and Deeproot. Defeat the enemy of each void trial to receive a Soul Quiver.' },
+        { name: 'Step 3 — Quests',       description: 'Complete every quest in the game (with a few exclusions — refer to the spreadsheet).' },
+        { name: 'Step 4 — Soul Vault Wipe', description: 'Place a Void Key inside your Soul Vault, then wipe by any means. If all previous steps were completed correctly, your Petent tier will increase.' },
+      ],
+      learns: [
+        { name: 'Tier 1 — Rima',         type: 'Passive',
+          effect: 'Grants the item "Rima". Hold it out and say a location name to open a portal — you and your party can travel through it.\n\nLocations unlocked per trial:\n• Zombie Mushroom Trial → Caldera\n• Sand Golem Trial → Ruins, Blades, Volcano\n• Cursed Corpse Trial → Deeproot, Westwood, Cessgrounds' },
+        { name: 'Tier 3 — Conisura',      type: 'Active', cost: 3, cooldown: 10, moveType: 'Magic', damage: 7, scaling: 'STR/ARC',
+          effect: 'Opens a rift on an enemy, sucking out all status effects currently applied to them, then exploding for damage.\n\nBase damage: 7. Increases by 3 per unique status absorbed, or 6 if the status was Hexed. All negative statuses on the target are removed on use.' },
+        { name: 'Tier 5 — Dominioneer',   type: 'Passive',
+          effect: 'Decreases all environmental damage slightly. (Currently bugged and non-functional.)\n\nInnate abilities:\n• You can now fight void trials at any time.\n• After completing a void trial, its linked locations are permanently unlocked on that character and persist through all future wipes.' },
+      ],
+    },
+    'Venia': {
+      innatePassives: [
+        { name: 'Step 1 — Midas Enchant',       description: 'Obtain the Midas enchant.' },
+        { name: 'Step 2 — Sell Lesser Artifacts', description: 'Sell Resplendent Essence, Memory Fragment, Soul Dust, Lineage Shard, and Phoenix Tear in any order. If done correctly you will receive a Soul Quiver. You do not need 50k gold while doing this step.' },
+        { name: 'Step 3 — 50k Gold',             description: 'Accumulate 50,000 gold.' },
+        { name: 'Step 4 — Artifact Sacrifice',   description: 'Sacrifice artifacts to each of the 4 Venia Orbs around the map. Each orb consumes 3 artifacts total. Only unbroken, wanted artifacts count — the artifacts each orb wants persist through all wipes.\n\nOrb Locations (2 of 4 known):\n• Caldera Orb — near the Fists base class trainer at spawn\n• Blades Orb — outside the Blades of the World location, on the path between the two sides of the ravine\n\nAccepted artifacts by source:\n• Lesser Artifacts: Memory Fragment, Soul Dust, Lineage Shard, Phoenix Tear, Resplendent Essence, Void Key, Echo Shard\n• Yar\'thul drops: Reality Watch, Narthana\'s Sigil, Shifting Hourglass\n• Thorian drops: Dark Sigil, Metrom\'s Amulet, Stellian Core\n• Metrom\'s Vessel / Other: Chaos Orb, Skyward Totem' },
+        { name: 'Step 5 — Wipe',                 description: 'Wipe while still holding the Midas enchant and 50k gold on you. If all previous steps were completed correctly, your Venia tier will increase.' },
+      ],
+      learns: [
+        { name: 'Tier 1 — Muto',    type: 'Passive',
+          effect: 'Grants the item "Muto". Use it to sell artifacts for Primal Essence and purchase others. Primal Essence persists on your slot through wipes. Buy/sell ratio is roughly 1:3.5.\n\nPrices:\n• Memory Fragment / Soul Dust — 10 sell | 35 buy\n• Resplendent Essence / Dark Sigil — 100 sell | 350 buy\n• Shifting Hourglass — 100 sell | 245 buy\n• Reality Watch / Narthana\'s Sigil — 80 sell | 280 buy\n• Metrom\'s Amulet — 180 sell | 630 buy\n• Skyward Totem — ??? sell | 1,025 buy' },
+        { name: 'Tier 3 — Permuth', type: 'Active', cost: 2, cooldown: 10, moveType: 'Magic', duration: 2,
+          effect: 'Consumes 5% of your current HP and grants a random stat buff of 40% for 2 turns. ~50% chance to buff your highest invested stat, ~50% chance to buff another stat. Buffs to Endurance result in a defense buff instead. Fails if you don\'t have enough HP.\n\nNote: Stats shown in brackets are not included in stat buff calculations.' },
+        { name: 'Tier 5 — Venian',  type: 'Passive',
+          effect: 'After finishing a fight, you receive gold equal to 5× your current level. Your level is the only factor affecting the gold received.' },
+      ],
+    },
+    'Astra': {
+      innatePassives: [
+        { name: 'Step 1 — Materials',         description: 'Obtain 5 Astral Shards, a Stellian Core, and 15,000 gold.' },
+        { name: 'Step 2 — Celestial Emblem',  description: 'Go to The Forgotten Sanctum and talk to El\'heith. He will craft the Celestial Emblem for you using the materials from Step 1.' },
+        { name: 'Step 3 — Enemy Kills',       description: 'Defeat the following enemies while the Celestial Emblem is equipped. The player with Celestial Emblem must be the one who initiates the fight.\n\n• Astral: Star Slime\n• Crossing: Goblin, Thanasludd, Gon\n• Desert: Night Raider, Duneguard\n• Deeproot: Sentient Darkness, Ptoruco' },
+        { name: 'Step 4 — Defeat Arkhaia',    description: 'Defeat Arkhaia while you have the Celestial Emblem equipped. Either you or someone with Celestial Emblem must initiate the fight.' },
+        { name: 'Step 5 — Wipe',              description: 'Wipe while the Celestial Emblem is equipped. If all previous steps were completed correctly, your Astra tier will increase.' },
+      ],
+      learns: [
+        { name: 'Tier 1 — Starborn', type: 'Passive',
+          effect: 'Whenever you land a critical hit or apply a status effect, you spawn a miniature star. You can hold up to 8 stars at once. Stars are consumed by abilities gained at later tiers.' },
+        { name: 'Tier 3 — Edo',      type: 'Active', cost: 1, cooldown: 8, moveType: 'Magic', duration: 5,
+          effect: 'Requires at least 5 stars active. Consumes 5+ stars to grant everyone on your team a random positive effect.\n\nPossible effects: cleanse, heal, speed boost, defense buff, or increased enchant proc chance.' },
+        { name: 'Tier 5 — Utor',     type: 'Active', cost: 1, cooldown: 7, moveType: 'Magic',
+          effect: 'Consumes 2–4 of your stars to restore HP and energy.\n\n• 2 stars → 20% max HP restored\n• 3 stars → 33% max HP restored\n• 4 stars → 40% max HP restored + 2 energy\n\nAffected by both Incoming and Outgoing heal stats.' },
       ],
     },
   };
@@ -436,6 +513,7 @@
   function getMoveData(idx) {
     const name = ENC_ITEMS[idx][0];
     const type = ENC_ITEMS[idx][1];
+    if (type === 'Mark')   return MARK_DATA[name]      || null;
     if (type === 'Race')   return raceMoves?.[name]   || null;
     if (type === 'Weapon') {
       const key = WEAPON_NAME_MAP[name] ?? name;
@@ -486,65 +564,103 @@
       hdr.innerHTML = `<span class="enc-section-icon">${TYPE_ICONS[type] || ''}</span>${type}<span class="enc-section-count">${items.length}</span>`;
       section.appendChild(hdr);
 
-      const grid = document.createElement('div');
-      grid.className = 'enc-grid' + (type === 'Boss' ? ' enc-grid-column' : '');
-
-      const orderedItems = NO_SORT_TYPES.has(type)
-        ? items
-        : [...items].sort((a, b) => a.it[0].localeCompare(b.it[0]));
-
-      orderedItems.forEach(({ it, i }) => {
-        // Children are rendered by their parent toggle — skip here
-        if (type === 'Boss' && BOSS_CHILD_SET.has(it[0])) return;
-
-        const hasChildren = type === 'Boss' && !!BOSS_CHILDREN[it[0]];
-        const isExpanded  = hasChildren && _expandedBossParents.has(it[0]);
-
-        const btn = document.createElement('button');
-        btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '') + (hasChildren ? ' enc-item-btn-parent' : '');
-        btn.dataset.idx = i;
-
-        if (hasChildren) {
-          btn.innerHTML = `<span>${it[0]}</span><span class="enc-expand-icon">${isExpanded ? '▼' : '▶'}</span>`;
-          btn.querySelector('.enc-expand-icon').addEventListener('click', e => {
-            e.stopPropagation();
-            const pname = it[0];
-            if (_expandedBossParents.has(pname)) _expandedBossParents.delete(pname);
-            else _expandedBossParents.add(pname);
-            render();
+      if (type === 'Weapon') {
+        // Group weapons by family with sub-headers
+        const byFamily = {};
+        WEAPON_GROUPS.forEach(g => { byFamily[g.label] = []; });
+        [...items].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+          const grp = WEAPON_GROUPS.find(g => it[0].startsWith(g.prefix));
+          if (grp) byFamily[grp.label].push({ it, i });
+        });
+        WEAPON_GROUPS.forEach(g => {
+          const gItems = byFamily[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          gItems.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
           });
-        } else {
-          btn.textContent = it[0];
-        }
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
+      } else {
+        const grid = document.createElement('div');
+        grid.className = 'enc-grid' + (type === 'Boss' ? ' enc-grid-column' : '');
 
-        btn.addEventListener('click', () => selectItem(i));
-        grid.appendChild(btn);
+        const orderedItems = NO_SORT_TYPES.has(type)
+          ? items
+          : [...items].sort((a, b) => a.it[0].localeCompare(b.it[0]));
 
-        // Render children below the parent when expanded
-        if (hasChildren && isExpanded) {
-          const childWrap = document.createElement('div');
-          childWrap.className = 'enc-boss-children';
-          BOSS_CHILDREN[it[0]].forEach(childName => {
-            const childIdx = ENC_ITEMS.findIndex(e => e[0] === childName && e[1] === 'Boss');
-            if (childIdx === -1) return;
-            const childBtn = document.createElement('button');
-            childBtn.className = 'enc-item-btn enc-item-btn-child' + (_selectedIdx === childIdx ? ' active' : '');
-            childBtn.dataset.idx = childIdx;
-            childBtn.textContent = childName;
-            childBtn.addEventListener('click', () => selectItem(childIdx));
-            childWrap.appendChild(childBtn);
-          });
-          grid.appendChild(childWrap);
-        }
-      });
+        orderedItems.forEach(({ it, i }) => {
+          // Children are rendered by their parent toggle — skip here
+          if (type === 'Boss' && BOSS_CHILD_SET.has(it[0])) return;
 
-      section.appendChild(grid);
+          const hasChildren = type === 'Boss' && !!BOSS_CHILDREN[it[0]];
+          const isExpanded  = hasChildren && _expandedBossParents.has(it[0]);
+
+          const btn = document.createElement('button');
+          btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '') + (hasChildren ? ' enc-item-btn-parent' : '');
+          btn.dataset.idx = i;
+
+          if (hasChildren) {
+            btn.innerHTML = `<span>${it[0]}</span><span class="enc-expand-icon">${isExpanded ? '▼' : '▶'}</span>`;
+            btn.querySelector('.enc-expand-icon').addEventListener('click', e => {
+              e.stopPropagation();
+              const pname = it[0];
+              if (_expandedBossParents.has(pname)) _expandedBossParents.delete(pname);
+              else _expandedBossParents.add(pname);
+              render();
+            });
+          } else {
+            btn.textContent = it[0];
+          }
+
+          btn.addEventListener('click', () => selectItem(i));
+          grid.appendChild(btn);
+
+          // Render children below the parent when expanded
+          if (hasChildren && isExpanded) {
+            const childWrap = document.createElement('div');
+            childWrap.className = 'enc-boss-children';
+            BOSS_CHILDREN[it[0]].forEach(childName => {
+              const childIdx = ENC_ITEMS.findIndex(e => e[0] === childName && e[1] === 'Boss');
+              if (childIdx === -1) return;
+              const childBtn = document.createElement('button');
+              childBtn.className = 'enc-item-btn enc-item-btn-child' + (_selectedIdx === childIdx ? ' active' : '');
+              childBtn.dataset.idx = childIdx;
+              childBtn.textContent = childName;
+              childBtn.addEventListener('click', () => selectItem(childIdx));
+              childWrap.appendChild(childBtn);
+            });
+            grid.appendChild(childWrap);
+          }
+        });
+
+        section.appendChild(grid);
+      }
       list.appendChild(section);
     });
   }
 
   /* ── Select item ────────────────────────────────────────────────────────── */
   function selectItem(idx) {
+    if (_selectedIdx === idx) {
+      _selectedIdx = -1;
+      document.querySelectorAll('.enc-item-btn').forEach(b => b.classList.remove('active'));
+      showPanel('enc-detail-empty');
+      return;
+    }
     _selectedIdx = idx;
     document.querySelectorAll('.enc-item-btn').forEach(b => {
       b.classList.toggle('active', +b.dataset.idx === idx);
@@ -788,6 +904,33 @@
       }
     }
 
+    // Extras slot (e.g. tracker buttons)
+    const extrasEl = document.getElementById('enc-class-extras');
+    if (extrasEl) {
+      extrasEl.innerHTML = '';
+      if (name === 'Venia') {
+        const btn = document.createElement('button');
+        btn.className = 'vt-open-btn';
+        btn.textContent = 'Open Orb Tracker';
+        btn.addEventListener('click', window._veniaTrackerOpen);
+        extrasEl.appendChild(btn);
+      }
+      if (name === 'Petent') {
+        const btn = document.createElement('button');
+        btn.className = 'vt-open-btn';
+        btn.textContent = 'Open Location Tracker';
+        btn.addEventListener('click', window._petentTrackerOpen);
+        extrasEl.appendChild(btn);
+      }
+      if (name === 'Astra') {
+        const btn = document.createElement('button');
+        btn.className = 'vt-open-btn';
+        btn.textContent = 'Open Astra Tracker';
+        btn.addEventListener('click', window._astraTrackerOpen);
+        extrasEl.appendChild(btn);
+      }
+    }
+
     // Learned moves
     const movesEl = card.querySelector('.enc-class-moves');
     if (movesEl) {
@@ -886,6 +1029,627 @@
     if (_moveSource == null) return;
     if (_moveSource.isBoss) showBossDetail(_moveSource.classIdx);
     else showClassDetail(_moveSource.classIdx);
+  };
+
+  /* ── Venia Orb Tracker ──────────────────────────────────────────────────── */
+  const VENIA_ORBS = ['Caldera Orb', 'Blades Orb', 'Deeproot Orb', 'Icerift Orb'];
+
+  const VENIA_ARTIFACTS = [
+    { name: 'Memory Fragment',     category: 'Lesser Artifact' },
+    { name: 'Soul Dust',           category: 'Lesser Artifact' },
+    { name: 'Lineage Shard',       category: 'Lesser Artifact' },
+    { name: 'Phoenix Tear',        category: 'Lesser Artifact' },
+    { name: 'Resplendent Essence', category: 'Lesser Artifact' },
+    { name: 'Void Key',            category: 'Lesser Artifact' },
+    { name: 'Echo Shard',          category: 'Lesser Artifact' },
+    { name: 'Reality Watch',       category: "Yar'thul Drop" },
+    { name: "Narthana's Sigil",    category: "Yar'thul Drop" },
+    { name: 'Shifting Hourglass',  category: "Yar'thul Drop" },
+    { name: 'Dark Sigil',          category: 'Thorian Drop' },
+    { name: "Metrom's Amulet",     category: 'Thorian Drop' },
+    { name: 'Stellian Core',       category: 'Thorian Drop' },
+    { name: 'Chaos Orb',           category: "Metrom's / Other" },
+    { name: 'Skyward Totem',       category: "Metrom's / Other" },
+  ];
+
+  const VT_KEY = 'al-venia-tracker';
+
+  function vtGetMeta() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(VT_KEY));
+      if (raw && Array.isArray(raw.tabs)) return raw;
+      // migrate old flat format
+      return { tabs: [{ id: 't1', name: 'Run 1', data: raw || {} }], activeTab: 't1' };
+    } catch {
+      return { tabs: [{ id: 't1', name: 'Run 1', data: {} }], activeTab: 't1' };
+    }
+  }
+  function vtSaveMeta(meta)      { localStorage.setItem(VT_KEY, JSON.stringify(meta)); }
+  function vtNewId()             { return 't' + Date.now(); }
+  function vtActiveTab(meta)     { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function vtGetData(meta)       { return vtActiveTab(meta).data; }
+  function vtSetData(meta, d)    { vtActiveTab(meta).data = d; }
+  function vtGet(d, orb, art)    { return d[orb]?.[art] || 0; }
+  function vtGetTier(meta)       { return vtActiveTab(meta).tier || 1; }
+  function vtSetTier(meta, tier) { vtActiveTab(meta).tier = tier; }
+
+  function vtRenderTier() {
+    const el = document.getElementById('venia-tracker-tier');
+    if (!el) return;
+    const meta = vtGetMeta();
+    const tier = vtGetTier(meta);
+    el.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'pt-tier-label';
+    label.textContent = 'Tier:';
+    el.appendChild(label);
+    [1, 2, 3, 4, 5].forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '');
+      btn.textContent = `Tier ${t}`;
+      btn.addEventListener('click', () => {
+        const m = vtGetMeta(); vtSetTier(m, t); vtSaveMeta(m); vtRender();
+      });
+      el.appendChild(btn);
+    });
+  }
+
+  function vtRenderTabs(meta) {
+    const tabsEl = document.getElementById('venia-tracker-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    meta.tabs.forEach(tab => {
+      const wrap = document.createElement('div');
+      wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
+
+      const nameBtn = document.createElement('button');
+      nameBtn.className = 'vt-tab-btn';
+      nameBtn.textContent = tab.name;
+      nameBtn.title = 'Click to switch · Double-click to rename';
+      nameBtn.addEventListener('click', () => {
+        meta.activeTab = tab.id;
+        vtSaveMeta(meta);
+        vtRender();
+      });
+      nameBtn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const newName = prompt('Rename tab:', tab.name);
+        if (newName && newName.trim()) {
+          tab.name = newName.trim();
+          vtSaveMeta(meta);
+          vtRender();
+        }
+      });
+      wrap.appendChild(nameBtn);
+
+      if (meta.tabs.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'vt-tab-del';
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete tab';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!confirm(`Delete "${tab.name}"?`)) return;
+          const idx = meta.tabs.findIndex(t => t.id === tab.id);
+          meta.tabs.splice(idx, 1);
+          if (meta.activeTab === tab.id) {
+            meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
+          }
+          vtSaveMeta(meta);
+          vtRender();
+        });
+        wrap.appendChild(delBtn);
+      }
+
+      tabsEl.appendChild(wrap);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'vt-tab-add';
+    addBtn.textContent = '+ Add Tab';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Tab name:', `Run ${meta.tabs.length + 1}`);
+      if (!name || !name.trim()) return;
+      const id = vtNewId();
+      meta.tabs.push({ id, name: name.trim(), data: {} });
+      meta.activeTab = id;
+      vtSaveMeta(meta);
+      vtRender();
+    });
+    tabsEl.appendChild(addBtn);
+  }
+
+  function vtRender() {
+    const meta = vtGetMeta();
+    const data = vtGetData(meta);
+    const tier = vtGetTier(meta);
+    vtRenderTabs(meta);
+    vtRenderTier();
+
+    const grid = document.getElementById('venia-tracker-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    VENIA_ORBS.forEach(orb => {
+      const col = document.createElement('div');
+      col.className = 'vt-col';
+
+      // Per-column T1 validation: need exactly 3 green before T2+ view activates
+      const greenCount = VENIA_ARTIFACTS.filter(a => vtGet(data, orb, a.name) === 1).length;
+      const colReady   = tier === 1 || greenCount === 3;
+
+      const hdr = document.createElement('div');
+      hdr.className = 'vt-col-hdr';
+      const warnSpan = (tier > 1 && !colReady)
+        ? `<span class="vt-col-warn">${greenCount}/3 T1 picks</span>` : '';
+      hdr.innerHTML = `<span>${orb}</span>${warnSpan}<button class="vt-reset-btn" onclick="window._veniaOrbReset('${CSS.escape(orb)}')">Reset</button>`;
+      col.appendChild(hdr);
+
+      let lastCat = null;
+      VENIA_ARTIFACTS.forEach(a => {
+        if (a.category !== lastCat) {
+          const catDiv = document.createElement('div');
+          catDiv.className = 'vt-cat-label';
+          catDiv.textContent = a.category;
+          col.appendChild(catDiv);
+          lastCat = a.category;
+        }
+        const val = vtGet(data, orb, a.name);
+        // Per-tier pick: separate from T1 state, stored in data.tierPicks[tier][orb][artName]
+        const tierPick = tier > 1 ? (data.tierPicks?.[tier]?.[orb]?.[a.name] || 0) : 0;
+        let cls, icon;
+        if (tier > 1 && colReady) {
+          if (val === 1) {
+            // T1 green: show as green if picked for this tier, dark/unselected otherwise
+            cls  = tierPick ? 'vt-state-green' : 'vt-state-collected';
+            icon = tierPick ? '✓' : '○';
+          } else {
+            // Not picked in T1: always red
+            cls  = 'vt-state-red';
+            icon = '✕';
+          }
+        } else {
+          // T1 view or column not yet valid: normal cycling
+          cls  = val === 1 ? 'vt-state-green' : val === 2 ? 'vt-state-red' : '';
+          icon = val === 1 ? '✓' : val === 2 ? '✕' : '○';
+        }
+        const row = document.createElement('button');
+        row.className = `vt-artifact-row ${cls}`;
+        row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${a.name}</span>`;
+        row.addEventListener('click', () => {
+          const m = vtGetMeta();
+          const d = vtGetData(m);
+          const curTier = vtGetTier(m);
+          const curVal  = vtGet(d, orb, a.name);
+          if (curTier > 1 && curVal === 1) {
+            // Collected item: toggle tier pick only (green ↔ unselected), don't touch T1 state
+            if (!d.tierPicks)                  d.tierPicks = {};
+            if (!d.tierPicks[curTier])         d.tierPicks[curTier] = {};
+            if (!d.tierPicks[curTier][orb])    d.tierPicks[curTier][orb] = {};
+            d.tierPicks[curTier][orb][a.name] = d.tierPicks[curTier][orb][a.name] ? 0 : 1;
+          } else {
+            // T1 view or red item: normal T1 cycle
+            if (!d[orb]) d[orb] = {};
+            d[orb][a.name] = (vtGet(d, orb, a.name) + 1) % 3;
+          }
+          vtSetData(m, d);
+          vtSaveMeta(m);
+          vtRender();
+        });
+        col.appendChild(row);
+      });
+      grid.appendChild(col);
+    });
+  }
+
+  window._veniaTrackerOpen = function () {
+    document.getElementById('venia-tracker-overlay').style.display = 'flex';
+    vtRender();
+  };
+  window._veniaTrackerClose = function () {
+    document.getElementById('venia-tracker-overlay').style.display = 'none';
+  };
+  window._veniaOrbReset = function (orb) {
+    const m = vtGetMeta();
+    const d = vtGetData(m);
+    d[orb] = {};
+    vtSetData(m, d);
+    vtSaveMeta(m);
+    vtRender();
+  };
+
+  /* ── Petent Tracker ─────────────────────────────────────────────────────── */
+  const PETENT_MOBS = [
+    { name: 'Slime',                note: '',            t1: false },
+    { name: 'Thief',                note: '',            t1: false },
+    { name: 'Mushroom',             note: '',            t1: false },
+    { name: 'Grass Spirit',         note: '',            t1: false },
+    { name: 'Goblin',               note: '',            t1: false },
+    { name: 'Gon',                  note: '',            t1: false },
+    { name: 'Thanasludd',           note: '',            t1: false },
+    { name: 'Desert Bandit',        note: '',            t1: false },
+    { name: 'Sand Elemental',       note: '',            t1: false },
+    { name: 'Stray Sandstorm',      note: '',            t1: false },
+    { name: 'Sand Golem',           note: '',            t1: false },
+    { name: 'Night Raider',         note: '',            t1: false },
+    { name: 'Duneguard',            note: '',            t1: false },
+    { name: 'Lava Golem',           note: '',            t1: false },
+    { name: 'Lava Crab',            note: '',            t1: false },
+    { name: 'Fog Spirit',           note: '',            t1: false },
+    { name: 'Venom Shroom',         note: '',            t1: false },
+    { name: 'Cursed Corpse',        note: '',            t1: false },
+    { name: 'Cess Horror',          note: '',            t1: false },
+    { name: 'Sentient Darkness',    note: '',            t1: false },
+    { name: 'Ptoruco',              note: '',            t1: false },
+    { name: 'Shadeblade',           note: 'Tier 1 only', t1: true  },
+    { name: 'Star Slime',           note: '',            t1: false },
+    { name: 'The Smallest Boulder', note: '',            t1: false },
+  ];
+
+  const PETENT_BOSSES = [
+    { name: "Yar'thul",          note: '',            t1: false },
+    { name: 'Thorian',           note: '',            t1: false },
+    { name: 'Handaconda',        note: '',            t1: false },
+    { name: "Metrom's Vessel",   note: 'Tier 1 only', t1: true  },
+  ];
+
+  const PETENT_LOCATIONS = [
+    { name: 'Caldera',                note: '',                         t1: false },
+    { name: 'Crossing',               note: '',                         t1: false },
+    { name: 'Icerift Approach',        note: '',                         t1: false },
+    { name: 'Waving Sands',           note: '',                         t1: false },
+    { name: 'The Old Ruins',          note: '',                         t1: false },
+    { name: 'Sanctuary of the Blades',note: '',                         t1: false },
+    { name: 'Mount Thul',             note: '',                         t1: false },
+    { name: 'Inferno Chamber',        note: "Yar'thul Arena",           t1: false },
+    { name: 'Westwood',               note: '',                         t1: false },
+    { name: 'Deeproot Canopy',        note: '',                         t1: false },
+    { name: 'Deeproot Depths',        note: '',                         t1: false },
+    { name: 'Cessgrounds',            note: '',                         t1: false },
+    { name: 'Amoran Chasm',           note: '',                         t1: false },
+    { name: 'Cursed Remnants',        note: 'Thorian arena',            t1: false },
+    { name: 'Forgotten Sanctum',      note: 'Lifesong',                 t1: false },
+    { name: 'Temporal Jailhouse',     note: 'MV Arena · needed all tiers (bugged)', t1: false },
+    { name: 'Fragmented Jailhouse',   note: 'MV Phase 2',               t1: false },
+    { name: 'Spirit Realm',           note: 'Meditation',               t1: false },
+    { name: 'Illustris',              note: 'Church',                   t1: false },
+    { name: 'Temple of Norn',         note: 'Cult',                     t1: false },
+  ];
+
+  const PETENT_VOID_TRIALS = [
+    { name: 'Zombie Mushroom', note: 'Icerift void', t1: false },
+    { name: 'Sand Golem',      note: '',             t1: false },
+    { name: 'Corpse',          note: '',             t1: false },
+  ];
+
+  const PETENT_QUESTS = [
+    { name: 'Starter Quest (Daze)',    note: '',              t1: false },
+    { name: 'Potion Help',             note: '',              t1: false },
+    { name: 'Package Delivery',        note: '',              t1: false },
+    { name: 'Guild Request Help',      note: '',              t1: false },
+    { name: 'Spare Gold?',             note: '',              t1: false },
+    { name: "Sky Man's Request",       note: '',              t1: false },
+    { name: 'Looking for Help',        note: '',              t1: false },
+    { name: "Bone Man's Request",      note: '',              t1: false },
+    { name: 'Ingredient Help',         note: 'Chaotic',       t1: false },
+    { name: 'Ingredient Help',         note: 'Orderly',       t1: false },
+    { name: 'Taking in the Sights',    note: 'Push the guy',  t1: false },
+    { name: 'Someone Is Going to Die', note: '',              t1: false },
+    { name: 'Crylight Request',        note: '',              t1: false },
+    { name: "Leaf Man's Quest",        note: '',              t1: false },
+    { name: "Tor'run's Final Request", note: '',              t1: false },
+  ];
+
+  const PETENT_FINAL = [
+    { name: 'Place a Void Key into the soul vault', note: '', t1: false },
+  ];
+
+  const PT_KEY = 'al-petent-tracker';
+
+  function ptGetMeta() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(PT_KEY));
+      if (raw && Array.isArray(raw.tabs)) return raw;
+      return { tabs: [{ id: 'p1', name: 'Run 1', tier: 1, data: {} }], activeTab: 'p1' };
+    } catch {
+      return { tabs: [{ id: 'p1', name: 'Run 1', tier: 1, data: {} }], activeTab: 'p1' };
+    }
+  }
+  function ptSaveMeta(meta)      { localStorage.setItem(PT_KEY, JSON.stringify(meta)); }
+  function ptNewId()             { return 'p' + Date.now(); }
+  function ptActiveTab(meta)     { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function ptGetTier(meta)       { return ptActiveTab(meta).tier || 1; }
+  function ptSetTier(meta, tier) { ptActiveTab(meta).tier = tier; }
+  function ptGetData(meta) {
+    const d = ptActiveTab(meta).data;
+    if (!d.locs) d.locs = {}; if (!d.mobs) d.mobs = {}; if (!d.bosses) d.bosses = {};
+    if (!d.quests) d.quests = {}; if (!d.voidTrials) d.voidTrials = {}; if (!d.final) d.final = {};
+    return d;
+  }
+  function ptSetData(meta, d) { ptActiveTab(meta).data = d; }
+
+  function ptRenderTabs(meta) {
+    const tabsEl = document.getElementById('petent-tracker-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    meta.tabs.forEach(tab => {
+      const wrap = document.createElement('div');
+      wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
+      const nameBtn = document.createElement('button');
+      nameBtn.className = 'vt-tab-btn';
+      nameBtn.textContent = tab.name;
+      nameBtn.title = 'Click to switch · Double-click to rename';
+      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; ptSaveMeta(meta); ptRender(); });
+      nameBtn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const newName = prompt('Rename tab:', tab.name);
+        if (newName && newName.trim()) { tab.name = newName.trim(); ptSaveMeta(meta); ptRender(); }
+      });
+      wrap.appendChild(nameBtn);
+      if (meta.tabs.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'vt-tab-del';
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete tab';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!confirm(`Delete "${tab.name}"?`)) return;
+          const idx = meta.tabs.findIndex(t => t.id === tab.id);
+          meta.tabs.splice(idx, 1);
+          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
+          ptSaveMeta(meta); ptRender();
+        });
+        wrap.appendChild(delBtn);
+      }
+      tabsEl.appendChild(wrap);
+    });
+    const addBtn = document.createElement('button');
+    addBtn.className = 'vt-tab-add';
+    addBtn.textContent = '+ Add Tab';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Tab name:', `Run ${meta.tabs.length + 1}`);
+      if (!name || !name.trim()) return;
+      const id = ptNewId();
+      meta.tabs.push({ id, name: name.trim(), tier: 1, data: {} });
+      meta.activeTab = id;
+      ptSaveMeta(meta); ptRender();
+    });
+    tabsEl.appendChild(addBtn);
+  }
+
+  function ptRenderTier() {
+    const el = document.getElementById('petent-tracker-tier');
+    if (!el) return;
+    const meta = ptGetMeta();
+    const tier = ptGetTier(meta);
+    el.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'pt-tier-label';
+    label.textContent = 'Tier:';
+    el.appendChild(label);
+    [1, 2, 3, 4, 5].forEach(t => {
+      const btn = document.createElement('button');
+      btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '');
+      btn.textContent = `Tier ${t}`;
+      btn.addEventListener('click', () => {
+        const m = ptGetMeta(); ptSetTier(m, t); ptSaveMeta(m); ptRender();
+      });
+      el.appendChild(btn);
+    });
+  }
+
+  function ptMakeRow(label, note, val, onClick) {
+    const cls  = val === 1 ? 'vt-state-green' : '';
+    const icon = val === 1 ? '✓' : '○';
+    const row  = document.createElement('button');
+    row.className = `vt-artifact-row ${cls}`;
+    row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${label}${note ? `<span class="pt-mob-note"> (${note})</span>` : ''}</span>`;
+    row.addEventListener('click', onClick);
+    return row;
+  }
+
+  function ptMakeNote(text) {
+    const d = document.createElement('div');
+    d.className = 'pt-info-note';
+    d.textContent = text;
+    return d;
+  }
+
+  function ptAddSection(grid, title, items, dataObj, sectionKey, tier, noteText, questKeys) {
+    const visible = tier > 1 ? items.filter(i => !i.t1) : items;
+    const hdr = document.createElement('div');
+    hdr.className = 'pt-section-hdr';
+    hdr.textContent = title;
+    grid.appendChild(hdr);
+    if (noteText) grid.appendChild(ptMakeNote(noteText));
+    if (visible.length === 0) return;
+    const g = document.createElement('div');
+    g.className = 'pt-loc-grid';
+    visible.forEach((item, idx) => {
+      const key = questKeys ? `${idx}:${item.name}` : item.name;
+      g.appendChild(ptMakeRow(item.name, item.note, (dataObj[sectionKey] || {})[key] || 0, () => {
+        const m = ptGetMeta(); const d = ptGetData(m);
+        d[sectionKey][key] = ((d[sectionKey][key] || 0) + 1) % 2;
+        ptSetData(m, d); ptSaveMeta(m); ptRender();
+      }));
+    });
+    grid.appendChild(g);
+  }
+
+  function ptRender() {
+    const meta = ptGetMeta();
+    const data = ptGetData(meta);
+    const tier = ptGetTier(meta);
+    ptRenderTabs(meta);
+    ptRenderTier();
+    const grid = document.getElementById('petent-tracker-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    ptAddSection(grid, 'Mob Kills — You need the last hit', PETENT_MOBS,       data, 'mobs',       tier, null,  false);
+    ptAddSection(grid, 'Boss Kills — Last hit not required', PETENT_BOSSES,     data, 'bosses',     tier, null,  false);
+    ptAddSection(grid, 'Locations',                          PETENT_LOCATIONS,  data, 'locs',       tier, null,  false);
+    ptAddSection(grid, 'Void Trials',                        PETENT_VOID_TRIALS,data, 'voidTrials', tier,
+      'Hold out a void key before jumping into a void to enter the trials.', false);
+    ptAddSection(grid, 'Quests',                             PETENT_QUESTS,     data, 'quests',     tier,
+      "Daze and Sky Man's Request: if you have soul tree nodes that auto-complete them, just talk to the NPC.", true);
+    ptAddSection(grid, 'Final Steps',                        PETENT_FINAL,      data, 'final',      tier, null,  false);
+    grid.appendChild(ptMakeNote('After completing all of the above, wipe.'));
+  }
+
+  window._petentTrackerOpen = function () {
+    document.getElementById('petent-tracker-overlay').style.display = 'flex';
+    ptRender();
+  };
+  window._petentTrackerClose = function () {
+    document.getElementById('petent-tracker-overlay').style.display = 'none';
+  };
+
+  /* ── Astra Tracker ──────────────────────────────────────────────────────── */
+  const ASTRA_EMBLEM = [
+    { name: '5 Astral Shards', note: '' },
+    { name: 'Stellian Core',   note: '' },
+    { name: '15k Gold',        note: '' },
+  ];
+
+  const ASTRA_ENEMIES = [
+    { name: 'Goblin',            note: '' },
+    { name: 'Thanasludd',        note: '' },
+    { name: 'Gon',               note: '' },
+    { name: 'Duneguard',         note: '' },
+    { name: 'Night Raider',      note: '' },
+    { name: 'Ptoruco',           note: '' },
+    { name: 'Sentient Darkness', note: '' },
+    { name: 'Star Slime',        note: '' },
+    { name: 'Arkhaia',           note: '' },
+  ];
+
+  const AT_KEY = 'al-astra-tracker';
+
+  function atGetMeta() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(AT_KEY));
+      if (raw && Array.isArray(raw.tabs)) return raw;
+      return { tabs: [{ id: 'a1', name: 'Run 1', data: {} }], activeTab: 'a1' };
+    } catch {
+      return { tabs: [{ id: 'a1', name: 'Run 1', data: {} }], activeTab: 'a1' };
+    }
+  }
+  function atSaveMeta(meta)   { localStorage.setItem(AT_KEY, JSON.stringify(meta)); }
+  function atNewId()          { return 'a' + Date.now(); }
+  function atActiveTab(meta)  { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function atGetData(meta)    { const d = atActiveTab(meta).data; if (!d.emblem) d.emblem = {}; if (!d.enemies) d.enemies = {}; return d; }
+  function atSetData(meta, d) { atActiveTab(meta).data = d; }
+
+  function atRenderTabs(meta) {
+    const tabsEl = document.getElementById('astra-tracker-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    meta.tabs.forEach(tab => {
+      const wrap = document.createElement('div');
+      wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
+      const nameBtn = document.createElement('button');
+      nameBtn.className = 'vt-tab-btn';
+      nameBtn.textContent = tab.name;
+      nameBtn.title = 'Click to switch · Double-click to rename';
+      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; atSaveMeta(meta); atRender(); });
+      nameBtn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const newName = prompt('Rename tab:', tab.name);
+        if (newName && newName.trim()) { tab.name = newName.trim(); atSaveMeta(meta); atRender(); }
+      });
+      wrap.appendChild(nameBtn);
+      if (meta.tabs.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'vt-tab-del';
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete tab';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!confirm(`Delete "${tab.name}"?`)) return;
+          const idx = meta.tabs.findIndex(t => t.id === tab.id);
+          meta.tabs.splice(idx, 1);
+          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
+          atSaveMeta(meta); atRender();
+        });
+        wrap.appendChild(delBtn);
+      }
+      tabsEl.appendChild(wrap);
+    });
+    const addBtn = document.createElement('button');
+    addBtn.className = 'vt-tab-add';
+    addBtn.textContent = '+ Add Tab';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Tab name:', `Run ${meta.tabs.length + 1}`);
+      if (!name || !name.trim()) return;
+      const id = atNewId();
+      meta.tabs.push({ id, name: name.trim(), data: {} });
+      meta.activeTab = id;
+      atSaveMeta(meta); atRender();
+    });
+    tabsEl.appendChild(addBtn);
+  }
+
+  function atMakeRow(label, note, val, onClick) {
+    const cls  = val === 1 ? 'vt-state-green' : '';
+    const icon = val === 1 ? '✓' : '○';
+    const row  = document.createElement('button');
+    row.className = `vt-artifact-row ${cls}`;
+    row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${label}${note ? `<span class="pt-mob-note"> (${note})</span>` : ''}</span>`;
+    row.addEventListener('click', onClick);
+    return row;
+  }
+
+  function atRender() {
+    const meta = atGetMeta();
+    const data = atGetData(meta);
+    atRenderTabs(meta);
+    const grid = document.getElementById('astra-tracker-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    // Celestial Emblem section
+    const emblemHdr = document.createElement('div');
+    emblemHdr.className = 'pt-section-hdr';
+    emblemHdr.textContent = 'Celestial Emblem';
+    grid.appendChild(emblemHdr);
+    const emblemGrid = document.createElement('div');
+    emblemGrid.className = 'pt-loc-grid';
+    ASTRA_EMBLEM.forEach(({ name, note }) => {
+      emblemGrid.appendChild(atMakeRow(name, note, data.emblem[name] || 0, () => {
+        const m = atGetMeta(); const d = atGetData(m);
+        d.emblem[name] = ((d.emblem[name] || 0) + 1) % 2;
+        atSetData(m, d); atSaveMeta(m); atRender();
+      }));
+    });
+    grid.appendChild(emblemGrid);
+    const wipeNote = document.createElement('div');
+    wipeNote.className = 'pt-info-note';
+    wipeNote.textContent = 'Make sure to wipe while having the Celestial Emblem equipped.';
+    grid.appendChild(wipeNote);
+
+    // Celestial Enemies section
+    const enemyHdr = document.createElement('div');
+    enemyHdr.className = 'pt-section-hdr';
+    enemyHdr.textContent = 'Celestial Enemies';
+    grid.appendChild(enemyHdr);
+    const enemyGrid = document.createElement('div');
+    enemyGrid.className = 'pt-loc-grid';
+    ASTRA_ENEMIES.forEach(({ name, note }) => {
+      enemyGrid.appendChild(atMakeRow(name, note, data.enemies[name] || 0, () => {
+        const m = atGetMeta(); const d = atGetData(m);
+        d.enemies[name] = ((d.enemies[name] || 0) + 1) % 2;
+        atSetData(m, d); atSaveMeta(m); atRender();
+      }));
+    });
+    grid.appendChild(enemyGrid);
+  }
+
+  window._astraTrackerOpen = function () {
+    document.getElementById('astra-tracker-overlay').style.display = 'flex';
+    atRender();
+  };
+  window._astraTrackerClose = function () {
+    document.getElementById('astra-tracker-overlay').style.display = 'none';
   };
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
