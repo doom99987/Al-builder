@@ -278,6 +278,12 @@
     ['Slime King',                   'Mini Boss', 'The ruler of slimes. A mini boss encountered in the early game.'],
     ['Carnis',                       'Mini Boss', 'A carnivorous beast. A mini boss known for aggressive melee attacks.'],
 
+    /* ── COVENANTS ───────────────────────────────────────────────────── */
+    ['Blades of the World', 'Covenant', 'A gold-focused covenant offering increased guild rewards, a combat active, Mulligan on death, and 2 accessories.\n\nProgression: Donate gold for 1 point, or complete quests on the Blades questboard for 3 points each. Questboard access requires Rank 3.\n\nRank costs: R1: 250G · R3: 750G · R5: ~2,125G / ~5 requests · R10: ~8,125G / ~29 requests (+2 SP) · R13: ~13,375G / ~49 requests · R15: ~17,500G / ~65 requests · R20: ~38,625G / ~116 requests (+3 SP)'],
+    ['Way of Life',         'Covenant', 'A healing covenant offering increased outgoing healing, a heal active, and 2 accessories.\n\nProgression: Donate Mossy Runes — Rank 1 costs 1 rune, all others cost 5 runes each. Runes drop from guild requests and brewing potions (1–4 per reward). Cannot be traded.\n\nRank costs: R1: 1 Rune · R5: 25 Runes · R7: 35 Runes · R10: 50 Runes (+2 SP) · R13: 65 Runes · R15: 75 Runes · R20: 100 Runes (+3 SP)'],
+    ['Church of Raphion',   'Covenant', 'Note: Cannot join if already in another covenant.\n\nHow to join: Speak with Sky Man and give him a Mushroom Cap, Sand Core, and Rot Core. Speak with him again and teleport. Find Mael and speak with him to join.\n\nA support covenant providing cleansing heals, shield abilities, and the ability to teleport to Seraphon.\n\nProgression: Heal an ally or yourself for +2 progression per heal (regen does not count; Ranger\'s Enrichment does). Required healing per rank equals the rank number.\n\nRank costs: R0: On join · R5: 15 total heals · R10: 30 total heals (+2 SP) · R15: 65 total heals · R20: 105 total heals (+3 SP)'],
+    ['Cult of Thanasius',   'Covenant', 'Note: Cannot join if already in another covenant.\n\nHow to join: In Deeproot Depths, find the mirror and choose "Death" then "I wish to become its harbringer" to receive the Prayer active. Use Prayer to fight the Sheea Elementalist and defeat it. Speak with the mirror again to teleport. Find Mephisto and speak with him to join.\n\nA dark covenant providing an execute ability, energy on kill, and the ability to teleport to Arkhaia.\n\nProgression: Gain 1 point per enemy killed. Kills via Soul Absorb grant more progression.\n\nRank costs: R0: On join · R5: 15 total absorbs · R10: 30 total absorbs (+2 SP) · R15: 75 total absorbs · R20: 105 total absorbs (+3 SP)'],
+
     /* ── MARKS ────────────────────────────────────────────────────────── */
     ['Petent', 'Mark', 'A cross-wipe progression system earned by completing specific in-game requirements. Advancing a tier requires placing a Void Key in your Soul Vault and wiping. Grants permanent abilities that persist through all future wipes.'],
     ['Venia',  'Mark', 'A cross-wipe progression system centered around artifact sacrifice and the Midas enchant. Advancing a tier requires wiping while holding the Midas enchant and 50k gold. Grants artifact trading and gold-generating abilities.'],
@@ -318,7 +324,7 @@
     'Ore', 'Ingredient', 'Weapon', 'Gear',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
-    'Boss', 'Mini Boss', 'Mob', 'Mark',
+    'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
   ];
 
   const TYPE_ICONS = {
@@ -338,10 +344,11 @@
     'Boss':            '☠',
     'Mini Boss':       '💀',
     'Mob':             '👾',
+    'Covenant':        '⚑',
     'Mark':            '◉',
   };
 
-  const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Mark']);
+  const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Covenant', 'Mark']);
   const NO_SORT_TYPES = new Set(['Boss', 'Mini Boss', 'Mob']);
 
   /* Weapon families — order defines display order, prefix used for matching */
@@ -472,6 +479,54 @@
           effect: 'Requires at least 5 stars active. Consumes 5+ stars to grant everyone on your team a random positive effect.\n\nPossible effects: cleanse, heal, speed boost, defense buff, or increased enchant proc chance.' },
         { name: 'Tier 5 — Utor',     type: 'Active', cost: 1, cooldown: 7, moveType: 'Magic',
           effect: 'Consumes 2–4 of your stars to restore HP and energy.\n\n• 2 stars → 20% max HP restored\n• 3 stars → 33% max HP restored\n• 4 stars → 40% max HP restored + 2 energy\n\nAffected by both Incoming and Outgoing heal stats.' },
+      ],
+    },
+  };
+
+  /* ── Covenant data ──────────────────────────────────────────────────────── */
+  const COVENANT_DATA = {
+    'Blades of the World': {
+      innatePassives: [],
+      learns: [
+        { level: 1,  type: 'Passive', name: 'Mercenary',            quote: '', effect: 'Gain 50% more gold from guild requests and 3× the potion rewards.' },
+        { level: 3,  type: 'Passive', name: 'Initiate Blade',       quote: '', effect: 'Grants access to the Blades questboard.' },
+        { level: 5,  type: 'Passive', name: "Assassin's Cape",      quote: '', effect: 'Reward item.' },
+        { level: 10, type: 'Active',  name: 'Gilded Strike',        quote: '', cost: 2, cooldown: 9, moveType: 'Holy', category: 'Attack', damage: 12, scaling: 'STR/75', effect: "Gain a portion of the enemy's HP in gold on hit. Increases to 190% with the Avarice passive. Does not work on bosses." },
+        { level: 13, type: 'Passive', name: "Mercenary's Cape",     quote: '', effect: 'Reward item.' },
+        { level: 15, type: 'Passive', name: 'Avarice',              quote: '', effect: 'Gain 30% more gold. The Mysterious Merchant respects you — roughly 30% discount and increased sell prices.' },
+        { level: 20, type: 'Passive', name: 'Blessing of Survival', quote: '', effect: 'Grants Mulligan upon reaching 0 HP — survive 1 more turn with 0.1 HP.' },
+      ],
+    },
+    'Way of Life': {
+      innatePassives: [],
+      learns: [
+        { level: 1,  type: 'Passive', name: 'Gatherer',          quote: '', effect: 'Chance to get double the yield when collecting an ingredient.' },
+        { level: 5,  type: 'Passive', name: 'Lifebound',         quote: '', effect: 'Gives 15% Outgoing Healing.' },
+        { level: 7,  type: 'Passive', name: "Alchemist's Scarf", quote: '', effect: 'Reward item.' },
+        { level: 10, type: 'Active',  name: 'Lesser Heal',       quote: '', cost: 2, cooldown: 6, moveType: 'Nature', scaling: 'Outgoing%', effect: 'Heals a target for a base amount. Scales with Outgoing Healing stat.' },
+        { level: 13, type: 'Passive', name: 'Blindfold',         quote: '', effect: 'Reward item.' },
+        { level: 15, type: 'Passive', name: 'Graced One',        quote: '', effect: 'Lesser Heal now heals for more.' },
+        { level: 20, type: 'Passive', name: 'Blessing of Life',  quote: '', effect: 'Doubles all passive regen in fights and adds an additional 1% max HP regen per turn. Grants 1% max HP passive regen every 3 seconds out of combat.' },
+      ],
+    },
+    'Church of Raphion': {
+      innatePassives: [],
+      learns: [
+        { level: 0,  type: 'Active',  name: 'Bless',            quote: '', cost: 1, cooldown: 5, moveType: 'Holy', category: 'Support', scaling: 'Unknown', effect: 'Clears basic debuffs (Burn, Vulnerable, and others) from a target. Heals them for 2% per type of debuff cleansed.' },
+        { level: 5,  type: 'Passive', name: 'Supporting Light', quote: '', effect: 'After buffing a target, recover some HP and gain a boost to Damage Reduction for 2 turns.' },
+        { level: 10, type: 'Active',  name: 'Holy Light',       quote: '', cost: 2, cooldown: 5, moveType: 'Holy', category: 'Support', scaling: 'END/100', effect: 'Grants the target a 5% DR buff and 0.5% HP regen for 4 turns. Also applies a 20 HP shield (scales with Endurance). Dodging an attack still reduces the shield.' },
+        { level: 15, type: 'Passive', name: 'Spreading Grace',  quote: '', effect: 'Meditating also gives one other party member +1 energy. Getting hit during your meditation creates a burst of healing for your team.' },
+        { level: 20, type: 'Passive', name: 'Consecration',     quote: '', effect: 'Grants the ability to teleport to and host fights against Seraphon.' },
+      ],
+    },
+    'Cult of Thanasius': {
+      innatePassives: [],
+      learns: [
+        { level: 0,  type: 'Active',  name: 'Soul Absorb',        quote: '', cost: 1, cooldown: 4, moveType: 'Dark', category: 'Attack', damage: 2, scaling: 'N/A', effect: 'Deal 2 damage. Instantly kills the enemy if they have 5% or less max HP (2.5% for bosses) and the attack is not blocked or dodged. Blocked, dodged, or Dark-immune targets cannot be executed.' },
+        { level: 5,  type: 'Passive', name: 'Internal Corruption', quote: '', effect: 'Killing enemies grants +2 energy. Summons only gain +1 energy from kills.' },
+        { level: 10, type: 'Active',  name: 'Death Curtain',       quote: '', cost: 2, cooldown: 6, moveType: 'Dark', category: 'Attack', damage: '6×2', scaling: 'STR/75 + ARC/75', effect: 'Rains projectiles on the target and adjacent enemies. Heals 25% of max HP over 4 turns per enemy killed (capped at 2 enemies, 50% total) and grants 1 energy. Deals double damage against Cursed enemies.' },
+        { level: 15, type: 'Passive', name: 'Dark Inversion',      quote: '', effect: 'Dark and Hex affinity attacks deal 10% less damage to you. If such an attack deals more than 20% of your max HP, gain 1 energy.' },
+        { level: 20, type: 'Passive', name: 'Pact of Thanasius',   quote: '', effect: 'Grants the ability to teleport to and host fights against Arkhaia.' },
       ],
     },
   };
@@ -866,7 +921,8 @@
   function getMoveData(idx) {
     const name = ENC_ITEMS[idx][0];
     const type = ENC_ITEMS[idx][1];
-    if (type === 'Mark')   return MARK_DATA[name]      || null;
+    if (type === 'Mark')     return MARK_DATA[name]     || null;
+    if (type === 'Covenant') return COVENANT_DATA[name] || null;
     if (type === 'Race')   return raceMoves?.[name]   || null;
     if (type === 'Weapon') {
       const key = WEAPON_NAME_MAP[name] ?? name;
@@ -1408,12 +1464,12 @@
       if (learns.length) {
         const label = document.createElement('div');
         label.className = 'enc-moves-label';
-        label.textContent = (type === 'Weapon' || type === 'Gear') ? 'Passives & Actives' : 'Moves';
+        label.textContent = (type === 'Weapon' || type === 'Gear') ? 'Passives & Actives' : (type === 'Covenant') ? 'Abilities' : 'Moves';
         movesEl.appendChild(label);
         learns.forEach((m, mi) => {
           const btn = document.createElement('button');
           btn.className = 'enc-move-btn';
-          const lvlText = m.level ? `Lv${m.level}` : '';
+          const lvlText = m.level != null ? (type === 'Covenant' ? `Rank ${m.level}` : `Lv${m.level}`) : '';
           const typeBadge = m.type ? `<span class="enc-move-type-pill enc-mpill-${m.type.toLowerCase()}">${m.type}</span>` : '';
           btn.innerHTML = `<span class="enc-move-btn-name">${m.name}</span><span class="enc-move-btn-meta">${lvlText}${typeBadge}</span>`;
           btn.addEventListener('click', () => showMoveDetail(idx, mi, isRace));
