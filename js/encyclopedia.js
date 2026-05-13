@@ -1271,6 +1271,12 @@
   window._veniaTrackerClose = function () {
     document.getElementById('venia-tracker-overlay').style.display = 'none';
   };
+  let _veniaPopupWin = null;
+  window._veniaTrackerPopout = function () {
+    if (_veniaPopupWin && !_veniaPopupWin.closed) { _veniaPopupWin.focus(); return; }
+    _veniaPopupWin = window.open('../html/tracker-popup.html?tracker=venia', 'alb-venia-popup', 'width=980,height=700,resizable=yes,scrollbars=yes');
+    if (_veniaPopupWin) { _veniaPopupWin.focus(); window._veniaTrackerClose(); }
+  };
   window._veniaOrbReset = function (orb) {
     const m = vtGetMeta();
     const d = vtGetData(m);
@@ -1526,6 +1532,12 @@
   window._petentTrackerClose = function () {
     document.getElementById('petent-tracker-overlay').style.display = 'none';
   };
+  let _petentPopupWin = null;
+  window._petentTrackerPopout = function () {
+    if (_petentPopupWin && !_petentPopupWin.closed) { _petentPopupWin.focus(); return; }
+    _petentPopupWin = window.open('../html/tracker-popup.html?tracker=petent', 'alb-petent-popup', 'width=700,height=700,resizable=yes,scrollbars=yes');
+    if (_petentPopupWin) { _petentPopupWin.focus(); window._petentTrackerClose(); }
+  };
 
   /* ── Astra Tracker ──────────────────────────────────────────────────────── */
   const ASTRA_EMBLEM = [
@@ -1674,6 +1686,19 @@
   window._astraTrackerClose = function () {
     document.getElementById('astra-tracker-overlay').style.display = 'none';
   };
+  let _astraPopupWin = null;
+  window._astraTrackerPopout = function () {
+    if (_astraPopupWin && !_astraPopupWin.closed) { _astraPopupWin.focus(); return; }
+    _astraPopupWin = window.open('../html/tracker-popup.html?tracker=astra', 'alb-astra-popup', 'width=600,height=600,resizable=yes,scrollbars=yes');
+    if (_astraPopupWin) { _astraPopupWin.focus(); window._astraTrackerClose(); }
+  };
+
+  // Re-render open trackers when popup saves changes back to localStorage
+  window.addEventListener('storage', e => {
+    if (e.key === VT_KEY && document.getElementById('venia-tracker-overlay').style.display !== 'none') vtRender();
+    if (e.key === PT_KEY && document.getElementById('petent-tracker-overlay').style.display !== 'none') ptRender();
+    if (e.key === AT_KEY && document.getElementById('astra-tracker-overlay').style.display !== 'none') atRender();
+  });
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
   if (document.readyState === 'loading') {

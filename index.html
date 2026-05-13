@@ -1129,14 +1129,17 @@
 <script src="js/trades.js?v=47"></script>
 <script src="js/party.js?v=30"></script>
 <script src="js/builds.js?v=4"></script>
-<script src="js/encyclopedia.js?v=5"></script>
+<script src="js/encyclopedia.js?v=6"></script>
 
 <!-- Venia Orb Tracker Modal -->
 <div id="venia-tracker-overlay" onclick="if(event.target===this)window._veniaTrackerClose()" style="display:none">
   <div id="venia-tracker-modal">
     <div class="vt-modal-hdr">
       <span class="vt-modal-title">Venia Orb Tracker</span>
-      <button class="vt-close-btn" onclick="window._veniaTrackerClose()">✕</button>
+      <div style="display:flex;gap:6px">
+        <button class="vt-close-btn" onclick="window._veniaTrackerPopout()" title="Pop out">⧉</button>
+        <button class="vt-close-btn" onclick="window._veniaTrackerClose()">✕</button>
+      </div>
     </div>
     <div class="vt-tabs-bar" id="venia-tracker-tabs"></div>
     <div class="pt-tier-bar" id="venia-tracker-tier"></div>
@@ -1150,7 +1153,10 @@
   <div id="petent-tracker-modal">
     <div class="vt-modal-hdr">
       <span class="vt-modal-title">Petent Tracker</span>
-      <button class="vt-close-btn" onclick="window._petentTrackerClose()">✕</button>
+      <div style="display:flex;gap:6px">
+        <button class="vt-close-btn" onclick="window._petentTrackerPopout()" title="Pop out">⧉</button>
+        <button class="vt-close-btn" onclick="window._petentTrackerClose()">✕</button>
+      </div>
     </div>
     <div class="vt-tabs-bar" id="petent-tracker-tabs"></div>
     <div class="pt-tier-bar" id="petent-tracker-tier"></div>
@@ -1164,7 +1170,10 @@
   <div id="astra-tracker-modal">
     <div class="vt-modal-hdr">
       <span class="vt-modal-title">Astra Tracker</span>
-      <button class="vt-close-btn" onclick="window._astraTrackerClose()">✕</button>
+      <div style="display:flex;gap:6px">
+        <button class="vt-close-btn" onclick="window._astraTrackerPopout()" title="Pop out">⧉</button>
+        <button class="vt-close-btn" onclick="window._astraTrackerClose()">✕</button>
+      </div>
     </div>
     <div class="vt-tabs-bar" id="astra-tracker-tabs"></div>
     <p class="vt-modal-hint">Click to mark <span class="vt-hint-green">done ✓</span>, click again to clear.</p>
