@@ -1092,8 +1092,7 @@
       myRankHtml = `<p class="sb-my-rank">You have no score yet this month.${myBest ? ` Your PB: <b>${myBest.score}</b>` : ''}</p>`;
     }
 
-    // Filter out the record holder from monthly rows — they're already shown with the crown
-    const monthlyRows = record ? rows.filter(r => r.user_id !== record.user_id) : rows;
+    const monthlyRows = rows;
     let rank = 0;
     const monthlyRowsHtml = monthlyRows.map(r => {
       rank++;
@@ -1170,8 +1169,7 @@
           <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20)}<span>${esc(rec.username)}</span></div></td>
           <td class="all-lb-score"><b>${rec.score}</b> ${platformBadge(rec.platform)}</td>
         </tr>` : '';
-      // Filter out record holder from monthly rows — already shown with crown
-      const filteredRows = rec ? monthRows.filter(r => r.user_id !== rec.user_id) : monthRows;
+      const filteredRows = monthRows;
       const monthlyHtml = filteredRows.length
         ? filteredRows.map((r, i) => `
             <tr class="${myName && myName === r.username ? 'sb-lb-me' : ''}">
