@@ -456,9 +456,10 @@
 
 /* Boss move detail extras */
 .enc-boss-move-category {
+  display: block;
   font-size: 11px;
   color: #666;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-style: italic;
 }
 .enc-boss-move-condition {
@@ -481,6 +482,59 @@
   text-transform: uppercase;
   letter-spacing: 0.6px;
   flex-shrink: 0;
+}
+
+/* ── Artifact detail extras ─────────────────────────────────────────────── */
+.enc-artifact-from {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 10px;
+}
+.enc-artifact-from-label {
+  color: #555;
+}
+.enc-artifact-from-sep {
+  color: #555;
+}
+.enc-artifact-source {
+  color: #888;
+  font-style: italic;
+}
+.enc-artifact-source-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  color: #c9a84c;
+  text-decoration: underline;
+  text-decoration-color: #7a6030;
+  text-underline-offset: 2px;
+}
+.enc-artifact-source-btn:hover {
+  color: #e8c060;
+}
+.enc-desc-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: inherit;
+  font-family: inherit;
+  color: #c9a84c;
+  text-decoration: underline;
+  text-decoration-color: #7a6030;
+  text-underline-offset: 2px;
+}
+.enc-desc-link:hover {
+  color: #e8c060;
+}
+.enc-artifact-move-meta {
+  font-size: 10px;
+  color: #666;
+  font-weight: 400;
+  margin-left: 2px;
 }
 
 /* ── Venia Orb Tracker ───────────────────────────────────────────────────── */

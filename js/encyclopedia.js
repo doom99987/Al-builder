@@ -170,35 +170,46 @@
     ['Primordial Sword',      'Weapon',          'A primordial sword. One of the most powerful blades in existence.'],
 
     /* ── ARTIFACTS ────────────────────────────────────────────────────── */
-    ['Celestial Emblem',      'Artifact',        'Crafted by El\'heith at The Forgotten Sanctum using 5 Astral Shards, a Stellian Core, and 15,000 gold. Required to obtain the Astra mark. Must be equipped when initiating fights against specific enemies and Arkhaia, and worn during the wipe.'],
-    ['Ancient Insignia',      'Artifact',        'A mark of ancient prestige engraved in metal. Increases all outgoing damage dealt by the wearer.'],
-    ["Arkhaia's Visage",      'Artifact',        'A divine mask of mysterious origin. Enhances skill damage and grants a unique defensive passive.'],
-    ['Chaos Orb',             'Artifact',        'An orb crackling with unstable chaotic energy. Provides powerful but unpredictable stat bonuses.'],
-    ['Dark Sigil',            'Artifact',        'A forbidden sigil carved in shadow. Grants access to shadow abilities and amplifies dark damage output.'],
-    ["Heaven's Authority",    'Artifact',        'A relic bestowing heavenly power upon its holder. Greatly increases both magical and physical output.'],
-    ['Metroms Amulet',        'Artifact',        "An amulet imbued with Metrom's protective power. Significantly increases the wearer's maximum HP."],
-    ["Narthana's Sigil",      'Artifact',        'Blessed by the healer Narthana. Grants passive healing over time and divine protection to the wearer.'],
-    ['Paranoxian Crux',       'Artifact',        "A cursed cross-shaped artifact of dark origin. Grants immense dark power at the cost of the wearer's max HP."],
-    ['Reality Watch',         'Artifact',        'A watch imbued with time-bending magic. Briefly manipulates reality to evade or counter incoming attacks.'],
-    ['Shifting Hourglass',    'Artifact',        'An unstable hourglass from another era. When activated, slows time in a small radius around the wielder.'],
-    ['Stellian Core',         'Artifact',        'Activates above 95% max HP. Grants 30% damage buff and 15% crit rate.'],
+    ['Celestial Emblem',      'Artifact',        ''],
+    ['Ancient Insignia',      'Artifact',        ''],
+    ["Arkhaia's Visage",      'Artifact',        ''],
+    ['Chaos Orb',             'Artifact',        ''],
+    ['Dark Sigil',            'Artifact',        ''],
+    ["Heaven's Authority",    'Artifact',        ''],
+    ['Metroms Amulet',        'Artifact',        ''],
+    ["Narthana's Sigil",      'Artifact',        ''],
+    ['Paranoxian Crux',       'Artifact',        ''],
+    ['Reality Watch',         'Artifact',        ''],
+    ['Shifting Hourglass',    'Artifact',        ''],
+    ['Stellian Core',         'Artifact',        ''],
 
     /* ── LESSER ARTIFACTS ─────────────────────────────────────────────── */
-    ['Echo shard',            'Lesser Artifact', 'A shard that resonates with past actions. Amplifies the effects of repeated techniques.'],
-    ['Lineage Shard',         'Lesser Artifact', "A shard infused with the power of your lineage's history. Required material for legendary-tier crafting."],
-    ['Memory Fragment',       'Lesser Artifact', 'A crystallized fragment of a lost memory. Holds latent power from its original owner.'],
-    ['Phoenix Tear',          'Lesser Artifact', 'A tear shed by a legendary phoenix. Slowly restores HP over time when carried.'],
-    ['Resplendent Essence',   'Lesser Artifact', 'Pure distilled magical essence of exceptional quality. Required for high-level equipment enhancement.'],
-    ['Skyward Totem',         'Lesser Artifact', 'A totem carved with sky motifs. Enhances aerial mobility and air-based abilities.'],
-    ['Soul Dust',             'Lesser Artifact', 'Refined soul energy in powdered form. A core material used in powerful high-tier crafting recipes.'],
-    ['Void Key',              'Lesser Artifact', 'A key forged in the heart of void energy. Unlocks passages to void-touched areas and hidden dungeons.'],
+    ['Echo shard',            'Lesser Artifact', '"A glowing shard of collective memories, holding it floods your mind with techniques you shouldn\'t know."'],
+    ['Lineage Shard',         'Lesser Artifact', ''],
+    ['Memory Fragment',       'Lesser Artifact', ''],
+    ['Phoenix Tear',          'Lesser Artifact', ''],
+    ['Resplendent Essence',   'Lesser Artifact', ''],
+    ['Skyward Totem',         'Lesser Artifact', ''],
+    ['Soul Dust',             'Lesser Artifact', ''],
+    ['Void Key',              'Lesser Artifact', ''],
 
     /* ── WEAPON MODIFIERS ─────────────────────────────────────────────── */
-    ['arcanium crystal',      'Weapon Modifier', 'A rare crystal suffused with arcane energy. When applied to a weapon, greatly enhances its magical damage output.'],
-    ['temperus gem',          'Weapon Modifier', 'A gem used to temper weapons. When socketed, increases a weapon\'s base damage and durability.'],
+    ['arcanium crystal',      'Weapon Modifier', ''],
+    ['temperus gem',          'Weapon Modifier', ''],
 
     /* ── ENCHANTS ─────────────────────────────────────────────────────── */
-    ['Reaper',                'Enchant',         'Requires level 35. Obtained from the Reaper room in the Desert (requires full lives or 1 life in Legendary mode + a Lineage Shard).\n\nOn proc: boosts damage up to 25% based on enemy\'s current HP. Heals for 10% of damage dealt (excluding the Reaper damage boost). Grants regeneration per missing life: 1 life = 1% max HP regen/turn, 2 lives = 2%, 3 lives = 4%. Bonus lives from Daminos, Sheea, and Dullahan count toward this.'],
+    ['Blessed',               'Enchant',         "Obtained from Raphion's Blessing (Seraphon)."],
+    ['Cursed',                'Enchant',         "Requires Level 35. Obtained from Jyphar's Cursed Corpse Cleansing Quest in Deeproot Canopy."],
+    ['Frosted',               'Enchant',         'Only obtainable during the Winter Event. Can be purchased from Sierrka, God of Festivities for 500 Crystallized Joy.'],
+    ['Frost Burn (mod)',       'Enchant',         ''],
+    ['Hiemal',                'Enchant',         'Obtained by defeating Corrupted <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button> and speaking with Thuriaz. You do not need to be the host or be alive to receive it.'],
+    ['Inferno',               'Enchant',         "Requires Level 25. Obtained from the Parkour in Mount'Thul."],
+    ['Ivory',                 'Enchant',         'Obtained during the Easter Event. Can be purchased from the Easter event for 1,000 Egg Shells.'],
+    ['Lifesong',              'Enchant',         'Requires Level 35. Obtained from Narthana\'s Lifesong Quest in The Forgotten Sanctum.'],
+    ['Midas',                 'Enchant',         "Obtained from Lodyssa's Midas Quest in Caldera Tavern."],
+    ['Reaper',                'Enchant',         'Requires Level 35. Obtained from the Reaper room in the Desert — requires full lives, or 1 life in Legendary mode + a Lineage Shard.'],
+    ['Spectral',              'Enchant',         "Obtained from Arkhaia's Curse (Arkhaia)."],
+    ['Storm (mod)',            'Enchant',         ''],
 
     /* ── BASE CLASSES ─────────────────────────────────────────────────── */
     ['Thief',          'Base Class',  'A nimble fighter specializing in quick strikes, bleeding, and gold acquisition. Cost: 200g.\n\nEvolves into: Ranger (Or), Rogue (N), Assassin (Ch)'],
@@ -264,8 +275,8 @@
     ["Metrom's Vessel",              'Boss', 'A vessel containing Metrom\'s immense power. One of the game\'s strongest raid bosses. Resistant to hex and dark.'],
     ['Shadeblade',                   'Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
     ['Handaconda',                   'Boss', 'A colossal serpentine raid boss. Extremely resistant to physical and magic damage, but highly vulnerable to fire.'],
-    ['Slime King',                   'Boss', 'The ruler of slimes. A mini boss encountered in the early game.'],
-    ['Carnis',                       'Boss', 'A carnivorous beast. A mini boss known for aggressive melee attacks.'],
+    ['Slime King',                   'Mini Boss', 'The ruler of slimes. A mini boss encountered in the early game.'],
+    ['Carnis',                       'Mini Boss', 'A carnivorous beast. A mini boss known for aggressive melee attacks.'],
 
     /* ── MARKS ────────────────────────────────────────────────────────── */
     ['Petent', 'Mark', 'A cross-wipe progression system earned by completing specific in-game requirements. Advancing a tier requires placing a Void Key in your Soul Vault and wiping. Grants permanent abilities that persist through all future wipes.'],
@@ -307,7 +318,7 @@
     'Ore', 'Ingredient', 'Weapon', 'Gear',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
-    'Boss', 'Mob', 'Mark',
+    'Boss', 'Mini Boss', 'Mob', 'Mark',
   ];
 
   const TYPE_ICONS = {
@@ -325,12 +336,13 @@
     'Weapon Modifier': '💎',
     'Armour':          '🛡',
     'Boss':            '☠',
+    'Mini Boss':       '💀',
     'Mob':             '👾',
     'Mark':            '◉',
   };
 
   const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Mark']);
-  const NO_SORT_TYPES = new Set(['Boss', 'Mob']);
+  const NO_SORT_TYPES = new Set(['Boss', 'Mini Boss', 'Mob']);
 
   /* Weapon families — order defines display order, prefix used for matching */
   const WEAPON_GROUPS = [
@@ -461,6 +473,324 @@
         { name: 'Tier 5 — Utor',     type: 'Active', cost: 1, cooldown: 7, moveType: 'Magic',
           effect: 'Consumes 2–4 of your stars to restore HP and energy.\n\n• 2 stars → 20% max HP restored\n• 3 stars → 33% max HP restored\n• 4 stars → 40% max HP restored + 2 energy\n\nAffected by both Incoming and Outgoing heal stats.' },
       ],
+    },
+  };
+
+  /* ── Artifact data ──────────────────────────────────────────────────────── */
+  /* obtainableFrom entries: { label, target } where target is the exact ENC_ITEMS name
+     (Boss) or null for non-navigable sources (crafting, etc.)                          */
+  const ARTIFACT_DATA = {
+    'Reality Watch': {
+      obtainableFrom: [
+        { label: "Yar'thul", target: "Yar'Thul, The Blazing Dragon" },
+      ],
+      passives: [],
+      moves: [
+        { name: 'Chronos', cost: 0, cooldown: 12, type: 'N/A', category: 'Buff',
+          effect: 'Saves your point in time for 3 turns, after which time reverts and your health and energy rewind. Will not revive you if you die within these 3 turns.' },
+      ],
+    },
+    "Narthana's Sigil": {
+      obtainableFrom: [
+        { label: "Yar'thul", target: "Yar'Thul, The Blazing Dragon" },
+      ],
+      passives: [
+        { name: 'Empathic Strike', effect: 'When healing 270 HP, will deal X dmg (scales on level) as well as heal X to allies.' },
+      ],
+      moves: [],
+    },
+    'Shifting Hourglass': {
+      obtainableFrom: [
+        { label: "Yar'thul",        target: "Yar'Thul, The Blazing Dragon" },
+        { label: 'Seraphon',        target: 'Seraphon' },
+        { label: "Metrom's Vessel", target: "Metrom's Vessel" },
+      ],
+      passives: [],
+      moves: [
+        { name: 'Sands Of Time', cost: 1, cooldown: 15, type: 'N/A', category: 'Buff',
+          effect: 'Enter Heavy Stun for a turn. If Heavy Stun passes and you haven\'t lost 20% of your HP, gives 20% Dmg buff and DR.\n\nCapped at 5 uses per fight.' },
+      ],
+    },
+    'Dark Sigil': {
+      obtainableFrom: [
+        { label: 'Thorian', target: 'Thorian, The Rotten' },
+        { label: 'Arkhaia', target: 'Arkhaia' },
+      ],
+      passives: [
+        { name: 'Dark Orb', effect: 'After applying 6 different instances of statuses towards opponents, shoot out a Dark Orb at them. Deals damage equal to LVL×2 and applies 2 Vulnerable and 2 Weakened to all opponents.' },
+      ],
+      moves: [],
+    },
+    'Metroms Amulet': {
+      obtainableFrom: [
+        { label: 'Thorian', target: 'Thorian, The Rotten' },
+        { label: 'Arkhaia', target: 'Arkhaia' },
+      ],
+      passives: [
+        { name: 'Overkill Wave', effect: 'When you kill an enemy, the overkill damage is used to scale an AoE attack that hits all enemies, bypassing reflects. Can crit.\n\nNote: Heals Metrom\'s Vessel if used in the raid and cannot damage Seraphon/Arkhaia.' },
+      ],
+      moves: [],
+    },
+    'Stellian Core': {
+      obtainableFrom: [
+        { label: 'Thorian',  target: 'Thorian, The Rotten' },
+        { label: 'Seraphon', target: 'Seraphon' },
+      ],
+      passives: [
+        { name: 'Stellian Empowerment', effect: 'Gives 30% Dmg buff and 15% Crit rate when active. Only activated if you are above 95% of your Max HP.' },
+      ],
+      moves: [],
+    },
+    'Chaos Orb': {
+      obtainableFrom: [
+        { label: "Metrom's Vessel", target: "Metrom's Vessel" },
+      ],
+      passives: [
+        { name: 'Chaotic Cascade', effect: 'When applying a status, you have a 33% chance to apply another status, excluding Heavy Stunned, Fractured, Hex, Stunned, or any boss-exclusive status.\n\nNote: Can apply Ghostflame only if you have the Dullahan race.' },
+      ],
+      moves: [],
+    },
+    'Celestial Emblem': {
+      obtainableFrom: [
+        { label: "Crafted by El'heith (Forgotten Sanctum) — 5 Astral Shards, Stellian Core, 15,000 gold. Cannot be traded.", target: null },
+      ],
+      passives: [
+        { name: 'Celestial Empowerment', effect: 'When fighting a Goblin, Night Raider, Sentient Darkness, Star Slime, or Arkhaia they will become empowered, gaining special effects for each respectively. You must be the one who starts the fight.' },
+      ],
+      moves: [],
+    },
+    "Heaven's Authority": {
+      obtainableFrom: [
+        { label: 'Seraphon', target: 'Seraphon' },
+      ],
+      passives: [],
+      moves: [
+        { name: 'Calling Light', cost: 2, cooldown: 9, type: 'N/A', category: 'Buff',
+          effect: 'Randomly summon one of three Sheeas: Saint, Paladin, or Elementalist. All summons have 250 HP and start with only Strike and Skyward Bolt. If you have their respective weapon type equipped, they gain all abilities of their Super Class.\n\nIf you are at or below 20% Max HP, summon 2 Sheeas instead of 1.' },
+      ],
+    },
+    "Arkhaia's Visage": {
+      obtainableFrom: [
+        { label: 'Arkhaia', target: 'Arkhaia' },
+      ],
+      passives: [],
+      moves: [
+        { name: 'Infernal Pledge', cost: 1, cooldown: 8, type: 'Dark', category: 'Buff',
+          effect: 'Creates a link with an enemy for 3 turns. While active, damage taken is shared with the target. (excludes self damage)' },
+      ],
+    },
+    'Paranoxian Crux': {
+      obtainableFrom: [
+        { label: 'Handaconda', target: 'Handaconda' },
+      ],
+      passives: [
+        { name: 'Crux Conversion', effect: 'When equipped, multiplies your max HP by 1.5×, then sets it to 10% of the new value. The remaining HP is converted into Shield HP. Can stack with other sources of Shield HP.' },
+      ],
+      moves: [
+        { name: 'Congeal Flesh', cost: 'X', cooldown: 6, type: 'Ice', category: 'Buff',
+          effect: 'Restores 15(X)% of your Shield HP, where X is the amount of NRG consumed by the move.' },
+      ],
+    },
+    'Ancient Insignia': {
+      obtainableFrom: [
+        { label: 'Handaconda', target: 'Handaconda' },
+      ],
+      passives: [
+        { name: 'Shifting Stance', effect: 'Start with a random Stance. Stances switch randomly every 3 turns.\n\n• Paper — Gain 1 Resist for each debuff inflicted on you.\n• Rock — Gain 15% Damage Reduction.\n• Scissors — Gain 5 Energy.' },
+      ],
+      moves: [
+        { name: 'Written in Stone', cost: 1, cooldown: 12, type: 'Physical', category: 'Buff',
+          effect: 'Immediately switch your current Stance. The new stance lasts for 4 turns instead of 3.' },
+      ],
+    },
+
+    /* ── Weapon Modifiers ──────────────────────────────────────────────── */
+    'arcanium crystal': {
+      obtainableFrom: [
+        { label: 'Seraphon',        target: 'Seraphon' },
+        { label: 'Arkhaia',         target: 'Arkhaia' },
+        { label: "Metrom's Vessel", target: "Metrom's Vessel" },
+      ],
+      passives: [
+        { name: '', effect: 'Allows you to add 1 shard slot to a weapon at the Shard NPC. Weapons can have a maximum of 7 shard slots.' },
+      ],
+      moves: [],
+    },
+    'temperus gem': {
+      obtainableFrom: [
+        { label: 'Seraphon',        target: 'Seraphon' },
+        { label: 'Arkhaia',         target: 'Arkhaia' },
+        { label: "Metrom's Vessel", target: "Metrom's Vessel" },
+      ],
+      passives: [
+        { name: '', effect: 'Allows you to remove 1 shard from your weapon at the Shard NPC. You can choose which shard to remove and it will be returned to your inventory.' },
+      ],
+      moves: [],
+    },
+
+    /* ── Enchants ──────────────────────────────────────────────────────── */
+    'Blessed': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks build up light within enemies. After 3 stacks it explodes, dealing 2% of the enemy\'s max HP and applying 2 Sundered. Cannot trigger twice in one turn.' },
+      ],
+      moves: [],
+    },
+    'Cursed': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks have a 16.6% chance to apply 3 stacks of one of: Cursed, Poisoned, Blinded, Sundered, Weakened, Vulnerable, or Burning.\n\nGrants immunity to Cess Anomalies in Cessgrounds and removes Cess Horror from encounters in Deeproot Canopy.\n\nIncreases damage by 30% against Cursed enemies or 20% against Sundered enemies. Does not stack — only the highest buff applies.' },
+      ],
+      moves: [],
+    },
+    'Frosted': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks have a ~16% chance to apply 2 Cold. Not increased by Icerind weapon, though Icerind itself can apply 2 Cold.\n\nCritical hits on Cold enemies cause a small AoE explosion (10 base damage, cannot execute targets, scales with damage modifiers). Triggers once per attack, then goes on cooldown.' },
+      ],
+      moves: [],
+    },
+    'Frost Burn (mod)': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks have a ?% chance to inflict Stun.\n\nAttacks have a ?% chance to increase damage dealt by 50%.\n\nOnly one effect can trigger per attack — Stun and the damage increase cannot proc simultaneously.' },
+      ],
+      moves: [],
+    },
+    'Hiemal': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks have a 25% chance to apply 2 Cold and 2 Weakened.\n\nAttacks have a 10% chance to apply 1 Stun.\n\nBoth proc chances are independent and can both trigger on the same attack.' },
+      ],
+      moves: [],
+    },
+    'Inferno': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks have a 25% chance to apply 3 Burning, even if the enemy dodges.\n\nAll attacks deal 20% more damage when Burn is applied, including the attack that inflicts Burning.' },
+      ],
+      moves: [],
+    },
+    'Ivory': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Gaining energy increases all your stats by 4% for 3 turns.' },
+      ],
+      moves: [],
+    },
+    'Lifesong': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'On hitting an enemy or healing an ally (Parasitic Leech lifesteal does not count), you have a ?% chance to trigger a 20% Incoming and Outgoing healing buff for 3 turns. Can only proc once per turn from an attack, and up to 3 times total per turn combined with heals.' },
+      ],
+      moves: [],
+    },
+    'Midas': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Increased drop rates (untested).\n\nGain gold on enemy death.\n\nAttacks have a 16.6% chance to deal 15% extra damage.' },
+      ],
+      moves: [],
+    },
+    'Reaper': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'On proc: boosts damage up to 25% based on the enemy\'s current HP. Also heals for 10% of damage dealt, excluding the Reaper damage boost.\n\nGrants regen per missing life (affected by Outgoing stat):\n• 1 life missing → 1% max HP/turn\n• 2 lives missing → 2% max HP/turn\n• 3 lives missing → 4% max HP/turn\n\nBonus lives from Daminos, Sheea, and Dullahan count. Mortal Trial players receive no regen buff.' },
+      ],
+      moves: [],
+    },
+    'Spectral': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Gives all your attacks a ?% chance to negate all enemy defence.' },
+      ],
+      moves: [],
+    },
+    'Storm (mod)': {
+      obtainableFrom: [],
+      passives: [
+        { name: '', effect: 'Attacks have a ?% chance to inflict Stun.\n\nAttacks have a ?% chance to increase damage dealt by 50%.\n\nOnly one effect can trigger per attack — Stun and the damage increase cannot proc simultaneously.' },
+      ],
+      moves: [],
+    },
+
+    /* ── Lesser Artifacts ──────────────────────────────────────────────── */
+    'Skyward Totem': {
+      obtainableFrom: [
+        { label: 'All Bosses', target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Triggers the Corrupted Skies event. Intended as single use, but does not always consume.\n\nWill not trigger under these conditions:\n• The skies are already corrupted\n• It is an Astral Night\n• You are inside a boss fight instance' },
+      ],
+      moves: [],
+    },
+    'Soul Dust': {
+      obtainableFrom: [
+        { label: 'Mysterious Merchant', target: null },
+        { label: 'All Bosses',          target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Resets your Soul Tree and allows you to reallocate your soul points.' },
+      ],
+      moves: [],
+    },
+    'Memory Fragment': {
+      obtainableFrom: [
+        { label: 'Mysterious Merchant', target: null },
+        { label: 'All Bosses',          target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Resets stat points and the Mastery Tree, and allows you to reallocate your stat points and mastery/breakthrough points.' },
+      ],
+      moves: [],
+    },
+    'Phoenix Tear': {
+      obtainableFrom: [
+        { label: 'Mysterious Merchant', target: null },
+        { label: 'All Bosses',          target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Restores 1 lost life. Has a 4-hour cooldown. Does not work if you have Mortal Trial and cannot give Inferion a 3rd life.' },
+      ],
+      moves: [],
+    },
+    'Lineage Shard': {
+      obtainableFrom: [
+        { label: 'Mysterious Merchant', target: null },
+        { label: 'All Bosses',          target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Wipes your slot and rerolls your race. A confirmation screen appears before use.\n\n(Level requirement: 10)' },
+      ],
+      moves: [],
+    },
+    'Resplendent Essence': {
+      obtainableFrom: [
+        { label: 'Mysterious Merchant', target: null },
+        { label: 'All Bosses',          target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Grants +1 extra slot, regardless of how many you already have. Can only be used once.' },
+      ],
+      moves: [],
+    },
+    'Void Key': {
+      obtainableFrom: [
+        { label: 'Corrupted Bosses', target: null },
+      ],
+      passives: [
+        { name: '', effect: "Grants access to the Metrom's Vessel Raid.\n\nThe key will glow when held once all Petent mark requirements are complete." },
+      ],
+      moves: [],
+    },
+    'Echo shard': {
+      obtainableFrom: [
+        { label: 'All Bosses', target: null },
+      ],
+      passives: [
+        { name: '', effect: 'Gives 1 Breakthrough point usable in the Mastery Tree. Breakthrough points persist through wipes, up to a maximum of 3.' },
+      ],
+      moves: [],
     },
   };
 
@@ -689,10 +1019,12 @@
       b.classList.toggle('active', +b.dataset.idx === idx);
     });
     const type = ENC_ITEMS[idx][1];
-    if (type === 'Boss') {
+    if (type === 'Boss' || type === 'Mini Boss' || type === 'Mob') {
       showBossDetail(idx);
     } else if (CLASS_TYPES.has(type)) {
       showClassDetail(idx);
+    } else if (type === 'Artifact' || type === 'Lesser Artifact' || type === 'Enchant' || type === 'Weapon Modifier') {
+      showArtifactDetail(idx);
     } else {
       showItemDetail(idx);
     }
@@ -704,9 +1036,11 @@
     _currentView = 'item';
     showPanel('enc-detail-card');
 
-    const nameEl = document.getElementById('enc-detail-name');
-    const typeEl = document.getElementById('enc-detail-type');
-    const descEl = document.getElementById('enc-detail-desc');
+    const nameEl  = document.getElementById('enc-detail-name');
+    const typeEl  = document.getElementById('enc-detail-type');
+    const descEl  = document.getElementById('enc-detail-desc');
+    const extraEl = document.getElementById('enc-detail-extra');
+    if (extraEl) extraEl.innerHTML = '';
 
     if (typeEl) {
       typeEl.textContent = (TYPE_ICONS[it[1]] || '') + ' ' + it[1];
@@ -721,6 +1055,118 @@
         descEl.textContent = 'No description available.';
         descEl.classList.add('enc-detail-nodesc');
       }
+    }
+  }
+
+  /* ── Artifact detail panel ─────────────────────────────────────────────── */
+  function showArtifactDetail(idx) {
+    const it   = ENC_ITEMS[idx];
+    const data = ARTIFACT_DATA[it[0]] || null;
+    _currentView = 'item';
+    showPanel('enc-detail-card');
+
+    const nameEl  = document.getElementById('enc-detail-name');
+    const typeEl  = document.getElementById('enc-detail-type');
+    const descEl  = document.getElementById('enc-detail-desc');
+    const extraEl = document.getElementById('enc-detail-extra');
+
+    if (typeEl) {
+      typeEl.textContent = (TYPE_ICONS[it[1]] || '') + ' ' + it[1];
+      typeEl.className   = 'enc-detail-type enc-type-' + it[1].replace(/\s+/g, '-');
+    }
+    if (nameEl) nameEl.textContent = it[0];
+
+    if (descEl) {
+      if (it[2]) {
+        descEl.innerHTML = it[2].replace(/\n/g, '<br>');
+        descEl.classList.remove('enc-detail-nodesc');
+        descEl.querySelectorAll('[data-enc-nav]').forEach(btn => {
+          const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
+          if (targetIdx !== -1) btn.addEventListener('click', () => selectItem(targetIdx));
+        });
+      } else {
+        descEl.textContent = 'No description available.';
+        descEl.classList.add('enc-detail-nodesc');
+      }
+    }
+
+    if (!extraEl) return;
+    extraEl.innerHTML = '';
+
+    if (!data) return;
+
+    if (data.obtainableFrom?.length) {
+      const fromDiv = document.createElement('div');
+      fromDiv.className = 'enc-artifact-from';
+      const lbl = document.createElement('span');
+      lbl.className = 'enc-artifact-from-label';
+      lbl.textContent = 'Obtainable from: ';
+      fromDiv.appendChild(lbl);
+      data.obtainableFrom.forEach((src, i) => {
+        if (i > 0) {
+          const sep = document.createElement('span');
+          sep.className = 'enc-artifact-from-sep';
+          sep.textContent = ', ';
+          fromDiv.appendChild(sep);
+        }
+        if (src.target) {
+          const targetIdx = ENC_ITEMS.findIndex(e => e[0] === src.target);
+          const btn = document.createElement('button');
+          btn.className = 'enc-artifact-source-btn';
+          btn.textContent = src.label;
+          if (targetIdx !== -1) {
+            btn.addEventListener('click', () => selectItem(targetIdx));
+          }
+          fromDiv.appendChild(btn);
+        } else {
+          const span = document.createElement('span');
+          span.className = 'enc-artifact-source';
+          span.textContent = src.label;
+          fromDiv.appendChild(span);
+        }
+      });
+      extraEl.appendChild(fromDiv);
+    }
+
+    if (data.passives?.length) {
+      const passDiv = document.createElement('div');
+      passDiv.className = 'enc-boss-passives';
+      let html = `<div class="enc-boss-section-label">Passive</div>`;
+      data.passives.forEach(p => {
+        const nameHtml = p.name ? `<span class="enc-passive-name">${p.name}</span>` : '';
+        html += `<div class="enc-passive-row">${nameHtml}<span class="enc-passive-desc">${p.effect.replace(/\n/g, '<br>')}</span></div>`;
+      });
+      passDiv.innerHTML = html;
+      extraEl.appendChild(passDiv);
+    }
+
+    if (data.moves?.length) {
+      const movesDiv = document.createElement('div');
+      movesDiv.className = 'enc-boss-moves';
+      const lbl = document.createElement('div');
+      lbl.className = 'enc-boss-section-label';
+      lbl.textContent = 'Active';
+      movesDiv.appendChild(lbl);
+
+      data.moves.forEach(m => {
+        const costText = m.cost !== undefined && m.cost !== '' ? `${m.cost}E` : '';
+        const cdText   = m.cooldown ? `CD${m.cooldown}` : '';
+        const typeText = m.type && m.type !== 'N/A' ? m.type : '';
+        const catText  = m.category || '';
+        const metaStr  = [costText, cdText, typeText].filter(Boolean).join(' · ');
+
+        const row = document.createElement('div');
+        row.className = 'enc-passive-row';
+        let innerHtml = `<span class="enc-passive-name">${m.name}`;
+        if (metaStr) innerHtml += `<span class="enc-artifact-move-meta"> — ${metaStr}</span>`;
+        innerHtml += `</span><span class="enc-passive-desc">`;
+        if (catText) innerHtml += `<span class="enc-boss-move-category">${catText}</span>`;
+        innerHtml += (m.effect || '').replace(/\n/g, '<br>') + `</span>`;
+        row.innerHTML = innerHtml;
+        movesDiv.appendChild(row);
+      });
+
+      extraEl.appendChild(movesDiv);
     }
   }
 
