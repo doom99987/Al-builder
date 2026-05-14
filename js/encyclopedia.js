@@ -34,6 +34,7 @@
     ['Sand Core',             'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Sand Elemental">Sand Elemental</button>, which can be encountered in the Desert.\n\nCan be bought from Mysterious Merchant (Events).'],
     ['Slime Chunk',           'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Slime">Slimes</button>, which can be encountered in Caldera.\n\nCan be bought from Mysterious Merchant (Events).'],
 
+
     /* ── GEAR ─────────────────────────────────────────────────────────── */
     ['7 Leafed Everthisel',   'Gear',            ''],
     ['Arbusta Tear',          'Gear',            ''],
@@ -370,6 +371,26 @@
     ['Breath of Fungyir', 'Lost Scroll', 'Class restriction: Slayer, Warrior.\n\nCost: 4 NRG · Cooldown: 20\nType: Magic · Buff\n\nEnter a stance and unleash a heavy stun on the opponent. Also fully heals your entire team.'],
     ['Heavenly Prayer',   'Lost Scroll', 'Class restriction: Slayer, Warrior, Wizard.\n\nCost: 5 NRG · Cooldown: 22\nType: Holy · Buff · Duration: 3\n\nGrants 10% Lifesteal for 5 turns, 3 Resist, 15% DR for 3 turns, and Death Defy for 2 turns.'],
 
+    /* ── POTIONS ─────────────────────────────────────────────────────── */
+    ['Small Healing Potion',    'Potion', 'Heals a percentage of your HP. Heals approximately 20% of HP at 100 HP, and scales less the higher your HP is.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Slime Chunk">Slime Chunk</button>.'],
+    ['Medium Healing Potion',   'Potion', 'A stronger healing potion. Heals approximately 35% of HP at 100 HP, and scales less the higher your HP is.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Slime Chunk">Slime Chunk</button>, 1 <button class="enc-desc-link" data-enc-nav="Carnastool">Carnastool</button>, 1 <button class="enc-desc-link" data-enc-nav="Hightail">Hightail</button>.'],
+    ['Minor Absorbing Potion',  'Potion', 'Grants 1 Resist upon usage.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Hightail">Hightail</button>, 1 <button class="enc-desc-link" data-enc-nav="Mushroom Cap">Mushroom Cap</button>.'],
+    ['Ferrus Skin Potion',      'Potion', 'Reduces incoming damage by 20% for 3 turns upon usage.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Carnastool">Carnastool</button>, 1 <button class="enc-desc-link" data-enc-nav="Sand Core">Sand Core</button>, 1 <button class="enc-desc-link" data-enc-nav="Mushroom Cap">Mushroom Cap</button>.'],
+    ['Minor Empowering Elixir', 'Potion', 'Grants 15% damage buff for 2 turns upon usage.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Sand Core">Sand Core</button>, 1 <button class="enc-desc-link" data-enc-nav="Carnastool">Carnastool</button>, 1 <button class="enc-desc-link" data-enc-nav="Cryastem">Cryastem</button>.'],
+    ['Minor Energy Elixir',     'Potion', 'Grants Energy upon usage.\n\nUsed inside a fight: grants 2 Energy.\nUsed outside of a fight before joining one: sets your Energy to 1.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Carnastool">Carnastool</button>.'],
+    ['Average Energy Elixir',   'Potion', 'A stronger energy potion.\n\nUsed inside a fight: grants 3 Energy.\nUsed outside of a fight before joining one: sets your Energy to 1.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Cryastem">Cryastem</button>, 1 <button class="enc-desc-link" data-enc-nav="Restless Fragment">Restless Fragment</button>.'],
+    ['Stimulating Brew',        'Potion', 'Grants 15% damage buff and +1 Energy per turn for 2 turns upon usage. Defense down appears to not function.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Rot Core">Rot Core</button>, 1 <button class="enc-desc-link" data-enc-nav="Hightail">Hightail</button>, 2 <button class="enc-desc-link" data-enc-nav="Haze Chunk">Haze Chunk</button>.'],
+    ['Energetic SoulBrew',      'Potion', 'Removes all Energy when consumed and grants a 77.7% damage buff for 1 turn. The buff is always 77.7% regardless of how much Energy is consumed. Energy cannot be gained the following turn.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Rot Core">Rot Core</button>, 1 <button class="enc-desc-link" data-enc-nav="Driproot">Driproot</button>, 1 <button class="enc-desc-link" data-enc-nav="Haze Chunk">Haze Chunk</button>.'],
+    ['Invisibility Potion',     'Potion', 'Grants 2 stacks of Invisibility upon usage.\n\nInvisibility: Increases escape chance and prevents receiving damage or being targeted by most attacks (does not protect against certain moves such as Oblivion).\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Hightail">Hightail</button>, 1 <button class="enc-desc-link" data-enc-nav="Haze Chunk">Haze Chunk</button>, 2 <button class="enc-desc-link" data-enc-nav="Driproot">Driproot</button>.'],
+    ['Rejuvenating Elixir',     'Potion', 'Removes all status debuffs upon usage. Functions like Self Cure but requires no Energy and deals no self-damage.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Restless Fragment">Restless Fragment</button>, 1 <button class="enc-desc-link" data-enc-nav="Hightail">Hightail</button>, 1 <button class="enc-desc-link" data-enc-nav="Haze Chunk">Haze Chunk</button>.'],
+    ['Stoneskin Potion',        'Potion', 'Grants 70% Damage Reduction (85% if guarding) for 2 turns upon usage. Cannot block or dodge during the duration.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Sand Core">Sand Core</button>, 1 <button class="enc-desc-link" data-enc-nav="Driproot">Driproot</button>, 1 <button class="enc-desc-link" data-enc-nav="Restless Fragment">Restless Fragment</button>.'],
+    ['Light of Grace',          'Potion', 'Revives a randomly chosen dead player to half HP during battle.\n\nRecipe: 1 <button class="enc-desc-link" data-enc-nav="Phoenix Tear">Phoenix Tear</button>, 1 <button class="enc-desc-link" data-enc-nav="Crylight">Crylight</button>, 1 <button class="enc-desc-link" data-enc-nav="Haze Chunk">Haze Chunk</button>, 1 <button class="enc-desc-link" data-enc-nav="Sand Core">Sand Core</button>, 1 <button class="enc-desc-link" data-enc-nav="Driproot">Driproot</button>.'],
+    ['Abhorrent Elixir',        'Potion', 'Removes encounter chance for 1 minute. Does not work on the Volcano Bridge.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Cryastem">Cryastem</button>.'],
+    ['Alluring Elixir',         'Potion', 'Increases encounter rates and disables encounter immunity after battle for 2 minutes.\n\nRecipe: 2 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Carnastool">Carnastool</button>.'],
+    ['Heartbreaking Elixir',    'Potion', 'Chaotic alignment potion.\n\nLoses 10% of max HP and grants 2 Chaotic alignment upon use.\n\nRecipe: 3 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Carnastool">Carnastool</button>.'],
+    ['Heartsoothing Remedy',    'Potion', 'Orderly alignment potion.\n\nLoses 10% of max HP and grants 2 Orderly alignment upon use.\n\nRecipe: 3 <button class="enc-desc-link" data-enc-nav="Everthistle">Everthistle</button>, 1 <button class="enc-desc-link" data-enc-nav="Cryastem">Cryastem</button>.'],
+    ['Radiance Elixir',         'Potion', 'Grants +1 extra slot upon usage, regardless of how many slots you already have. Can only be used once. Cannot be traded.\n\nNote: Recipe order matters — Resplendent Essence must be added before Phoenix Tear.\n\nRecipe: 3 <button class="enc-desc-link" data-enc-nav="Resplendent Essence">Resplendent Essence</button>, 1 <button class="enc-desc-link" data-enc-nav="Phoenix Tear">Phoenix Tear</button>.'],
+
     /* ── MISC ────────────────────────────────────────────────────────── */
     ['Pickaxe',                    'Misc', 'A utility item used to mine ore for armor. Costs 50g and can be purchased near the blacksmith in Caldera.'],
     ['Starslime Chunk',            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Star Slime">Star Slime</button>.\n\nHas no purpose other than selling it.'],
@@ -442,7 +463,7 @@
     'Base Class', 'Super Class', 'Sub Class',
     'Race',
     'Enchant',
-    'Ore', 'Ingredient', 'Weapon', 'Gear', 'Misc',
+    'Ore', 'Ingredient', 'Potion', 'Weapon', 'Gear', 'Misc',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
     'Scroll', 'Lost Scroll',
@@ -458,6 +479,7 @@
     'Enchant':         '✧',
     'Ore':             '⛏',
     'Ingredient':      '🌿',
+    'Potion':          '🧪',
     'Weapon':          '🗡',
     'Gear':            '🛡',
     'Artifact':        '◆',
@@ -512,6 +534,12 @@
 
   const MISC_GROUPS = [
     { label: 'Event Items', names: new Set(['Unopened Present (unobtainable)', 'Egg Basket']) },
+  ];
+
+  const POTION_GROUPS = [
+    { label: 'Low Tier', names: new Set(['Small Healing Potion', 'Medium Healing Potion']) },
+    { label: 'Buff',     names: new Set(['Minor Absorbing Potion', 'Ferrus Skin Potion', 'Minor Empowering Elixir', 'Minor Energy Elixir', 'Average Energy Elixir', 'Stimulating Brew', 'Energetic SoulBrew', 'Invisibility Potion', 'Rejuvenating Elixir', 'Stoneskin Potion', 'Light of Grace']) },
+    { label: 'N/A',      names: new Set(['Abhorrent Elixir', 'Alluring Elixir', 'Heartbreaking Elixir', 'Heartsoothing Remedy', 'Radiance Elixir']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -2151,6 +2179,48 @@
         MISC_GROUPS.forEach(g => {
           const gItems = byGroup[g.label];
           if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          gItems.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
+      } else if (type === 'Potion') {
+        const groupedNames = new Set(POTION_GROUPS.flatMap(g => [...g.names]));
+        const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
+        if (ungrouped.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          ungrouped.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byGroup = {};
+        POTION_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          POTION_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
+        });
+        POTION_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
           const groupDiv = document.createElement('div');
           groupDiv.className = 'enc-weapon-group';
           const groupHdr = document.createElement('div');
