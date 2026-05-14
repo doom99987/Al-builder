@@ -30,7 +30,8 @@
       "Bash(grep -v \"^\\\\s*//\")",
       "WebFetch(domain:trello.com)",
       "Bash(grep -v \"\\\\\\\\\\\\\\\\'\")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(grep -n \"^\\\\s*\\\\\".*\\\\\": {$\\\\|^\\\\s*\\\\\".*\\\\\":\\\\s*{$\" js/builder.js)"
     ]
   }
 }
