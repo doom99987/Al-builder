@@ -21,18 +21,18 @@
     ['Laneus Ore',            'Ore',             'Can be mined in the Assassin Trainer cave near the Deeproot Canopy entrance using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: None\n\nSuperclass: Blade Dancer (Adept Warrior), Berserker (Raging Warrior), Elementalist (Arcane Robes), Hexer (Magister Apprentice), Necromancer (Corrupt Caster), Ranger (Lifebound Archer), Assassin (Shadow Cloak), Monk (Traveling Pasmark), Saint (Pathfinder Martyr), Impaler (Bloody Menace), Lionheart (Venerated Legionnaire), Citadel (Fortified Seer), Arbiter (Deathmantle)'],
 
     /* ── INGREDIENTS ──────────────────────────────────────────────────── */
-    ['Carnastool',            'Ingredient',      'A dense mushroom with a meaty texture. Used in basic alchemical recipes.'],
-    ['Cryastem',              'Ingredient',      'A frost-infused plant stem. Provides cold elemental properties to potions and crafted items.'],
-    ['Crylight',              'Ingredient',      'Crystallized magical light with frost essence. A rare ingredient required for advanced frost crafting.'],
-    ['Driproot',              'Ingredient',      'A root that slowly secretes magical sap. Used in restorative and healing brews.'],
-    ['Everthistle',           'Ingredient',      'A resilient thistle that never wilts. Commonly used in endurance and stamina-boosting recipes.'],
-    ['Haze Chunk',            'Ingredient',      'A solidified piece of magical haze. Adds obscurement properties to potions and crafted gear.'],
-    ['Hightail',              'Ingredient',      'Harvested from swift-moving creatures. Adds agility and speed properties when used in crafting.'],
-    ['Mushroom Cap',          'Ingredient',      'A common mushroom cap. Used in the most basic potion and food recipes.'],
-    ['Restless Fragment',     'Ingredient',      'A fragment trembling with residual magical energy. Used in volatile or unstable crafting recipes.'],
-    ['Rot Core',              'Ingredient',      'The decayed core extracted from an undead creature. Used in dark and necromantic crafting.'],
-    ['Sand Core',             'Ingredient',      'The compressed core of a desert creature. Provides earth and sand elemental properties in crafting.'],
-    ['Slime Chunk',           'Ingredient',      'A viscous chunk harvested from slime creatures. Used in adhesive, binding, and alchemical recipes.'],
+    ['Carnastool',            'Ingredient',      'Can be found in the Desert.'],
+    ['Cryastem',              'Ingredient',      'Can be found in Icerift Approach.'],
+    ['Crylight',              'Ingredient',      'Rarely found in place of Everthistle.'],
+    ['Driproot',              'Ingredient',      'Can be found in Deeproot Forest.'],
+    ['Everthistle',           'Ingredient',      'Can be found in the forest around Caldera and Deeproot.'],
+    ['Haze Chunk',            'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Fog Spirit">Fog Spirit</button>, which can be encountered in Deeproot Forest.'],
+    ['Hightail',              'Ingredient',      'Can be found in Deeproot Forest.'],
+    ['Mushroom Cap',          'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Zombie Mushroom">Zombie Mushroom</button> and <button class="enc-desc-link" data-enc-nav="Venom Shroom">Venom Shroom</button>, which can be encountered in Caldera and Deeproot Forest, respectively.\n\nCan be bought from Mysterious Merchant (Events).'],
+    ['Restless Fragment',     'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>, which can be encountered in the Desert.\n\nCan be bought from Mysterious Merchant (Events).'],
+    ['Rot Core',              'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Cess Horror">Cess Horror</button> and Sentient Darkness, which can be encountered in Deeproot Forest.'],
+    ['Sand Core',             'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Sand Elemental">Sand Elemental</button>, which can be encountered in the Desert.\n\nCan be bought from Mysterious Merchant (Events).'],
+    ['Slime Chunk',           'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Slime">Slimes</button>, which can be encountered in Caldera.\n\nCan be bought from Mysterious Merchant (Events).'],
 
     /* ── GEAR ─────────────────────────────────────────────────────────── */
     ['7 Leafed Everthisel',   'Gear',            ''],
@@ -43,7 +43,7 @@
     ['Chocolate Egg',         'Gear',            'A festive egg of mysterious origin. A rare seasonal collectible.'],
     ['Coagulated Finger Nail','Gear',            ''],
     ['Crystal Sphere',        'Gear',            ''],
-    ['Crystalized Star',      'Gear',            ''],
+    ['Crystalized Star',      'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Gon">Gon</button>, <button class="enc-desc-link" data-enc-nav="Thanasludd">Thanasludd</button>, and <button class="enc-desc-link" data-enc-nav="Star Slime">Star Slime</button>.\n\nGain a flat +10 Luck every successful crit for 2 turns. Stacks up to 5 times.'],
     ['Cursed Brand',          'Gear',            'A brand marked with a curse. Grants power at the cost of the wearer\'s stability.'],
     ['Deathbeak Dagger',      'Gear',            ''],
     ['Delicate Purse',        'Gear',            'Grants 200 gold at the end of an encounter. Taking damage during the fight reduces the gold received.'],
@@ -52,6 +52,8 @@
     ['Dragon Memior',         'Gear',            ''],
     ['Dust Devil\'s Eye',     'Gear',            ''],
     ['Dust Storm',            'Gear',            ''],
+    ['Ramizcan Idol',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nGrants a 15% damage buff for 1 turn after blocking or parrying.'],
+    ['Grain Of Balance (BUGGED?)', 'Gear',       'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nTakes 25% off of your highest stat and distributes it across all stats.'],
     ['Egg Shelmet',           'Gear',            'A helmet fashioned from a giant egg shell. Provides modest protection.'],
     ['Elemental Infuser',     'Gear',            ''],
     ['Elementary Resonance',  'Gear',            ''],
@@ -88,7 +90,7 @@
     ['Ramzicon Idol',         'Gear',            ''],
     ['Sanguine Fang',         'Gear',            ''],
     ['Shard of Blight',       'Gear',            ''],
-    ['Shattered Clockhand',   'Gear',            ''],
+    ['Shattered Clockhand',   'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Thief">Thief (Mob)</button>.\n\nWhen using Strike, you have a 30% chance to decrease all your move cooldowns by 1 turn.'],
     ['Snorb',                 'Gear',            ''],
     ['Spiked Steel Ball',     'Gear',            'Passive: 30–40% chance to apply 1 Vulnerable and 1 Weakened on hit. Deals an additional 35% damage when this effect procs.'],
     ['Spore Root',            'Gear',            ''],
@@ -101,6 +103,7 @@
     ["Traveler's Lamp",       'Gear',            ''],
     ['Vainglorious Locket',   'Gear',            ''],
     ['Vow of Ruin',           'Gear',            ''],
+    ['Blazing Brand',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Magma Golem">Magma Golem</button>.\n\nWhen enemies attack your summons, they take small damage and receive 3 Burn.'],
     ['Vulcan Knuckle',        'Gear',            ''],
     ['Wicked Crown',          'Gear',            ''],
     ["Yarthul's Wrath",       'Gear',            ''],
@@ -233,33 +236,33 @@
     ['Storm (mod)',            'Enchant',         ''],
 
     /* ── BASE CLASSES ─────────────────────────────────────────────────── */
-    ['Thief',          'Base Class',  'A nimble fighter specializing in quick strikes, bleeding, and gold acquisition. Cost: 200g.\n\nEvolves into: Ranger (Or), Rogue (N), Assassin (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Boots, The Thief">Boots, The Thief</button>'],
-    ['Warrior',        'Base Class',  'A sturdy front-line fighter with balanced offense and defense. Cost: 200g.\n\nEvolves into: Paladin (Or), Blade Dancer (N), Berserker (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ysa, The Warrior">Ysa, The Warrior</button>'],
-    ['Wizard',         'Base Class',  'A powerful magic caster wielding elemental and arcane energy. Cost: 120g.\n\nEvolves into: Elementalist (Or), Hexer (N), Necromancer (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Arandor, The Wizard">Arandor, The Wizard</button>'],
-    ['Martial Artist', 'Base Class',  'A disciplined hand-to-hand combatant focused on energy management and precise strikes. Cost: 220g.\n\nEvolves into: Monk (Or), Brawler (N), Darkwraith (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Doran, The Martial Artist">Doran, The Martial Artist</button>'],
-    ['Slayer',         'Base Class',  'An aggressive fighter built for high single-target damage output. Cost: 200g.\n\nEvolves into: Saint (Or), Lancer (N), Impaler (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Tivek, The Slayer">Tivek, The Slayer</button>'],
-    ['Marauder',       'Base Class',  'A heavy-hitting brawler that overpowers enemies with raw force. Cost: Unknown.\n\nEvolves into: Lionheart (N)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Geron, the Marauder">Geron, the Marauder</button>'],
-    ['Sentry',         'Base Class',  'A defensive support class focused on protection and battlefield control. Cost: 500g.\n\nEvolves into: Citadel (Or), Arbiter (N)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Lagolt, the Sentry">Lagolt, the Sentry</button>'],
+    ['Thief',          'Base Class',  'A nimble fighter specializing in quick strikes, bleeding, and gold acquisition. Cost: 200g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Ranger (Or)">Ranger (Or)</button>, <button class="enc-desc-link" data-enc-nav="Rogue (N)">Rogue (N)</button>, <button class="enc-desc-link" data-enc-nav="Assassin (Ch)">Assassin (Ch)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Boots, The Thief">Boots, The Thief</button>'],
+    ['Warrior',        'Base Class',  'A sturdy front-line fighter with balanced offense and defense. Cost: 200g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Paladin (Or)">Paladin (Or)</button>, <button class="enc-desc-link" data-enc-nav="Blade Dancer (N)">Blade Dancer (N)</button>, <button class="enc-desc-link" data-enc-nav="Berserker (Ch)">Berserker (Ch)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ysa, The Warrior">Ysa, The Warrior</button>'],
+    ['Wizard',         'Base Class',  'A powerful magic caster wielding elemental and arcane energy. Cost: 120g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Elementalist (Or)">Elementalist (Or)</button>, <button class="enc-desc-link" data-enc-nav="Hexer (N)">Hexer (N)</button>, <button class="enc-desc-link" data-enc-nav="Necromancer (Ch)">Necromancer (Ch)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Arandor, The Wizard">Arandor, The Wizard</button>'],
+    ['Martial Artist', 'Base Class',  'A disciplined hand-to-hand combatant focused on energy management and precise strikes. Cost: 220g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Monk (Or)">Monk (Or)</button>, <button class="enc-desc-link" data-enc-nav="Brawler (N)">Brawler (N)</button>, <button class="enc-desc-link" data-enc-nav="Darkwraith (Ch)">Darkwraith (Ch)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Doran, The Martial Artist">Doran, The Martial Artist</button>'],
+    ['Slayer',         'Base Class',  'An aggressive fighter built for high single-target damage output. Cost: 200g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Saint (Or)">Saint (Or)</button>, <button class="enc-desc-link" data-enc-nav="Lancer (N)">Lancer (N)</button>, <button class="enc-desc-link" data-enc-nav="Impaler (Ch)">Impaler (Ch)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Tivek, The Slayer">Tivek, The Slayer</button>'],
+    ['Marauder',       'Base Class',  'A heavy-hitting brawler that overpowers enemies with raw force. Cost: Unknown.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Lionheart (N)">Lionheart (N)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Geron, the Marauder">Geron, the Marauder</button>'],
+    ['Sentry',         'Base Class',  'A defensive support class focused on protection and battlefield control. Cost: 500g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Citadel (Or)">Citadel (Or)</button>, <button class="enc-desc-link" data-enc-nav="Arbiter (N)">Arbiter (N)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Lagolt, the Sentry">Lagolt, the Sentry</button>'],
 
     /* ── SUPER CLASSES ────────────────────────────────────────────────── */
-    ['Ranger (Or)',       'Super Class', 'Thief → Orthodox path. Cost: 2,000g.\n\nA mobile crit-and-speed-focused fighter with nature magic. Gains damage and speed buffs on every dodge or crit. Strike scales with Arcane.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orkin, Lifebound Archer">Orkin, Lifebound Archer</button>'],
-    ['Rogue (N)',         'Super Class', 'Thief → Neutral path. Cost: 3,750g.\n\nA stealth and burst-damage specialist that excels at bleed stacking and high single-hit damage.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Aberon, Rogue Hunter">Aberon, Rogue Hunter</button>'],
-    ['Assassin (Ch)',     'Super Class', 'Thief → Chaotic path. Cost: 2,000g.\n\nA high-damage finisher focused on critical bursts and eliminating targets before they can react.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Inette, Shadow Cloak">Inette, Shadow Cloak</button>'],
-    ['Paladin (Or)',      'Super Class', 'Warrior → Orthodox path. Cost: 2,400g.\n\nA holy warrior combining frontline tanking with healing and divine protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Dernon, Paladin Warrior">Dernon, Paladin Warrior</button>'],
-    ['Blade Dancer (N)',  'Super Class', 'Warrior → Neutral path. Cost: 3,750g.\n\nA speed-based swordsman with flowing combo attacks and high mobility.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Leoran, Adept Warrior">Leoran, Adept Warrior</button>'],
-    ['Berserker (Ch)',    'Super Class', 'Warrior → Chaotic path. Cost: 2,000g.\n\nA rage-fueled fighter that deals massive damage at the cost of defense.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Kayrein, Raging Warrior">Kayrein, Raging Warrior</button>'],
-    ['Elementalist (Or)','Super Class', 'Wizard → Orthodox path. Cost: 2,000g.\n\nA master of all elements wielding powerful area-of-effect attacks and multi-element combinations.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Landrum, Arcane Trainer">Landrum, Arcane Trainer</button>'],
-    ['Hexer (N)',         'Super Class', 'Wizard → Neutral path. Cost: 3,750g.\n\nA debuffer and status effect specialist who weakens enemies and turns their strengths against them.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ophelia, Magister Apprentice">Ophelia, Magister Apprentice</button>'],
-    ['Necromancer (Ch)', 'Super Class', 'Wizard → Chaotic path. Cost: 2,000g.\n\nCommands undead minions and drains the life force of enemies to sustain itself.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ulys, Corrupt Caster">Ulys, Corrupt Caster</button>'],
-    ['Monk (Or)',         'Super Class', 'Martial Artist → Orthodox path. Cost: 2,400g.\n\nA balanced fighter using focus, precision, and inner power to overcome enemies.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Luther, Traveling Pasmark">Luther, Traveling Pasmark</button>'],
-    ['Brawler (N)',       'Super Class', 'Martial Artist → Neutral path. Cost: 3,750g.\n\nA pure melee powerhouse with crushing combos and unrelenting close-range pressure.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Gren, Wandering Practitioner">Gren, Wandering Practitioner</button>'],
-    ['Darkwraith (Ch)',   'Super Class', 'Martial Artist → Chaotic path. Cost: 2,000g.\n\nA corrupted fighter channeling dark energy to deliver devastating blows and powerful debuffs.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Momma Darkbeast, Mother of Dark">Momma Darkbeast, Mother of Dark</button>'],
-    ['Saint (Or)',        'Super Class', 'Slayer → Orthodox path. Cost: 2,000g.\n\nA holy healer and divine support class focused on protecting and restoring allies.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Fernain, Pathfinder Martyr">Fernain, Pathfinder Martyr</button>'],
-    ['Lancer (N)',        'Super Class', 'Slayer → Neutral path. Cost: 3,750g.\n\nA spear-specialized high-damage dealer with superior range and piercing attacks.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Relan, Armored Lancer">Relan, Armored Lancer</button>'],
-    ['Impaler (Ch)',      'Super Class', 'Slayer → Chaotic path. Cost: 2,400g.\n\nAn aggressive spear fighter that delivers devastating piercing attacks to single targets.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orin, Bloody Menace">Orin, Bloody Menace</button>'],
-    ['Lionheart (N)',     'Super Class', 'Marauder → Neutral path. Cost: 6,250g.\n\nA fearless warrior with overwhelming power and unmatched tenacity in battle.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ardentis, Venerated Legionnaire">Ardentis, Venerated Legionnaire</button>'],
-    ['Citadel (Or)',      'Super Class', 'Sentry → Orthodox path. Cost: 2,000g.\n\nA near-impenetrable fortress tank with extreme damage reduction and team protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Nevithas, Fortified Seer">Nevithas, Fortified Seer</button>'],
-    ['Arbiter (N)',       'Super Class', 'Sentry → Neutral path. Cost: 6,250g.\n\nA judge-like fighter that controls the battlefield and punishes enemies who break the rules.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Kether, Deathmantle">Kether, Deathmantle</button>'],
+    ['Ranger (Or)',       'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Orthodox path. Cost: 2,000g.\n\nA mobile crit-and-speed-focused fighter with nature magic. Gains damage and speed buffs on every dodge or crit. Strike scales with Arcane.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orkin, Lifebound Archer">Orkin, Lifebound Archer</button>'],
+    ['Rogue (N)',         'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Neutral path. Cost: 3,750g.\n\nA stealth and burst-damage specialist that excels at bleed stacking and high single-hit damage.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Aberon, Rogue Hunter">Aberon, Rogue Hunter</button>'],
+    ['Assassin (Ch)',     'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Chaotic path. Cost: 2,000g.\n\nA high-damage finisher focused on critical bursts and eliminating targets before they can react.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Inette, Shadow Cloak">Inette, Shadow Cloak</button>'],
+    ['Paladin (Or)',      'Super Class', '<button class="enc-desc-link" data-enc-nav="Warrior">Warrior</button> → Orthodox path. Cost: 2,400g.\n\nA holy warrior combining frontline tanking with healing and divine protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Dernon, Paladin Warrior">Dernon, Paladin Warrior</button>'],
+    ['Blade Dancer (N)',  'Super Class', '<button class="enc-desc-link" data-enc-nav="Warrior">Warrior</button> → Neutral path. Cost: 3,750g.\n\nA speed-based swordsman with flowing combo attacks and high mobility.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Leoran, Adept Warrior">Leoran, Adept Warrior</button>'],
+    ['Berserker (Ch)',    'Super Class', '<button class="enc-desc-link" data-enc-nav="Warrior">Warrior</button> → Chaotic path. Cost: 2,000g.\n\nA rage-fueled fighter that deals massive damage at the cost of defense.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Kayrein, Raging Warrior">Kayrein, Raging Warrior</button>'],
+    ['Elementalist (Or)','Super Class', '<button class="enc-desc-link" data-enc-nav="Wizard">Wizard</button> → Orthodox path. Cost: 2,000g.\n\nA master of all elements wielding powerful area-of-effect attacks and multi-element combinations.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Landrum, Arcane Trainer">Landrum, Arcane Trainer</button>'],
+    ['Hexer (N)',         'Super Class', '<button class="enc-desc-link" data-enc-nav="Wizard">Wizard</button> → Neutral path. Cost: 3,750g.\n\nA debuffer and status effect specialist who weakens enemies and turns their strengths against them.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ophelia, Magister Apprentice">Ophelia, Magister Apprentice</button>'],
+    ['Necromancer (Ch)', 'Super Class', '<button class="enc-desc-link" data-enc-nav="Wizard">Wizard</button> → Chaotic path. Cost: 2,000g.\n\nCommands undead minions and drains the life force of enemies to sustain itself.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ulys, Corrupt Caster">Ulys, Corrupt Caster</button>'],
+    ['Monk (Or)',         'Super Class', '<button class="enc-desc-link" data-enc-nav="Martial Artist">Martial Artist</button> → Orthodox path. Cost: 2,400g.\n\nA balanced fighter using focus, precision, and inner power to overcome enemies.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Luther, Traveling Pasmark">Luther, Traveling Pasmark</button>'],
+    ['Brawler (N)',       'Super Class', '<button class="enc-desc-link" data-enc-nav="Martial Artist">Martial Artist</button> → Neutral path. Cost: 3,750g.\n\nA pure melee powerhouse with crushing combos and unrelenting close-range pressure.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Gren, Wandering Practitioner">Gren, Wandering Practitioner</button>'],
+    ['Darkwraith (Ch)',   'Super Class', '<button class="enc-desc-link" data-enc-nav="Martial Artist">Martial Artist</button> → Chaotic path. Cost: 2,000g.\n\nA corrupted fighter channeling dark energy to deliver devastating blows and powerful debuffs.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Momma Darkbeast, Mother of Dark">Momma Darkbeast, Mother of Dark</button>'],
+    ['Saint (Or)',        'Super Class', '<button class="enc-desc-link" data-enc-nav="Slayer">Slayer</button> → Orthodox path. Cost: 2,000g.\n\nA holy healer and divine support class focused on protecting and restoring allies.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Fernain, Pathfinder Martyr">Fernain, Pathfinder Martyr</button>'],
+    ['Lancer (N)',        'Super Class', '<button class="enc-desc-link" data-enc-nav="Slayer">Slayer</button> → Neutral path. Cost: 3,750g.\n\nA spear-specialized high-damage dealer with superior range and piercing attacks.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Relan, Armored Lancer">Relan, Armored Lancer</button>'],
+    ['Impaler (Ch)',      'Super Class', '<button class="enc-desc-link" data-enc-nav="Slayer">Slayer</button> → Chaotic path. Cost: 2,400g.\n\nAn aggressive spear fighter that delivers devastating piercing attacks to single targets.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orin, Bloody Menace">Orin, Bloody Menace</button>'],
+    ['Lionheart (N)',     'Super Class', '<button class="enc-desc-link" data-enc-nav="Marauder">Marauder</button> → Neutral path. Cost: 6,250g.\n\nA fearless warrior with overwhelming power and unmatched tenacity in battle.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ardentis, Venerated Legionnaire">Ardentis, Venerated Legionnaire</button>'],
+    ['Citadel (Or)',      'Super Class', '<button class="enc-desc-link" data-enc-nav="Sentry">Sentry</button> → Orthodox path. Cost: 2,000g.\n\nA near-impenetrable fortress tank with extreme damage reduction and team protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Nevithas, Fortified Seer">Nevithas, Fortified Seer</button>'],
+    ['Arbiter (N)',       'Super Class', '<button class="enc-desc-link" data-enc-nav="Sentry">Sentry</button> → Neutral path. Cost: 6,250g.\n\nA judge-like fighter that controls the battlefield and punishes enemies who break the rules.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Kether, Deathmantle">Kether, Deathmantle</button>'],
 
     /* ── SUB CLASSES ──────────────────────────────────────────────────── */
     ['Bard',        'Sub Class', 'A support sub-class that uses music and song to buff allies and inflict debuffs on enemies. Cost: 1,200g.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Cantia, The Bard">Cantia, The Bard</button>'],
@@ -389,9 +392,36 @@
     ['Shadowy Crook',          'Armour', 'Cost: 100g.\n\nStats: +1 Speed, +2 Luck, +10 Endurance, +10% Movement Speed.\n\nDamage Reduction: +5% Physical.'],
 
     /* ── MOBS ─────────────────────────────────────────────────────────── */
-    ['Goblin',            'Mob', ''],
-    ['Malevolent Bunny',  'Mob', '~215 HP. Does not gain energy.\n\nHop Kick — 1 hit, 0 energy cost. Blockable and dodgeable.\n\nBlack Warren — Summons another Malevolent Bunny with half the summoner\'s current max HP. Found in Easter encounters.'],
-    ['Shadeblade',        'Mob', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
+    ['Goblin',            'Mob', 'Forest Night cycle mob. This enemy can block and dodge attacks.'],
+    ['Star Slime',        'Mob', 'Astral Night mob. This enemy can dodge attacks.'],
+    ['Gon',               'Mob', 'Forest Night cycle mob. Can only be encountered past level 15.'],
+    ['Thanasludd',        'Mob', 'Forest Night cycle mob. Can only be encountered past level 20.'],
+    ['Night Raider',      'Mob', 'Desert Night cycle mob. This enemy can block and dodge attacks.'],
+    ['Duneguard',         'Mob', 'Desert Night cycle mob.'],
+    ['Sentient Darkness', 'Mob', 'Deeproot Night cycle mob. This enemy cannot block or dodge attacks.'],
+    ['Ptoruco',           'Mob', 'Deeproot Night cycle mob. Can only be encountered past level 15.'],
+    ['White Bunny',       'Mob', 'Easter Events mob. Spawns only in The Crossing. This enemy can dodge attacks.'],
+    ['Sand Bunny',        'Mob', 'Easter Events mob.\n\nTakes increasingly reduced damage the more consecutive hits it takes in one turn.'],
+    ['Magmatic Bunny',    'Mob', 'Easter Events mob.\n\nCan have up to, but not more than, 4 energy.'],
+    ['Malevolent Bunny',  'Mob', 'Easter Events mob.\n\nDoes not gain energy.'],
+    ['Gigapascha',        'Mob', 'Easter Events mini-boss mob. Spawns only in The Crossing during the day. This enemy can dodge attacks.'],
+    ['Frosted Slime',     'Mob', 'Winter Solstice Events mob. This enemy can dodge attacks.'],
+    ['Joyous Spirit',     'Mob', 'Winter Solstice Events mob. Currently disabled from encounters due to bugs. This enemy can dodge attacks.'],
+    ['Thief',             'Mob', 'The Crossing mob. This enemy can block and dodge attacks.'],
+    ['Slime',             'Mob', 'Forest mob. This enemy can dodge attacks.'],
+    ['Grass Spirit',      'Mob', 'Forest mob. This enemy can dodge attacks.'],
+    ['Zombie Mushroom',   'Mob', 'Forest mob. This enemy can block and dodge attacks.'],
+    ['Sand Elemental',    'Mob', 'Desert mob. This enemy can dodge attacks.'],
+    ['Desert Bandit',     'Mob', 'Desert mob. This enemy can block and dodge attacks.'],
+    ['Stray Sandstorm',   'Mob', 'Desert mob. This enemy can dodge attacks.'],
+    ['Sand Golem',        'Mob', 'Desert mob. This enemy can block attacks.'],
+    ['Fog Spirit',        'Mob', 'Deeproot mob. This enemy can dodge attacks.'],
+    ['Venom Shroom',      'Mob', 'Deeproot mob. This enemy can block and dodge attacks.'],
+    ['Cursed Corpse',     'Mob', 'Deeproot mob. This enemy can block and dodge attacks.'],
+    ['Cess Horror',       'Mob', 'Deeproot mob. This enemy can block attacks.'],
+    ['Lava Crab',         'Mob', 'Mount Thul mob. This enemy can dodge attacks.'],
+    ['Magma Golem',       'Mob', 'Mount Thul mob. This enemy can block attacks.'],
+    ['Shadeblade',        'Mini Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -453,6 +483,13 @@
   ];
 
   /* Trainer categories — order defines display order */
+  const MOB_GROUPS = [
+    { label: 'Day',                    names: new Set(['Thief', 'Slime', 'Grass Spirit', 'Zombie Mushroom', 'Sand Elemental', 'Desert Bandit', 'Stray Sandstorm', 'Sand Golem', 'Fog Spirit', 'Venom Shroom', 'Cursed Corpse', 'Cess Horror', 'Lava Crab', 'Magma Golem']) },
+    { label: 'Night',                  names: new Set(['Goblin', 'Star Slime', 'Gon', 'Thanasludd', 'Night Raider', 'Duneguard', 'Sentient Darkness', 'Ptoruco']) },
+    { label: 'Easter Enemies',         names: new Set(['White Bunny', 'Sand Bunny', 'Magmatic Bunny', 'Malevolent Bunny', 'Gigapascha']) },
+    { label: 'Winter Solstice Enemies', names: new Set(['Frosted Slime', 'Joyous Spirit']) },
+  ];
+
   const TRAINER_GROUPS = [
     { label: 'Sub Class Trainers', names: new Set(['Cantia, The Bard', 'Thorin, The Beastmaster', 'Selia, The Alchemist', 'Adelma, the Blacksmith', 'Vanio, the Miner']) },
     { label: 'Base Class Trainers', names: new Set(['Ysa, The Warrior', 'Arandor, The Wizard', 'Boots, The Thief', 'Doran, The Martial Artist', 'Tivek, The Slayer', 'Geron, the Marauder', 'Lagolt, the Sentry']) },
@@ -872,6 +909,554 @@
           { label: 'Gears', items: ['Tear Blood Crystal'] },
         ],
         notes: ['Can drop Weapon Arcanium Shards up to Pure rarity, all Basic Scrolls and blueprints.'],
+      },
+    },
+
+    'White Bunny': {
+      passives: [
+        { name: 'Regeneration',     description: 'Regenerates 4 HP per turn.' },
+        { name: 'Locked And Loaded', description: 'Unknown effect.' },
+        { name: '???',              description: 'When the bunny dodges a hit, it gains 2(?) energy.' },
+      ],
+      learns: [
+        { name: 'Hop Kick',     type: 'Active', cost: 1, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 6 damage.' },
+        { name: 'Craze Frenzy', type: 'Active', cost: 4, cooldown: 9, moveType: 'Physical', category: 'Multihit (x10) · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 1×10 damage.' },
+      ],
+      loot: { categories: [], notes: [] },
+    },
+
+    'Sand Bunny': {
+      passives: [],
+      learns: [
+        { name: 'Hop Kick',     type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: '' },
+        { name: "Sand Em' Home", type: 'Active', cost: 4, cooldown: 0, moveType: 'Physical', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 20 damage.' },
+      ],
+      loot: { categories: [], notes: [] },
+    },
+
+    'Magmatic Bunny': {
+      passives: [],
+      learns: [
+        { name: 'Hop Kick',          type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: '' },
+        { name: 'Earful of Magma',   type: 'Active', cost: 3, cooldown: 0, moveType: 'Fire',     category: 'Single Hit · Single Target · Unblockable / Undodgeable',
+          effect: 'Applies Burning and Vulnerable.' },
+      ],
+      loot: { categories: [], notes: [] },
+    },
+
+    'Malevolent Bunny': {
+      passives: [],
+      learns: [
+        { name: 'Hop Kick',     type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: '' },
+        { name: 'Black Warren', type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Summon',
+          effect: 'Summons another Malevolent Bunny with half the summoner\'s current max HP.' },
+      ],
+      loot: { categories: [], notes: [] },
+    },
+
+    'Gigapascha': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 8 HP per turn.' },
+        { name: 'Form Swap (?)', description: 'Ravenous Form — does something. Triggers once below ~60% max HP.' },
+      ],
+      learns: [
+        { name: 'Devastating Hop', type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 25 damage.' },
+        { name: 'Shell Supreme',   type: 'Active', cost: 2, cooldown: 9, moveType: 'Holy',     category: 'Single Target · Unblockable / Undodgeable',
+          effect: '' },
+        { name: "Easter's Morning", type: 'Active', cost: 5, cooldown: 0, moveType: 'Holy',    category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 50 damage.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Rabbit Pelt', 'Egg Shelmet', 'Chocolate Egg', 'Party Egg', 'Gleaming Carrot', 'Rabbits Foot'] },
+        ],
+        notes: [],
+      },
+    },
+
+    'Frosted Slime': {
+      passives: [
+        { name: 'Energy Chance', description: 'Has a chance to gain an extra energy on its turn.' },
+      ],
+      learns: [
+        { name: 'Frosty Smack', type: 'Active', cost: 0, cooldown: 0, moveType: 'Ice', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 5 damage.' },
+        { name: 'Frost Spit',   type: 'Active', cost: 2, cooldown: 2, moveType: 'Ice', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 7.3 damage. Applies 2 Cold to the target.' },
+        { name: 'Present',      type: 'Active', cost: 3, cooldown: 4, moveType: 'Ice', category: 'Single Hit · Single Target · Dodgeable',
+          effect: 'Does one of two effects: deals 11 damage to the target, or heals the target 10(?) HP (this heal will remove Overheat stacks).' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Snorb', 'Elementary Resonance', 'Frosty Topper'] },
+        ],
+        notes: ['Drops 2 Crystallized Joy (4 if Corrupted).', 'Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Joyous Spirit': {
+      passives: [
+        { name: '?', description: 'Unknown.' },
+      ],
+      learns: [
+        { name: '?', type: 'Active', cost: 0, cooldown: 0, moveType: '?', category: '?', effect: 'Unknown.' },
+        { name: '?', type: 'Active', cost: 0, cooldown: 0, moveType: '?', category: '?', effect: 'Unknown.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Snorb', 'Elementary Resonance', 'Frosty Topper'] },
+        ],
+        notes: ['Drops 2 Crystallized Joy (4 if Corrupted).', 'Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Thief': {
+      passives: [
+        { name: 'Random Race', description: 'Spawns with a random Race (cosmetic only). Cannot spawn with Obtainable or 1% Races.' },
+      ],
+      learns: [
+        { name: 'Strike', type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 5 damage.' },
+        { name: 'Stab',   type: 'Active', cost: 1, cooldown: 2, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 6 damage. Applies 2 Bleed. Has a 40% extra chance to crit. The enemy can "fail the QTE" for this move.' },
+        { name: 'Steal',  type: 'Active', cost: 2, cooldown: 1, moveType: 'Physical', category: 'Single Target · Dodgeable',
+          effect: 'Steals 15% of your money. Gives stolen money to the killer on death.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Shattered Clockhand', 'The Biggest Pebble', 'Arbusta Tear'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Slime': {
+      passives: [],
+      learns: [
+        { name: 'Smack',     type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 6 damage.' },
+        { name: 'Acid Spit', type: 'Active', cost: 2, cooldown: 4, moveType: 'Poison',   category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 4 damage. Applies 2 Poison.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Slime Chunk'] },
+          { label: 'Gears',       items: ['The Biggest Pebble', 'Arbusta Tear'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Grass Spirit': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 1 HP per turn.' },
+      ],
+      learns: [
+        { name: "Nature's Embrace", type: 'Active', cost: 2, cooldown: 4, moveType: 'Nature',   category: 'Healing · AoE',
+          effect: 'Heals self and allies for 40% of their max HP.' },
+        { name: 'Grass Bolt',       type: 'Active', cost: 0, cooldown: 0, moveType: 'Nature',   category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 6 damage.' },
+        { name: 'Vine Trap',        type: 'Active', cost: 3, cooldown: 7, moveType: 'Physical', category: 'Single Target · Dodgeable',
+          effect: 'Applies 3 Stun and 2 Crippling.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Arbusta Tear', 'Forest Charm'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Zombie Mushroom': {
+      passives: [],
+      learns: [
+        { name: 'Shroom Punch', type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 5 damage.' },
+        { name: 'Poison Spew',  type: 'Active', cost: 2, cooldown: 5, moveType: 'Poison',   category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 2 damage. Applies 2 Poison.' },
+        { name: 'Spore Strike', type: 'Active', cost: 2, cooldown: 4, moveType: 'Poison',   category: 'Multihit (x2) · Single Target · Dodgeable',
+          effect: 'Deals 5 damage then 6 damage. Applies 1 Stunned and 2 Blinded on the second hit.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Mushroom Cap'] },
+          { label: 'Gears',       items: ['Arbusta Tear', 'Spore Root'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Sand Elemental': {
+      passives: [],
+      learns: [
+        { name: 'Sand Blast',  type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 8 damage.' },
+        { name: 'Sandscreen',  type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 7 damage. Applies 2 Blind. Also applies 2 Weakened if the target is already Blind.' },
+        { name: 'Dust Bomb',   type: 'Active', cost: 3, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 18 damage. Applies 2 Vulnerable.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Sand Core'] },
+          { label: 'Gears',       items: ['Crystal Sphere'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Desert Bandit': {
+      passives: [
+        { name: 'Random Race', description: 'Spawns with a random Race and gains its first Move. Cannot spawn with Obtainable or 1% Races.' },
+      ],
+      learns: [
+        { name: 'Sand Blade',       type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 8 damage.' },
+        { name: 'Scimitar Impale',  type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 11 damage. Applies 4 Bleed if the attack is not blocked or dodged.' },
+        { name: 'Dust Implode',     type: 'Active', cost: 3, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Dodgeable',
+          effect: 'Deals 5 damage. Applies 3 Crippled and places a bomb on the target. The bomb explodes after 2 turns dealing 15 damage. The bomb is not applied if the attack is blocked or dodged.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Spiked Steel Ball'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Stray Sandstorm': {
+      passives: [],
+      learns: [
+        { name: 'Dust Pulse',     type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 7 damage.' },
+        { name: 'Sand Reform',    type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Buff · Self',
+          effect: 'Applies 2 Weakened and 2 Vulnerable to self. Heals all allies for 10% of their max HP. Grants all allies 5% HP regen for 4 turns.' },
+        { name: 'Sand Meteor',    type: 'Active', cost: 3, cooldown: 0, moveType: 'Physical', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Spawns a large meteor. After 3 turns it crashes down, dealing damage and applying 2 Weakened.' },
+        { name: 'Swirling Storm', type: 'Active', cost: 3, cooldown: 0, moveType: 'Physical', category: 'Buff · AoE',
+          effect: 'Grants all allies 13% melee damage reflection for 5 turns.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Restless Fragment'] },
+          { label: 'Gears',       items: ['Dust Storm', 'Ramizcan Idol', 'Grain Of Balance (BUGGED?)'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Sand Golem': {
+      passives: [
+        { name: 'Regeneration',   description: 'Regenerates 2 HP per turn.' },
+        { name: 'Crushing Force', description: 'Deals 75% damage instead of 50% when an attack is blocked.' },
+      ],
+      learns: [
+        { name: 'Smash',        type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 10 damage.' },
+        { name: 'Dust Burst',   type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Multihit · Single Target · Dodgeable',
+          effect: 'Deals 6 damage per hit. Applies 1 Stun if the target is Blind.' },
+        { name: 'Core Rage',    type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Buff · Self',
+          effect: 'Applies Heavy Stun to self. On the next turn gains 40% Damage Buff, 15% Damage Reduction, and 2 HP regen. Can be cancelled if enough damage is dealt before the Stun ends. Stackable.' },
+        { name: 'Sand Eruption', type: 'Active', cost: 3, cooldown: 0, moveType: 'Physical', category: 'Single Hit · AoE · Dodgeable',
+          effect: 'Deals 22 damage. Applies 4 Crippled, 2 Weakened, and 1 Vulnerable to all players hit.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Golem Rune Core', 'Stone Brand', 'Band of Crushing Force'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Fog Spirit': {
+      passives: [],
+      learns: [
+        { name: 'Fog Spread',       type: 'Active', cost: 0, cooldown: 0, moveType: 'Nature', category: 'Single Hit · AoE · Dodgeable',
+          effect: 'Deals 7 damage.' },
+        { name: 'Airborne Toxins',  type: 'Active', cost: 2, cooldown: 0, moveType: 'Poison', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 7 damage.' },
+        { name: 'Haze Reflection',  type: 'Active', cost: 3, cooldown: 0, moveType: 'Nature', category: 'Buff · Self',
+          effect: 'Reflects all damage back to the dealer for 3 turns.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Haze Chunk'] },
+          { label: 'Gears',       items: ['Shard of Blight', 'Expedite Anklet'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Venom Shroom': {
+      passives: [
+        { name: 'Poison Absorption', description: 'Poison element attacks heal instead of deal damage.' },
+      ],
+      learns: [
+        { name: 'Poison Breath', type: 'Active', cost: 0, cooldown: 0, moveType: 'Poison', category: 'Single Hit · Single Target · Blockable',
+          effect: 'Deals 6 damage. Applies 3 Poison.' },
+        { name: 'Toxic Burst',   type: 'Active', cost: 2, cooldown: 0, moveType: 'Poison', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Charge attack — on the next turn deals damage. If the target has Poison, applies 2 Cursed. Cancels if Venom Shroom is below 50% HP.' },
+        { name: 'Poison Spikes', type: 'Active', cost: 2, cooldown: 0, moveType: 'Poison', category: 'Buff · Self',
+          effect: 'Grants melee damage reflection (inconsistent).' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Mushroom Cap'] },
+          { label: 'Gears',       items: ['Wicked Crown'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Cursed Corpse': {
+      passives: [
+        { name: 'Random Race', description: 'Spawns with a random Race and gains its first Move. Cannot spawn with Obtainable or 1% Races.' },
+      ],
+      learns: [
+        { name: 'Toxic Claw',   type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 9 damage. Applies 2 Poison.' },
+        { name: 'Cursed Blow',  type: 'Active', cost: 2, cooldown: 0, moveType: 'Hex',      category: 'Single Hit · Single Target · Dodgeable',
+          effect: 'Deals 16 damage. Applies 2 Hex.' },
+        { name: 'Soul Curse',   type: 'Active', cost: 2, cooldown: 0, moveType: 'Hex',      category: 'Buff · Self',
+          effect: 'Heals 5% HP and becomes immune to the last damage type received. Can only be immune to one type at a time.' },
+        { name: 'Blooming Hex', type: 'Active', cost: 3, cooldown: 0, moveType: 'Hex',      category: 'Debuff · AoE',
+          effect: 'Only usable when a target is below 50% HP. Applies 2 Weakened and 2 Crippled. When any player attempts to heal, applies 2 Heavy Stun and 1 Sundered.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Cursed Brand', 'Coagulated Finger Nail', 'Shard of Blight', "Traveler's Lamp"] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Cess Horror': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 2 HP per turn.' },
+      ],
+      learns: [
+        { name: 'Imbued Strike',        type: 'Active', cost: 0, cooldown: 0, moveType: 'Dark', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 12 damage. Applies 1 Weakened.' },
+        { name: 'Cursed Skewer',        type: 'Active', cost: 2, cooldown: 0, moveType: 'Hex',  category: 'Single Hit · Single Target · Unblockable / Undodgeable',
+          effect: 'Deals 11 damage. Applies 2 Sundered.' },
+        { name: 'Darkness Infliction',  type: 'Active', cost: 2, cooldown: 0, moveType: '?',    category: 'Debuff · AoE',
+          effect: 'Clears all status effects from self. Applies 2 Vulnerable to all players in the fight.' },
+        { name: 'Hex Corridor',         type: 'Active', cost: 0, cooldown: 0, moveType: '?',    category: '?',
+          effect: 'Unknown.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Rot Core'] },
+          { label: 'Gears',       items: ['Sanguine Fang'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Lava Crab': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 2 HP per turn.' },
+      ],
+      learns: [
+        { name: 'Lava Spit', type: 'Active', cost: 0, cooldown: 0, moveType: 'Fire', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 10 damage. Has a chance to apply 2 Burning.' },
+        { name: 'Lava Bomb', type: 'Active', cost: 2, cooldown: 0, moveType: 'Fire', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 10 damage. Applies 2 Weakened.' },
+        { name: 'Lava Pool', type: 'Active', cost: 3, cooldown: 0, moveType: 'Fire', category: 'Buff · Self',
+          effect: 'Places a pool under the caster. All melee attacks against the caster deal 15 damage back to the attacker and apply 4 Burning.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Imperial Headband', 'Magma Charm', 'Molten Carapace'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Magma Golem': {
+      passives: [
+        { name: 'Crushing Force', description: 'Blocked attacks deal 75% damage instead of 50% of their original damage.' },
+      ],
+      learns: [
+        { name: 'Lava Crush',    type: 'Active', cost: 0, cooldown: 0, moveType: 'Fire', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 12 damage. Always applies 1 Burning, including on dodge.' },
+        { name: 'Lava Armor',    type: 'Active', cost: 1, cooldown: 0, moveType: 'Fire', category: 'Buff · Self',
+          effect: 'Places armor on self. Shares a portion of melee damage taken with the attacker.' },
+        { name: 'Magma Breath',  type: 'Active', cost: 2, cooldown: 0, moveType: 'Fire', category: 'Multihit (x6) · Pseudo AoE · Unblockable / Undodgeable',
+          effect: 'Deals 6 hits of 1.5 damage. Applies 2 Burning on the last hit.' },
+        { name: 'Lava Domain',   type: 'Active', cost: 3, cooldown: 0, moveType: 'Fire', category: 'Debuff · AoE',
+          effect: 'Applies 4 Vulnerable and 1 Hex to all opponents.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Vulcan Knuckle', 'Blazing Brand'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Star Slime': {
+      passives: [
+        { name: 'Damage Cap', description: 'Can only take up to 5 damage per turn. Metrom Amulet, Spiked Steel Ball, and a few other moves can bypass this.' },
+      ],
+      learns: [
+        { name: 'Seeing Stars',   type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals damage. Has a chance to apply 1 Stun.' },
+        { name: 'Acid Star',      type: 'Active', cost: 2, cooldown: 0, moveType: 'Poison',   category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals damage. Applies 3 Poison.' },
+        { name: 'Crash Landing',  type: 'Active', cost: 3, cooldown: 0, moveType: 'Poison',   category: 'Single Hit · Single Target · Unblockable / Undodgeable',
+          effect: 'Applies 2 Invisibility to self. On the next turn, launches a projectile dealing damage and applying 3 Poison and 3 Vulnerable.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',         items: ['Crystalized Star'] },
+          { label: 'Miscellaneous', items: ['Starslime Chunk', 'Astral Shards'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Goblin': {
+      passives: [
+        { name: 'Base Class', description: 'Spawns with a random Base Class and gains all of its moves.' },
+      ],
+      learns: [
+        { name: 'Strike', type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 5 damage.' },
+        { name: 'Rally',  type: 'Active', cost: 2, cooldown: 30, moveType: 'Physical', category: 'Summon',
+          effect: 'Summons a Goblin. The summoned Goblin cannot summon another Goblin, and disappears when the summoner dies.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Parasitic Leech'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Gon': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 2 HP per turn.' },
+      ],
+      learns: [
+        { name: 'Strike',           type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Unknown.' },
+        { name: 'Caustic Backhand', type: 'Active', cost: 0, cooldown: 1, moveType: 'Poison',   category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Applies 2 Vulnerable and 4 Poison on hit.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Crystalized Star'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Thanasludd': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 2 HP per turn.' },
+      ],
+      learns: [
+        { name: 'Rotting Bash',     type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Applies 1 Weakened on hit.' },
+        { name: 'Inflame',          type: 'Active', cost: 1, cooldown: 4, moveType: 'Fire',     category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Applies 5 Vulnerable and 3 Burn on hit.' },
+        { name: 'Unraveling Flesh', type: 'Active', cost: 1, cooldown: 8, moveType: '?',        category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Unknown.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Crystalized Star'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Night Raider': {
+      passives: [
+        { name: 'Random Race', description: 'Spawns with a random Race and gains its first Move. Cannot spawn with Obtainable or 1% Races.' },
+      ],
+      learns: [
+        { name: 'Sandcleaver',       type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 10 damage.' },
+        { name: 'Pocket Quicksand',  type: 'Active', cost: 1, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Dodgeable',
+          effect: 'Deals 6 damage. Applies 4 Blind on hit.' },
+        { name: 'Dust Implode Alter',type: 'Active', cost: 1, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Dodgeable',
+          effect: 'Deals 5 damage. Applies 3 Crippled and places a bomb on the target. The bomb explodes after 3 turns dealing 20 damage.' },
+        { name: 'Scimitar Impale',   type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 16 damage. Applies 4 Bleed if not blocked or dodged.' },
+        { name: 'Thousand Nights',   type: 'Active', cost: 3, cooldown: 0, moveType: 'Physical', category: 'Multihit (x4) · Single Target · Unblockable / Undodgeable',
+          effect: 'Applies 1 Heavy Stun to self. On the next turn, dashes to target and lands 4 hits of damage. Applies 4 Bleed.' },
+      ],
+      loot: {
+        categories: [],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Duneguard': {
+      passives: [
+        { name: 'Regeneration', description: 'Regenerates 4 HP per turn.' },
+      ],
+      learns: [
+        { name: 'Clobber',        type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 14 damage.' },
+        { name: 'Sand Castling',  type: 'Active', cost: 0, cooldown: 0, moveType: '?',        category: '?',
+          effect: 'Unknown.' },
+        { name: 'Desert Pierce',  type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Dodgeable',
+          effect: 'Deals 15 damage. Applies 1 Stun to itself, and 3 Crippled and 3 Vulnerable to the target.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Desert Escutcheon'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Sentient Darkness': {
+      passives: [
+        { name: 'Weakening', description: 'The less HP it has, the less damage it deals.' },
+      ],
+      learns: [
+        { name: 'The End is Nigh', type: 'Active', cost: 0, cooldown: 0, moveType: 'Dark', category: 'Intimidation',
+          effect: 'Currently does nothing — allows you to attack first.' },
+        { name: 'Doom',           type: 'Active', cost: 0, cooldown: 0, moveType: 'Dark', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deals 75 damage.' },
+        { name: 'Thread Fate',    type: 'Active', cost: 2, cooldown: 0, moveType: 'Dark', category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deals 65 damage. Applies 3 Vulnerable.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients', items: ['Rot Core'] },
+          { label: 'Gears',       items: ['Cursed Brand', 'Shard of Blight'] },
+        ],
+        notes: ['Also drops a Whistle.', 'Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
+      },
+    },
+
+    'Ptoruco': {
+      passives: [
+        { name: '?', description: 'Unknown.' },
+      ],
+      learns: [
+        { name: '?', type: 'Active', cost: 0, cooldown: 0, moveType: '?', category: '?', effect: 'Unknown.' },
+        { name: '?', type: 'Active', cost: 0, cooldown: 0, moveType: '?', category: '?', effect: 'Unknown.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Ingredients',   items: ['Rot Core'] },
+          { label: 'Miscellaneous', items: ['Warbing Whistle'] },
+        ],
+        notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
       },
     },
   };
@@ -1328,7 +1913,7 @@
 
   const GEAR_NAME_MAP = {
     '7 Leafed Everthisel':   '7 Leafed Everthistle',
-    'Crystalized Star':      'Crystallized Star',
+    'Crystalized Star':      'Crystalized Star',
     'Deathbeak Dagger':      'DeathBeak Dagger',
     'Dragon Memior':         'Dragon Memoir',
     'Everbeating Drum':      'Everbeating Drums',
@@ -1459,6 +2044,50 @@
           });
         });
         TRAINER_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          gItems.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
+      } else if (type === 'Mob') {
+        // Group mobs by category with sub-headers; ungrouped mobs listed first
+        const groupedNames = new Set(MOB_GROUPS.flatMap(g => [...g.names]));
+        const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
+        if (ungrouped.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          ungrouped.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byGroup = {};
+        MOB_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          MOB_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
+        });
+        MOB_GROUPS.forEach(g => {
           const gItems = byGroup[g.label];
           if (!gItems.length) return;
           const groupDiv = document.createElement('div');
