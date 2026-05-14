@@ -262,11 +262,11 @@
     ['Arbiter (N)',       'Super Class', 'Sentry → Neutral path. Cost: 6,250g.\n\nA judge-like fighter that controls the battlefield and punishes enemies who break the rules.'],
 
     /* ── SUB CLASSES ──────────────────────────────────────────────────── */
-    ['Bard',        'Sub Class', 'A support sub-class that uses music and song to buff allies and inflict debuffs on enemies. Cost: 1,200g.'],
-    ['Beastmaster', 'Sub Class', 'A sub-class that tames and commands animals to fight alongside them in battle. Cost: 750g.'],
-    ['Alchemist',   'Sub Class', 'A sub-class specializing in creating and deploying potions and chemical compounds. Cost: 800g.'],
-    ['Blacksmith',  'Sub Class', 'A crafting sub-class focused on forging and enhancing weapons and equipment. Cost: 3,000g.'],
-    ['Miner',       'Sub Class', 'A resource-gathering sub-class focused on extracting ores and materials. Cost: 1,000g.'],
+    ['Bard',        'Sub Class', 'A support sub-class that uses music and song to buff allies and inflict debuffs on enemies. Cost: 1,200g.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Cantia, The Bard">Cantia, The Bard</button>'],
+    ['Beastmaster', 'Sub Class', 'Total cost: 750g + 3 mob drops\n\nSkill costs: 250g + 1 mob drop\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Thorin, The Beastmaster">Thorin, The Beastmaster</button>'],
+    ['Alchemist',   'Sub Class', 'Total cost: 800g + Small Healing Potion, Ferrus Skin Potion, Invisibility Potion\n\nSkill costs: 200g + 1 potion (First 3 skills) / 200g (4th skill)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Selia, The Alchemist">Selia, The Alchemist</button>'],
+    ['Blacksmith',  'Sub Class', 'Total cost: 3,000g + 10 Crafted Armor\n\nSkill costs: 500g (First skill) / 1,000g + 5 Crafted Armor (Second skill) / 1,500g + 5 Crafted Armor (Third skill)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Adelma, the Blacksmith">Adelma, the Blacksmith</button>'],
+    ['Miner',       'Sub Class', 'Total cost: 1,000g + 45 Ores\n\nSkill costs: 250g (First skill) / 250g + 20 Ferrus Ore (Second skill) / 500g + 10 Ferrus Ore and 15 Aestic Ore (Third skill)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Vanio, the Miner">Vanio, the Miner</button>'],
 
     /* ── RACES ────────────────────────────────────────────────────────── */
     ['Estella (24%)',    'Race', 'Common race (24% chance). An endurance-focused race that gains defensive power at low HP.\n\nInnate: While below 40% max HP, gain a permanent 10% defense buff and a 50% healing buff for two turns after triggering.'],
@@ -296,8 +296,8 @@
     ["Metrom's Vessel",              'Boss', "A vessel containing Metrom's immense power. One of the game's strongest raid bosses. This enemy can block and dodge attacks."],
     ['Shadeblade',                   'Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
     ['Handaconda',                   'Boss', 'A colossal serpentine raid boss. Resistant to physical, holy, and arcane damage. Vulnerable to fire.'],
-    ['Slime King',                   'Mini Boss', 'The ruler of slimes. A mini boss encountered in the early game.'],
-    ['Carnis',                       'Mini Boss', 'A carnivorous beast. A mini boss known for aggressive melee attacks.'],
+    ['Slime King',                   'Mini Boss', 'The Mini Boss of The Crossing. This enemy can dodge attacks.'],
+    ['Carnis',                       'Mini Boss', 'The Mini Boss of Deeproot Canopy.'],
 
     /* ── COVENANTS ───────────────────────────────────────────────────── */
     ['Blades of the World', 'Covenant', 'A gold-focused covenant offering increased guild rewards, a combat active, Mulligan on death, and 2 accessories.\n\nProgression: Donate gold for 1 point, or complete quests on the Blades questboard for 3 points each. Questboard access requires Rank 3.\n\nRank costs: R1: 250G · R3: 750G · R5: ~2,125G / ~5 requests · R10: ~8,125G / ~29 requests (+2 SP) · R13: ~13,375G / ~49 requests · R15: ~17,500G / ~65 requests · R20: ~38,625G / ~116 requests (+3 SP)'],
@@ -309,6 +309,13 @@
     ['Petent', 'Mark', 'A cross-wipe progression system earned by completing specific in-game requirements. Advancing a tier requires placing a Void Key in your Soul Vault and wiping. Grants permanent abilities that persist through all future wipes.'],
     ['Venia',  'Mark', 'A cross-wipe progression system centered around artifact sacrifice and the Midas enchant. Advancing a tier requires wiping while holding the Midas enchant and 50k gold. Grants artifact trading and gold-generating abilities.'],
     ['Astra',  'Mark', 'A cross-wipe progression system centered around the Celestial Emblem. Requires crafting the emblem, defeating specific enemies, and wiping with it equipped. Grants a star-based ability system that powers support and healing moves.'],
+
+    /* ── TRAINERS ────────────────────────────────────────────────────── */
+    ['Cantia, The Bard',        'Trainer', '"...Hm? What do you need, I\'m a bit.. busy right now."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Bard">Bard</button>'],
+    ['Thorin, The Beastmaster', 'Trainer', '"...Oh, and who might you be?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Beastmaster">Beastmaster</button>'],
+    ['Selia, The Alchemist',    'Trainer', '"...then this one must be..but then...Oh hi, how are you?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Alchemist">Alchemist</button>'],
+    ['Adelma, the Blacksmith',  'Trainer', 'Teaches: <button class="enc-desc-link" data-enc-nav="Blacksmith">Blacksmith</button>'],
+    ['Vanio, the Miner',        'Trainer', 'Teaches: <button class="enc-desc-link" data-enc-nav="Miner">Miner</button>'],
 
     /* ── SCROLLS ─────────────────────────────────────────────────────── */
     ['Lights Out',        'Scroll', 'Class restriction: None.\n\nCost: 1 NRG · Cooldown: 5\nType: Holy · Buff\n\nApplies 3 Blinded and 1 Stunned to all enemies. Has a chance to backfire and apply to yourself instead.'],
@@ -371,6 +378,7 @@
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
     'Scroll', 'Lost Scroll',
+    'Trainer',
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
   ];
 
@@ -391,6 +399,7 @@
     'Boss':            '☠',
     'Mini Boss':       '💀',
     'Mob':             '👾',
+    'Trainer':         '🎓',
     'Scroll':          '📜',
     'Lost Scroll':     '📜',
     'Covenant':        '⚑',
@@ -398,7 +407,7 @@
   };
 
   const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Covenant', 'Mark']);
-  const NO_SORT_TYPES = new Set(['Boss', 'Mini Boss', 'Mob']);
+  const NO_SORT_TYPES = new Set(['Boss', 'Mini Boss', 'Mob', 'Trainer']);
 
   /* Weapon families — order defines display order, prefix used for matching */
   const WEAPON_GROUPS = [
@@ -416,6 +425,11 @@
     { label: 'Primordial',  prefix: 'Primordial ',    desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 4 empty Shard Slots.' },
     { label: 'Unique',      names: new Set(['Vastic Glaive', 'Star-Seeing Hammer']) },
     { label: 'Shields',     names: new Set(['Ferrus Towershield', 'Ivory Shield', 'Icerind Shield', 'Sandstone Shield', 'Primordial Shield', 'Dragonflame Shield', 'Slimy Buckler', 'Targe']) },
+  ];
+
+  /* Trainer categories — order defines display order */
+  const TRAINER_GROUPS = [
+    { label: 'Sub Class Trainers', names: new Set(['Cantia, The Bard', 'Thorin, The Beastmaster', 'Selia, The Alchemist', 'Adelma, the Blacksmith', 'Vanio, the Miner']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -780,6 +794,58 @@
           condition: '',
           effect: '30 base damage. Applies 1 Sunder and steals 1 energy if the attack is not blocked or dodged.' },
       ],
+    },
+
+    'Slime King': {
+      passives: [
+        { name: 'Can Dodge', description: 'This enemy can dodge attacks.' },
+      ],
+      learns: [
+        { name: 'Slime Creation',   type: 'Active', cost: 1, cooldown: 10, moveType: 'Poison',   category: 'Summon',
+          effect: 'Summons a Slime with 15 HP and all Slime skills.' },
+        { name: 'Crush',            type: 'Active', cost: 0, cooldown: 0,  moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deal damage.' },
+        { name: 'Poison Eruption',  type: 'Active', cost: 2, cooldown: 5,  moveType: 'Poison',   category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deal damage. Applies 3 Poison.' },
+        { name: 'Scalding Spray',   type: 'Active', cost: 2, cooldown: 3,  moveType: 'Poison',   category: 'Single Hit · AoE · Blockable',
+          effect: 'Deal damage. Applies 3 Poison and 2 Burn.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears',   items: ['Gelat Band'] },
+          { label: 'Weapons', items: ['Slimy Buckler'] },
+        ],
+        notes: ['Can drop Weapon Arcanium Shards up to Pure rarity, all Basic Scrolls and blueprints.'],
+      },
+    },
+
+    'Carnis': {
+      passives: [
+        { name: 'HP Regeneration', description: 'Regenerates 5 HP per turn.' },
+        { name: 'Energy Surge',    description: 'Has a chance to gain 2 energy instead of 1 per turn.' },
+      ],
+      learns: [
+        { name: 'Lesser Heal',     type: 'Active', cost: 2, cooldown: 0, moveType: 'Nature',   category: 'Healing',
+          effect: 'Heals ~5% of max HP.' },
+        { name: 'Tense Up',        type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Buff',
+          effect: 'Grants 30% True Damage Reduction.' },
+        { name: 'Strike',          type: 'Active', cost: 0, cooldown: 0, moveType: 'Physical', category: 'Single Hit · Single Target · Blockable / Dodgeable',
+          effect: 'Deal damage.' },
+        { name: 'Triple Stab',     type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Multihit · Single Target · Blockable / Dodgeable',
+          effect: 'Deal damage.' },
+        { name: 'Rending Barrage', type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Multihit · Single Target · Blockable',
+          effect: 'Deal damage. Deals an extra hit if the target has the Bleed status effect.' },
+        { name: 'Bloody Burst',    type: 'Active', cost: 2, cooldown: 0, moveType: 'Physical', category: 'Multihit · AoE · Blockable',
+          effect: 'Deal damage.' },
+        { name: 'Blood Eruption',  type: 'Active', cost: 3, cooldown: 0, moveType: 'Magic',    category: 'Single Hit · AoE · Unblockable / Undodgeable',
+          effect: 'Deal damage. Applies 5 Bleed.' },
+      ],
+      loot: {
+        categories: [
+          { label: 'Gears', items: ['Tear Blood Crystal'] },
+        ],
+        notes: ['Can drop Weapon Arcanium Shards up to Pure rarity, all Basic Scrolls and blueprints.'],
+      },
     },
   };
 
@@ -1345,6 +1411,37 @@
           groupDiv.appendChild(groupHdr);
           const groupGrid = document.createElement('div');
           groupGrid.className = 'enc-grid';
+          gItems.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
+      } else if (type === 'Trainer') {
+        // Group trainers by category with sub-headers
+        const byGroup = {};
+        TRAINER_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          TRAINER_GROUPS.forEach(g => {
+            if (g.names?.has(it[0])) byGroup[g.label].push({ it, i });
+          });
+        });
+        TRAINER_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid enc-grid-column';
           gItems.forEach(({ it, i }) => {
             const btn = document.createElement('button');
             btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
@@ -2130,9 +2227,10 @@
 
   /* ── Public API ──────────────────────────────────────────────────────────── */
   /* ── Overlay API ─────────────────────────────────────────────────────────── */
-  window._ENC_ITEMS      = ENC_ITEMS;
-  window._ENC_TYPE_ORDER = TYPE_ORDER;
-  window._ENC_TYPE_ICONS = TYPE_ICONS;
+  window._ENC_ITEMS          = ENC_ITEMS;
+  window._ENC_TYPE_ORDER     = TYPE_ORDER;
+  window._ENC_TYPE_ICONS     = TYPE_ICONS;
+  window._ENC_TRAINER_GROUPS = TRAINER_GROUPS;
   window._encGotoItem  = function (idx) {
     if (window.switchPage) window.switchPage('encyclopedia');
     setTimeout(() => selectItem(idx), 80);
