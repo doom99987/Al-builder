@@ -233,33 +233,33 @@
     ['Storm (mod)',            'Enchant',         ''],
 
     /* ── BASE CLASSES ─────────────────────────────────────────────────── */
-    ['Thief',          'Base Class',  'A nimble fighter specializing in quick strikes, bleeding, and gold acquisition. Cost: 200g.\n\nEvolves into: Ranger (Or), Rogue (N), Assassin (Ch)'],
-    ['Warrior',        'Base Class',  'A sturdy front-line fighter with balanced offense and defense. Cost: 200g.\n\nEvolves into: Paladin (Or), Blade Dancer (N), Berserker (Ch)'],
-    ['Wizard',         'Base Class',  'A powerful magic caster wielding elemental and arcane energy. Cost: 120g.\n\nEvolves into: Elementalist (Or), Hexer (N), Necromancer (Ch)'],
-    ['Martial Artist', 'Base Class',  'A disciplined hand-to-hand combatant focused on energy management and precise strikes. Cost: 220g.\n\nEvolves into: Monk (Or), Brawler (N), Darkwraith (Ch)'],
-    ['Slayer',         'Base Class',  'An aggressive fighter built for high single-target damage output. Cost: 200g.\n\nEvolves into: Saint (Or), Lancer (N), Impaler (Ch)'],
-    ['Marauder',       'Base Class',  'A heavy-hitting brawler that overpowers enemies with raw force. Cost: Unknown.\n\nEvolves into: Lionheart (N)'],
-    ['Sentry',         'Base Class',  'A defensive support class focused on protection and battlefield control. Cost: 500g.\n\nEvolves into: Citadel (Or), Arbiter (N)'],
+    ['Thief',          'Base Class',  'A nimble fighter specializing in quick strikes, bleeding, and gold acquisition. Cost: 200g.\n\nEvolves into: Ranger (Or), Rogue (N), Assassin (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Boots, The Thief">Boots, The Thief</button>'],
+    ['Warrior',        'Base Class',  'A sturdy front-line fighter with balanced offense and defense. Cost: 200g.\n\nEvolves into: Paladin (Or), Blade Dancer (N), Berserker (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ysa, The Warrior">Ysa, The Warrior</button>'],
+    ['Wizard',         'Base Class',  'A powerful magic caster wielding elemental and arcane energy. Cost: 120g.\n\nEvolves into: Elementalist (Or), Hexer (N), Necromancer (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Arandor, The Wizard">Arandor, The Wizard</button>'],
+    ['Martial Artist', 'Base Class',  'A disciplined hand-to-hand combatant focused on energy management and precise strikes. Cost: 220g.\n\nEvolves into: Monk (Or), Brawler (N), Darkwraith (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Doran, The Martial Artist">Doran, The Martial Artist</button>'],
+    ['Slayer',         'Base Class',  'An aggressive fighter built for high single-target damage output. Cost: 200g.\n\nEvolves into: Saint (Or), Lancer (N), Impaler (Ch)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Tivek, The Slayer">Tivek, The Slayer</button>'],
+    ['Marauder',       'Base Class',  'A heavy-hitting brawler that overpowers enemies with raw force. Cost: Unknown.\n\nEvolves into: Lionheart (N)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Geron, the Marauder">Geron, the Marauder</button>'],
+    ['Sentry',         'Base Class',  'A defensive support class focused on protection and battlefield control. Cost: 500g.\n\nEvolves into: Citadel (Or), Arbiter (N)\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Lagolt, the Sentry">Lagolt, the Sentry</button>'],
 
     /* ── SUPER CLASSES ────────────────────────────────────────────────── */
-    ['Ranger (Or)',       'Super Class', 'Thief → Orthodox path. Cost: 2,000g.\n\nA mobile crit-and-speed-focused fighter with nature magic. Gains damage and speed buffs on every dodge or crit. Strike scales with Arcane.'],
-    ['Rogue (N)',         'Super Class', 'Thief → Neutral path. Cost: 3,750g.\n\nA stealth and burst-damage specialist that excels at bleed stacking and high single-hit damage.'],
-    ['Assassin (Ch)',     'Super Class', 'Thief → Chaotic path. Cost: 2,000g.\n\nA high-damage finisher focused on critical bursts and eliminating targets before they can react.'],
-    ['Paladin (Or)',      'Super Class', 'Warrior → Orthodox path. Cost: 2,400g.\n\nA holy warrior combining frontline tanking with healing and divine protection.'],
-    ['Blade Dancer (N)',  'Super Class', 'Warrior → Neutral path. Cost: 3,750g.\n\nA speed-based swordsman with flowing combo attacks and high mobility.'],
-    ['Berserker (Ch)',    'Super Class', 'Warrior → Chaotic path. Cost: 2,000g.\n\nA rage-fueled fighter that deals massive damage at the cost of defense.'],
-    ['Elementalist (Or)','Super Class', 'Wizard → Orthodox path. Cost: 2,000g.\n\nA master of all elements wielding powerful area-of-effect attacks and multi-element combinations.'],
-    ['Hexer (N)',         'Super Class', 'Wizard → Neutral path. Cost: 3,750g.\n\nA debuffer and status effect specialist who weakens enemies and turns their strengths against them.'],
-    ['Necromancer (Ch)', 'Super Class', 'Wizard → Chaotic path. Cost: 2,000g.\n\nCommands undead minions and drains the life force of enemies to sustain itself.'],
-    ['Monk (Or)',         'Super Class', 'Martial Artist → Orthodox path. Cost: 2,400g.\n\nA balanced fighter using focus, precision, and inner power to overcome enemies.'],
-    ['Brawler (N)',       'Super Class', 'Martial Artist → Neutral path. Cost: 3,750g.\n\nA pure melee powerhouse with crushing combos and unrelenting close-range pressure.'],
-    ['Darkwraith (Ch)',   'Super Class', 'Martial Artist → Chaotic path. Cost: 2,000g.\n\nA corrupted fighter channeling dark energy to deliver devastating blows and powerful debuffs.'],
-    ['Saint (Or)',        'Super Class', 'Slayer → Orthodox path. Cost: 2,000g.\n\nA holy healer and divine support class focused on protecting and restoring allies.'],
-    ['Lancer (N)',        'Super Class', 'Slayer → Neutral path. Cost: 3,750g.\n\nA spear-specialized high-damage dealer with superior range and piercing attacks.'],
-    ['Impaler (Ch)',      'Super Class', 'Slayer → Chaotic path. Cost: 2,400g.\n\nAn aggressive spear fighter that delivers devastating piercing attacks to single targets.'],
-    ['Lionheart (N)',     'Super Class', 'Marauder → Neutral path. Cost: 6,250g.\n\nA fearless warrior with overwhelming power and unmatched tenacity in battle.'],
-    ['Citadel (Or)',      'Super Class', 'Sentry → Orthodox path. Cost: 2,000g.\n\nA near-impenetrable fortress tank with extreme damage reduction and team protection.'],
-    ['Arbiter (N)',       'Super Class', 'Sentry → Neutral path. Cost: 6,250g.\n\nA judge-like fighter that controls the battlefield and punishes enemies who break the rules.'],
+    ['Ranger (Or)',       'Super Class', 'Thief → Orthodox path. Cost: 2,000g.\n\nA mobile crit-and-speed-focused fighter with nature magic. Gains damage and speed buffs on every dodge or crit. Strike scales with Arcane.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orkin, Lifebound Archer">Orkin, Lifebound Archer</button>'],
+    ['Rogue (N)',         'Super Class', 'Thief → Neutral path. Cost: 3,750g.\n\nA stealth and burst-damage specialist that excels at bleed stacking and high single-hit damage.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Aberon, Rogue Hunter">Aberon, Rogue Hunter</button>'],
+    ['Assassin (Ch)',     'Super Class', 'Thief → Chaotic path. Cost: 2,000g.\n\nA high-damage finisher focused on critical bursts and eliminating targets before they can react.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Inette, Shadow Cloak">Inette, Shadow Cloak</button>'],
+    ['Paladin (Or)',      'Super Class', 'Warrior → Orthodox path. Cost: 2,400g.\n\nA holy warrior combining frontline tanking with healing and divine protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Dernon, Paladin Warrior">Dernon, Paladin Warrior</button>'],
+    ['Blade Dancer (N)',  'Super Class', 'Warrior → Neutral path. Cost: 3,750g.\n\nA speed-based swordsman with flowing combo attacks and high mobility.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Leoran, Adept Warrior">Leoran, Adept Warrior</button>'],
+    ['Berserker (Ch)',    'Super Class', 'Warrior → Chaotic path. Cost: 2,000g.\n\nA rage-fueled fighter that deals massive damage at the cost of defense.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Kayrein, Raging Warrior">Kayrein, Raging Warrior</button>'],
+    ['Elementalist (Or)','Super Class', 'Wizard → Orthodox path. Cost: 2,000g.\n\nA master of all elements wielding powerful area-of-effect attacks and multi-element combinations.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Landrum, Arcane Trainer">Landrum, Arcane Trainer</button>'],
+    ['Hexer (N)',         'Super Class', 'Wizard → Neutral path. Cost: 3,750g.\n\nA debuffer and status effect specialist who weakens enemies and turns their strengths against them.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ophelia, Magister Apprentice">Ophelia, Magister Apprentice</button>'],
+    ['Necromancer (Ch)', 'Super Class', 'Wizard → Chaotic path. Cost: 2,000g.\n\nCommands undead minions and drains the life force of enemies to sustain itself.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ulys, Corrupt Caster">Ulys, Corrupt Caster</button>'],
+    ['Monk (Or)',         'Super Class', 'Martial Artist → Orthodox path. Cost: 2,400g.\n\nA balanced fighter using focus, precision, and inner power to overcome enemies.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Luther, Traveling Pasmark">Luther, Traveling Pasmark</button>'],
+    ['Brawler (N)',       'Super Class', 'Martial Artist → Neutral path. Cost: 3,750g.\n\nA pure melee powerhouse with crushing combos and unrelenting close-range pressure.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Gren, Wandering Practitioner">Gren, Wandering Practitioner</button>'],
+    ['Darkwraith (Ch)',   'Super Class', 'Martial Artist → Chaotic path. Cost: 2,000g.\n\nA corrupted fighter channeling dark energy to deliver devastating blows and powerful debuffs.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Momma Darkbeast, Mother of Dark">Momma Darkbeast, Mother of Dark</button>'],
+    ['Saint (Or)',        'Super Class', 'Slayer → Orthodox path. Cost: 2,000g.\n\nA holy healer and divine support class focused on protecting and restoring allies.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Fernain, Pathfinder Martyr">Fernain, Pathfinder Martyr</button>'],
+    ['Lancer (N)',        'Super Class', 'Slayer → Neutral path. Cost: 3,750g.\n\nA spear-specialized high-damage dealer with superior range and piercing attacks.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Relan, Armored Lancer">Relan, Armored Lancer</button>'],
+    ['Impaler (Ch)',      'Super Class', 'Slayer → Chaotic path. Cost: 2,400g.\n\nAn aggressive spear fighter that delivers devastating piercing attacks to single targets.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orin, Bloody Menace">Orin, Bloody Menace</button>'],
+    ['Lionheart (N)',     'Super Class', 'Marauder → Neutral path. Cost: 6,250g.\n\nA fearless warrior with overwhelming power and unmatched tenacity in battle.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Ardentis, Venerated Legionnaire">Ardentis, Venerated Legionnaire</button>'],
+    ['Citadel (Or)',      'Super Class', 'Sentry → Orthodox path. Cost: 2,000g.\n\nA near-impenetrable fortress tank with extreme damage reduction and team protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Nevithas, Fortified Seer">Nevithas, Fortified Seer</button>'],
+    ['Arbiter (N)',       'Super Class', 'Sentry → Neutral path. Cost: 6,250g.\n\nA judge-like fighter that controls the battlefield and punishes enemies who break the rules.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Kether, Deathmantle">Kether, Deathmantle</button>'],
 
     /* ── SUB CLASSES ──────────────────────────────────────────────────── */
     ['Bard',        'Sub Class', 'A support sub-class that uses music and song to buff allies and inflict debuffs on enemies. Cost: 1,200g.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Cantia, The Bard">Cantia, The Bard</button>'],
@@ -316,6 +316,31 @@
     ['Selia, The Alchemist',    'Trainer', '"...then this one must be..but then...Oh hi, how are you?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Alchemist">Alchemist</button>'],
     ['Adelma, the Blacksmith',  'Trainer', 'Teaches: <button class="enc-desc-link" data-enc-nav="Blacksmith">Blacksmith</button>'],
     ['Vanio, the Miner',        'Trainer', 'Teaches: <button class="enc-desc-link" data-enc-nav="Miner">Miner</button>'],
+    ['Ysa, The Warrior',        'Trainer', '"Hey kid, what do you want of me? I\'m a bit busy you know, city knight captain and all."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Warrior">Warrior</button>'],
+    ['Arandor, The Wizard',     'Trainer', '"The fields radiate strong energy today, perhaps the day of the chosen one is upon us?"\n"Ah, an aspiring young mage are we? Perhaps I could teach you a thing or two, but do note my services aren\'t free."\n"But of course, the usual price!"\n"I\'ve already taught you all I know, if you still wish to learn more then seek out more talented individuals in the world."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Wizard">Wizard</button>'],
+    ['Boots, The Thief',        'Trainer', '"Oh, and why would someone like you be snooping around these parts?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Thief">Thief</button>'],
+    ['Doran, The Martial Artist','Trainer', '"Aha, what do you want of someone like me on this nice day?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Martial Artist">Martial Artist</button>'],
+    ['Tivek, The Slayer',       'Trainer', '"Hmm? What\'s up kid, I don\'t usually get visitors up here."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Slayer">Slayer</button>'],
+    ['Geron, the Marauder',     'Trainer', 'Teaches: <button class="enc-desc-link" data-enc-nav="Marauder">Marauder</button>'],
+    ['Lagolt, the Sentry',      'Trainer', 'Teaches: <button class="enc-desc-link" data-enc-nav="Sentry">Sentry</button>'],
+    ['Dernon, Paladin Warrior',          'Trainer', '"Hm? What would someone like you be doing out here in this wasteland?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Paladin (Or)">Paladin</button>'],
+    ['Leoran, Adept Warrior',            'Trainer', '"Hm? Hello there, how are you?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Blade Dancer (N)">Blade Dancer</button>'],
+    ['Kayrein, Raging Warrior',          'Trainer', '"Oh? You managed to get down here? Now that\'s what I\'m talking about, come take a seat my friend!"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Berserker (Ch)">Berserker</button>'],
+    ['Landrum, Arcane Trainer',          'Trainer', '"…Oh, I\'m a little busy here, what do you want?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Elementalist (Or)">Elementalist</button>'],
+    ['Ophelia, Magister Apprentice',     'Trainer', '"Oh, hi there!"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Hexer (N)">Hexer</button>'],
+    ['Ulys, Corrupt Caster',             'Trainer', '"…Hm..but maybe with a bit more..hm? Oh, how did you get here?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Necromancer (Ch)">Necromancer</button>'],
+    ['Orkin, Lifebound Archer',          'Trainer', '"..Hm? What do you need?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Ranger (Or)">Ranger</button>'],
+    ['Aberon, Rogue Hunter',             'Trainer', '"Hey kid, it\'s pretty rough out there in the sands isn\'t it?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Rogue (N)">Rogue</button>'],
+    ['Inette, Shadow Cloak',             'Trainer', '"..Hm? What do you want?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Assassin (Ch)">Assassin</button>'],
+    ['Luther, Traveling Pasmark',        'Trainer', '"Ah, I heard you approaching, what do you seek of me?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Monk (Or)">Monk</button>'],
+    ['Gren, Wandering Practitioner',     'Trainer', '"Huh? What do you want kid?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Brawler (N)">Brawler</button>'],
+    ['Momma Darkbeast, Mother of Dark',  'Trainer', '"Can\'t you see I\'m busy with my kin, mortal? What is it that you seek?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Darkwraith (Ch)">Darkwraith</button>'],
+    ['Fernain, Pathfinder Martyr',       'Trainer', '"When will our lord save us... Oh, my bad, what are you in need of?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Saint (Or)">Saint</button>'],
+    ['Relan, Armored Lancer',            'Trainer', '"Hm? What are you doing up here, the gate to tundra is closed."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Lancer (N)">Lancer</button>'],
+    ['Orin, Bloody Menace',              'Trainer', '"Huh, what do you want?"\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Impaler (Ch)">Impaler</button>'],
+    ['Ardentis, Venerated Legionnaire',  'Trainer', '"Not many find their way up here. Sit. The heat alone will tell me if you belong."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Lionheart (N)">Lionheart</button>'],
+    ['Nevithas, Fortified Seer',         'Trainer', '"Raphion watches those who choose to stand. Sit. I will see what you bring."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Citadel (Or)">Citadel</button>'],
+    ['Kether, Deathmantle',              'Trainer', '"Few find this place. Fewer still deserve to speak."\n\nTeaches: <button class="enc-desc-link" data-enc-nav="Arbiter (N)">Arbiter</button>'],
 
     /* ── SCROLLS ─────────────────────────────────────────────────────── */
     ['Lights Out',        'Scroll', 'Class restriction: None.\n\nCost: 1 NRG · Cooldown: 5\nType: Holy · Buff\n\nApplies 3 Blinded and 1 Stunned to all enemies. Has a chance to backfire and apply to yourself instead.'],
@@ -430,6 +455,8 @@
   /* Trainer categories — order defines display order */
   const TRAINER_GROUPS = [
     { label: 'Sub Class Trainers', names: new Set(['Cantia, The Bard', 'Thorin, The Beastmaster', 'Selia, The Alchemist', 'Adelma, the Blacksmith', 'Vanio, the Miner']) },
+    { label: 'Base Class Trainers', names: new Set(['Ysa, The Warrior', 'Arandor, The Wizard', 'Boots, The Thief', 'Doran, The Martial Artist', 'Tivek, The Slayer', 'Geron, the Marauder', 'Lagolt, the Sentry']) },
+    { label: 'Super Class Trainers', names: new Set(['Dernon, Paladin Warrior', 'Leoran, Adept Warrior', 'Kayrein, Raging Warrior', 'Landrum, Arcane Trainer', 'Ophelia, Magister Apprentice', 'Ulys, Corrupt Caster', 'Orkin, Lifebound Archer', 'Aberon, Rogue Hunter', 'Inette, Shadow Cloak', 'Luther, Traveling Pasmark', 'Gren, Wandering Practitioner', 'Momma Darkbeast, Mother of Dark', 'Fernain, Pathfinder Martyr', 'Relan, Armored Lancer', 'Orin, Bloody Menace', 'Ardentis, Venerated Legionnaire', 'Nevithas, Fortified Seer', 'Kether, Deathmantle']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -1441,7 +1468,7 @@
           groupHdr.textContent = g.label;
           groupDiv.appendChild(groupHdr);
           const groupGrid = document.createElement('div');
-          groupGrid.className = 'enc-grid enc-grid-column';
+          groupGrid.className = 'enc-grid';
           gItems.forEach(({ it, i }) => {
             const btn = document.createElement('button');
             btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
