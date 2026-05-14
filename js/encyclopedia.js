@@ -362,6 +362,7 @@
     ['Dark Slash',        'Scroll', 'Class restriction: Thief, Warrior.\n\nCost: 2 NRG · Cooldown: 6\nType: Dark · Attack · Damage: 11 (STR/75)\n\nHas a chance to apply 2 Weakened.'],
     ['Fireball',          'Scroll', 'Class restriction: Wizard only.\n\nCost: 2 NRG · Cooldown: 4\nType: Fire · Attack · Damage: 9 (ARC/75)\n\nHas a chance to apply 3 Burning on hit.'],
     ['Blizzard',          'Scroll', 'Class restriction: Wizard only.\n\nCost: 2 NRG · Cooldown: 15\nType: Ice · Buff · Duration: 4\n\nCreates a snowstorm for 4 turns: all defense -20%, fire defense +25%, increasing ice damage by 20% for the team. Also increases the team\'s defense by 10%.'],
+    ['Battleworn',        'Scroll', 'Drop only from <button class="enc-desc-link" data-enc-tab="Boss">Bosses</button>.\n\nUnlike other scrolls, this scroll does not give any skills and simply gives 7 mastery points.'],
 
     /* ── LOST SCROLLS ────────────────────────────────────────────────── */
     ["Metrom's Grasp",    'Lost Scroll', 'Class restriction: None.\n\nCost: 5 NRG · Cooldown: 18\nType: Magic · Buff · Duration: 5\n\nDecreases opponents\' defense by 40%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns.'],
@@ -540,6 +541,10 @@
     { label: 'Low Tier', names: new Set(['Small Healing Potion', 'Medium Healing Potion']) },
     { label: 'Buff',     names: new Set(['Minor Absorbing Potion', 'Ferrus Skin Potion', 'Minor Empowering Elixir', 'Minor Energy Elixir', 'Average Energy Elixir', 'Stimulating Brew', 'Energetic SoulBrew', 'Invisibility Potion', 'Rejuvenating Elixir', 'Stoneskin Potion', 'Light of Grace']) },
     { label: 'N/A',      names: new Set(['Abhorrent Elixir', 'Alluring Elixir', 'Heartbreaking Elixir', 'Heartsoothing Remedy', 'Radiance Elixir']) },
+  ];
+
+  const SCROLL_GROUPS = [
+    { label: 'Mastery Scroll', names: new Set(['Battleworn']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -2240,6 +2245,49 @@
           groupDiv.appendChild(groupGrid);
           section.appendChild(groupDiv);
         });
+      } else if (type === 'Scroll') {
+        const groupedNames = new Set(SCROLL_GROUPS.flatMap(g => [...g.names]));
+        const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
+        if (ungrouped.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungrouped].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byGroup = {};
+        SCROLL_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          SCROLL_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
+        });
+        SCROLL_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          gItems.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
       } else {
         const grid = document.createElement('div');
         grid.className = 'enc-grid' + (type === 'Boss' ? ' enc-grid-column' : '');
@@ -2352,6 +2400,12 @@
         descEl.querySelectorAll('[data-enc-nav]').forEach(btn => {
           const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
           if (targetIdx !== -1) btn.addEventListener('click', () => selectItem(targetIdx));
+        });
+        descEl.querySelectorAll('[data-enc-tab]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const tabBtn = document.querySelector(`.enc-type-tab[data-type="${btn.dataset.encTab}"]`);
+            window._encFilter(btn.dataset.encTab, tabBtn || null);
+          });
         });
       } else {
         descEl.textContent = 'No description available.';
