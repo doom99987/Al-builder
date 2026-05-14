@@ -1510,7 +1510,43 @@ const classMoves = {
       }
     ]
   },
-  "Citadel (Or)": { innatePassives: [], learns: [] },
+  "Citadel (Or)": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        type: "Active",
+        name: "Crucible",
+        quote: "",
+        cost: 2,
+        cooldown: 4,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 9,
+        effect: "Raise your hammer, granting a vitality-scaled DR buff, then slam it down for an explosion with two aftershock hits. First hit applies 2T Vulnerable."
+      },
+      {
+        slot: "2nd Learn",
+        type: "Active",
+        name: "Blinding Vow",
+        quote: "",
+        cost: 2,
+        cooldown: 7,
+        category: "Buff",
+        effect: "Bless an ally with Sonority, granting 10% DR for 4T and bonding them to you. Whenever you resist damage through DR, they gain a 3T ATK buff scaling off the amount resisted."
+      },
+      {
+        slot: "3rd Learn",
+        type: "Active",
+        name: "Sanctified Protection",
+        quote: "",
+        cost: 3,
+        cooldown: 8,
+        category: "Buff",
+        effect: "Call down a holy hammer, linking all allies to you for 3T. 75% of their damage is redirected to you. Breaks if you take more than 20% of your max HP as tanked damage."
+      }
+    ]
+  },
   "Arbiter (N)": {
     innatePassives: [],
     learns: [
