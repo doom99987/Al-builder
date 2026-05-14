@@ -2668,6 +2668,16 @@ const BOSS_DATA = {
     hpVariants: { "Corrupted": 300 },
     res: {},
   },
+  "Slime King": {
+    hp: 400,
+    hpVariants: { "Corrupted": 600 },
+    res: { Physical: 0.90, Magic: 0.70, Poison: 0.70, Fire: 1.20, Nature: 1.20 },
+  },
+  "Carnis": {
+    hp: 380,
+    hpVariants: { "Corrupted": 570 },
+    res: {},
+  },
 };
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
