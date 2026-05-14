@@ -36,9 +36,13 @@
       return;
     }
 
+    const savedSize = ws('pipSize');
+    const pipW = savedSize.width  || 340;
+    const pipH = savedSize.height || 520;
+
     let pipWin;
     try {
-      pipWin = await window.documentPictureInPicture.requestWindow({ width: 340, height: 520 });
+      pipWin = await window.documentPictureInPicture.requestWindow({ width: pipW, height: pipH });
     } catch (err) {
       console.warn('PiP failed:', err);
       return;
@@ -46,6 +50,14 @@
 
     _pipWin = pipWin;
     buildPip(pipWin, tabKey);
+
+    // Save size whenever the PiP window is resized
+    pipWin.addEventListener('resize', () => {
+      ws('pipSize').width  = pipWin.innerWidth;
+      ws('pipSize').height = pipWin.innerHeight;
+      save();
+    });
+
     pipWin.addEventListener('pagehide', () => {
       _pipWin = null; _switchTab = null;
       window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._chatSetDoc?.(null);
