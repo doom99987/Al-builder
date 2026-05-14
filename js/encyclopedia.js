@@ -489,6 +489,11 @@
     ['The Temporal Jailhouse','Locations', 'A grand structure located in a pocket of space used to contain great threats.'],
     ['The Spirit Domain',     'Locations', 'A shattered space, home to many spirits.'],
     ['Fractured Realm',       'Locations', 'The end, the start and all in between.'],
+
+    /* ── TRIALS ──────────────────────────────────────────────────────── */
+    ['Zombie Mushroom Trial', 'Trial', 'Located in the <button class="enc-desc-link" data-enc-nav="Icerift Approach">Icerift</button> void. Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera</button> portal for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
+    ['Sand Golem Trial',      'Trial', 'Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Old Ruins">Ruins</button>, <button class="enc-desc-link" data-enc-nav="Sanctuary of Blades">Blades</button>, and <button class="enc-desc-link" data-enc-nav="Mount Thul">Volcano</button> portals for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
+    ['Cursed Corpse Trial',   'Trial', 'Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot</button>, <button class="enc-desc-link" data-enc-nav="Westwood Heart">Westwood</button>, and <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button> portals for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -503,6 +508,7 @@
     'Scroll', 'Lost Scroll',
     'Trainer',
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
+    'Trial',
   ];
 
   const TYPE_ICONS = {
@@ -530,6 +536,7 @@
     'Lost Scroll':     '📜',
     'Covenant':        '⚑',
     'Mark':            '◉',
+    'Trial':           '⚐',
   };
 
   const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Covenant', 'Mark']);
@@ -594,6 +601,10 @@
     { label: 'Volcano Gears',         names: new Set(['Imperial Headband', 'Magma Charm', 'Vulcan Knuckle', 'Dragon Memior', 'Blazing Brand', 'Molten Carapace']) },
     { label: 'Bosses/Minibosses Gears', names: new Set(['Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'Deathbeak Dagger', 'Blazing Perforator', "Yarthul's Wrath", 'Frostburned Rune', 'Vow of Ruin', 'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focussed Mind', 'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket', 'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand']) },
     { label: 'N/A',                   names: new Set(['Lethal Blackajck', 'Everbeating Drum']) },
+  ];
+
+  const TRIAL_GROUPS = [
+    { label: 'Petent Trials', desc: 'Hold out a Void Key before jumping into a void to enter. Completing each trial unlocks Rima portal destinations.', names: new Set(['Zombie Mushroom Trial', 'Sand Golem Trial', 'Cursed Corpse Trial']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -2401,6 +2412,55 @@
           GEAR_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
         });
         GEAR_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          if (g.desc) {
+            const groupDesc = document.createElement('div');
+            groupDesc.className = 'enc-group-desc';
+            groupDesc.textContent = g.desc;
+            groupDiv.appendChild(groupDesc);
+          }
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
+      } else if (type === 'Trial') {
+        const groupedNames = new Set(TRIAL_GROUPS.flatMap(g => [...g.names]));
+        const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
+        if (ungrouped.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungrouped].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byGroup = {};
+        TRIAL_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          TRIAL_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
+        });
+        TRIAL_GROUPS.forEach(g => {
           const gItems = byGroup[g.label];
           if (!gItems.length) return;
           const groupDiv = document.createElement('div');
