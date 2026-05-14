@@ -87,7 +87,7 @@
     ['Phantom Ooze',          'Gear',            ''],
     ["Ptera's Heart",         'Gear',            ''],
     ['Rabbit Pelt',           'Gear',            ''],
-    ['Rabbits Foot',          'Gear',            "A lucky rabbit's foot. Said to bring fortune to whoever carries it."],
+    ["Rabbit's Foot",         'Gear',            "A lucky rabbit's foot. Said to bring fortune to whoever carries it."],
     ['Ramzicon Idol',         'Gear',            ''],
     ['Sanguine Fang',         'Gear',            ''],
     ['Shard of Blight',       'Gear',            ''],
@@ -403,7 +403,7 @@
     ['Forgotten Relic',            'Misc', 'Obtainable from the Desert Hunt quest.\n\nGrants access to the <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button> raid and is also used to obtain the Gynx race.'],
     ['Warbing Whistle',            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Ptoruco">Ptoruco</button>.\n\nWhen used, the user enters a stance and after a few seconds spawns the mini-boss Pterathanaian.'],
     ['Unopened Present (unobtainable)', 'Misc', 'Can only be obtained during Winter Solstice. Grants 1 random item.\n\nCannot be traded.\n\nCommon (51%): Gold, Random Scroll\n\nRare (39%): Random Arcanium Shard, Random Potion\n\nEpic (7%): Event Accessory, Crystallized Joy, 2 Unopened Presents, Snorb, Elementary Resonance\n\nLegendary (3%): Random Lost Scroll, Random Lesser Artifact (excluding Void Keys and Echo Shards), Random Icerind Weapon, Echo Shard, Frosty Topper'],
-    ['Egg Basket',                 'Misc', 'Can only be obtained during Easter. Grants 1 random item from the list below.\n\nCannot be traded.\n\nPossible drops: Rabbit Pelt, Egg Shelmet, <button class="enc-desc-link" data-enc-nav="Rabbits Foot">Rabbit\'s Foot</button>, Chocolate Egg, Gleaming Carrot, Ivory Weapons'],
+    ['Egg Basket',                 'Misc', 'Can only be obtained during Easter. Grants 1 random item from the list below.\n\nCannot be traded.\n\nPossible drops: Rabbit Pelt, Egg Shelmet, <button class="enc-desc-link" data-enc-nav="Rabbit\'s Foot">Rabbit\'s Foot</button>, Chocolate Egg, Gleaming Carrot, Ivory Weapons'],
 
     /* ── ARMOUR ──────────────────────────────────────────────────────── */
     ['Paladin Cuirass',        'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Paladin (Or)">Paladin</button>\n\nRequirements: Level 20, 750g, 2 <button class="enc-desc-link" data-enc-nav="Aestic Ore">Aestic Ore</button>, 4 <button class="enc-desc-link" data-enc-nav="Ferrus Ore">Ferrus Ore</button>.\n\nStats: +20 Endurance, +17.5% Max HP.\n\nDamage Reduction: +10% Physical, +5% Holy, +5% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
@@ -583,6 +583,12 @@
 
   const ARMOUR_GROUPS = [
     { label: 'Droppable Blueprint', names: new Set(['Budding Mage', 'Chainmail Guard', 'Explorer', 'Nobleman', 'Shadowy Crook', 'Trapper', 'Wandering Scoundrel', 'Wayfarer']) },
+  ];
+
+  const GEAR_GROUPS = [
+    { label: 'Easter Gears',          desc: 'Can only be obtained during Easter Events.',          names: new Set(['Rabbit Pelt', 'Egg Shelmet', 'Chocolate Egg', 'Party Egg', 'Gleaming Carrot', "Rabbit's Foot"]) },
+    { label: 'Winter Solstice Gears', desc: 'Can only be obtained during Winter Solstice Events.', names: new Set(['Snorb', 'Elementary Resonance', 'Frosty Topper']) },
+    { label: 'N/A',                   names: new Set(['Lethal Blackajck', 'Everbeating Drum']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -1064,7 +1070,7 @@
       ],
       loot: {
         categories: [
-          { label: 'Gears', items: ['Rabbit Pelt', 'Egg Shelmet', 'Chocolate Egg', 'Party Egg', 'Gleaming Carrot', 'Rabbits Foot'] },
+          { label: 'Gears', items: ['Rabbit Pelt', 'Egg Shelmet', 'Chocolate Egg', 'Party Egg', 'Gleaming Carrot', "Rabbit's Foot"] },
         ],
         notes: [],
       },
@@ -2011,7 +2017,6 @@
     'Band Of Crushing Force':'Band of Crushing Force',
     'Lethal Blackajck':      'Lethal Blackjack',
     "Pathfinder's Mark":     'Pathfinder Mark',
-    "Rabbits Foot":          "Rabbit's Foot",
     'Ramzicon Idol':         'Ramizcan Idol',
     'Shattered Clockhand':   'Shattered Clock Hand',
     "Yarthul's Wrath":       "Yar'thul's Wrath",
@@ -2356,6 +2361,55 @@
           groupHdr.className = 'enc-weapon-group-hdr';
           groupHdr.textContent = g.label;
           groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
+      } else if (type === 'Gear') {
+        const groupedNames = new Set(GEAR_GROUPS.flatMap(g => [...g.names]));
+        const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
+        if (ungrouped.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungrouped].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byGroup = {};
+        GEAR_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          GEAR_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
+        });
+        GEAR_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          if (g.desc) {
+            const groupDesc = document.createElement('div');
+            groupDesc.className = 'enc-group-desc';
+            groupDesc.textContent = g.desc;
+            groupDiv.appendChild(groupDesc);
+          }
           const groupGrid = document.createElement('div');
           groupGrid.className = 'enc-grid';
           [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
