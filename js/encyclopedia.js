@@ -16,23 +16,23 @@
   const ENC_ITEMS = [
 
     /* ── ORES ─────────────────────────────────────────────────────────── */
-    ['Aestic Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: <button class="enc-desc-link" data-enc-nav="Explorer">Explorer</button>, <button class="enc-desc-link" data-enc-nav="Nobleman">Nobleman</button>, <button class="enc-desc-link" data-enc-nav="Chainmail Guard">Chainmail Guard</button>\n\nSuperclass: Paladin (<button class="enc-desc-link" data-enc-nav="Paladin Cuirass">Paladin Cuirass</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Elementalist (<button class="enc-desc-link" data-enc-nav="Arcane Robes">Arcane Robes</button>), Ranger (<button class="enc-desc-link" data-enc-nav="Lifebound Archer">Lifebound Archer</button>), Rogue (<button class="enc-desc-link" data-enc-nav="Rogue Hunter">Rogue Hunter</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Monk (<button class="enc-desc-link" data-enc-nav="Traveling Pasmark">Traveling Pasmark</button>), Brawler (<button class="enc-desc-link" data-enc-nav="Wandering Practitioner">Wandering Practitioner</button>), Darkwraith (<button class="enc-desc-link" data-enc-nav="Shade Walker">Shade Walker</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Lancer (<button class="enc-desc-link" data-enc-nav="Armored Lancer">Armored Lancer</button>), Impaler (<button class="enc-desc-link" data-enc-nav="Bloody Menace">Bloody Menace</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Arbiter (<button class="enc-desc-link" data-enc-nav="Deathmantle">Deathmantle</button>)'],
-    ['Ferrus Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: <button class="enc-desc-link" data-enc-nav="Trapper">Trapper</button>, <button class="enc-desc-link" data-enc-nav="Chainmail Guard">Chainmail Guard</button>\n\nSuperclass: Paladin (<button class="enc-desc-link" data-enc-nav="Paladin Cuirass">Paladin Cuirass</button>), Blade Dancer (<button class="enc-desc-link" data-enc-nav="Adept Warrior">Adept Warrior</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Rogue (<button class="enc-desc-link" data-enc-nav="Rogue Hunter">Rogue Hunter</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Brawler (<button class="enc-desc-link" data-enc-nav="Wandering Practitioner">Wandering Practitioner</button>), Darkwraith (<button class="enc-desc-link" data-enc-nav="Shade Walker">Shade Walker</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Lancer (<button class="enc-desc-link" data-enc-nav="Armored Lancer">Armored Lancer</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Citadel (<button class="enc-desc-link" data-enc-nav="Fortified Seer">Fortified Seer</button>)'],
-    ['Laneus Ore',            'Ore',             'Can be mined in the Assassin Trainer cave near the Deeproot Canopy entrance using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: None\n\nSuperclass: Blade Dancer (<button class="enc-desc-link" data-enc-nav="Adept Warrior">Adept Warrior</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Elementalist (<button class="enc-desc-link" data-enc-nav="Arcane Robes">Arcane Robes</button>), Hexer (<button class="enc-desc-link" data-enc-nav="Magister Apprentice">Magister Apprentice</button>), Necromancer (<button class="enc-desc-link" data-enc-nav="Corrupt Caster">Corrupt Caster</button>), Ranger (<button class="enc-desc-link" data-enc-nav="Lifebound Archer">Lifebound Archer</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Monk (<button class="enc-desc-link" data-enc-nav="Traveling Pasmark">Traveling Pasmark</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Impaler (<button class="enc-desc-link" data-enc-nav="Bloody Menace">Bloody Menace</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Citadel (<button class="enc-desc-link" data-enc-nav="Fortified Seer">Fortified Seer</button>), Arbiter (<button class="enc-desc-link" data-enc-nav="Deathmantle">Deathmantle</button>)'],
+    ['Aestic Ore',            'Ore',             'Can be mined in a cave near <button class="enc-desc-link" data-enc-nav="Icerift Approach">Icerift Approach</button> (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: <button class="enc-desc-link" data-enc-nav="Explorer">Explorer</button>, <button class="enc-desc-link" data-enc-nav="Nobleman">Nobleman</button>, <button class="enc-desc-link" data-enc-nav="Chainmail Guard">Chainmail Guard</button>\n\nSuperclass: Paladin (<button class="enc-desc-link" data-enc-nav="Paladin Cuirass">Paladin Cuirass</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Elementalist (<button class="enc-desc-link" data-enc-nav="Arcane Robes">Arcane Robes</button>), Ranger (<button class="enc-desc-link" data-enc-nav="Lifebound Archer">Lifebound Archer</button>), Rogue (<button class="enc-desc-link" data-enc-nav="Rogue Hunter">Rogue Hunter</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Monk (<button class="enc-desc-link" data-enc-nav="Traveling Pasmark">Traveling Pasmark</button>), Brawler (<button class="enc-desc-link" data-enc-nav="Wandering Practitioner">Wandering Practitioner</button>), Darkwraith (<button class="enc-desc-link" data-enc-nav="Shade Walker">Shade Walker</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Lancer (<button class="enc-desc-link" data-enc-nav="Armored Lancer">Armored Lancer</button>), Impaler (<button class="enc-desc-link" data-enc-nav="Bloody Menace">Bloody Menace</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Arbiter (<button class="enc-desc-link" data-enc-nav="Deathmantle">Deathmantle</button>)'],
+    ['Ferrus Ore',            'Ore',             'Can be mined in a cave near <button class="enc-desc-link" data-enc-nav="Icerift Approach">Icerift Approach</button> (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: <button class="enc-desc-link" data-enc-nav="Trapper">Trapper</button>, <button class="enc-desc-link" data-enc-nav="Chainmail Guard">Chainmail Guard</button>\n\nSuperclass: Paladin (<button class="enc-desc-link" data-enc-nav="Paladin Cuirass">Paladin Cuirass</button>), Blade Dancer (<button class="enc-desc-link" data-enc-nav="Adept Warrior">Adept Warrior</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Rogue (<button class="enc-desc-link" data-enc-nav="Rogue Hunter">Rogue Hunter</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Brawler (<button class="enc-desc-link" data-enc-nav="Wandering Practitioner">Wandering Practitioner</button>), Darkwraith (<button class="enc-desc-link" data-enc-nav="Shade Walker">Shade Walker</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Lancer (<button class="enc-desc-link" data-enc-nav="Armored Lancer">Armored Lancer</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Citadel (<button class="enc-desc-link" data-enc-nav="Fortified Seer">Fortified Seer</button>)'],
+    ['Laneus Ore',            'Ore',             'Can be mined in the Assassin Trainer cave near the <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button> entrance using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: None\n\nSuperclass: Blade Dancer (<button class="enc-desc-link" data-enc-nav="Adept Warrior">Adept Warrior</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Elementalist (<button class="enc-desc-link" data-enc-nav="Arcane Robes">Arcane Robes</button>), Hexer (<button class="enc-desc-link" data-enc-nav="Magister Apprentice">Magister Apprentice</button>), Necromancer (<button class="enc-desc-link" data-enc-nav="Corrupt Caster">Corrupt Caster</button>), Ranger (<button class="enc-desc-link" data-enc-nav="Lifebound Archer">Lifebound Archer</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Monk (<button class="enc-desc-link" data-enc-nav="Traveling Pasmark">Traveling Pasmark</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Impaler (<button class="enc-desc-link" data-enc-nav="Bloody Menace">Bloody Menace</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Citadel (<button class="enc-desc-link" data-enc-nav="Fortified Seer">Fortified Seer</button>), Arbiter (<button class="enc-desc-link" data-enc-nav="Deathmantle">Deathmantle</button>)'],
 
     /* ── INGREDIENTS ──────────────────────────────────────────────────── */
     ['Carnastool',            'Ingredient',      'Can be found in the Desert.'],
-    ['Cryastem',              'Ingredient',      'Can be found in Icerift Approach.'],
+    ['Cryastem',              'Ingredient',      'Can be found in <button class="enc-desc-link" data-enc-nav="Icerift Approach">Icerift Approach</button>.'],
     ['Crylight',              'Ingredient',      'Rarely found in place of Everthistle.'],
-    ['Driproot',              'Ingredient',      'Can be found in Deeproot Forest.'],
-    ['Everthistle',           'Ingredient',      'Can be found in the forest around Caldera and Deeproot.'],
-    ['Haze Chunk',            'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Fog Spirit">Fog Spirit</button>, which can be encountered in Deeproot Forest.'],
-    ['Hightail',              'Ingredient',      'Can be found in Deeproot Forest.'],
-    ['Mushroom Cap',          'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Zombie Mushroom">Zombie Mushroom</button> and <button class="enc-desc-link" data-enc-nav="Venom Shroom">Venom Shroom</button>, which can be encountered in Caldera and Deeproot Forest, respectively.\n\nCan be bought from Mysterious Merchant (Events).'],
+    ['Driproot',              'Ingredient',      'Can be found in <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Forest</button>.'],
+    ['Everthistle',           'Ingredient',      'Can be found in the forest around <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera Town</button> and <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot</button>.'],
+    ['Haze Chunk',            'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Fog Spirit">Fog Spirit</button>, which can be encountered in <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Forest</button>.'],
+    ['Hightail',              'Ingredient',      'Can be found in <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Forest</button>.'],
+    ['Mushroom Cap',          'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Zombie Mushroom">Zombie Mushroom</button> and <button class="enc-desc-link" data-enc-nav="Venom Shroom">Venom Shroom</button>, which can be encountered in <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera Town</button> and <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Forest</button>, respectively.\n\nCan be bought from Mysterious Merchant (Events).'],
     ['Restless Fragment',     'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>, which can be encountered in the Desert.\n\nCan be bought from Mysterious Merchant (Events).'],
-    ['Rot Core',              'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Cess Horror">Cess Horror</button> and Sentient Darkness, which can be encountered in Deeproot Forest.'],
+    ['Rot Core',              'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Cess Horror">Cess Horror</button> and Sentient Darkness, which can be encountered in <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Forest</button>.'],
     ['Sand Core',             'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Sand Elemental">Sand Elemental</button>, which can be encountered in the Desert.\n\nCan be bought from Mysterious Merchant (Events).'],
-    ['Slime Chunk',           'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Slime">Slimes</button>, which can be encountered in Caldera.\n\nCan be bought from Mysterious Merchant (Events).'],
+    ['Slime Chunk',           'Ingredient',      'Drops from <button class="enc-desc-link" data-enc-nav="Slime">Slimes</button>, which can be encountered in <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera Town</button>.\n\nCan be bought from Mysterious Merchant (Events).'],
 
 
     /* ── GEAR ─────────────────────────────────────────────────────────── */
@@ -185,14 +185,14 @@
     ['Star-Seeing Hammer',    'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button> and <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 4 empty Shard Slots.\n\nAllows the use of Hammer locked skills. Has no damage buff.\n\nDoes nothing.'],
 
     /* ── SHIELDS ─────────────────────────────────────────────────────── */
-    ['Ferrus Towershield',    'Weapon',          'Obtained from: Westwood Weapon Shop.\n\nGrants a 40% Damage Reduction.'],
+    ['Ferrus Towershield',    'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Westwood Heart">Westwood</button> Weapon Shop.\n\nGrants a 40% Damage Reduction.'],
     ['Ivory Shield',          'Weapon',          'Obtained from: Egg Basket.\n\nGrants nothing. literally, it does nothing.'],
     ['Icerind Shield',        'Weapon',          ''],
     ['Sandstone Shield',      'Weapon',          ''],
     ['Primordial Shield',     'Weapon',          ''],
     ['Dragonflame Shield',    'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Yar\'Thul">Yar\'Thul, The Blazing Dragon</button>.\n\nGrants a 30% Damage Reduction.\n\nReflects incoming melee damage by 200%.'],
     ['Slimy Buckler',         'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Slime King">Slime King</button>.\n\nGrants a 15% Damage Reduction.\n\nApplies 2 Weakened and 1 Blindness upon blocking a Melee attack. Does not stack with Slimy Shield passive (Lentum passive).'],
-    ['Targe',                 'Weapon',          'Obtained from: Can be purchased in the Old Ruins.\n\nGrants a 20% Damage Reduction.'],
+    ['Targe',                 'Weapon',          'Obtained from: Can be purchased in the <button class="enc-desc-link" data-enc-nav="Old Ruins">Old Ruins</button>.\n\nGrants a 20% Damage Reduction.'],
 
     /* ── ARTIFACTS ────────────────────────────────────────────────────── */
     ['Celestial Emblem',      'Artifact',        ''],
@@ -224,14 +224,14 @@
 
     /* ── ENCHANTS ─────────────────────────────────────────────────────── */
     ['Blessed',               'Enchant',         "Obtained from Raphion's Blessing (Seraphon)."],
-    ['Cursed',                'Enchant',         "Requires Level 35. Obtained from Jyphar's Cursed Corpse Cleansing Quest in Deeproot Canopy."],
+    ['Cursed',                'Enchant',         'Requires Level 35. Obtained from Jyphar\'s Cursed Corpse Cleansing Quest in <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>.'],
     ['Frosted',               'Enchant',         'Only obtainable during the Winter Event. Can be purchased from Sierrka, God of Festivities for 500 Crystallized Joy.'],
     ['Frost Burn (mod)',       'Enchant',         ''],
     ['Hiemal',                'Enchant',         'Obtained by defeating Corrupted <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button> and speaking with Thuriaz. You do not need to be the host or be alive to receive it.'],
-    ['Inferno',               'Enchant',         "Requires Level 25. Obtained from the Parkour in Mount'Thul."],
+    ['Inferno',               'Enchant',         'Requires Level 25. Obtained from the Parkour in <button class="enc-desc-link" data-enc-nav="Mount Thul">Mount Thul</button>.'],
     ['Ivory',                 'Enchant',         'Obtained during the Easter Event. Can be purchased from the Easter event for 1,000 Egg Shells.'],
-    ['Lifesong',              'Enchant',         'Requires Level 35. Obtained from Narthana\'s Lifesong Quest in The Forgotten Sanctum.'],
-    ['Midas',                 'Enchant',         "Obtained from Lodyssa's Midas Quest in Caldera Tavern."],
+    ['Lifesong',              'Enchant',         'Requires Level 35. Obtained from Narthana\'s Lifesong Quest in <button class="enc-desc-link" data-enc-nav="The Forgotten Sanctum">The Forgotten Sanctum</button>.'],
+    ['Midas',                 'Enchant',         'Obtained from Lodyssa\'s Midas Quest in <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera Town</button>.'],
     ['Reaper',                'Enchant',         'Requires Level 35. Obtained from the Reaper room in the Desert — requires full lives, or 1 life in Legendary mode + a Lineage Shard.'],
     ['Spectral',              'Enchant',         "Obtained from Arkhaia's Curse (Arkhaia)."],
     ['Storm (mod)',            'Enchant',         ''],
@@ -286,28 +286,28 @@
     ['Vydeer (1%)',      'Race', 'Legendary race (1% chance). A sensory race immune to Blind, gaining 1.5% crit per turn (cap 15%). Has the Sense status — at 3+ stacks, automatically dodges any damaging attack.'],
     ['Boreas (1%)',      'Race', 'Legendary race (1% chance). A frost race that stacks ice power: each Ice affinity move grants 1 stack (+20% dmg, +10% DR per stack). Non-Ice moves remove 1 stack. Attacks have ~25% chance to apply 2 Cold.'],
     ['Lentum (Obtainable)',      'Race', 'How to obtain:\n\nNote: Always have Gelat Band equipped and do it all in the same server.\n\n1. Equip Gelat Band and speak with King Slime Statue to get quest.\n2. Find 4 Slime Statues, speak with them and return to King Slime Statue.\n3. Give him 100 Slime Chunks. (Should get "my fallen subjects" dialogue)\n4. Kill King Slime and return to statue to obtain Lentum.'],
-    ['Amorus (Obtainable)',      'Race', 'How to obtain:\n\n1. Have 35+ level and speak with Thanasius in Amoran Chasm.\n2. Offer him the following: Phoenix Tear, Lineage Shard, Memory Fragment, Soul Dust, Narthana\'s Sigil, Dark Sigil, Reality Watch, Stellian Core, Shifting Hourglass, Chaos Orb, Metrom\'s Amulet, Void Key.\n3. Speak with him again to obtain Amorus.'],
+    ['Amorus (Obtainable)',      'Race', 'How to obtain:\n\n1. Have 35+ level and speak with Thanasius in <button class="enc-desc-link" data-enc-nav="Amoran Chasm">Amoran Chasm</button>.\n2. Offer him the following: Phoenix Tear, Lineage Shard, Memory Fragment, Soul Dust, Narthana\'s Sigil, Dark Sigil, Reality Watch, Stellian Core, Shifting Hourglass, Chaos Orb, Metrom\'s Amulet, Void Key.\n3. Speak with him again to obtain Amorus.'],
     ['Sheea (Obtainable)',       'Race', 'How to obtain:\n\n1. Speak with Sky Man, give him Mushroom Cap, Sand Core and Rot Core, then speak with him again and teleport.\n2. Join the Church of Raphion and progress it to Rank 20.\n3. Return to the Church and speak with Mael to start the Seraphon fight.\n4. Win the fight and speak with Mael to obtain Sheea.'],
-    ['Inferion (Obtainable)',    'Race', 'How to obtain:\n\n1. Come to Deeproot Depths and find the mirror, speak with it and choose the middle dialogue to get "Prayer" in your inventory.\n2. Use "Prayer" to start a fight with the Sheea Elementalist.\n3. Fight the Sheea Elementalist (you can fight in a party, just get the final blow) and speak with the mirror again to teleport.\n4. Join the Cult of Thanasius and progress it to Rank 20.\n5. Come back to the Cult and speak with Mephisto to start the Arkhaia fight.\n6. Win the fight and speak with Mephisto again to obtain Inferion.'],
+    ['Inferion (Obtainable)',    'Race', 'How to obtain:\n\n1. Come to <button class="enc-desc-link" data-enc-nav="Deeproot Depths">Deeproot Depths</button> and find the mirror, speak with it and choose the middle dialogue to get "Prayer" in your inventory.\n2. Use "Prayer" to start a fight with the Sheea Elementalist.\n3. Fight the Sheea Elementalist (you can fight in a party, just get the final blow) and speak with the mirror again to teleport.\n4. Join the Cult of Thanasius and progress it to Rank 20.\n5. Come back to the Cult and speak with Mephisto to start the Arkhaia fight.\n6. Win the fight and speak with Mephisto again to obtain Inferion.'],
     ['Gynx (Obtainable)',        'Race', 'How to obtain:\n\n1. Defeat Handaconda on the character slot where you want the race. (Normal or Corrupted both work)\n2. Have a Forgotten Relic in your inventory while having 3 gear drops from Handaconda equipped. These include: Open Hand, Dust Devil\'s Eye, Eroded Blade, and The Smallest Boulder.\n3. Talk to the Handaconda fight NPC Thuriaz to obtain Gynx.'],
 
     /* ── BOSSES (ordered by progression) ─────────────────────────────── */
-    ["Yar'Thul, The Blazing Dragon", 'Boss', 'The boss of Mount Thul. This enemy can block attacks.'],
-    ['Thorian, The Rotten',          'Boss', 'The boss of Cessgrounds. This enemy can block attacks.'],
-    ['Pterathanaian',                'Mini Boss', 'The mini boss of Deeproot Canopy. Spawns upon using the Warbing Whistle.'],
-    ['Seraphon',                     'Boss', 'The boss of Illustris. Available in the Church of Raphion at rank 20. This enemy can block and dodge attacks.'],
-    ['Arkhaia',                      'Boss', 'The boss of the Temple of Norn. Available in the Cult of Thanasius at rank 20. This enemy can block attacks.\n\nNote: Starting the fight with a Celestial Emblem equipped allows Arkhaia to summon a weak version of Sentient Darkness.'],
+    ["Yar'Thul, The Blazing Dragon", 'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Mount Thul">Mount Thul</button>. This enemy can block attacks.'],
+    ['Thorian, The Rotten',          'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button>. This enemy can block attacks.'],
+    ['Pterathanaian',                'Mini Boss', 'The mini boss of <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>. Spawns upon using the Warbing Whistle.'],
+    ['Seraphon',                     'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Illustris">Illustris</button>. Available in the Church of Raphion at rank 20. This enemy can block and dodge attacks.'],
+    ['Arkhaia',                      'Boss', 'The boss of the <button class="enc-desc-link" data-enc-nav="Temple of Norn">Temple of Norn</button>. Available in the Cult of Thanasius at rank 20. This enemy can block attacks.\n\nNote: Starting the fight with a Celestial Emblem equipped allows Arkhaia to summon a weak version of Sentient Darkness.'],
     ["Metrom's Vessel",              'Boss', "A vessel containing Metrom's immense power. One of the game's strongest raid bosses. This enemy can block and dodge attacks."],
     ['Shadeblade',                   'Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
     ['Handaconda',                   'Boss', 'A colossal serpentine raid boss. Resistant to physical, holy, and arcane damage. Vulnerable to fire.'],
-    ['Slime King',                   'Mini Boss', 'The Mini Boss of The Crossing. This enemy can dodge attacks.'],
-    ['Carnis',                       'Mini Boss', 'The Mini Boss of Deeproot Canopy.'],
+    ['Slime King',                   'Mini Boss', 'The Mini Boss of <button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button>. This enemy can dodge attacks.'],
+    ['Carnis',                       'Mini Boss', 'The Mini Boss of <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>.'],
 
     /* ── COVENANTS ───────────────────────────────────────────────────── */
     ['Blades of the World', 'Covenant', 'A gold-focused covenant offering increased guild rewards, a combat active, Mulligan on death, and 2 accessories.\n\nProgression: Donate gold for 1 point, or complete quests on the Blades questboard for 3 points each. Questboard access requires Rank 3.\n\nRank costs: R1: 250G · R3: 750G · R5: ~2,125G / ~5 requests · R10: ~8,125G / ~29 requests (+2 SP) · R13: ~13,375G / ~49 requests · R15: ~17,500G / ~65 requests · R20: ~38,625G / ~116 requests (+3 SP)'],
     ['Way of Life',         'Covenant', 'A healing covenant offering increased outgoing healing, a heal active, and 2 accessories.\n\nProgression: Donate Mossy Runes — Rank 1 costs 1 rune, all others cost 5 runes each. Runes drop from guild requests and brewing potions (1–4 per reward). Cannot be traded.\n\nRank costs: R1: 1 Rune · R5: 25 Runes · R7: 35 Runes · R10: 50 Runes (+2 SP) · R13: 65 Runes · R15: 75 Runes · R20: 100 Runes (+3 SP)'],
     ['Church of Raphion',   'Covenant', 'Note: Cannot join if already in another covenant.\n\nHow to join: Speak with Sky Man and give him a Mushroom Cap, Sand Core, and Rot Core. Speak with him again and teleport. Find Mael and speak with him to join.\n\nA support covenant providing cleansing heals, shield abilities, and the ability to teleport to Seraphon.\n\nProgression: Heal an ally or yourself for +2 progression per heal (regen does not count; Ranger\'s Enrichment does). Required healing per rank equals the rank number.\n\nRank costs: R0: On join · R5: 15 total heals · R10: 30 total heals (+2 SP) · R15: 65 total heals · R20: 105 total heals (+3 SP)'],
-    ['Cult of Thanasius',   'Covenant', 'Note: Cannot join if already in another covenant.\n\nHow to join: In Deeproot Depths, find the mirror and choose "Death" then "I wish to become its harbringer" to receive the Prayer active. Use Prayer to fight the Sheea Elementalist and defeat it. Speak with the mirror again to teleport. Find Mephisto and speak with him to join.\n\nA dark covenant providing an execute ability, energy on kill, and the ability to teleport to Arkhaia.\n\nProgression: Gain 1 point per enemy killed. Kills via Soul Absorb grant more progression.\n\nRank costs: R0: On join · R5: 15 total absorbs · R10: 30 total absorbs (+2 SP) · R15: 75 total absorbs · R20: 105 total absorbs (+3 SP)'],
+    ['Cult of Thanasius',   'Covenant', 'Note: Cannot join if already in another covenant.\n\nHow to join: In <button class="enc-desc-link" data-enc-nav="Deeproot Depths">Deeproot Depths</button>, find the mirror and choose "Death" then "I wish to become its harbringer" to receive the Prayer active. Use Prayer to fight the Sheea Elementalist and defeat it. Speak with the mirror again to teleport. Find Mephisto and speak with him to join.\n\nA dark covenant providing an execute ability, energy on kill, and the ability to teleport to Arkhaia.\n\nProgression: Gain 1 point per enemy killed. Kills via Soul Absorb grant more progression.\n\nRank costs: R0: On join · R5: 15 total absorbs · R10: 30 total absorbs (+2 SP) · R15: 75 total absorbs · R20: 105 total absorbs (+3 SP)'],
 
     /* ── MARKS ────────────────────────────────────────────────────────── */
     ['Petent', 'Mark', 'A cross-wipe progression system earned by completing specific in-game requirements. Advancing a tier requires placing a Void Key in your Soul Vault and wiping. Grants permanent abilities that persist through all future wipes.'],
@@ -393,10 +393,10 @@
     ['Radiance Elixir',         'Potion', 'Grants +1 extra slot upon usage, regardless of how many slots you already have. Can only be used once. Cannot be traded.\n\nNote: Recipe order matters — Resplendent Essence must be added before Phoenix Tear.\n\nRecipe: 3 <button class="enc-desc-link" data-enc-nav="Resplendent Essence">Resplendent Essence</button>, 1 <button class="enc-desc-link" data-enc-nav="Phoenix Tear">Phoenix Tear</button>.'],
 
     /* ── MISC ────────────────────────────────────────────────────────── */
-    ['Pickaxe',                    'Misc', 'A utility item used to mine ore for armor. Costs 50g and can be purchased near the blacksmith in Caldera.'],
+    ['Pickaxe',                    'Misc', 'A utility item used to mine ore for armor. Costs 50g and can be purchased near the blacksmith in <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera Town</button>.'],
     ['Starslime Chunk',            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Star Slime">Star Slime</button>.\n\nHas no purpose other than selling it.'],
     ['Astral Shards',              'Misc', 'Obtainable from <button class="enc-desc-link" data-enc-nav="Star Slime">Star Slime</button> or by interacting with a meteor during an Astral Night event with a Pickaxe. Cannot be traded.\n\nUsed to craft <button class="enc-desc-link" data-enc-nav="Celestial Emblem">Celestial Emblem</button> at El\'heith.'],
-    ['Old Runic Bolt',             'Misc', 'Drops from Pterathanarian, or can be purchased from Elena at the Cessgrounds entrance for 400g (1,000g after the first purchase). The initial price can be exploited by repeating the initial dialogue.\n\nWhen used, the item is thrown at the ground and reveals any nearby cess anomalies in Cessgrounds.'],
+    ['Old Runic Bolt',             'Misc', 'Drops from Pterathanarian, or can be purchased from Elena at the <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button> entrance for 400g (1,000g after the first purchase). The initial price can be exploited by repeating the initial dialogue.\n\nWhen used, the item is thrown at the ground and reveals any nearby cess anomalies in <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button>.'],
     ['Mossy Rune',                 'Misc', 'Obtainable by completing Guild requests or brewing Potions as a member of the Way of Life covenant. Cannot be traded.\n\nUsed to progress and rank up within the Way of Life covenant.'],
     ["Arkhaia's Curse",            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button>.\n\nWhen used, the item is consumed and you are granted a <button class="enc-desc-link" data-enc-nav="Spectral">Spectral</button> enchant. A confirmation screen appears before use.'],
     ["Raphion's Blessing",         'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>.\n\nWhen used, the item is consumed and you are granted a <button class="enc-desc-link" data-enc-nav="Blessed">Blessed</button> enchant. A confirmation screen appears before use.'],
@@ -442,14 +442,14 @@
     ['Duneguard',         'Mob', 'Desert Night cycle mob.'],
     ['Sentient Darkness', 'Mob', 'Deeproot Night cycle mob. This enemy cannot block or dodge attacks.'],
     ['Ptoruco',           'Mob', 'Deeproot Night cycle mob. Can only be encountered past level 15.'],
-    ['White Bunny',       'Mob', 'Easter Events mob. Spawns only in The Crossing. This enemy can dodge attacks.'],
+    ['White Bunny',       'Mob', 'Easter Events mob. Spawns only in <button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button>. This enemy can dodge attacks.'],
     ['Sand Bunny',        'Mob', 'Easter Events mob.\n\nTakes increasingly reduced damage the more consecutive hits it takes in one turn.'],
     ['Magmatic Bunny',    'Mob', 'Easter Events mob.\n\nCan have up to, but not more than, 4 energy.'],
     ['Malevolent Bunny',  'Mob', 'Easter Events mob.\n\nDoes not gain energy.'],
-    ['Gigapascha',        'Mob', 'Easter Events mini-boss mob. Spawns only in The Crossing during the day. This enemy can dodge attacks.'],
+    ['Gigapascha',        'Mob', 'Easter Events mini-boss mob. Spawns only in <button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button> during the day. This enemy can dodge attacks.'],
     ['Frosted Slime',     'Mob', 'Winter Solstice Events mob. This enemy can dodge attacks.'],
     ['Joyous Spirit',     'Mob', 'Winter Solstice Events mob. Currently disabled from encounters due to bugs. This enemy can dodge attacks.'],
-    ['Thief',             'Mob', 'The Crossing mob. This enemy can block and dodge attacks.'],
+    ['Thief',             'Mob', '<button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button> mob. This enemy can block and dodge attacks.'],
     ['Slime',             'Mob', 'Forest mob. This enemy can dodge attacks.'],
     ['Grass Spirit',      'Mob', 'Forest mob. This enemy can dodge attacks.'],
     ['Zombie Mushroom',   'Mob', 'Forest mob. This enemy can block and dodge attacks.'],
@@ -461,9 +461,34 @@
     ['Venom Shroom',      'Mob', 'Deeproot mob. This enemy can block and dodge attacks.'],
     ['Cursed Corpse',     'Mob', 'Deeproot mob. This enemy can block and dodge attacks.'],
     ['Cess Horror',       'Mob', 'Deeproot mob. This enemy can block attacks.'],
-    ['Lava Crab',         'Mob', 'Mount Thul mob. This enemy can dodge attacks.'],
-    ['Magma Golem',       'Mob', 'Mount Thul mob. This enemy can block attacks.'],
+    ['Lava Crab',         'Mob', '<button class="enc-desc-link" data-enc-nav="Mount Thul">Mount Thul</button> mob. This enemy can dodge attacks.'],
+    ['Magma Golem',       'Mob', '<button class="enc-desc-link" data-enc-nav="Mount Thul">Mount Thul</button> mob. This enemy can block attacks.'],
     ['Shadeblade',        'Mini Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
+
+    /* ── LOCATIONS ───────────────────────────────────────────────────── */
+    ['Caldera Town',          'Locations', 'A humble town nestled into the forest.'],
+    ['The Crossing',          'Locations', 'The crossroads between all regions in the world.'],
+    ['Icerift Approach',      'Locations', 'The grand entrance to the frozen wasteland.'],
+    ['Waving Sands',          'Locations', 'The blazing sun bears down upon a barren land.'],
+    ['Old Ruins',             'Locations', 'An abandoned town of the past, terrorized by the beast of the volcano.'],
+    ['Sanctuary of Blades',   'Locations', 'A hidden village, home to the elusive Blades of the World.'],
+    ['Snake Pit',             'Locations', 'A pit holding the largest snake known to mankind.'],
+    ['Mount Thul',            'Locations', 'An ancient active volcano, inhabited by a great beast.'],
+    ['Inferno Chamber',       'Locations', 'The heart of lava, home to a blazing monstrosity.'],
+    ['Deeproot Canopy',       'Locations', 'The skyward trees deny outsiders and shield life inside.'],
+    ['Westwood Heart',        'Locations', 'A sprawling raised town built upon decades of history.'],
+    ['Deeproot Depths',       'Locations', 'A system of old overgrown tunnels once used in the past.'],
+    ['The Forgotten Sanctum', 'Locations', 'An eternal garden that will forever stand amidst the curse.'],
+    ['Cessgrounds',           'Locations', 'An area completely torn to ruin by the curse on the <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>.'],
+    ['Amoran Chasm',          'Locations', 'In a cursed cave, Thanasius, once revered, now resides amidst the desolate ruins of the sacred deep-root.'],
+    ['Cursed Remnants',       'Locations', 'A collection of old floating ruins located in the heart of the <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>.'],
+    ['Illustris',             'Locations', 'A dazzling city perched high atop the clouds. Home of the Sheea and the Benevolent Church of Raphion.'],
+    ["Heaven's Point",        'Locations', 'Aspiring warriors have come here for generations in an attempt to prove their worth to the gods.'],
+    ['Temple of Norn',        'Locations', 'An old religious site buried deep underground. Followers of Thanasius have come here to worship him.'],
+    ['Chamber of Malice',     'Locations', 'Devout followers of Thanasius are given a trial here in order to prove their loyalty to him.'],
+    ['The Temporal Jailhouse','Locations', 'A grand structure located in a pocket of space used to contain great threats.'],
+    ['The Spirit Domain',     'Locations', 'A shattered space, home to many spirits.'],
+    ['Fractured Realm',       'Locations', 'The end, the start and all in between.'],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -474,6 +499,7 @@
     'Ore', 'Ingredient', 'Potion', 'Weapon', 'Gear', 'Misc',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
+    'Locations',
     'Scroll', 'Lost Scroll',
     'Trainer',
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
@@ -499,6 +525,7 @@
     'Mini Boss':       '💀',
     'Mob':             '👾',
     'Trainer':         '🎓',
+    'Locations':        '🗺',
     'Scroll':          '📜',
     'Lost Scroll':     '📜',
     'Covenant':        '⚑',
@@ -511,7 +538,7 @@
   /* Weapon families — order defines display order, prefix used for matching */
   const WEAPON_GROUPS = [
     { label: 'Ferrus',      prefix: 'Ferrus ',        desc: 'Obtained from: Caldera Weapon Shop.\n\nStarts with 6 empty Shard Slots.\n\nAllows the use of weapon-locked skills in respect to their weapon type. Has no damage buff.' },
-    { label: 'Blacksteel',  prefix: 'Blacksteel ',    desc: 'Obtained from: Westwood Weapon Shop.\n\nStarts with 4 empty Shard Slots.' },
+    { label: 'Blacksteel',  prefix: 'Blacksteel ',    desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Westwood Heart">Westwood</button> Weapon Shop.\n\nStarts with 4 empty Shard Slots.' },
     { label: 'Dragon Bone', prefix: 'Dragon Bone ',   desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Yar\'Thul">Yar\'Thul, The Blazing Dragon</button>.\n\nStarts with 3 empty Shard Slots.' },
     { label: 'Corealloy',   prefix: 'Corealloy ',     desc: 'Obtained from: Mysterious Merchant (Event).\n\nStarts with 5 empty Shard Slots.' },
     { label: 'Sun',         prefix: 'Sun ',           desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>, <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button>.\n\nStarts with 3 empty Shard Slots.' },
@@ -1528,13 +1555,13 @@
     'Petent': {
       innatePassives: [
         { name: 'Step 1 — Exploration',  description: 'Visit every location and kill every enemy and boss in the game (with a few exclusions — see the checklist). After completing this, holding a Void Key will make it glow bright pink.' },
-        { name: 'Step 2 — Void Trials',  description: 'Hold a Void Key (only required for the first tier) and jump into the void in Caldera, Desert, and Deeproot. Defeat the enemy of each void trial to receive a Soul Quiver.' },
+        { name: 'Step 2 — Void Trials',  description: 'Hold a Void Key (only required for the first tier) and jump into the void in <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera Town</button>, <button class="enc-desc-link" data-enc-nav="Waving Sands">Waving Sands</button>, and <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot</button>. Defeat the enemy of each void trial to receive a Soul Quiver.' },
         { name: 'Step 3 — Quests',       description: 'Complete every quest in the game (with a few exclusions — refer to the spreadsheet).' },
         { name: 'Step 4 — Soul Vault Wipe', description: 'Place a Void Key inside your Soul Vault, then wipe by any means. If all previous steps were completed correctly, your Petent tier will increase.' },
       ],
       learns: [
         { name: 'Tier 1 — Rima',         type: 'Passive',
-          effect: 'Grants the item "Rima". Hold it out and say a location name to open a portal — you and your party can travel through it.\n\nLocations unlocked per trial:\n• Zombie Mushroom Trial → Caldera\n• Sand Golem Trial → Ruins, Blades, Volcano\n• Cursed Corpse Trial → Deeproot, Westwood, Cessgrounds' },
+          effect: 'Grants the item "Rima". Hold it out and say a location name to open a portal — you and your party can travel through it.\n\nLocations unlocked per trial:\n• Zombie Mushroom Trial → <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera</button>\n• Sand Golem Trial → <button class="enc-desc-link" data-enc-nav="Old Ruins">Ruins</button>, <button class="enc-desc-link" data-enc-nav="Sanctuary of Blades">Blades</button>, <button class="enc-desc-link" data-enc-nav="Mount Thul">Volcano</button>\n• Cursed Corpse Trial → <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot</button>, <button class="enc-desc-link" data-enc-nav="Westwood Heart">Westwood</button>, <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button>' },
         { name: 'Tier 3 — Conisura',      type: 'Active', cost: 3, cooldown: 10, moveType: 'Magic', damage: 7, scaling: 'STR/ARC',
           effect: 'Opens a rift on an enemy, sucking out all status effects currently applied to them, then exploding for damage.\n\nBase damage: 7. Increases by 3 per unique status absorbed, or 6 if the status was Hexed. All negative statuses on the target are removed on use.' },
         { name: 'Tier 5 — Dominioneer',   type: 'Passive',
@@ -1546,7 +1573,7 @@
         { name: 'Step 1 — Midas Enchant',       description: 'Obtain the Midas enchant.' },
         { name: 'Step 2 — Sell Lesser Artifacts', description: 'Sell Resplendent Essence, Memory Fragment, Soul Dust, Lineage Shard, and Phoenix Tear in any order. If done correctly you will receive a Soul Quiver. You do not need 50k gold while doing this step.' },
         { name: 'Step 3 — 50k Gold',             description: 'Accumulate 50,000 gold.' },
-        { name: 'Step 4 — Artifact Sacrifice',   description: 'Sacrifice artifacts to each of the 4 Venia Orbs around the map. Each orb consumes 3 artifacts total. Only unbroken, wanted artifacts count — the artifacts each orb wants persist through all wipes.\n\nOrb Locations (2 of 4 known):\n• Caldera Orb — near the Fists base class trainer at spawn\n• Blades Orb — outside the Blades of the World location, on the path between the two sides of the ravine\n\nAccepted artifacts by source:\n• Lesser Artifacts: Memory Fragment, Soul Dust, Lineage Shard, Phoenix Tear, Resplendent Essence, Void Key, Echo Shard\n• Yar\'thul drops: Reality Watch, Narthana\'s Sigil, Shifting Hourglass\n• Thorian drops: Dark Sigil, Metrom\'s Amulet, Stellian Core\n• Metrom\'s Vessel / Other: Chaos Orb, Skyward Totem' },
+        { name: 'Step 4 — Artifact Sacrifice',   description: 'Sacrifice artifacts to each of the 4 Venia Orbs around the map. Each orb consumes 3 artifacts total. Only unbroken, wanted artifacts count — the artifacts each orb wants persist through all wipes.\n\nOrb Locations (2 of 4 known):\n• <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera</button> Orb — near the Fists base class trainer at spawn\n• Blades Orb — outside the Blades of the World location, on the path between the two sides of the ravine\n\nAccepted artifacts by source:\n• Lesser Artifacts: Memory Fragment, Soul Dust, Lineage Shard, Phoenix Tear, Resplendent Essence, Void Key, Echo Shard\n• Yar\'thul drops: Reality Watch, Narthana\'s Sigil, Shifting Hourglass\n• Thorian drops: Dark Sigil, Metrom\'s Amulet, Stellian Core\n• Metrom\'s Vessel / Other: Chaos Orb, Skyward Totem' },
         { name: 'Step 5 — Wipe',                 description: 'Wipe while still holding the Midas enchant and 50k gold on you. If all previous steps were completed correctly, your Venia tier will increase.' },
       ],
       learns: [
@@ -1561,7 +1588,7 @@
     'Astra': {
       innatePassives: [
         { name: 'Step 1 — Materials',         description: 'Obtain 5 Astral Shards, a Stellian Core, and 15,000 gold.' },
-        { name: 'Step 2 — Celestial Emblem',  description: 'Go to The Forgotten Sanctum and talk to El\'heith. He will craft the Celestial Emblem for you using the materials from Step 1.' },
+        { name: 'Step 2 — Celestial Emblem',  description: 'Go to <button class="enc-desc-link" data-enc-nav="The Forgotten Sanctum">The Forgotten Sanctum</button> and talk to El\'heith. He will craft the Celestial Emblem for you using the materials from Step 1.' },
         { name: 'Step 3 — Enemy Kills',       description: 'Defeat the following enemies while the Celestial Emblem is equipped. The player with Celestial Emblem must be the one who initiates the fight.\n\n• Astral: Star Slime\n• Crossing: Goblin, Thanasludd, Gon\n• Desert: Night Raider, Duneguard\n• Deeproot: Sentient Darkness, Ptoruco' },
         { name: 'Step 4 — Defeat Arkhaia',    description: 'Defeat Arkhaia while you have the Celestial Emblem equipped. Either you or someone with Celestial Emblem must initiate the fight.' },
         { name: 'Step 5 — Wipe',              description: 'Wipe while the Celestial Emblem is equipped. If all previous steps were completed correctly, your Astra tier will increase.' },
@@ -1782,7 +1809,7 @@
     'Cursed': {
       obtainableFrom: [],
       passives: [
-        { name: '', effect: 'Attacks have a 16.6% chance to apply 3 stacks of one of: Cursed, Poisoned, Blinded, Sundered, Weakened, Vulnerable, or Burning.\n\nGrants immunity to Cess Anomalies in Cessgrounds and removes Cess Horror from encounters in Deeproot Canopy.\n\nIncreases damage by 30% against Cursed enemies or 20% against Sundered enemies. Does not stack — only the highest buff applies.' },
+        { name: '', effect: 'Attacks have a 16.6% chance to apply 3 stacks of one of: Cursed, Poisoned, Blinded, Sundered, Weakened, Vulnerable, or Burning.\n\nGrants immunity to Cess Anomalies in <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button> and removes Cess Horror from encounters in <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>.\n\nIncreases damage by 30% against Cursed enemies or 20% against Sundered enemies. Does not stack — only the highest buff applies.' },
       ],
       moves: [],
     },
