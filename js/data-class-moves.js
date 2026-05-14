@@ -1354,7 +1354,48 @@ const classMoves = {
     ]
   },
   // ── MARAUDER TREE ─────────────────────────────────────────────────────────
-  "Marauder": { innatePassives: [], learns: [] }, // base class has no own moves
+  "Marauder": {
+    innatePassives: [],
+    learns: [
+      {
+        slot: "1st Learn",
+        type: "Active",
+        name: "Grudge",
+        quote: "",
+        cost: 1,
+        duration: 2,
+        cooldown: 6,
+        category: "Buff",
+        effect: "Force an enemy to target you."
+      },
+      {
+        slot: "2nd Learn",
+        type: "Active",
+        name: "Cleave",
+        quote: "",
+        cost: 2,
+        cooldown: 3,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 16,
+        effect: "Hoist your axe onto your shoulder and swing horizontally."
+      },
+      {
+        slot: "3rd Learn",
+        type: "Passive",
+        name: "Axe to Grind",
+        quote: "",
+        effect: "Deal more damage to enemies that recently hit you."
+      },
+      {
+        slot: "4th Learn",
+        type: "Passive",
+        name: "Fleshchipper",
+        quote: "",
+        effect: "Deal full damage to enemies that block your attacks."
+      }
+    ]
+  },
   "Lionheart (N)": {
     innatePassives: [],
     learns: [
