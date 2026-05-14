@@ -16,9 +16,9 @@
   const ENC_ITEMS = [
 
     /* ── ORES ─────────────────────────────────────────────────────────── */
-    ['Aestic Ore',            'Ore',             'A brittle ore found in arid regions. Used as a base material in standard smithing.'],
-    ['Ferrus Ore',            'Ore',             'A dense iron-like ore. The most common crafting material for base-tier weapons and tools.'],
-    ['Laneus Ore',            'Ore',             'A refined ore with mild magical conductivity. Used in mid-tier equipment crafting.'],
+    ['Aestic Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: Explorer, Nobleman, Chainmail Guard\n\nSuperclass: Paladin (Paladin Cuirass), Berserker (Raging Warrior), Elementalist (Arcane Robes), Ranger (Lifebound Archer), Rogue (Rogue Hunter), Assassin (Shadow Cloak), Monk (Traveling Pasmark), Brawler (Wandering Practitioner), Darkwraith (Shade Walker), Saint (Pathfinder Martyr), Lancer (Armored Lancer), Impaler (Bloody Menace), Lionheart (Venerated Legionnaire), Arbiter (Deathmantle)'],
+    ['Ferrus Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: Trapper, Chainmail Guard\n\nSuperclass: Paladin (Paladin Cuirass), Blade Dancer (Adept Warrior), Berserker (Raging Warrior), Rogue (Rogue Hunter), Assassin (Shadow Cloak), Brawler (Wandering Practitioner), Darkwraith (Shade Walker), Saint (Pathfinder Martyr), Lancer (Armored Lancer), Lionheart (Venerated Legionnaire), Citadel (Fortified Seer)'],
+    ['Laneus Ore',            'Ore',             'Can be mined in the Assassin Trainer cave near the Deeproot Canopy entrance using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: None\n\nSuperclass: Blade Dancer (Adept Warrior), Berserker (Raging Warrior), Elementalist (Arcane Robes), Hexer (Magister Apprentice), Necromancer (Corrupt Caster), Ranger (Lifebound Archer), Assassin (Shadow Cloak), Monk (Traveling Pasmark), Saint (Pathfinder Martyr), Impaler (Bloody Menace), Lionheart (Venerated Legionnaire), Citadel (Fortified Seer), Arbiter (Deathmantle)'],
 
     /* ── INGREDIENTS ──────────────────────────────────────────────────── */
     ['Carnastool',            'Ingredient',      'A dense mushroom with a meaty texture. Used in basic alchemical recipes.'],
@@ -106,81 +106,89 @@
     ["Yarthul's Wrath",       'Gear',            ''],
 
     /* ── WEAPONS ──────────────────────────────────────────────────────── */
-    ['Blacksteel Axe',        'Weapon',          'A heavy axe forged from blacksteel. Reliable entry-tier weapon.'],
-    ['Blacksteel Cestus',     'Weapon',          'Fist wraps forged from blacksteel. Entry-tier brawler weapon.'],
-    ['Blacksteel Dagger',     'Weapon',          'A dagger forged from blacksteel. Swift and reliable at entry tier.'],
-    ['Blacksteel Greatsword', 'Weapon',          'A large greatsword of blacksteel. Heavy but powerful at entry tier.'],
-    ['Blacksteel Shield',     'Weapon',          'A sturdy shield of blacksteel. Entry-tier defensive weapon.'],
-    ['Blacksteel Spear',      'Weapon',          'A spear forged from blacksteel. Provides reach at entry tier.'],
-    ['Blacksteel Staff',      'Weapon',          'A staff tipped with blacksteel. Entry-tier magical weapon.'],
-    ['Blacksteel Sword',      'Weapon',          'A sword forged from blacksteel. The standard entry-tier blade.'],
-    ['Dragon Bone Axe',       'Weapon',          'An axe made from dragon bone. A solid step above entry tier.'],
-    ['Dragon Bone Cestus',    'Weapon',          'Fist wraps of dragon bone. Durable early-to-mid tier weapon.'],
-    ['Dragon Bone Dagger',    'Weapon',          'A dagger carved from dragon bone. Light and sharp.'],
-    ['Dragon Bone Shield',    'Weapon',          'A shield hewn from dragon bone. Notable defense above entry tier.'],
-    ['Dragon Bone Spear',     'Weapon',          'A spear tipped with dragon bone. Early-to-mid tier reach weapon.'],
-    ['Dragon Bone Staff',     'Weapon',          'A staff of dragon bone. Early-to-mid tier magical weapon.'],
-    ['Dragon Bone Sword',     'Weapon',          'A sword carved from dragon bone. Solid step up from entry tier.'],
-    ['Ferrus Axe',            'Weapon',          'An axe of ferrus ore. Standard entry-tier weapon.'],
-    ['Ferrus Cestus',         'Weapon',          'Ferrus fist wraps. Basic entry-tier brawler weapon.'],
-    ['Ferrus Dagger',         'Weapon',          'A dagger made from ferrus ore. Common entry-tier blade.'],
-    ['Ferrus Hammer',         'Weapon',          'A hammer of ferrus ore. Heavy entry-tier blunt weapon.'],
-    ['Ferrus Spear',          'Weapon',          'A spear tipped with ferrus metal. Entry-tier reach weapon.'],
-    ['Ferrus Staff',          'Weapon',          'A ferrus-tipped staff. Basic entry-tier magical weapon.'],
-    ['Ferrus Sword',          'Weapon',          'A sword of ferrus ore. The most common entry-tier blade.'],
-    ['Corealloy Cestus',      'Weapon',          'Cestus crafted from corealloy. A clear step up from entry-tier weapons.'],
-    ['Corealloy Dagger',      'Weapon',          'A dagger of corealloy. Improved sharpness over base-tier materials.'],
-    ['Corealloy Greatsword',  'Weapon',          'A large greatsword of corealloy. Notable upgrade from entry tier.'],
-    ['Sun Dagger',            'Weapon',          'Enables weapon-locked skills. 10% chance to increase your Defense for 3 turns. 20% chance to decrease enemy Defense by 10% for 3 turns.'],
-    ['Sun Greatsword',        'Weapon',          'Enables weapon-locked skills. 10% chance to increase your Defense for 3 turns. 20% chance to decrease enemy Defense by 10% for 3 turns.'],
-    ['Sun Hammer (visage)',   'Weapon',          'Enables weapon-locked skills. 10% chance to increase your Defense for 3 turns. 20% chance to decrease enemy Defense by 10% for 3 turns.'],
-    ['Sun Spear',             'Weapon',          'Enables weapon-locked skills. 10% chance to increase your Defense for 3 turns. 20% chance to decrease enemy Defense by 10% for 3 turns.'],
-    ['Sun Staff',             'Weapon',          'Enables weapon-locked skills. 10% chance to increase your Defense for 3 turns. 20% chance to decrease enemy Defense by 10% for 3 turns.'],
-    ['Sun Sword',             'Weapon',          'Enables weapon-locked skills. 10% chance to increase your Defense for 3 turns. 20% chance to decrease enemy Defense by 10% for 3 turns.'],
-    ['Ivory Axe',             'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Cestus',          'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Dagger',          'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Greatsword',      'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Hammer',          'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Shield',          'Weapon',          '30% Damage Reduction.'],
-    ['Ivory Spear',           'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Staff',           'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Ivory Sword',           'Weapon',          'Enables weapon-locked skills. Raises crit chance by 15%. On crit: 25% chance to gain 1 energy and heal 5% max HP (max twice per turn).'],
-    ['Jade Staff',            'Weapon',          'A staff tipped with jade. Mid-high tier magical weapon with nature affinity.'],
-    ['Jade Sword',            'Weapon',          'A sword of jade. Mid-high tier blade with nature properties.'],
-    ['Blightrock/wood Cestus','Weapon',          'Cestus infused with blight essence. Mid-high tier weapon with dark properties.'],
-    ['Blightrock/wood Dagger','Weapon',          'A dagger infused with blight. Mid-high tier weapon with dark damage.'],
-    ['Blightrock/wood Spear', 'Weapon',          'A spear of blightwood. Mid-high tier weapon with corrosive qualities.'],
-    ['Blightrock/wood Staff', 'Weapon',          'A staff of blightwood. Mid-high tier magical weapon with blight affinity.'],
-    ['Blightrock/wood Sword', 'Weapon',          'A sword infused with blight. Mid-high tier weapon with dark damage.'],
-    ['Icerind Cestus',        'Weapon',          'Frost-encrusted cestus. On melee block: applies 2 Cold stacks to attacker.'],
-    ['Icerind Dagger',        'Weapon',          'A dagger rimmed with ice. Mid-high tier blade with frost damage.'],
-    ['Icerind Greatsword',    'Weapon',          'A greatsword coated in icerind. Powerful mid-tier frost weapon.'],
-    ['Icerind Shield',        'Weapon',          '30% Damage Reduction. On melee block: applies 2 Cold stacks to attacker.'],
-    ['Icerind Spear',         'Weapon',          'A spear coated with icerind. Mid-high tier frost weapon.'],
-    ['Icerind Staff',         'Weapon',          'A staff of icerind. Mid-tier frost magical weapon.'],
-    ['Icerind Sword',         'Weapon',          'A sword coated in frost. Mid-high tier weapon with ice damage.'],
-    ['Darkblood Cestus',      'Weapon',          'Cestus soaked in darkblood essence. High-tier weapon with powerful dark properties.'],
-    ['Darkblood Dagger',      'Weapon',          'A dagger imbued with darkblood. Strikes deal bonus dark damage.'],
-    ['Darkblood Greatsword',  'Weapon',          'A massive greatsword of darkblood. High-tier weapon with immense dark power.'],
-    ['Darkblood Spear',       'Weapon',          'A spear of darkblood. High-tier weapon with dark affinity.'],
-    ['Darkblood Staff',       'Weapon',          'A staff channeling darkblood. High-tier magical weapon.'],
-    ['Darkblood Sword',       'Weapon',          'A sword soaked in darkblood. A deadly high-tier blade.'],
-    ['Star-Seeing Hammer',    'Weapon',          ''],
-    ['Sandstone Cestus',      'Weapon',          'Cestus of reinforced sandstone. A solid high-tier brawler weapon.'],
-    ['Sandstone Dagger',      'Weapon',          'A dagger of sandstone. High-tier weapon from desert materials.'],
-    ['Sandstone Hammer',      'Weapon',          'A hammer of sandstone. Heavy high-tier blunt weapon.'],
-    ['Sandstone Shield',      'Weapon',          '30% Damage Reduction.'],
-    ['Sandstone Staff',       'Weapon',          'A staff of sandstone. High-tier magical weapon.'],
-    ['Primordial Axe',        'Weapon',          'A primordial axe forged from ancient power. Top-tier weapon.'],
-    ['Primordial Cestus',     'Weapon',          'Primordial fist wraps. The pinnacle of brawler weapons.'],
-    ['Primordial Dagger',     'Weapon',          'A primordial dagger. Among the sharpest and most powerful blades available.'],
-    ['Primordial Greatsword', 'Weapon',          'A primordial greatsword. An incredibly powerful top-tier weapon.'],
-    ['Primordial Hammer',     'Weapon',          'A primordial hammer. Top-tier crushing weapon.'],
-    ['Primordial Shield',     'Weapon',          '~15% Damage Reduction. Top-tier defensive weapon.'],
-    ['Primordial Spear',      'Weapon',          'A primordial spear. Top-tier reach weapon.'],
-    ['Primordial Staff',      'Weapon',          'A primordial staff. The pinnacle of magical weapons.'],
-    ['Primordial Sword',      'Weapon',          'A primordial sword. One of the most powerful blades in existence.'],
+    ['Blacksteel Axe',        'Weapon',          ''],
+    ['Blacksteel Cestus',     'Weapon',          ''],
+    ['Blacksteel Dagger',     'Weapon',          ''],
+    ['Blacksteel Greatsword', 'Weapon',          'Found next to Kayrein (Raging Warrior trainer).\n\nStarts with 6 empty Shard Slots.'],
+    ['Blacksteel Spear',      'Weapon',          ''],
+    ['Blacksteel Staff',      'Weapon',          ''],
+    ['Blacksteel Sword',      'Weapon',          ''],
+    ['Dragon Bone Axe',       'Weapon',          ''],
+    ['Dragon Bone Cestus',    'Weapon',          ''],
+    ['Dragon Bone Dagger',    'Weapon',          ''],
+    ['Dragon Bone Spear',     'Weapon',          ''],
+    ['Dragon Bone Staff',     'Weapon',          ''],
+    ['Dragon Bone Sword',     'Weapon',          ''],
+    ['Ferrus Axe',            'Weapon',          ''],
+    ['Ferrus Cestus',         'Weapon',          ''],
+    ['Ferrus Dagger',         'Weapon',          ''],
+    ['Ferrus Hammer',         'Weapon',          ''],
+    ['Ferrus Spear',          'Weapon',          ''],
+    ['Ferrus Staff',          'Weapon',          ''],
+    ['Ferrus Sword',          'Weapon',          ''],
+    ['Corealloy Cestus',      'Weapon',          ''],
+    ['Corealloy Dagger',      'Weapon',          ''],
+    ['Corealloy Greatsword',  'Weapon',          ''],
+    ['Sun Dagger',            'Weapon',          ''],
+    ['Sun Greatsword',        'Weapon',          ''],
+    ['Sun Hammer (visage)',   'Weapon',          ''],
+    ['Sun Spear',             'Weapon',          ''],
+    ['Sun Staff',             'Weapon',          ''],
+    ['Sun Sword',             'Weapon',          ''],
+    ['Ivory Axe',             'Weapon',          ''],
+    ['Ivory Cestus',          'Weapon',          ''],
+    ['Ivory Dagger',          'Weapon',          ''],
+    ['Ivory Greatsword',      'Weapon',          ''],
+    ['Ivory Hammer',          'Weapon',          ''],
+    ['Ivory Spear',           'Weapon',          ''],
+    ['Ivory Staff',           'Weapon',          ''],
+    ['Ivory Sword',           'Weapon',          ''],
+    ['Jade Staff',            'Weapon',          ''],
+    ['Jade Sword',            'Weapon',          ''],
+    ['Blightrock/wood Cestus','Weapon',          ''],
+    ['Blightrock/wood Dagger','Weapon',          ''],
+    ['Blightrock/wood Spear', 'Weapon',          ''],
+    ['Blightrock/wood Staff', 'Weapon',          ''],
+    ['Blightrock/wood Sword', 'Weapon',          ''],
+    ['Icerind Cestus',        'Weapon',          ''],
+    ['Icerind Dagger',        'Weapon',          ''],
+    ['Icerind Greatsword',    'Weapon',          ''],
+    ['Icerind Spear',         'Weapon',          ''],
+    ['Icerind Staff',         'Weapon',          ''],
+    ['Icerind Sword',         'Weapon',          ''],
+    ['Darkblood Cestus',      'Weapon',          ''],
+    ['Darkblood Dagger',      'Weapon',          ''],
+    ['Darkblood Greatsword',  'Weapon',          ''],
+    ['Darkblood Spear',       'Weapon',          ''],
+    ['Darkblood Staff',       'Weapon',          ''],
+    ['Darkblood Sword',       'Weapon',          ''],
+    ['Sandstone Cestus',      'Weapon',          ''],
+    ['Sandstone Dagger',      'Weapon',          ''],
+    ['Sandstone Hammer',      'Weapon',          ''],
+    ['Sandstone Staff',       'Weapon',          ''],
+    ['Primordial Axe',        'Weapon',          ''],
+    ['Primordial Cestus',     'Weapon',          ''],
+    ['Primordial Dagger',     'Weapon',          ''],
+    ['Primordial Greatsword', 'Weapon',          ''],
+    ['Primordial Hammer',     'Weapon',          ''],
+    ['Primordial Spear',      'Weapon',          ''],
+    ['Primordial Staff',      'Weapon',          ''],
+    ['Primordial Sword',      'Weapon',          ''],
+
+    /* ── UNIQUE WEAPONS ───────────────────────────────────────────────── */
+    /* Weapons here have unique attributes that may only have a passive for their own. */
+    ['Vastic Glaive',         'Weapon',          'Obtained from: Tor\'run\'s final request (Quest).\n\nStarts with 4 empty Shard Slots.'],
+    ['Star-Seeing Hammer',    'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button> and <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 4 empty Shard Slots.\n\nAllows the use of Hammer locked skills. Has no damage buff.\n\nDoes nothing.'],
+
+    /* ── SHIELDS ─────────────────────────────────────────────────────── */
+    ['Ferrus Towershield',    'Weapon',          'Obtained from: Westwood Weapon Shop.\n\nGrants a 40% Damage Reduction.'],
+    ['Ivory Shield',          'Weapon',          'Obtained from: Egg Basket.\n\nGrants nothing. literally, it does nothing.'],
+    ['Icerind Shield',        'Weapon',          ''],
+    ['Sandstone Shield',      'Weapon',          ''],
+    ['Primordial Shield',     'Weapon',          ''],
+    ['Dragonflame Shield',    'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Yar\'Thul">Yar\'Thul, The Blazing Dragon</button>.\n\nGrants a 30% Damage Reduction.\n\nReflects incoming melee damage by 200%.'],
+    ['Slimy Buckler',         'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Slime King">Slime King</button>.\n\nGrants a 15% Damage Reduction.\n\nApplies 2 Weakened and 1 Blindness upon blocking a Melee attack. Does not stack with Slimy Shield passive (Lentum passive).'],
+    ['Targe',                 'Weapon',          'Obtained from: Can be purchased in the Old Ruins.\n\nGrants a 20% Damage Reduction.'],
 
     /* ── ARTIFACTS ────────────────────────────────────────────────────── */
     ['Celestial Emblem',      'Artifact',        ''],
@@ -207,8 +215,8 @@
     ['Void Key',              'Lesser Artifact', ''],
 
     /* ── WEAPON MODIFIERS ─────────────────────────────────────────────── */
-    ['arcanium crystal',      'Weapon Modifier', ''],
-    ['Tempurus Gem',          'Weapon Modifier', ''],
+    ['Arcanium Crystal',      'Weapon Modifier', 'Currently obtainable from: <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>, <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button> &amp; <button class="enc-desc-link" data-enc-nav="Metrom\'s Vessel">Metrom\'s Vessel</button>.\n\nAllows you to add 1 shard slot to a weapon at the Shard NPC. Weapons can have a maximum of 7 shard slots.'],
+    ['Tempurus Gem',          'Weapon Modifier', 'Currently obtainable from: <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>, <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button> &amp; <button class="enc-desc-link" data-enc-nav="Metrom\'s Vessel">Metrom\'s Vessel</button>.\n\nAllows you to remove 1 shard from your weapon at the Shard NPC. You can choose which shard to remove, and it will be returned to your inventory.'],
 
     /* ── ENCHANTS ─────────────────────────────────────────────────────── */
     ['Blessed',               'Enchant',         "Obtained from Raphion's Blessing (Seraphon)."],
@@ -302,25 +310,50 @@
     ['Venia',  'Mark', 'A cross-wipe progression system centered around artifact sacrifice and the Midas enchant. Advancing a tier requires wiping while holding the Midas enchant and 50k gold. Grants artifact trading and gold-generating abilities.'],
     ['Astra',  'Mark', 'A cross-wipe progression system centered around the Celestial Emblem. Requires crafting the emblem, defeating specific enemies, and wiping with it equipped. Grants a star-based ability system that powers support and healing moves.'],
 
+    /* ── SCROLLS ─────────────────────────────────────────────────────── */
+    ['Lights Out',        'Scroll', 'Class restriction: None.\n\nCost: 1 NRG · Cooldown: 5\nType: Holy · Buff\n\nApplies 3 Blinded and 1 Stunned to all enemies. Has a chance to backfire and apply to yourself instead.'],
+    ['Bulk Up',           'Scroll', 'Class restriction: None.\n\nCost: 1 NRG · Cooldown: 6\nType: Physical · Buff\n\nIncreases damage by 20% and decreases the user\'s own defense by 20%. Defense decrease is multiplicative (2 stacks = 44% more dmg taken, 3 stacks = 72%).'],
+    ['Immolation',        'Scroll', 'Class restriction: None.\n\nCost: 2 NRG · Cooldown: ∞\nType: Fire · Buff\n\nGain a 10% damage buff (defense buff is bugged). Take 0.1 damage per turn, increasing by 0.1 each turn. Cannot kill you; leaves you at 0.1 HP.'],
+    ['Steel Body',        'Scroll', 'Class restriction: None.\n\nCost: 2 NRG · Cooldown: 8\nType: Physical · Buff · Duration: 1\n\nDecrease all incoming damage by 80%. Does not work on boss ultimates.'],
+    ['Self Cure',         'Scroll', 'Class restriction: None.\n\nCost: 2 NRG · Cooldown: 7\nType: Holy · Buff\n\nTake ~5% of your max HP as damage and remove all status effects applied to you (only one stack of Inferno/Plague removed).'],
+    ['Lesser Absorb',     'Scroll', 'Class restriction: Thief, Warrior, Slayer.\n\nCost: 1 NRG · Cooldown: 9\nType: Magic · Buff · Duration: 2\n\nPlaces an orb over an ally, redirecting 5% of the damage they take towards you. Cannot be used on yourself.'],
+    ['Lesser Empower',    'Scroll', 'Class restriction: Warrior, Slayer.\n\nCost: 2 NRG · Cooldown: 6\nType: Magic · Buff · Duration: 2\n\nGive the target a 15% damage buff for 2 turns.'],
+    ['Torching Soul',     'Scroll', 'Class restriction: Warrior, Martial Artist.\n\nCost: 3 NRG · Cooldown: 20\nType: Fire · Buff · Duration: 5\n\nHeal 3% of max HP every time you consume or are inflicted with Burn. Gain a damage and defense buff per Burn (doesn\'t stack). Duration 5 turns.'],
+    ['Surprise Package',  'Scroll', 'Class restriction: Thief, Martial Artist.\n\nCost: 2 NRG · Cooldown: 11\nType: Physical · Buff\n\nPlant a bomb on a target for 3 turns, dealing 30% of max HP (5% for bosses). Explodes with effects based on triggering affinity — Physical/Magic: +35% bonus dmg; Fire: +15% fire dmg + 10 Burning; Holy: 1 Resist + 10% HP heal to party; Ice: 6 Cold to all + -5% def 4 turns; Poison: 20 Poison + 2 Weaken to all; Hex: 1 Hex + 100 true dmg; Dark: 3 Vulnerable + 3 Weakened + disable dodge 4 turns; Nature: Daminos Restructure + remove 1 debuff from each party member.'],
+    ['Simple Curse',      'Scroll', 'Class restriction: Wizard, Slayer, Martial Artist.\n\nCost: 2 NRG · Cooldown: 6\nType: Hex · Attack · Damage: 5 (ARC/75)\n\nApplies 2 Vulnerable and 3 Weakened on hit.'],
+    ['Ice Shards',        'Scroll', 'Class restriction: Wizard, Thief, Slayer.\n\nCost: 3 NRG · Cooldown: 8\nType: Ice · Attack · Damage: 3.5×4 (ARC/75)\n\nApplies 1 Weakened and 3 Cold on hit.'],
+    ['Wind Reflect',      'Scroll', 'Class restriction: Wizard, Slayer.\n\nCost: 2 NRG · Cooldown: 12\nType: Nature · Buff · Duration: 3\n\nPlace a shield on yourself or an ally, preventing physical attacks from hitting them. Does not fully work against bosses.'],
+    ['Dark Slash',        'Scroll', 'Class restriction: Thief, Warrior.\n\nCost: 2 NRG · Cooldown: 6\nType: Dark · Attack · Damage: 11 (STR/75)\n\nHas a chance to apply 2 Weakened.'],
+    ['Fireball',          'Scroll', 'Class restriction: Wizard only.\n\nCost: 2 NRG · Cooldown: 4\nType: Fire · Attack · Damage: 9 (ARC/75)\n\nHas a chance to apply 3 Burning on hit.'],
+    ['Blizzard',          'Scroll', 'Class restriction: Wizard only.\n\nCost: 2 NRG · Cooldown: 15\nType: Ice · Buff · Duration: 4\n\nCreates a snowstorm for 4 turns: all defense -20%, fire defense +25%, increasing ice damage by 20% for the team. Also increases the team\'s defense by 10%.'],
+
+    /* ── LOST SCROLLS ────────────────────────────────────────────────── */
+    ["Metrom's Grasp",    'Lost Scroll', 'Class restriction: None.\n\nCost: 5 NRG · Cooldown: 18\nType: Magic · Buff · Duration: 5\n\nDecreases opponents\' defense by 40%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns.'],
+    ['Absolute Radiance', 'Lost Scroll', 'Class restriction: None.\n\nCost: 4 NRG · Cooldown: 18\nType: Fire · Buff · Duration: 5\n\nGrowing dmg/DR buff each turn — reaches up to 22.5% more damage by turn 5 (~7.5%/10%/12.5%/15%/22.5%).'],
+    ['Wild Impulse',      'Lost Scroll', 'Class restriction: None.\n\nCost: 1 NRG · Cooldown: 10\nType: Magic · Buff\n\nYour next hit becomes a pseudo-AoE, dealing 20% damage to all nearby enemies. Applies 2 Vulnerable and Weakened to all targets hit.'],
+    ['Permafrost Curse',  'Lost Scroll', 'Class restriction: Wizard only.\n\nCost: 4 NRG · Cooldown: 10\nType: Ice · Attack · Damage: 14 (STR/75)\n\nApplies 2 Cold and 1 Stun. Acts as a pseudo-AoE, hitting adjacent enemies as well.'],
+    ['Breath of Fungyir', 'Lost Scroll', 'Class restriction: Slayer, Warrior.\n\nCost: 4 NRG · Cooldown: 20\nType: Magic · Buff\n\nEnter a stance and unleash a heavy stun on the opponent. Also fully heals your entire team.'],
+    ['Heavenly Prayer',   'Lost Scroll', 'Class restriction: Slayer, Warrior, Wizard.\n\nCost: 5 NRG · Cooldown: 22\nType: Holy · Buff · Duration: 3\n\nGrants 10% Lifesteal for 5 turns, 3 Resist, 15% DR for 3 turns, and Death Defy for 2 turns.'],
+
     /* ── ARMOUR ──────────────────────────────────────────────────────── */
-    ['Paladin Cuirass',        'Armour', 'Cost: 250g.\n\nStats: +20 Endurance, +17.5% Endurance.\n\nDamage Reduction: +10% Physical, +5% Holy, +5% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
-    ['Adept Warrior',          'Armour', 'Cost: 250g.\n\nStats: +15 Endurance, +10% Endurance, +5% Strength, +16.6% Energy.\n\nDamage Reduction: +5% Physical, +10% Dark.\n\nBonus: +20% Fall Resistance.'],
-    ['Raging Warrior',         'Armour', 'Cost: 250g.\n\nStats: +16 Endurance, +10% Endurance, +10% Increased Healing, +10% Energy.\n\nDamage Reduction: +5% Physical, +10% Hex, +5% Fire.'],
-    ['Arcane Robes',           'Armour', 'Cost: 250g.\n\nStats: +4 Arcane, +15 Endurance, +7.5% Arcane.\n\nDamage Reduction: +10% Magic, +10% Poison, +10% Holy, +10% Fire.'],
-    ['Magister Apprentice',    'Armour', 'Cost: 250g.\n\nStats: +3 Arcane, +15 Endurance, +5% Arcane, +1 HP Regen/turn.\n\nDamage Reduction: +15% Magic, +10% Poison, +10% Fire.'],
-    ['Corrupt Caster',         'Armour', 'Cost: 250g.\n\nStats: +2 Arcane, +16 Endurance, +5% Endurance, +5% Arcane, +10% Energy.\n\nDamage Reduction: +15% Magic, +10% Poison, +10% Holy.'],
-    ['Lifebound Archer',       'Armour', 'Cost: 250g.\n\nStats: +3 Arcane, +15 Endurance, +5% Endurance, +5% Arcane, +1 HP Regen/turn, +15% Movement Speed.\n\nDamage Reduction: +10% Magic, +10% Poison, +10% Nature.'],
-    ['Rogue Hunter',           'Armour', 'Cost: 250g.\n\nStats: +15 Endurance, +7.5% Endurance, +10% Speed, +10% Energy, +1 HP Regen/turn, +20% Movement Speed, +25% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Fire.'],
-    ['Shadow Cloak',           'Armour', 'Cost: 250g.\n\nStats: +13 Endurance, +7.5% Endurance, +12.5% Energy, +1 HP Regen/turn, +30% Movement Speed, +30% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Dark.'],
-    ['Traveling Pasmark',      'Armour', 'Cost: 250g.\n\nStats: +5 Strength, +16 Endurance, +7.5% Endurance, +5% Strength, +1 HP Regen/turn, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Holy, +5% Fire, +5% Dark.'],
-    ['Wandering Practitioner', 'Armour', 'Cost: 250g.\n\nStats: +18 Endurance, +7.5% Endurance, +10% Strength, +16.6% Energy, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +10% Fire.'],
-    ['Shade Walker',           'Armour', 'Cost: 250g.\n\nStats: +18 Endurance, +7.5% Endurance, +5% Arcane, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +10% Hex, +20% Dark.'],
-    ['Pathfinder Martyr',      'Armour', 'Cost: 250g.\n\nStats: +3 Arcane, +1 Speed, +20 Endurance, +7.5% Endurance, +1 HP Regen/turn.\n\nDamage Reduction: +5% Physical, +15% Holy.'],
-    ['Armored Lancer',         'Armour', 'Cost: 250g.\n\nStats: +20 Endurance, +15% Endurance, +12.5% Energy.\n\nDamage Reduction: +10% Physical, +10% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
-    ['Bloody Menace',          'Armour', 'Cost: 250g.\n\nStats: +22 Endurance, +10% Endurance, +20% Increased Healing.\n\nDamage Reduction: +10% Physical, +5% Hex, +5% Poison.'],
-    ['Venerated Legionnaire',  'Armour', 'Cost: 250g.\n\nStats: +17 Endurance, +12.5% Endurance.\n\nDamage Reduction: +15% Physical, +15% Fire, +10% Ice, +10% Nature, +5% Dark, +5% Magic.'],
-    ['Fortified Seer',         'Armour', 'Cost: 250g.\n\nStats: +35 Endurance, +5% Endurance.\n\nDamage Reduction: +15% Dark, +15% Hex, +10% Holy, +10% Ice, +10% Fire, +10% Physical.'],
-    ['Deathmantle',            'Armour', 'Cost: 3,000g.\n\nStats: +25 Endurance, +2.5% Endurance, +10% Arcane.\n\nDamage Reduction: +20% Dark, +15% Holy, +10% Magic, +10% Ice, +5% Physical.'],
+    ['Paladin Cuirass',        'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Paladin (Or)">Paladin</button>\n\nCost: 250g.\n\nStats: +20 Endurance, +17.5% Endurance.\n\nDamage Reduction: +10% Physical, +5% Holy, +5% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
+    ['Adept Warrior',          'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Blade Dancer (N)">Blade Dancer</button>\n\nCost: 250g.\n\nStats: +15 Endurance, +10% Endurance, +5% Strength, +16.6% Energy.\n\nDamage Reduction: +5% Physical, +10% Dark.\n\nBonus: +20% Fall Resistance.'],
+    ['Raging Warrior',         'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Berserker (Ch)">Berserker</button>\n\nCost: 250g.\n\nStats: +16 Endurance, +10% Endurance, +10% Increased Healing, +10% Energy.\n\nDamage Reduction: +5% Physical, +10% Hex, +5% Fire.'],
+    ['Arcane Robes',           'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Elementalist (Or)">Elementalist</button>\n\nCost: 250g.\n\nStats: +4 Arcane, +15 Endurance, +7.5% Arcane.\n\nDamage Reduction: +10% Magic, +10% Poison, +10% Holy, +10% Fire.'],
+    ['Magister Apprentice',    'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Hexer (N)">Hexer</button>\n\nCost: 250g.\n\nStats: +3 Arcane, +15 Endurance, +5% Arcane, +1 HP Regen/turn.\n\nDamage Reduction: +15% Magic, +10% Poison, +10% Fire.'],
+    ['Corrupt Caster',         'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Necromancer (Ch)">Necromancer</button>\n\nCost: 250g.\n\nStats: +2 Arcane, +16 Endurance, +5% Endurance, +5% Arcane, +10% Energy.\n\nDamage Reduction: +15% Magic, +10% Poison, +10% Holy.'],
+    ['Lifebound Archer',       'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Ranger (Or)">Ranger</button>\n\nCost: 250g.\n\nStats: +3 Arcane, +15 Endurance, +5% Endurance, +5% Arcane, +1 HP Regen/turn, +15% Movement Speed.\n\nDamage Reduction: +10% Magic, +10% Poison, +10% Nature.'],
+    ['Rogue Hunter',           'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Rogue (N)">Rogue</button>\n\nCost: 250g.\n\nStats: +15 Endurance, +7.5% Endurance, +10% Speed, +10% Energy, +1 HP Regen/turn, +20% Movement Speed, +25% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Fire.'],
+    ['Shadow Cloak',           'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Assassin (Ch)">Assassin</button>\n\nCost: 250g.\n\nStats: +13 Endurance, +7.5% Endurance, +12.5% Energy, +1 HP Regen/turn, +30% Movement Speed, +30% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Dark.'],
+    ['Traveling Pasmark',      'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Monk (Or)">Monk</button>\n\nCost: 250g.\n\nStats: +5 Strength, +16 Endurance, +7.5% Endurance, +5% Strength, +1 HP Regen/turn, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +5% Holy, +5% Fire, +5% Dark.'],
+    ['Wandering Practitioner', 'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Brawler (N)">Brawler</button>\n\nCost: 250g.\n\nStats: +18 Endurance, +7.5% Endurance, +10% Strength, +16.6% Energy, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +10% Fire.'],
+    ['Shade Walker',           'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Darkwraith (Ch)">Darkwraith</button>\n\nCost: 250g.\n\nStats: +18 Endurance, +7.5% Endurance, +5% Arcane, +10% Fall Resistance.\n\nDamage Reduction: +5% Physical, +10% Hex, +20% Dark.'],
+    ['Pathfinder Martyr',      'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Saint (Or)">Saint</button>\n\nCost: 250g.\n\nStats: +3 Arcane, +1 Speed, +20 Endurance, +7.5% Endurance, +1 HP Regen/turn.\n\nDamage Reduction: +5% Physical, +15% Holy.'],
+    ['Armored Lancer',         'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Lancer (N)">Lancer</button>\n\nCost: 250g.\n\nStats: +20 Endurance, +15% Endurance, +12.5% Energy.\n\nDamage Reduction: +10% Physical, +10% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
+    ['Bloody Menace',          'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Impaler (Ch)">Impaler</button>\n\nCost: 250g.\n\nStats: +22 Endurance, +10% Endurance, +20% Increased Healing.\n\nDamage Reduction: +10% Physical, +5% Hex, +5% Poison.'],
+    ['Venerated Legionnaire',  'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Lionheart (N)">Lionheart</button>\n\nCost: 250g.\n\nStats: +17 Endurance, +12.5% Endurance.\n\nDamage Reduction: +15% Physical, +15% Fire, +10% Ice, +10% Nature, +5% Dark, +5% Magic.'],
+    ['Fortified Seer',         'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Citadel (Or)">Citadel</button>\n\nCost: 250g.\n\nStats: +35 Endurance, +5% Endurance.\n\nDamage Reduction: +15% Dark, +15% Hex, +10% Holy, +10% Ice, +10% Fire, +10% Physical.'],
+    ['Deathmantle',            'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Arbiter (N)">Arbiter</button>\n\nCost: 3,000g.\n\nStats: +25 Endurance, +2.5% Endurance, +10% Arcane.\n\nDamage Reduction: +20% Dark, +15% Holy, +10% Magic, +10% Ice, +5% Physical.'],
     ['Shadowy Crook',          'Armour', 'Cost: 100g.\n\nStats: +1 Speed, +2 Luck, +10 Endurance, +10% Movement Speed.\n\nDamage Reduction: +5% Physical.'],
 
     /* ── MOBS ─────────────────────────────────────────────────────────── */
@@ -337,6 +370,7 @@
     'Ore', 'Ingredient', 'Weapon', 'Gear',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
+    'Scroll', 'Lost Scroll',
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
   ];
 
@@ -357,6 +391,8 @@
     'Boss':            '☠',
     'Mini Boss':       '💀',
     'Mob':             '👾',
+    'Scroll':          '📜',
+    'Lost Scroll':     '📜',
     'Covenant':        '⚑',
     'Mark':            '◉',
   };
@@ -366,18 +402,20 @@
 
   /* Weapon families — order defines display order, prefix used for matching */
   const WEAPON_GROUPS = [
-    { label: 'Ferrus',      prefix: 'Ferrus ' },
-    { label: 'Blacksteel',  prefix: 'Blacksteel ' },
-    { label: 'Dragon Bone', prefix: 'Dragon Bone ' },
-    { label: 'Corealloy',   prefix: 'Corealloy ' },
-    { label: 'Sun',         prefix: 'Sun ' },
-    { label: 'Ivory',       prefix: 'Ivory ' },
-    { label: 'Jade',        prefix: 'Jade ' },
-    { label: 'Blightrock',  prefix: 'Blightrock/wood ' },
-    { label: 'Icerind',     prefix: 'Icerind ' },
-    { label: 'Darkblood',   prefix: 'Darkblood ' },
-    { label: 'Sandstone',   prefix: 'Sandstone ' },
-    { label: 'Primordial',  prefix: 'Primordial ' },
+    { label: 'Ferrus',      prefix: 'Ferrus ',        desc: 'Obtained from: Caldera Weapon Shop.\n\nStarts with 6 empty Shard Slots.\n\nAllows the use of weapon-locked skills in respect to their weapon type. Has no damage buff.' },
+    { label: 'Blacksteel',  prefix: 'Blacksteel ',    desc: 'Obtained from: Westwood Weapon Shop.\n\nStarts with 4 empty Shard Slots.' },
+    { label: 'Dragon Bone', prefix: 'Dragon Bone ',   desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Yar\'Thul">Yar\'Thul, The Blazing Dragon</button>.\n\nStarts with 3 empty Shard Slots.' },
+    { label: 'Corealloy',   prefix: 'Corealloy ',     desc: 'Obtained from: Mysterious Merchant (Event).\n\nStarts with 5 empty Shard Slots.' },
+    { label: 'Sun',         prefix: 'Sun ',           desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>, <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button>.\n\nStarts with 3 empty Shard Slots.' },
+    { label: 'Ivory',       prefix: 'Ivory ',         desc: 'Obtained from: Egg Basket.\n\nStarts with 4 empty Shard Slots.' },
+    { label: 'Jade',        prefix: 'Jade ',          desc: 'Obtained from: Mysterious Merchant (Event).\n\nStarts with 5 empty Shard Slots.' },
+    { label: 'Blightrock',  prefix: 'Blightrock/wood ', desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Thorian">Thorian, The Rotten</button>.\n\nStarts with 3 empty Shard Slots.' },
+    { label: 'Icerind',     prefix: 'Icerind ',       desc: 'Obtained from: Unopened Present (currently unobtainable).\n\nStarts with 3 empty Shard Slots.' },
+    { label: 'Darkblood',   prefix: 'Darkblood ',     desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Metrom\'s Vessel">Metrom\'s Vessel</button>.\n\nStarts with 2 empty Shard Slots.' },
+    { label: 'Sandstone',   prefix: 'Sandstone ',     desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 3 empty Shard Slots.' },
+    { label: 'Primordial',  prefix: 'Primordial ',    desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 4 empty Shard Slots.' },
+    { label: 'Unique',      names: new Set(['Vastic Glaive', 'Star-Seeing Hammer']) },
+    { label: 'Shields',     names: new Set(['Ferrus Towershield', 'Ivory Shield', 'Icerind Shield', 'Sandstone Shield', 'Primordial Shield', 'Dragonflame Shield', 'Slimy Buckler', 'Targe']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -976,15 +1014,9 @@
     },
 
     /* ── Weapon Modifiers ──────────────────────────────────────────────── */
-    'arcanium crystal': {
-      obtainableFrom: [
-        { label: 'Seraphon',        target: 'Seraphon' },
-        { label: 'Arkhaia',         target: 'Arkhaia' },
-        { label: "Metrom's Vessel", target: "Metrom's Vessel" },
-      ],
-      passives: [
-        { name: '', effect: 'Allows you to add 1 shard slot to a weapon at the Shard NPC. Weapons can have a maximum of 7 shard slots.' },
-      ],
+    'Arcanium Crystal': {
+      obtainableFrom: [],
+      passives: [],
       moves: [],
     },
     'temperus gem': {
@@ -1297,8 +1329,10 @@
         const byFamily = {};
         WEAPON_GROUPS.forEach(g => { byFamily[g.label] = []; });
         [...items].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
-          const grp = WEAPON_GROUPS.find(g => it[0].startsWith(g.prefix));
-          if (grp) byFamily[grp.label].push({ it, i });
+          WEAPON_GROUPS.forEach(g => {
+            const matches = g.prefix ? it[0].startsWith(g.prefix) : g.names?.has(it[0]);
+            if (matches) byFamily[g.label].push({ it, i });
+          });
         });
         WEAPON_GROUPS.forEach(g => {
           const gItems = byFamily[g.label];
@@ -1897,9 +1931,26 @@
           descEl.innerHTML = it[2].replace(/\n/g, '<br>');
         }
         descEl.classList.remove('enc-detail-nodesc');
+      } else if (type === 'Weapon') {
+        descEl.innerHTML = '';
+        descEl.classList.add('enc-detail-nodesc');
       } else {
         descEl.textContent = 'No description available.';
         descEl.classList.add('enc-detail-nodesc');
+      }
+      // Weapon group description (obtain source + shard slots)
+      if (type === 'Weapon') {
+        const grp = WEAPON_GROUPS.find(g => g.prefix ? name.startsWith(g.prefix) : g.names?.has(name));
+        if (grp?.desc) {
+          const grpDiv = document.createElement('div');
+          grpDiv.innerHTML = grp.desc.replace(/\n/g, '<br>');
+          grpDiv.querySelectorAll('[data-enc-nav]').forEach(btn => {
+            const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
+            if (targetIdx !== -1) btn.addEventListener('click', () => selectItem(targetIdx));
+          });
+          descEl.appendChild(grpDiv);
+          descEl.classList.remove('enc-detail-nodesc');
+        }
       }
     }
 
@@ -2079,7 +2130,9 @@
 
   /* ── Public API ──────────────────────────────────────────────────────────── */
   /* ── Overlay API ─────────────────────────────────────────────────────────── */
-  window._ENC_ITEMS    = ENC_ITEMS;
+  window._ENC_ITEMS      = ENC_ITEMS;
+  window._ENC_TYPE_ORDER = TYPE_ORDER;
+  window._ENC_TYPE_ICONS = TYPE_ICONS;
   window._encGotoItem  = function (idx) {
     if (window.switchPage) window.switchPage('encyclopedia');
     setTimeout(() => selectItem(idx), 80);
@@ -2103,6 +2156,12 @@
     </div>`;
 
     if (desc) h += `<div ${S('font-size:12px;color:#aaa;line-height:1.6;margin-bottom:10px;')}>${desc.replace(/\n/g,'<br>')}</div>`;
+
+    // Weapon group description (obtain source + shard slots)
+    if (type === 'Weapon') {
+      const grp = WEAPON_GROUPS.find(g => g.prefix ? name.startsWith(g.prefix) : g.names?.has(name));
+      if (grp?.desc) h += `<div ${S('font-size:12px;color:#aaa;line-height:1.6;margin-bottom:10px;')}>${grp.desc.replace(/\n/g,'<br>')}</div>`;
+    }
 
     // Artifact / Enchant / Weapon Modifier
     if (['Artifact','Lesser Artifact','Enchant','Weapon Modifier'].includes(type)) {
