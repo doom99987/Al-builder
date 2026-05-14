@@ -147,6 +147,18 @@
 
     /* ── Encyclopedia tab ── */
     function renderEnc(root) {
+      const items  = window._ENC_ITEMS      || [];
+      const tOrder = window._ENC_TYPE_ORDER || [];
+      const tIcons = window._ENC_TYPE_ICONS || {};
+
+      /* pre-build type → [{it,i}] map */
+      const byType = {};
+      items.forEach((it, i) => {
+        if (!byType[it[1]]) byType[it[1]] = [];
+        byType[it[1]].push({ it, i });
+      });
+
+      /* search bar */
       const search = doc.createElement('input');
       search.type = 'text'; search.placeholder = 'Search…'; search.autocomplete = 'off';
       search.style.cssText =
@@ -155,11 +167,24 @@
         'margin-bottom:8px;font-family:inherit;';
       root.appendChild(search);
 
-      const list   = doc.createElement('div');
-      root.appendChild(list);
+      /* type filter bar */
+      const filterBar = doc.createElement('div');
+      filterBar.style.cssText =
+        'display:flex;flex-wrap:wrap;gap:3px;margin-bottom:8px;';
+      root.appendChild(filterBar);
 
+      /* browse list (type view) */
+      const browseList = doc.createElement('div');
+      root.appendChild(browseList);
+
+      /* search results list */
+      const searchList = doc.createElement('div');
+      searchList.style.display = 'none';
+      root.appendChild(searchList);
+
+      /* detail view */
       const detail = doc.createElement('div');
-      detail.style.cssText = 'margin-top:8px;border-top:1px solid #1e1e1e;padding-top:10px;display:none;';
+      detail.style.cssText = 'display:none;';
       root.appendChild(detail);
 
       const backBtn = doc.createElement('button');
@@ -167,26 +192,113 @@
       backBtn.style.cssText =
         'background:none;border:none;color:#666;font-size:12px;cursor:pointer;' +
         'padding:0 0 8px;display:block;';
-      backBtn.addEventListener('click', () => {
-        detail.style.display = 'none';
-        list.style.display   = '';
-        search.style.display = '';
-        search.focus();
-      });
       detail.appendChild(backBtn);
 
       const detailBody = doc.createElement('div');
       detail.appendChild(detailBody);
 
+      /* focus styling */
       search.addEventListener('focus', () => search.style.borderColor = '#444');
       search.addEventListener('blur',  () => search.style.borderColor = '#2a2a2a');
 
+      /* show detail */
+      function showDetail(idx) {
+        detailBody.innerHTML = window._encGetDetail ? window._encGetDetail(idx) : '';
+        detailBody.querySelectorAll('[data-enc-nav]').forEach(btn => {
+          const targetIdx = items.findIndex(e => e[0] === btn.dataset.encNav);
+          if (targetIdx !== -1) btn.addEventListener('click', () => showDetail(targetIdx));
+        });
+        detail.style.display     = '';
+        browseList.style.display = 'none';
+        searchList.style.display = 'none';
+        filterBar.style.display  = 'none';
+        search.style.display     = 'none';
+      }
+
+      /* back button */
+      backBtn.addEventListener('click', () => {
+        detail.style.display    = 'none';
+        filterBar.style.display = '';
+        search.style.display    = '';
+        if (search.value.trim()) {
+          searchList.style.display = '';
+          browseList.style.display = 'none';
+        } else {
+          browseList.style.display = '';
+          searchList.style.display = 'none';
+        }
+        search.focus();
+      });
+
+      /* make item button */
+      function makeItemBtn(it, i) {
+        const btn = doc.createElement('button');
+        btn.style.cssText =
+          'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;' +
+          'background:#111;border:1px solid #1e1e1e;border-radius:5px;color:#bbb;font-size:12px;' +
+          'padding:7px 9px;cursor:pointer;text-align:left;font-family:inherit;' +
+          'margin-bottom:4px;box-sizing:border-box;';
+        btn.innerHTML =
+          `<span>${it[0]}</span>` +
+          `<span style="font-size:10px;color:#555;flex-shrink:0;">${it[1]}</span>`;
+        btn.addEventListener('mouseover', () => { btn.style.background='#1a1a28'; btn.style.borderColor='#333'; });
+        btn.addEventListener('mouseout',  () => { btn.style.background='#111';    btn.style.borderColor='#1e1e1e'; });
+        btn.addEventListener('click', () => showDetail(i));
+        return btn;
+      }
+
+      /* show items for a type */
+      const filterBtnMap = {};
+      let activeType = null;
+      function showType(type) {
+        if (activeType && filterBtnMap[activeType]) {
+          filterBtnMap[activeType].style.background   = 'none';
+          filterBtnMap[activeType].style.borderColor  = '#2a2a2a';
+          filterBtnMap[activeType].style.color        = '#666';
+        }
+        activeType = type;
+        if (filterBtnMap[type]) {
+          filterBtnMap[type].style.background   = '#1a1a28';
+          filterBtnMap[type].style.borderColor  = '#444';
+          filterBtnMap[type].style.color        = '#ccc';
+        }
+        browseList.innerHTML = '';
+        (byType[type] || []).forEach(({ it, i }) => browseList.appendChild(makeItemBtn(it, i)));
+      }
+
+      /* build filter buttons */
+      let firstType = null;
+      tOrder.forEach(type => {
+        if (!byType[type]?.length) return;
+        if (!firstType) firstType = type;
+        const btn = doc.createElement('button');
+        btn.title = type;
+        btn.textContent = tIcons[type] || type;
+        btn.style.cssText =
+          'background:none;border:1px solid #2a2a2a;border-radius:4px;color:#666;' +
+          'font-size:14px;padding:3px 7px;cursor:pointer;font-family:inherit;flex-shrink:0;' +
+          'transition:color .15s,border-color .15s,background .15s;';
+        btn.addEventListener('click', () => showType(type));
+        filterBar.appendChild(btn);
+        filterBtnMap[type] = btn;
+      });
+
+      /* show first type on load */
+      if (firstType) showType(firstType);
+
+      /* search */
       search.addEventListener('input', () => {
         const q = search.value.trim().toLowerCase();
-        list.innerHTML = '';
+        searchList.innerHTML = '';
         detail.style.display = 'none';
-        const items = window._ENC_ITEMS;
-        if (!q || !items) return;
+        if (!q) {
+          searchList.style.display = 'none';
+          browseList.style.display = '';
+          filterBar.style.display  = '';
+          return;
+        }
+        searchList.style.display = '';
+        browseList.style.display = 'none';
 
         const hits = [];
         for (let i = 0; i < items.length; i++) {
@@ -194,29 +306,10 @@
           if (hits.length >= 15) break;
         }
         if (!hits.length) {
-          list.innerHTML = '<div style="text-align:center;color:#555;font-size:12px;padding:12px 0;">No results</div>';
+          searchList.innerHTML = '<div style="text-align:center;color:#555;font-size:12px;padding:12px 0;">No results</div>';
           return;
         }
-        hits.forEach(i => {
-          const btn = doc.createElement('button');
-          btn.style.cssText =
-            'display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;' +
-            'background:#111;border:1px solid #1e1e1e;border-radius:5px;color:#bbb;font-size:12px;' +
-            'padding:7px 9px;cursor:pointer;text-align:left;font-family:inherit;' +
-            'margin-bottom:4px;box-sizing:border-box;';
-          btn.innerHTML =
-            `<span>${items[i][0]}</span>` +
-            `<span style="font-size:10px;color:#555;flex-shrink:0;">${items[i][1]}</span>`;
-          btn.addEventListener('mouseover', () => { btn.style.background='#1a1a28'; btn.style.borderColor='#333'; });
-          btn.addEventListener('mouseout',  () => { btn.style.background='#111';    btn.style.borderColor='#1e1e1e'; });
-          btn.addEventListener('click', () => {
-            detailBody.innerHTML = window._encGetDetail ? window._encGetDetail(i) : '';
-            detail.style.display = '';
-            list.style.display   = 'none';
-            search.style.display = 'none';
-          });
-          list.appendChild(btn);
-        });
+        hits.forEach(i => searchList.appendChild(makeItemBtn(items[i], i)));
       });
     }
 
