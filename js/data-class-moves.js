@@ -1490,7 +1490,7 @@ const classMoves = {
         quote: "Rush forward with your hammer and bring it down on a foe.",
         cost: 5,
         cooldown: 8,
-        moveType: "Physical",
+        moveType: "Hex",
         category: "Attack",
         damage: 5,
         scaling: "ARC/85",
