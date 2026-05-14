@@ -993,6 +993,53 @@
   color: #cc4444;
 }
 
+/* ── Scroll / Lost Scroll detail card ──────────────────────────────────── */
+.enc-scroll-restrict {
+  font-size: 11px;
+  color: #555;
+  font-style: italic;
+  margin-bottom: 2px;
+}
+
+.enc-scroll-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+/* Elemental type chip colours */
+.enc-elem-holy     { background: #1a160a; color: #d4a340; border: 1px solid #2e2010; }
+.enc-elem-fire     { background: #1a0c08; color: #e06030; border: 1px solid #2e1508; }
+.enc-elem-ice      { background: #08141a; color: #40a8d4; border: 1px solid #0a2030; }
+.enc-elem-physical { background: #111316; color: #aab0bb; border: 1px solid #222630; }
+.enc-elem-magic    { background: #11081a; color: #9966dd; border: 1px solid #1e1038; }
+.enc-elem-dark     { background: #0d0812; color: #9055cc; border: 1px solid #1a1025; }
+.enc-elem-hex      { background: #07100a; color: #44bb66; border: 1px solid #0c1e10; }
+.enc-elem-nature   { background: #081408; color: #55cc55; border: 1px solid #0e2210; }
+.enc-elem-poison   { background: #0d1208; color: #88cc44; border: 1px solid #172010; }
+
+/* Buff / Attack kind chip */
+.enc-scroll-buff   { background: #0a1015; color: #4488cc; border: 1px solid #102030; }
+.enc-scroll-attack { background: #150a0a; color: #cc4444; border: 1px solid #301010; }
+
+/* Scroll type badge colours */
+.enc-type-Scroll      { background: #100f1a; color: #8877cc; border: 1px solid #1e1a35; }
+.enc-type-Lost-Scroll { background: #160a16; color: #cc66cc; border: 1px solid #2e122e; }
+
+/* ── Item section labels (Recipe / Note in potions etc.) ────────────────── */
+.enc-item-section-label {
+  display: block;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-top: 10px;
+  margin-bottom: 3px;
+}
+
 /* ── Mobile ─────────────────────────────────────────────────────────────── */
 @media (max-width: 680px) {
   .enc-body { flex-direction: column; }

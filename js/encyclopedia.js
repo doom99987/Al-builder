@@ -16,9 +16,9 @@
   const ENC_ITEMS = [
 
     /* ── ORES ─────────────────────────────────────────────────────────── */
-    ['Aestic Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: Explorer, Nobleman, Chainmail Guard\n\nSuperclass: Paladin (Paladin Cuirass), Berserker (Raging Warrior), Elementalist (Arcane Robes), Ranger (Lifebound Archer), Rogue (Rogue Hunter), Assassin (Shadow Cloak), Monk (Traveling Pasmark), Brawler (Wandering Practitioner), Darkwraith (Shade Walker), Saint (Pathfinder Martyr), Lancer (Armored Lancer), Impaler (Bloody Menace), Lionheart (Venerated Legionnaire), Arbiter (Deathmantle)'],
-    ['Ferrus Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: Trapper, Chainmail Guard\n\nSuperclass: Paladin (Paladin Cuirass), Blade Dancer (Adept Warrior), Berserker (Raging Warrior), Rogue (Rogue Hunter), Assassin (Shadow Cloak), Brawler (Wandering Practitioner), Darkwraith (Shade Walker), Saint (Pathfinder Martyr), Lancer (Armored Lancer), Lionheart (Venerated Legionnaire), Citadel (Fortified Seer)'],
-    ['Laneus Ore',            'Ore',             'Can be mined in the Assassin Trainer cave near the Deeproot Canopy entrance using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: None\n\nSuperclass: Blade Dancer (Adept Warrior), Berserker (Raging Warrior), Elementalist (Arcane Robes), Hexer (Magister Apprentice), Necromancer (Corrupt Caster), Ranger (Lifebound Archer), Assassin (Shadow Cloak), Monk (Traveling Pasmark), Saint (Pathfinder Martyr), Impaler (Bloody Menace), Lionheart (Venerated Legionnaire), Citadel (Fortified Seer), Arbiter (Deathmantle)'],
+    ['Aestic Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: Explorer, Nobleman, Chainmail Guard\n\nSuperclass: Paladin (<button class="enc-desc-link" data-enc-nav="Paladin Cuirass">Paladin Cuirass</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Elementalist (<button class="enc-desc-link" data-enc-nav="Arcane Robes">Arcane Robes</button>), Ranger (<button class="enc-desc-link" data-enc-nav="Lifebound Archer">Lifebound Archer</button>), Rogue (<button class="enc-desc-link" data-enc-nav="Rogue Hunter">Rogue Hunter</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Monk (<button class="enc-desc-link" data-enc-nav="Traveling Pasmark">Traveling Pasmark</button>), Brawler (<button class="enc-desc-link" data-enc-nav="Wandering Practitioner">Wandering Practitioner</button>), Darkwraith (<button class="enc-desc-link" data-enc-nav="Shade Walker">Shade Walker</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Lancer (<button class="enc-desc-link" data-enc-nav="Armored Lancer">Armored Lancer</button>), Impaler (<button class="enc-desc-link" data-enc-nav="Bloody Menace">Bloody Menace</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Arbiter (<button class="enc-desc-link" data-enc-nav="Deathmantle">Deathmantle</button>)'],
+    ['Ferrus Ore',            'Ore',             'Can be mined in a cave near the Icerift Approach (Barber side) using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: Trapper, Chainmail Guard\n\nSuperclass: Paladin (<button class="enc-desc-link" data-enc-nav="Paladin Cuirass">Paladin Cuirass</button>), Blade Dancer (<button class="enc-desc-link" data-enc-nav="Adept Warrior">Adept Warrior</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Rogue (<button class="enc-desc-link" data-enc-nav="Rogue Hunter">Rogue Hunter</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Brawler (<button class="enc-desc-link" data-enc-nav="Wandering Practitioner">Wandering Practitioner</button>), Darkwraith (<button class="enc-desc-link" data-enc-nav="Shade Walker">Shade Walker</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Lancer (<button class="enc-desc-link" data-enc-nav="Armored Lancer">Armored Lancer</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Citadel (<button class="enc-desc-link" data-enc-nav="Fortified Seer">Fortified Seer</button>)'],
+    ['Laneus Ore',            'Ore',             'Can be mined in the Assassin Trainer cave near the Deeproot Canopy entrance using a Pickaxe or Dynamite.\n\nUsed to craft the following armor:\n\nDroppable Blueprint: None\n\nSuperclass: Blade Dancer (<button class="enc-desc-link" data-enc-nav="Adept Warrior">Adept Warrior</button>), Berserker (<button class="enc-desc-link" data-enc-nav="Raging Warrior">Raging Warrior</button>), Elementalist (<button class="enc-desc-link" data-enc-nav="Arcane Robes">Arcane Robes</button>), Hexer (<button class="enc-desc-link" data-enc-nav="Magister Apprentice">Magister Apprentice</button>), Necromancer (<button class="enc-desc-link" data-enc-nav="Corrupt Caster">Corrupt Caster</button>), Ranger (<button class="enc-desc-link" data-enc-nav="Lifebound Archer">Lifebound Archer</button>), Assassin (<button class="enc-desc-link" data-enc-nav="Shadow Cloak">Shadow Cloak</button>), Monk (<button class="enc-desc-link" data-enc-nav="Traveling Pasmark">Traveling Pasmark</button>), Saint (<button class="enc-desc-link" data-enc-nav="Pathfinder Martyr">Pathfinder Martyr</button>), Impaler (<button class="enc-desc-link" data-enc-nav="Bloody Menace">Bloody Menace</button>), Lionheart (<button class="enc-desc-link" data-enc-nav="Venerated Legionnaire">Venerated Legionnaire</button>), Citadel (<button class="enc-desc-link" data-enc-nav="Fortified Seer">Fortified Seer</button>), Arbiter (<button class="enc-desc-link" data-enc-nav="Deathmantle">Deathmantle</button>)'],
 
     /* ── INGREDIENTS ──────────────────────────────────────────────────── */
     ['Carnastool',            'Ingredient',      'Can be found in the Desert.'],
@@ -2016,7 +2016,7 @@
   }
 
   function showPanel(id) {
-    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-move-card'].forEach(pid => {
+    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-move-card'].forEach(pid => {
       const el = document.getElementById(pid);
       if (el) el.style.display = pid === id ? '' : 'none';
     });
@@ -2371,6 +2371,8 @@
       showClassDetail(idx);
     } else if (type === 'Artifact' || type === 'Lesser Artifact' || type === 'Enchant' || type === 'Weapon Modifier') {
       showArtifactDetail(idx);
+    } else if (type === 'Scroll' || type === 'Lost Scroll') {
+      showScrollDetail(idx);
     } else {
       showItemDetail(idx);
     }
@@ -2395,7 +2397,14 @@
     if (nameEl) nameEl.textContent = it[0];
     if (descEl) {
       if (it[2]) {
-        descEl.innerHTML = it[2].replace(/\n/g, '<br>');
+        // For potions: replace Recipe: and Note: with visual labels
+        let html = it[2].replace(/\n/g, '<br>');
+        if (it[1] === 'Potion') {
+          html = html
+            .replace(/(<br>)*Recipe:/g, '<span class="enc-item-section-label">Recipe</span>')
+            .replace(/(<br>)*Note:/g,   '<span class="enc-item-section-label">Note</span>');
+        }
+        descEl.innerHTML = html;
         descEl.classList.remove('enc-detail-nodesc');
         descEl.querySelectorAll('[data-enc-nav]').forEach(btn => {
           const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
@@ -2411,6 +2420,95 @@
         descEl.textContent = 'No description available.';
         descEl.classList.add('enc-detail-nodesc');
       }
+    }
+  }
+
+  /* ── Scroll / Lost Scroll detail panel ─────────────────────────────────── */
+  function showScrollDetail(idx) {
+    const it   = ENC_ITEMS[idx];
+    const type = it[1];
+    const raw  = it[2] || '';
+
+    _currentView = 'scroll';
+    showPanel('enc-scroll-card');
+
+    const card = document.getElementById('enc-scroll-card');
+    if (!card) return;
+
+    // Type badge
+    const badgeEl = card.querySelector('.enc-scroll-type');
+    if (badgeEl) {
+      badgeEl.textContent = (TYPE_ICONS[type] || '') + ' ' + type;
+      badgeEl.className   = 'enc-scroll-type enc-detail-type enc-type-' + type.replace(/\s+/g, '-');
+    }
+
+    // Name
+    const nameEl = card.querySelector('.enc-scroll-name');
+    if (nameEl) nameEl.textContent = it[0];
+
+    // Parse structured fields
+    const restrictMatch = raw.match(/Class restriction:\s*([^\n]+)/);
+    const costMatch     = raw.match(/Cost:\s*(\S+)\s*NRG/);
+    const cdMatch       = raw.match(/Cooldown:\s*([^\n ·]+)/);
+    const typeLineMatch = raw.match(/Type:\s*([^·\n]+?)\s*·\s*(Buff|Attack)/);
+    const dmgMatch      = raw.match(/Damage:\s*([^\n·]+)/);
+    const durMatch      = raw.match(/Duration:\s*(\d+)/);
+
+    // Class restriction label
+    const restrictEl = card.querySelector('.enc-scroll-restrict');
+    if (restrictEl) {
+      if (restrictMatch) {
+        restrictEl.textContent = 'Class restriction: ' + restrictMatch[1].replace(/\.$/, '').trim();
+        restrictEl.style.display = '';
+      } else {
+        restrictEl.textContent = '';
+        restrictEl.style.display = 'none';
+      }
+    }
+
+    // Stat chips
+    const chipsEl = card.querySelector('.enc-scroll-chips');
+    if (chipsEl) {
+      chipsEl.innerHTML = '';
+      const addChip = (label, val, extra) => {
+        const chip = document.createElement('div');
+        chip.className = 'enc-stat-chip' + (extra ? ' ' + extra : '');
+        chip.innerHTML = `<span class="enc-stat-label">${label}</span><span class="enc-stat-val">${val}</span>`;
+        chipsEl.appendChild(chip);
+      };
+      if (costMatch)     addChip('Cost',     costMatch[1] + ' NRG');
+      if (cdMatch)       addChip('Cooldown', cdMatch[1]);
+      if (typeLineMatch) {
+        addChip('Element', typeLineMatch[1].trim(), 'enc-elem-' + typeLineMatch[1].trim().toLowerCase().replace(/\s+/g, '-'));
+        addChip('Kind',    typeLineMatch[2], typeLineMatch[2] === 'Attack' ? 'enc-scroll-attack' : 'enc-scroll-buff');
+      }
+      if (dmgMatch)      addChip('Damage',   dmgMatch[1].trim());
+      if (durMatch)      addChip('Duration', durMatch[1] + ' turns');
+    }
+
+    // Effect text — everything after the Type line's paragraph, or full text if no standard header
+    const effectEl = card.querySelector('.enc-scroll-effect');
+    if (effectEl) {
+      let effectHtml;
+      if (typeLineMatch) {
+        const typeIdx = raw.indexOf('\nType:');
+        const afterType = typeIdx !== -1 ? raw.substring(typeIdx) : '';
+        const blankIdx  = afterType.indexOf('\n\n');
+        effectHtml = blankIdx !== -1 ? afterType.substring(blankIdx + 2).trim() : '';
+      } else {
+        effectHtml = raw;
+      }
+      effectEl.innerHTML = effectHtml.replace(/\n/g, '<br>');
+      effectEl.querySelectorAll('[data-enc-nav]').forEach(btn => {
+        const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
+        if (targetIdx !== -1) btn.addEventListener('click', () => selectItem(targetIdx));
+      });
+      effectEl.querySelectorAll('[data-enc-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tabBtn = document.querySelector(`.enc-type-tab[data-type="${btn.dataset.encTab}"]`);
+          window._encFilter(btn.dataset.encTab, tabBtn || null);
+        });
+      });
     }
   }
 
