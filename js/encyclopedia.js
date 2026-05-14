@@ -370,6 +370,19 @@
     ['Breath of Fungyir', 'Lost Scroll', 'Class restriction: Slayer, Warrior.\n\nCost: 4 NRG · Cooldown: 20\nType: Magic · Buff\n\nEnter a stance and unleash a heavy stun on the opponent. Also fully heals your entire team.'],
     ['Heavenly Prayer',   'Lost Scroll', 'Class restriction: Slayer, Warrior, Wizard.\n\nCost: 5 NRG · Cooldown: 22\nType: Holy · Buff · Duration: 3\n\nGrants 10% Lifesteal for 5 turns, 3 Resist, 15% DR for 3 turns, and Death Defy for 2 turns.'],
 
+    /* ── MISC ────────────────────────────────────────────────────────── */
+    ['Pickaxe',                    'Misc', 'A utility item used to mine ore for armor. Costs 50g and can be purchased near the blacksmith in Caldera.'],
+    ['Starslime Chunk',            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Star Slime">Star Slime</button>.\n\nHas no purpose other than selling it.'],
+    ['Astral Shards',              'Misc', 'Obtainable from <button class="enc-desc-link" data-enc-nav="Star Slime">Star Slime</button> or by interacting with a meteor during an Astral Night event with a Pickaxe. Cannot be traded.\n\nUsed to craft <button class="enc-desc-link" data-enc-nav="Celestial Emblem">Celestial Emblem</button> at El\'heith.'],
+    ['Old Runic Bolt',             'Misc', 'Drops from Pterathanarian, or can be purchased from Elena at the Cessgrounds entrance for 400g (1,000g after the first purchase). The initial price can be exploited by repeating the initial dialogue.\n\nWhen used, the item is thrown at the ground and reveals any nearby cess anomalies in Cessgrounds.'],
+    ['Mossy Rune',                 'Misc', 'Obtainable by completing Guild requests or brewing Potions as a member of the Way of Life covenant. Cannot be traded.\n\nUsed to progress and rank up within the Way of Life covenant.'],
+    ["Arkhaia's Curse",            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button>.\n\nWhen used, the item is consumed and you are granted a <button class="enc-desc-link" data-enc-nav="Spectral">Spectral</button> enchant. A confirmation screen appears before use.'],
+    ["Raphion's Blessing",         'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>.\n\nWhen used, the item is consumed and you are granted a Blessed enchant. A confirmation screen appears before use.'],
+    ['Forgotten Relic',            'Misc', 'Obtainable from the Desert Hunt quest.\n\nGrants access to the <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button> raid and is also used to obtain the Gynx race.'],
+    ['Warbing Whistle',            'Misc', 'Drops from <button class="enc-desc-link" data-enc-nav="Ptoruco">Ptoruco</button>.\n\nWhen used, the user enters a stance and after a few seconds spawns the mini-boss Pterathanaian.'],
+    ['Unopened Present (unobtainable)', 'Misc', 'Can only be obtained during Winter Solstice. Grants 1 random item.\n\nCannot be traded.\n\nCommon (51%): Gold, Random Scroll\n\nRare (39%): Random Arcanium Shard, Random Potion\n\nEpic (7%): Event Accessory, Crystallized Joy, 2 Unopened Presents, Snorb, Elementary Resonance\n\nLegendary (3%): Random Lost Scroll, Random Lesser Artifact (excluding Void Keys and Echo Shards), Random Icerind Weapon, Echo Shard, Frosty Topper'],
+    ['Egg Basket',                 'Misc', 'Can only be obtained during Easter. Grants 1 random item from the list below.\n\nCannot be traded.\n\nPossible drops: Rabbit Pelt, Egg Shelmet, <button class="enc-desc-link" data-enc-nav="Rabbits Foot">Rabbit\'s Foot</button>, Chocolate Egg, Gleaming Carrot, Ivory Weapons'],
+
     /* ── ARMOUR ──────────────────────────────────────────────────────── */
     ['Paladin Cuirass',        'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Paladin (Or)">Paladin</button>\n\nCost: 250g.\n\nStats: +20 Endurance, +17.5% Endurance.\n\nDamage Reduction: +10% Physical, +5% Holy, +5% Magic, +5% Fire.\n\nPenalty: -5% Movement Speed.'],
     ['Adept Warrior',          'Armour', 'Superclass: <button class="enc-desc-link" data-enc-nav="Blade Dancer (N)">Blade Dancer</button>\n\nCost: 250g.\n\nStats: +15 Endurance, +10% Endurance, +5% Strength, +16.6% Energy.\n\nDamage Reduction: +5% Physical, +10% Dark.\n\nBonus: +20% Fall Resistance.'],
@@ -429,7 +442,7 @@
     'Base Class', 'Super Class', 'Sub Class',
     'Race',
     'Enchant',
-    'Ore', 'Ingredient', 'Weapon', 'Gear',
+    'Ore', 'Ingredient', 'Weapon', 'Gear', 'Misc',
     'Artifact', 'Lesser Artifact', 'Weapon Modifier',
     'Armour',
     'Scroll', 'Lost Scroll',
@@ -451,6 +464,7 @@
     'Lesser Artifact': '◇',
     'Weapon Modifier': '💎',
     'Armour':          '🛡',
+    'Misc':            '📦',
     'Boss':            '☠',
     'Mini Boss':       '💀',
     'Mob':             '👾',
@@ -494,6 +508,10 @@
     { label: 'Sub Class Trainers', names: new Set(['Cantia, The Bard', 'Thorin, The Beastmaster', 'Selia, The Alchemist', 'Adelma, the Blacksmith', 'Vanio, the Miner']) },
     { label: 'Base Class Trainers', names: new Set(['Ysa, The Warrior', 'Arandor, The Wizard', 'Boots, The Thief', 'Doran, The Martial Artist', 'Tivek, The Slayer', 'Geron, the Marauder', 'Lagolt, the Sentry']) },
     { label: 'Super Class Trainers', names: new Set(['Dernon, Paladin Warrior', 'Leoran, Adept Warrior', 'Kayrein, Raging Warrior', 'Landrum, Arcane Trainer', 'Ophelia, Magister Apprentice', 'Ulys, Corrupt Caster', 'Orkin, Lifebound Archer', 'Aberon, Rogue Hunter', 'Inette, Shadow Cloak', 'Luther, Traveling Pasmark', 'Gren, Wandering Practitioner', 'Momma Darkbeast, Mother of Dark', 'Fernain, Pathfinder Martyr', 'Relan, Armored Lancer', 'Orin, Bloody Menace', 'Ardentis, Venerated Legionnaire', 'Nevithas, Fortified Seer', 'Kether, Deathmantle']) },
+  ];
+
+  const MISC_GROUPS = [
+    { label: 'Event Items', names: new Set(['Unopened Present (unobtainable)', 'Egg Basket']) },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -2109,6 +2127,49 @@
           groupDiv.appendChild(groupGrid);
           section.appendChild(groupDiv);
         });
+      } else if (type === 'Misc') {
+        const groupedNames = new Set(MISC_GROUPS.flatMap(g => [...g.names]));
+        const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
+        if (ungrouped.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          ungrouped.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byGroup = {};
+        MISC_GROUPS.forEach(g => { byGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          MISC_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
+        });
+        MISC_GROUPS.forEach(g => {
+          const gItems = byGroup[g.label];
+          if (!gItems.length) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          gItems.forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
       } else {
         const grid = document.createElement('div');
         grid.className = 'enc-grid' + (type === 'Boss' ? ' enc-grid-column' : '');
@@ -2218,6 +2279,10 @@
       if (it[2]) {
         descEl.innerHTML = it[2].replace(/\n/g, '<br>');
         descEl.classList.remove('enc-detail-nodesc');
+        descEl.querySelectorAll('[data-enc-nav]').forEach(btn => {
+          const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
+          if (targetIdx !== -1) btn.addEventListener('click', () => selectItem(targetIdx));
+        });
       } else {
         descEl.textContent = 'No description available.';
         descEl.classList.add('enc-detail-nodesc');
@@ -2682,6 +2747,10 @@
           descEl.appendChild(btn);
         } else {
           descEl.innerHTML = it[2].replace(/\n/g, '<br>');
+          descEl.querySelectorAll('[data-enc-nav]').forEach(btn => {
+            const targetIdx = ENC_ITEMS.findIndex(e => e[0] === btn.dataset.encNav);
+            if (targetIdx !== -1) btn.addEventListener('click', () => selectItem(targetIdx));
+          });
         }
         descEl.classList.remove('enc-detail-nodesc');
       } else if (type === 'Weapon') {
