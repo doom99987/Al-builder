@@ -61,7 +61,7 @@
     ['Eroded Blade',          'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.'],
     ['Everbeating Drum',      'Gear',            ''],
     ['Expedite Anklet',       'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Fog Spirit">Fog Spirit</button>.\n\nAn anklet enchanted to increase the wearer\'s movement speed.'],
-    ['Focussed Mind',         'Gear',            ''],
+    ['Focused Mind',          'Gear',            ''],
     ['Forest Charm',          'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Grass Spirit">Grass Spirit</button>.'],
     ['Frozen Diadem',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button>.'],
     ['Frostburned Rune',      'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Yar\'Thul, The Blazing Dragon">Yar\'Thul</button> and <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button>.'],
@@ -617,7 +617,7 @@
     { label: 'Desert Gears',          names: new Set(['Crystal Sphere', 'Dust Storm', 'Golem Rune Core', 'Spiked Steel Ball', 'Stone Brand', 'Ramizcan Idol', 'Band Of Crushing Force', 'Grain Of Balance (BUGGED?)', "Madseer's Codex", 'Impure Crown', 'The Last Straw', 'Imbued Chains', 'Delicate Purse', 'Desert Escutcheon']) },
     { label: 'Deeproot Gears',        names: new Set(['Cursed Brand', "Narthana's Leaf", 'Wicked Crown', 'Sanguine Fang', 'Coagulated Finger Nail', 'Shard of Blight', "Traveler's Lamp", 'Expedite Anklet', 'Phantom Ooze']) },
     { label: 'Volcano Gears',         names: new Set(['Imperial Headband', 'Magma Charm', 'Vulcan Knuckle', 'Dragon Memior', 'Blazing Brand', 'Molten Carapace']) },
-    { label: 'Bosses/Minibosses Gears', names: new Set(['Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'Deathbeak Dagger', 'Blazing Perforator', "Yarthul's Wrath", 'Frostburned Rune', 'Vow of Ruin', 'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focussed Mind', 'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket', 'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand']) },
+    { label: 'Bosses/Minibosses Gears', names: new Set(['Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'Deathbeak Dagger', 'Blazing Perforator', "Yarthul's Wrath", 'Frostburned Rune', 'Vow of Ruin', 'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focused Mind', 'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket', 'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand']) },
     { label: 'N/A',                   names: new Set(['Lethal Blackajck', 'Everbeating Drum']) },
   ];
 
@@ -771,7 +771,7 @@
       ],
       loot: {
         categories: [
-          { label: 'Gears', items: ['Elemental Infuser', "Ptera's Heart"] },
+          { label: 'Gears', items: ['Deathbeak Dagger', "Ptera's Heart"] },
         ],
         notes: [
           'Can drop Weapon Arcanium Shards up to Pure rarity, all Basic Scrolls, and blueprints.',
@@ -2052,7 +2052,6 @@
     'Deathbeak Dagger':      'DeathBeak Dagger',
     'Dragon Memior':         'Dragon Memoir',
     'Everbeating Drum':      'Everbeating Drums',
-    'Focussed Mind':         'Focused Mind',
     'Grain of Balance':      'Grain Of Balance',
     'Band Of Crushing Force':'Band of Crushing Force',
     'Lethal Blackajck':      'Lethal Blackjack',
