@@ -511,6 +511,29 @@
     ['My Pants Don\'t Have Pockets', 'Trial', '"Lose one Gear slot"\n\nObtainment: None.'],
     ['Past Stigma',           'Trial', '"Start with a random amount of Alignment, from 10 to -10"\n\nNote: Most super classes require on average around 15 of either positive or negative alignment points.\n\nObtainment: None.'],
     ['Weak Stomach',          'Trial', '"If you consume another potion within the last 3 turns of consuming a potion, you lose 25% of your health, get Stunned (1T), and reset your Potion limit"\n\nObtainment: Exhaust your Potion limits in a battle.'],
+
+    ['Starter Quest (Daze)',          'Quest', 'The NPC named Yorn, located in the center of Caldera to welcome new Lightmarkeds.\n\nIf you are under level 4, you can ask him for help. He will give you a quest to kill 3 Slimes. If you are level 4 or higher, you can still get the quest, but you will also have the option to buy the skill for 250g. Both options count toward Petent mark requirements.\n\nIf you choose to complete the quest and return to him, he will reward you with 30g, 1 Abhorrent Elixir, the Self Cure skill, and the Daze skill. If you choose to buy the skill, you will only receive the Self Cure and Daze skills.\n\n(ACTIVE) Daze - Cost: 2 | Cooldown: 5 | Type: Physical | Category: Attack | Damage: 9 | Scaling: STR/75 | Effect: Applies 2 Weakened.'],
+    ['Potion Help (Orderly/Chaotic)', 'Quest', 'The NPC named Byfra, who is located on the balcony near the Blacksmith, asks you to help him with his alchemy and requests that you bring him a Small Healing Potion. There are two possible outcomes to this quest:\n\nGive him the right potion: If you give him a Small Healing Potion, he will reward you with 50g and an unknown amount of Orderly alignment.\n\nGive him the wrong potion: If you give him an Abhorrent Elixir, he will reward you with 50g and an unknown amount of Chaotic alignment. (Alternatively, the Abhorrent Elixir can be purchased from the potion shop at spawn.)\n\nRegardless of your choice, both options count toward Petent mark requirements.'],
+    ['Guild Request Help',            'Quest', 'The NPC named Horiya, who sits behind the Bank building, asks if you can help with a Guild request. If you accept, she asks you to bring her a Sand Core. Returning with the Sand Core and giving it to her rewards you with 30g and Everbeating Drums.\n\nSand Cores drop from Sand Elementals at a chance.'],
+    ['Delivery Quest (Orderly)',      'Quest', 'The NPC named Poira, who stands in front of the Merchant building, asks if you can deliver a package to their friend Jeith. If you accept, you are tasked with going to the Old Ruins to give the package to Jeith. Completing the quest rewards you with 40g, 1 Small Healing Potion, 1 Abhorrent Elixir, and an unknown amount of Orderly alignment.\n\nNote: Talking to Jeith completes the quest, you do not need to return to the original NPC.'],
+    ['Midas Quest',                   'Quest', 'NOTE: This quest is not required for Petent.\n\nThe NPC named Lodyssa, located at the Calderan Tavern, gives you the quest to obtain the Midas enchantment. You must fight Yar\'thul on that slot before being able to obtain the quest.\n\nThe goal of the quest is to sell 200 items to the merchant. Anything that can be sold to the merchant counts toward the quest.\n\nProgress dialogues:\n0% (less than 51 sold): "Let me take a look here.. its seems you\'ve only started, your fortune is one you have to make yourself, keep at it though!"\n\n25% (51+ sold): "Let me take a look here.. You\'re getting there, your fortune is one you have to make yourself, keep at it!"\n\n50% (101+ sold): "Let me take a look here.. You\'re almost there, your fortune is one you have to make yourself, keep at it!"\n\n100% (200 sold): "Let me take a look here.. Ah, yes now that is quite the fortune you have there. Well then, i think you\'re worthy now. What do you say about receiving a blessing from a deity?"'],
+
+    ['Spare Gold?',                   'Quest', 'The NPC named Kuur, located in the forest on the desert side, asks if you can spare them some gold. If you accept, you will be forced to give all your gold to them in exchange for the Weird Accessory.\n\nWeird Accessory: An equippable cosmetic item that makes all damage taken 50% more than usual.\n\nNote: It is recommended to trade your gold to an alt beforehand.'],
+    ['Sky Man Quest (Church Unlock)', 'Quest', 'The NPC named Lorra, located in the forest in the right corner of the Deeproot side, asks if you can help reactivate the portal behind them. If you accept, you are tasked with obtaining 1 Sand Core, 1 Mushroom Cap, and 1 Rot Core.\n\nFinishing this quest allows you to enter Illustris, where you can also find the Church of Raphion covenant.'],
+
+    ['Looking For Help (Orderly/Chaotic)', 'Quest', 'The NPC named Tiso, who is located in the Old Ruins, asks you to help his friend Selivus, who has a bounty on his head and is currently in the Volcano. There are two possible outcomes:\n\nHelp his friend: Give Selivus a Minor Energy Elixir, then return to Tiso. He will reward you with 200g and ? amount of Orderly alignment.\n\nKill his friend: Kill Selivus, then speak with Ryzar at the Blades of the World covenant to claim the bounty. He will reward you with 500g and ? amount of Chaotic alignment.\n\nNote: Returning to Tiso after killing Selivus is unnecessary — he will only learn of his friend\'s death and provide no additional reward.\n\nBoth options count toward Petent mark requirements.'],
+    ['Desert Hunt',                       'Quest', 'The NPC named Thuriaz, located near the Blades of the World covenant in the Desert Caves, tasks you with defeating 100 desert enemies. Once completed, speak with him again to receive the Forgotten Relic.'],
+    ['Bone Man Quest',                    'Quest', 'The NPC named Lyothis, located at the entrance of the Volcano, asks you to explore the desert and collect four different bones scattered throughout the area. After collecting all four, he rewards you with the Dragon Memoir.'],
+
+    ['Push a guy of a bridge (Chaotic)',  'Quest', 'The NPC named Krit, who is located in Westwood Heart, sits on the bridge between the second and third platforms. Pushing him off will reward you with ? amount of Chaotic alignment.'],
+    ['Leaf Man Quest',                    'Quest', "The NPC named Tae'el, who is located on the balcony of Westwood's second platform, tasks you with traveling to The Forgotten Sanctum. Upon doing so, you will receive Narthana's Leaf and the quest will be completed."],
+    ['Potion Help v2 (Chaotic)',          'Quest', 'The NPC named Velizo, who is located in the abandoned house in front of Westwood Heart, asks you to bring him 2 Slime Chunks and 1 Cryastem. Upon completion, he will reward you with 50g, 1 Minor Energy Elixir, and ? amount of Chaotic alignment.'],
+    ['Potion Help v2 (Orderly)',          'Quest', "The NPC named Trian, who is located in the house at the entrance of Westwood's third platform, asks you to bring him 3 Carnastools. Upon completion, he will reward you with 20g and ? amount of Orderly alignment."],
+    ['Crylight Quest (Chaotic)',          'Quest', "The NPC named Diiz, who is located on the balcony of Westwood's first platform, asks if you can obtain a Crylight to help him. Upon completion, he will reward you with 2000g, 1 Invisibility Potion, and ? amount of Chaotic alignment."],
+    ['Crylight Quest (Orderly)',          'Quest', 'The NPC named Pheend, who is located inside the Way of Life building on Westwood\'s third platform, asks if you can obtain a Crylight to help him. Upon completion, he will reward you with 2000g, 1 Invisibility Potion, and ? amount of Orderly alignment.'],
+    ['Cursed Corpse Cleansing',           'Quest', 'NOTE: This quest is not required for Petent.\n\nYou interact with a cursed corpse named Jyphar, who tasks you with a multi-step process to obtain an enchantment.\n\nStep 1: Kill 10 cursed corpses. Only your kills count — kills by party members do not.\n\nStep 2: Start and finish a fight while having the Cursed status effect active. The fight must end by killing the enemies; PvP does not count.\n\nStep 3: Run into a Cess Anomaly in Cessgrounds and "die" to it.\n\nTip: The easiest way to become Cursed is to get hit by a Venom Shroom using Toxic Burst while having at least 1 Poison stack, which applies 2 stacks of Cursed.'],
+    ['Lifesong Quest',                    'Quest', 'NOTE: This quest is not required for Petent.\n\nThe NPC named Narthana, who manifests as a large tree in the Deeproot Depths, asks if you are interested in a piece of her power. The goal is to heal other players for a total of 5000 HP.\n\nHealing yourself or healing outside of combat does not count. Overhealing and healing summons do count.'],
+    ["Tor'run's final request",           'Quest', "The NPC named Tor'run tasks you with taking a flower from Cessgrounds to a graveyard near the right of the entrance to the Volcano — the grave of their close friend. Returning to Tor'run afterward rewards you with the Vastic Glaive."],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -525,6 +548,7 @@
     'Scroll', 'Lost Scroll',
     'Trainer',
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
+    'Quest',
     'Trial',
   ];
 
@@ -553,6 +577,7 @@
     'Lost Scroll':     '📜',
     'Covenant':        '⚑',
     'Mark':            '◉',
+    'Quest':           '📋',
     'Trial':           '⚐',
   };
 
@@ -630,6 +655,188 @@
     { label: '(Lesser) +3 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Is There No Escape?', 'Potential Man']), alwaysShow: true },
     { label: '(Lesser) +2 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Unbridled Horror', 'Quick Thinking', 'Lasting Consequences', 'Vagrant', 'Death Claims You', 'In This Economy?', "My Pants Don't Have Pockets", 'Past Stigma', 'Weak Stomach']), alwaysShow: true },
   ];
+
+  const QUEST_GROUPS = [
+    { label: 'Caldera Quests',  sectionHeader: true, names: new Set(['Starter Quest (Daze)', 'Potion Help (Orderly/Chaotic)', 'Guild Request Help', 'Delivery Quest (Orderly)', 'Midas Quest']) },
+    { label: 'Crossing Quests', sectionHeader: true, names: new Set(['Spare Gold?', 'Sky Man Quest (Church Unlock)']) },
+    { label: 'Desert Quests',   sectionHeader: true, names: new Set(['Looking For Help (Orderly/Chaotic)', 'Desert Hunt', 'Bone Man Quest']) },
+    { label: 'Deeproot Quests', sectionHeader: true, names: new Set(['Push a guy of a bridge (Chaotic)', 'Leaf Man Quest', 'Potion Help v2 (Chaotic)', 'Potion Help v2 (Orderly)', 'Crylight Quest (Chaotic)', 'Crylight Quest (Orderly)', 'Cursed Corpse Cleansing', 'Lifesong Quest', "Tor'run's final request"]) },
+  ];
+
+  const QUEST_DATA = {
+    'Starter Quest (Daze)': {
+      npc: 'Yorn', location: 'Center of Caldera', petent: true,
+      desc: 'Yorn welcomes new Lightmarkeds to Caldera. Under level 4, he tasks you with killing 3 Slimes. At level 4 or higher, you may also purchase the skill directly for 250g.',
+      outcomes: [
+        { label: 'Complete the Quest', rewards: [{ text: '30g' }, { text: 'Abhorrent Elixir', link: true }, { text: 'Self Cure', link: true }, { text: 'Daze', link: true }] },
+        { label: 'Buy Skill (250g)',   rewards: [{ text: 'Self Cure', link: true }, { text: 'Daze', link: true }] },
+      ],
+      skill: { name: 'Daze', cost: 2, cd: 5, type: 'Physical', category: 'Attack', dmg: 9, scaling: 'STR/75', effect: 'Applies 2 Weakened.' },
+      notes: ['Both options count toward Petent mark requirements.'],
+    },
+    'Potion Help (Orderly/Chaotic)': {
+      npc: 'Byfra', location: 'Balcony near the Blacksmith', petent: true,
+      desc: 'Byfra asks for help with his alchemy, requesting you bring him a specific potion. Two outcomes are possible.',
+      outcomes: [
+        { label: 'Give Small Healing Potion', rewards: [{ text: '50g' }, { text: '? Orderly alignment' }] },
+        { label: 'Give Abhorrent Elixir',     rewards: [{ text: '50g' }, { text: '? Chaotic alignment' }] },
+      ],
+      notes: ['Both options count toward Petent mark requirements.', 'Abhorrent Elixir can be purchased from the potion shop at spawn.'],
+    },
+    'Guild Request Help': {
+      npc: 'Horiya', location: 'Behind the Bank building', petent: true,
+      desc: 'Horiya asks for help with a Guild request, tasking you to obtain a Sand Core.',
+      outcomes: [
+        { label: 'Return with Sand Core', rewards: [{ text: '30g' }, { text: 'Everbeating Drums', link: true }] },
+      ],
+      notes: ['Sand Cores drop from Sand Elementals at a chance.', 'Counts toward Petent mark requirements.'],
+    },
+    'Delivery Quest (Orderly)': {
+      npc: 'Poira', location: 'In front of the Merchant building', petent: true,
+      desc: 'Poira asks you to deliver a package to their friend Jeith at the Old Ruins.',
+      outcomes: [
+        { label: 'Deliver to Jeith at Old Ruins', rewards: [{ text: '40g' }, { text: 'Small Healing Potion', link: true }, { text: 'Abhorrent Elixir', link: true }, { text: '? Orderly alignment' }] },
+      ],
+      notes: ['Talking to Jeith completes the quest; you do not need to return to Poira.', 'Counts toward Petent mark requirements.'],
+    },
+    'Midas Quest': {
+      npc: 'Lodyssa', location: 'Calderan Tavern', petent: false,
+      desc: 'Lodyssa tasks you with obtaining the Midas enchantment by selling 200 items to the merchant. Anything sellable to the merchant counts toward the quest.',
+      prereq: "Must fight Yar'thul on that slot before the quest becomes available.",
+      outcomes: [
+        { label: 'Sell 200 items', rewards: [{ text: 'Midas', link: true }] },
+      ],
+      progress: [
+        { range: '0–50 items',    dialogue: "Let me take a look here.. its seems you've only started, your fortune is one you have to make yourself, keep at it though!" },
+        { range: '51–100 items',  dialogue: "Let me take a look here.. You're getting there, your fortune is one you have to make yourself, keep at it!" },
+        { range: '101–199 items', dialogue: "Let me take a look here.. You're almost there, your fortune is one you have to make yourself, keep at it!" },
+        { range: '200 items',     dialogue: "Let me take a look here.. Ah, yes now that is quite the fortune you have there. Well then, i think you're worthy now. What do you say about receiving a blessing from a deity?" },
+      ],
+      notes: ['This quest is NOT required for Petent.'],
+    },
+    'Spare Gold?': {
+      npc: 'Kuur', location: 'Forest on the desert side', petent: true,
+      desc: 'Kuur asks if you can spare them some gold. Accepting forces you to hand over all your gold in exchange for the Weird Accessory.',
+      outcomes: [
+        { label: 'Give all your gold', rewards: [{ text: 'Weird Accessory' }] },
+      ],
+      notes: ['Weird Accessory is an equippable cosmetic that makes all damage taken 50% more than usual.', 'Recommended to trade your gold to an alt before accepting.'],
+    },
+    'Sky Man Quest (Church Unlock)': {
+      npc: 'Lorra', location: 'Forest, right corner of the Deeproot side', petent: true,
+      desc: 'Lorra asks you to help reactivate the portal behind them. You must obtain 1 Sand Core, 1 Mushroom Cap, and 1 Rot Core.',
+      outcomes: [
+        { label: 'Return with all three items', rewards: [{ text: 'Illustris access', }, { text: 'Church of Raphion', link: true }] },
+      ],
+      notes: ['Completing this quest unlocks Illustris and the Church of Raphion covenant.'],
+    },
+    'Looking For Help (Orderly/Chaotic)': {
+      npc: 'Tiso', location: 'Old Ruins', petent: true,
+      desc: "Tiso asks you to help his friend Selivus, who has a bounty on his head and is currently in the Volcano.",
+      outcomes: [
+        { label: 'Help his friend (give Minor Energy Elixir → return to Tiso)', rewards: [{ text: '200g' }, { text: '? Orderly alignment' }] },
+        { label: 'Kill his friend (kill Selivus → claim bounty from Ryzar at Blades of the World)', rewards: [{ text: '500g' }, { text: '? Chaotic alignment' }] },
+      ],
+      notes: ['Returning to Tiso after killing Selivus is unnecessary — he provides no additional reward.', 'Both options count toward Petent mark requirements.'],
+    },
+    'Desert Hunt': {
+      npc: 'Thuriaz', location: 'Near Blades of the World, Desert Caves', petent: false,
+      desc: 'Thuriaz tasks you with defeating 100 desert enemies. Return to him once finished.',
+      outcomes: [
+        { label: 'Defeat 100 desert enemies', rewards: [{ text: 'Forgotten Relic', link: true }] },
+      ],
+    },
+    'Bone Man Quest': {
+      npc: 'Lyothis', location: 'Entrance of the Volcano', petent: false,
+      desc: 'Lyothis asks you to explore the desert and collect four different bones scattered throughout the area.',
+      outcomes: [
+        { label: 'Collect all four bones', rewards: [{ text: 'Dragon Memoir', link: true }] },
+      ],
+      locations: [
+        'Right of the entrance to the Volcano, in the corner.',
+        'Into the entrance to ruins, nearby the rock that\'s farther away.',
+        'Left of the bard building, in the corner.',
+        'In the corner of the ravine on the same side you enter Blades of the World, all the way at the end.',
+      ],
+    },
+    'Push a guy of a bridge (Chaotic)': {
+      npc: 'Krit', location: "Westwood Heart, bridge between 2nd and 3rd platforms", petent: true,
+      desc: 'Krit sits on the bridge between the second and third platforms. Pushing him off rewards Chaotic alignment.',
+      outcomes: [
+        { label: 'Push Krit off the bridge', rewards: [{ text: '? Chaotic alignment' }] },
+      ],
+    },
+    'Leaf Man Quest': {
+      npc: "Tae'el", location: "Balcony of Westwood's second platform", petent: true,
+      desc: "Tae'el tasks you with traveling to The Forgotten Sanctum. Upon arriving, you will receive Narthana's Leaf and the quest will be completed.",
+      outcomes: [
+        { label: 'Travel to The Forgotten Sanctum', rewards: [{ text: "Narthana's Leaf", link: true }] },
+      ],
+    },
+    'Potion Help v2 (Chaotic)': {
+      npc: 'Velizo', location: 'Abandoned house in front of Westwood Heart', petent: true,
+      desc: 'Velizo asks you to bring him 2 Slime Chunks and 1 Cryastem.',
+      outcomes: [
+        { label: 'Bring 2 Slime Chunks and 1 Cryastem', rewards: [{ text: '50g' }, { text: 'Minor Energy Elixir', link: true }, { text: '? Chaotic alignment' }] },
+      ],
+    },
+    'Potion Help v2 (Orderly)': {
+      npc: 'Trian', location: "House at the entrance of Westwood's third platform", petent: true,
+      desc: 'Trian asks you to bring him 3 Carnastools.',
+      outcomes: [
+        { label: 'Bring 3 Carnastools', rewards: [{ text: '20g' }, { text: '? Orderly alignment' }] },
+      ],
+    },
+    'Crylight Quest (Chaotic)': {
+      npc: 'Diiz', location: "Balcony of Westwood's first platform", petent: true,
+      desc: 'Diiz asks if you can obtain a Crylight to help him.',
+      outcomes: [
+        { label: 'Bring a Crylight', rewards: [{ text: '2000g' }, { text: 'Invisibility Potion', link: true }, { text: '? Chaotic alignment' }] },
+      ],
+    },
+    'Crylight Quest (Orderly)': {
+      npc: 'Pheend', location: "Way of Life building, Westwood's third platform", petent: true,
+      desc: 'Pheend asks if you can obtain a Crylight to help him.',
+      outcomes: [
+        { label: 'Bring a Crylight', rewards: [{ text: '2000g' }, { text: 'Invisibility Potion', link: true }, { text: '? Orderly alignment' }] },
+      ],
+    },
+    'Cursed Corpse Cleansing': {
+      npc: 'Jyphar (Cursed Corpse)', location: 'Cessgrounds', petent: true,
+      desc: 'A cursed corpse named Jyphar tasks you with a multi-step process to obtain an enchantment.',
+      steps: [
+        'Kill 10 cursed corpses. Only your own kills count — party member kills do not.',
+        'Start and finish a fight while having the Cursed status effect active. Must end by killing the enemies; PvP does not count.',
+        'Run into a Cess Anomaly in Cessgrounds and "die" to it.',
+      ],
+      outcomes: [
+        { label: 'Complete all three steps', rewards: [{ text: 'enchantment reward' }] },
+      ],
+      notes: ['Easiest way to become Cursed: get hit by a Venom Shroom using Toxic Burst while having at least 1 Poison stack, applying 2 stacks of Cursed.', 'This quest is NOT required for Petent.'],
+    },
+    'Lifesong Quest': {
+      npc: 'Narthana', location: 'Deeproot Depths (manifests as a large tree)', petent: false,
+      desc: 'Narthana offers a piece of her power in exchange for healing other players for a total of 5000 HP.',
+      outcomes: [
+        { label: 'Heal 5000 HP total', rewards: [{ text: 'Lifesong enchantment' }] },
+      ],
+      progress: [
+        { range: '0–1249 HP',  dialogue: "Hmm, I'm afraid not, keep doing good deeds and soothing the souls of many, and perhaps one day you will be ready." },
+        { range: '1250+ HP',   dialogue: "Hmm, you're improving but still far off, keep doing good deeds and soothing the souls of many, and perhaps one day you will be ready." },
+        { range: '2500+ HP',   dialogue: "Hmm, you're getting there, keep doing good deeds and soothing the souls of many, and perhaps one day you will be ready." },
+        { range: '3750+ HP',   dialogue: "Hmm, you're almost there, keep doing good deeds and soothing the souls of many, and perhaps one day you will be ready." },
+        { range: '5000 HP',    dialogue: "Ah yes, I can feel the beauty of your soul even in my weakened state. My name is Narthana, are you ready for my gift?" },
+      ],
+      notes: ['Healing yourself or healing outside of combat does not count.', 'Overhealing and healing summons do count.', 'This quest is NOT required for Petent.'],
+    },
+    "Tor'run's final request": {
+      npc: "Tor'run", location: 'Cessgrounds', petent: true,
+      desc: "Tor'run asks you to carry a flower from Cessgrounds to a graveyard near the right of the entrance to the Volcano — the grave of their close friend.",
+      outcomes: [
+        { label: "Deliver the flower, then return to Tor'run", rewards: [{ text: 'Vastic Glaive', link: true }] },
+      ],
+    },
+  };
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
   const BOSS_MOVE_DATA = {
@@ -2098,7 +2305,7 @@
   }
 
   function showPanel(id) {
-    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-move-card'].forEach(pid => {
+    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-quest-card', 'enc-move-card'].forEach(pid => {
       const el = document.getElementById(pid);
       if (el) el.style.display = pid === id ? '' : 'none';
     });
@@ -2462,6 +2669,76 @@
           groupDiv.appendChild(groupGrid);
           section.appendChild(groupDiv);
         });
+      } else if (type === 'Quest') {
+        const groupedQuestNames = new Set(QUEST_GROUPS.flatMap(g => g.names ? [...g.names] : []));
+        const ungroupedQuests = items.filter(({ it }) => !groupedQuestNames.has(it[0]));
+        if (ungroupedQuests.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungroupedQuests].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byQuestGroup = {};
+        QUEST_GROUPS.forEach(g => { if (g.names) byQuestGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          QUEST_GROUPS.forEach(g => { if (g.names?.has(it[0])) byQuestGroup[g.label].push({ it, i }); });
+        });
+        QUEST_GROUPS.forEach(g => {
+          if (g.sectionHeader) {
+            const hdr = document.createElement('div');
+            hdr.className = 'enc-trial-section-hdr';
+            hdr.textContent = g.label;
+            section.appendChild(hdr);
+            if (g.names) {
+              const gItems = byQuestGroup[g.label] || [];
+              const groupGrid = document.createElement('div');
+              groupGrid.className = 'enc-grid';
+              [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+                const btn = document.createElement('button');
+                btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+                btn.dataset.idx = i;
+                btn.textContent = it[0];
+                btn.addEventListener('click', () => selectItem(i));
+                groupGrid.appendChild(btn);
+              });
+              section.appendChild(groupGrid);
+            }
+            return;
+          }
+          const gItems = byQuestGroup[g.label];
+          if (!gItems.length && !g.alwaysShow) return;
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'enc-weapon-group';
+          const groupHdr = document.createElement('div');
+          groupHdr.className = 'enc-weapon-group-hdr';
+          groupHdr.textContent = g.label;
+          groupDiv.appendChild(groupHdr);
+          if (g.desc) {
+            const groupDesc = document.createElement('div');
+            groupDesc.className = 'enc-group-desc';
+            groupDesc.textContent = g.desc;
+            groupDiv.appendChild(groupDesc);
+          }
+          const groupGrid = document.createElement('div');
+          groupGrid.className = 'enc-grid';
+          [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            groupGrid.appendChild(btn);
+          });
+          groupDiv.appendChild(groupGrid);
+          section.appendChild(groupDiv);
+        });
       } else if (type === 'Trial') {
         const groupedNames = new Set(TRIAL_GROUPS.flatMap(g => g.names ? [...g.names] : []));
         const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
@@ -2603,6 +2880,8 @@
       showArtifactDetail(idx);
     } else if (type === 'Scroll' || type === 'Lost Scroll') {
       showScrollDetail(idx);
+    } else if (type === 'Quest') {
+      showQuestDetail(idx);
     } else {
       showItemDetail(idx);
     }
@@ -2738,6 +3017,185 @@
           const tabBtn = document.querySelector(`.enc-type-tab[data-type="${btn.dataset.encTab}"]`);
           window._encFilter(btn.dataset.encTab, tabBtn || null);
         });
+      });
+    }
+  }
+
+  /* ── Quest detail panel ─────────────────────────────────────────────────── */
+  function showQuestDetail(idx) {
+    const it   = ENC_ITEMS[idx];
+    const name = it[0];
+    const data = QUEST_DATA[name] || {};
+
+    _currentView = 'item';
+    showPanel('enc-quest-card');
+
+    const card = document.getElementById('enc-quest-card');
+    if (!card) return;
+
+    // Type badge
+    const typeEl = card.querySelector('.enc-quest-type');
+    if (typeEl) {
+      typeEl.textContent = (TYPE_ICONS['Quest'] || '') + ' Quest';
+      typeEl.className = 'enc-quest-type enc-detail-type enc-type-Quest';
+    }
+
+    // Petent badge
+    const petentEl = card.querySelector('.enc-quest-petent');
+    if (petentEl) {
+      if (data.petent === true) {
+        petentEl.textContent = '✓ Petent';
+        petentEl.className = 'enc-quest-petent enc-quest-petent-yes';
+      } else if (data.petent === false) {
+        petentEl.textContent = 'Not Petent';
+        petentEl.className = 'enc-quest-petent enc-quest-petent-no';
+      } else {
+        petentEl.textContent = '';
+        petentEl.className = 'enc-quest-petent';
+      }
+    }
+
+    // Name
+    const nameEl = card.querySelector('.enc-quest-name');
+    if (nameEl) nameEl.textContent = name;
+
+    // NPC / Location chips
+    const npcRow = card.querySelector('.enc-quest-npc-row');
+    if (npcRow) {
+      npcRow.innerHTML = '';
+      [['NPC', data.npc], ['Location', data.location]].forEach(([label, val]) => {
+        if (!val) return;
+        const chip = document.createElement('div');
+        chip.className = 'enc-quest-npc-chip';
+        chip.innerHTML = `<span class="enc-quest-npc-label">${label}</span><span class="enc-quest-npc-val">${val}</span>`;
+        npcRow.appendChild(chip);
+      });
+    }
+
+    // Description
+    const descEl = card.querySelector('.enc-quest-desc');
+    if (descEl) {
+      descEl.textContent = data.desc || '';
+      descEl.style.display = data.desc ? '' : 'none';
+    }
+
+    // Body sections
+    const body = card.querySelector('.enc-quest-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const mkSection = (title) => {
+      const sec = document.createElement('div');
+      sec.className = 'enc-quest-section';
+      const hdr = document.createElement('div');
+      hdr.className = 'enc-quest-section-hdr';
+      hdr.textContent = title;
+      sec.appendChild(hdr);
+      body.appendChild(sec);
+      return sec;
+    };
+
+    // Prerequisite
+    if (data.prereq) {
+      const el = document.createElement('div');
+      el.className = 'enc-quest-prereq';
+      el.innerHTML = `<span class="enc-quest-prereq-label">Prerequisite</span>${data.prereq}`;
+      body.appendChild(el);
+    }
+
+    // Outcomes
+    if (data.outcomes && data.outcomes.length) {
+      const sec = mkSection('Outcomes');
+      data.outcomes.forEach(outcome => {
+        const outDiv = document.createElement('div');
+        outDiv.className = 'enc-quest-outcome';
+        const lbl = document.createElement('div');
+        lbl.className = 'enc-quest-outcome-label';
+        lbl.textContent = outcome.label;
+        outDiv.appendChild(lbl);
+        const chips = document.createElement('div');
+        chips.className = 'enc-loot-chips';
+        outcome.rewards.forEach(r => {
+          if (r.link) {
+            const btn = document.createElement('button');
+            btn.className = 'enc-loot-chip enc-loot-chip-link';
+            btn.textContent = r.text;
+            const ti = ENC_ITEMS.findIndex(e => e[0] === r.text);
+            if (ti !== -1) btn.addEventListener('click', () => selectItem(ti));
+            chips.appendChild(btn);
+          } else {
+            const span = document.createElement('span');
+            span.className = 'enc-loot-chip';
+            span.textContent = r.text;
+            chips.appendChild(span);
+          }
+        });
+        outDiv.appendChild(chips);
+        sec.appendChild(outDiv);
+      });
+    }
+
+    // Skill reward detail
+    if (data.skill) {
+      const sec = mkSection('Skill Reward: ' + data.skill.name);
+      const chipsRow = document.createElement('div');
+      chipsRow.className = 'enc-quest-skill-chips';
+      [['Cost', data.skill.cost + ' NRG'], ['Cooldown', data.skill.cd], ['Type', data.skill.type],
+       ['Category', data.skill.category], ['Damage', data.skill.dmg], ['Scaling', data.skill.scaling]
+      ].forEach(([label, val]) => {
+        const chip = document.createElement('div');
+        chip.className = 'enc-stat-chip';
+        chip.innerHTML = `<span class="enc-stat-label">${label}</span><span class="enc-stat-val">${val}</span>`;
+        chipsRow.appendChild(chip);
+      });
+      sec.appendChild(chipsRow);
+      const fx = document.createElement('div');
+      fx.className = 'enc-quest-skill-effect';
+      fx.textContent = data.skill.effect;
+      sec.appendChild(fx);
+    }
+
+    // Progress dialogues
+    if (data.progress && data.progress.length) {
+      const sec = mkSection('Progress Dialogues');
+      data.progress.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'enc-quest-progress-row';
+        row.innerHTML = `<span class="enc-quest-progress-range">${p.range}</span><div class="enc-quest-progress-dialogue">"${p.dialogue}"</div>`;
+        sec.appendChild(row);
+      });
+    }
+
+    // Quest steps
+    if (data.steps && data.steps.length) {
+      const sec = mkSection('Steps');
+      data.steps.forEach((step, i) => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-location';
+        el.innerHTML = `<span class="enc-quest-location-num">${i + 1}</span><span>${step}</span>`;
+        sec.appendChild(el);
+      });
+    }
+
+    // Bone locations
+    if (data.locations && data.locations.length) {
+      const sec = mkSection('Bone Locations');
+      data.locations.forEach((loc, i) => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-location';
+        el.innerHTML = `<span class="enc-quest-location-num">${i + 1}</span><span>${loc}</span>`;
+        sec.appendChild(el);
+      });
+    }
+
+    // Notes
+    if (data.notes && data.notes.length) {
+      const sec = mkSection('Notes');
+      data.notes.forEach(note => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-note';
+        el.textContent = note;
+        sec.appendChild(el);
       });
     }
   }

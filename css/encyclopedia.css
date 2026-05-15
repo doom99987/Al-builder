@@ -73,6 +73,7 @@
 .enc-type-tab[data-type="Boss"].active             { background: #1a0808; border-color: #cc3333; color: #ee5555; }
 .enc-type-tab[data-type="Mob"].active              { background: #100e0a; border-color: #aa8844; color: #ccaa55; }
 .enc-type-tab[data-type="Mark"].active             { background: #0e0818; border-color: #cc55ee; color: #ee77ff; }
+.enc-type-tab[data-type="Quest"].active            { background: #081a14; border-color: #33bb77; color: #55ddaa; }
 
 /* ── Two-column body ────────────────────────────────────────────────────── */
 .enc-body {
@@ -273,6 +274,7 @@
 .enc-type-Super-Class     { background: #140a1e; color: #aa66ee; border: 1px solid #2e1055; }
 .enc-type-Sub-Class       { background: #061818; color: #33bbaa; border: 1px solid #0e3030; }
 .enc-type-Race            { background: #0e1a10; color: #55cc66; border: 1px solid #143318; }
+.enc-type-Quest           { background: #081a14; color: #33bb77; border: 1px solid #0e3320; }
 
 /* ── Shared name + desc ─────────────────────────────────────────────────── */
 .enc-detail-name {
@@ -1070,4 +1072,175 @@
   .vt-grid { grid-template-columns: repeat(2, 1fr); }
   .pt-loc-grid { grid-template-columns: repeat(2, 1fr); }
   #petent-tracker-modal { padding: 16px; }
+}
+
+/* ── Quest detail panel ─────────────────────────────────────────────────── */
+.enc-quest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.enc-quest-petent-yes {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #091a10;
+  border: 1px solid #33aa55;
+  color: #55cc77;
+  white-space: nowrap;
+}
+.enc-quest-petent-no {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #160a0a;
+  border: 1px solid #553333;
+  color: #886666;
+  white-space: nowrap;
+}
+.enc-quest-npc-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.enc-quest-npc-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: #0d0d0d;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 6px 10px;
+  flex: 1;
+  min-width: 80px;
+}
+.enc-quest-npc-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.enc-quest-npc-val {
+  font-size: 12px;
+  color: #bbb;
+  font-weight: 600;
+}
+.enc-quest-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.enc-quest-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.enc-quest-section-hdr {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 1px solid #1c1c1c;
+  padding-bottom: 3px;
+}
+.enc-quest-outcome {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.enc-quest-outcome-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #999;
+}
+.enc-quest-prereq {
+  font-size: 12px;
+  color: #aa8833;
+  background: #130f00;
+  border: 1px solid #302400;
+  border-radius: 6px;
+  padding: 7px 10px;
+  line-height: 1.5;
+}
+.enc-quest-prereq-label {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: 6px;
+  color: #cc9922;
+}
+.enc-quest-skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.enc-quest-skill-effect {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+}
+.enc-quest-progress-row {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.enc-quest-progress-range {
+  font-size: 10px;
+  font-weight: 700;
+  color: #33bb77;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.enc-quest-progress-dialogue {
+  font-size: 11px;
+  color: #777;
+  font-style: italic;
+  line-height: 1.55;
+}
+.enc-quest-note {
+  font-size: 12px;
+  color: #888;
+  line-height: 1.5;
+  padding-left: 8px;
+  border-left: 2px solid #222;
+}
+.enc-quest-location {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: #999;
+  line-height: 1.5;
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.enc-quest-location-num {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #33bb77;
+  min-width: 14px;
+  flex-shrink: 0;
 }

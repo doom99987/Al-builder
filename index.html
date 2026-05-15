@@ -1049,6 +1049,7 @@
       <button class="enc-type-tab" data-type="Sub Class" onclick="window._encFilter('Sub Class', this)">Sub Classes</button>
       <button class="enc-type-tab" data-type="Super Class" onclick="window._encFilter('Super Class', this)">Super Classes</button>
       <button class="enc-type-tab" data-type="Trainer" onclick="window._encFilter('Trainer', this)">Trainers</button>
+      <button class="enc-type-tab" data-type="Quest" onclick="window._encFilter('Quest', this)">Quests</button>
       <button class="enc-type-tab" data-type="Trial" onclick="window._encFilter('Trial', this)">Trials</button>
       <button class="enc-type-tab" data-type="Weapon" onclick="window._encFilter('Weapon', this)">Weapons</button>
       <button class="enc-type-tab" data-type="Weapon Modifier" onclick="window._encFilter('Weapon Modifier', this)">Weapon Modifiers</button>
@@ -1091,6 +1092,18 @@
           <div class="enc-scroll-restrict"></div>
           <div class="enc-scroll-chips"></div>
           <div class="enc-scroll-effect enc-detail-desc"></div>
+        </div>
+
+        <!-- Quest detail -->
+        <div class="enc-detail-card" id="enc-quest-card" style="display:none">
+          <div class="enc-quest-header">
+            <div class="enc-quest-type enc-detail-type"></div>
+            <div class="enc-quest-petent"></div>
+          </div>
+          <div class="enc-quest-name enc-detail-name"></div>
+          <div class="enc-quest-npc-row"></div>
+          <div class="enc-quest-desc enc-detail-desc"></div>
+          <div class="enc-quest-body"></div>
         </div>
 
         <!-- Move detail -->
