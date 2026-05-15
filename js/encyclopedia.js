@@ -494,6 +494,23 @@
     ['Cursed Corpse Trial',   'Trial', 'Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot</button>, <button class="enc-desc-link" data-enc-nav="Westwood Heart">Westwood</button>, and <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button> portals for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
     ['Iron Lineage',          'Trial', '"You are alone in your quest. No Trading, no Dueling, no forming Parties with other players."\n\nObtainment: Beat any boss solo.'],
     ['Mortal',                'Trial', '"You only have one life. Make the most of it!"\n\nObtainment: None.'],
+    ['I Feel No Pain',        'Trial', '"You cannot see your Health or Energy during combat. All moves with Energy costs are now freely selectable regardless if you have the Energy to use them or not. If you use a move that requires more Energy than what you have, you skip your turn and fail to use it."\n\nObtainment: Attack an enemy with a Trap active (e.g. burst trap on a veneri racial mob).'],
+    ['Slow Start',            'Trial', '"You are Stunned (2T) when starting Combat. Additionally, you take your turn after everyone else has went."\n\nObtainment: Have your turn timer run out.'],
+    ['No Insurance?',         'Trial', '"You cannot speak to Doctors"\n\nObtainment: Speak to Doctors 10 times in one life.'],
+    ['Loose Change',          'Trial', '"Lose 1% of your current Gold rounded up every time you get hit"\n\nObtainment: Hit the Gold cap (50,000 Gold).'],
+    ['Dust to Dust',          'Trial', '"You cannot use Phoenix Tears"\n\nObtainment: None.'],
+    ['He Won\'t Save You',    'Trial', '"When exiting battles, your Encounter protection lasts 5 seconds less than regular"\n\nObtainment: Get into another battle in less than 30 seconds after a battle ended.'],
+    ['Is There No Escape?',   'Trial', '"You cannot escape fights"\n\nObtainment: Fail to escape 5 times in a row.'],
+    ['Potential Man',         'Trial', '"Level and Alignment requirements for classes are doubled"\n\nObtainment: Get your first Super Class.'],
+    ['Unbridled Horror',      'Trial', '"Has a 25% chance of spawning a corrupted mob. Additionally, remove level restrictions on encountering monsters"\n\nObtainment: Encounter a Sentient Darkness.'],
+    ['Quick Thinking',        'Trial', '"Your turns last half the time. Turns additionally expire during solo encounters"\n\nObtainment: End your fight on Turn 1.'],
+    ['Lasting Consequences',  'Trial', '"Status effects inflicted on you will persist when a Fight ends"\n\nObtainment: None.'],
+    ['Vagrant',               'Trial', '"You can\'t set your Spawn"\n\nObtainment: None.'],
+    ['Death Claims You',      'Trial', '"When you reach 0 HP in combat, you immediately die. No bleed out state"\n\nObtainment: Wipe for the first time.'],
+    ['In This Economy?',      'Trial', '"Selling items will grant you half the Gold"\n\nObtainment: Gain the Midas enchantment.'],
+    ['My Pants Don\'t Have Pockets', 'Trial', '"Lose one Gear slot"\n\nObtainment: None.'],
+    ['Past Stigma',           'Trial', '"Start with a random amount of Alignment, from 10 to -10"\n\nNote: Most super classes require on average around 15 of either positive or negative alignment points.\n\nObtainment: None.'],
+    ['Weak Stomach',          'Trial', '"If you consume another potion within the last 3 turns of consuming a potion, you lose 25% of your health, get Stunned (1T), and reset your Potion limit"\n\nObtainment: Exhaust your Potion limits in a battle.'],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -608,6 +625,10 @@
     { label: 'Petent Trials', desc: 'Hold out a Void Key before jumping into a void to enter. Completing each trial unlocks Rima portal destinations.', names: new Set(['Zombie Mushroom Trial', 'Sand Golem Trial', 'Cursed Corpse Trial']) },
     { label: 'Player Creation Trials', sectionHeader: true },
     { label: '(Greater) +15 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Iron Lineage', 'Mortal']), alwaysShow: true },
+    { label: '(Lesser) +10 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['I Feel No Pain']), alwaysShow: true },
+    { label: '(Lesser) +5 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Slow Start', 'No Insurance?', 'Loose Change', 'Dust to Dust', "He Won't Save You"]), alwaysShow: true },
+    { label: '(Lesser) +3 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Is There No Escape?', 'Potential Man']), alwaysShow: true },
+    { label: '(Lesser) +2 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Unbridled Horror', 'Quick Thinking', 'Lasting Consequences', 'Vagrant', 'Death Claims You', 'In This Economy?', "My Pants Don't Have Pockets", 'Past Stigma', 'Weak Stomach']), alwaysShow: true },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
