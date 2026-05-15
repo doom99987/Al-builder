@@ -70,7 +70,6 @@
     ['Gilded Pouch',          'Gear',            ''],
     ['Gleaming Carrot',       'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Gigapascha">Gigapascha</button>. Can also be obtained from an <button class="enc-desc-link" data-enc-nav="Egg Basket">Egg Basket</button>.'],
     ['Golem Rune Core',       'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Sand Golem">Sand Golem</button>.'],
-    ['Grain of Balance',      'Gear',            ''],
     ['Imbued Chains',         'Gear',            ''],
     ['Imbuement Reliquary',   'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>.'],
     ['Imperial Headband',     'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Lava Crab">Lava Crab</button>.'],
@@ -88,7 +87,6 @@
     ["Ptera's Heart",         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Pterathanaian">Pterathanaian</button>.'],
     ['Rabbit Pelt',           'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Gigapascha">Gigapascha</button>. Can also be obtained from an <button class="enc-desc-link" data-enc-nav="Egg Basket">Egg Basket</button>.'],
     ["Rabbit's Foot",         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Gigapascha">Gigapascha</button>. Can also be obtained from an <button class="enc-desc-link" data-enc-nav="Egg Basket">Egg Basket</button>.\n\nA lucky rabbit\'s foot. Said to bring fortune to whoever carries it.'],
-    ['Ramzicon Idol',         'Gear',            ''],
     ['Sanguine Fang',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Cess Horror">Cess Horror</button>.'],
     ['Shard of Blight',       'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Fog Spirit">Fog Spirit</button>, <button class="enc-desc-link" data-enc-nav="Cursed Corpse">Cursed Corpse</button>, and <button class="enc-desc-link" data-enc-nav="Sentient Darkness">Sentient Darkness</button>.'],
     ['Shattered Clockhand',   'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Thief">Thief (Mob)</button>.\n\nWhen using Strike, you have a 30% chance to decrease all your move cooldowns by 1 turn.'],
@@ -494,6 +492,8 @@
     ['Zombie Mushroom Trial', 'Trial', 'Located in the <button class="enc-desc-link" data-enc-nav="Icerift Approach">Icerift</button> void. Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Caldera Town">Caldera</button> portal for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
     ['Sand Golem Trial',      'Trial', 'Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Old Ruins">Ruins</button>, <button class="enc-desc-link" data-enc-nav="Sanctuary of Blades">Blades</button>, and <button class="enc-desc-link" data-enc-nav="Mount Thul">Volcano</button> portals for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
     ['Cursed Corpse Trial',   'Trial', 'Hold out a <button class="enc-desc-link" data-enc-nav="Void Key">Void Key</button> before jumping into the void to enter.\n\nCompleting this trial unlocks the <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot</button>, <button class="enc-desc-link" data-enc-nav="Westwood Heart">Westwood</button>, and <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button> portals for <button class="enc-desc-link" data-enc-nav="Venia">Rima</button>.'],
+    ['Iron Lineage',          'Trial', '"You are alone in your quest. No Trading, no Dueling, no forming Parties with other players."\n\nObtainment: Beat any boss solo.'],
+    ['Mortal',                'Trial', '"You only have one life. Make the most of it!"\n\nObtainment: None.'],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -589,6 +589,7 @@
   ];
 
   const ARMOUR_GROUPS = [
+    { label: 'Super Class Armours', names: new Set(['Paladin Cuirass', 'Adept Warrior', 'Raging Warrior', 'Arcane Robes', 'Magister Apprentice', 'Corrupt Caster', 'Lifebound Archer', 'Rogue Hunter', 'Shadow Cloak', 'Traveling Pasmark', 'Wandering Practitioner', 'Shade Walker', 'Pathfinder Martyr', 'Armored Lancer', 'Bloody Menace', 'Venerated Legionnaire', 'Fortified Seer', 'Deathmantle']) },
     { label: 'Droppable Blueprint', names: new Set(['Budding Mage', 'Chainmail Guard', 'Explorer', 'Nobleman', 'Shadowy Crook', 'Trapper', 'Wandering Scoundrel', 'Wayfarer']) },
   ];
 
@@ -605,6 +606,8 @@
 
   const TRIAL_GROUPS = [
     { label: 'Petent Trials', desc: 'Hold out a Void Key before jumping into a void to enter. Completing each trial unlocks Rima portal destinations.', names: new Set(['Zombie Mushroom Trial', 'Sand Golem Trial', 'Cursed Corpse Trial']) },
+    { label: 'Player Creation Trials', sectionHeader: true },
+    { label: '(Greater) +15 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Iron Lineage', 'Mortal']), alwaysShow: true },
   ];
 
   /* ── Boss move / passive data ───────────────────────────────────────────── */
@@ -2440,7 +2443,7 @@
           section.appendChild(groupDiv);
         });
       } else if (type === 'Trial') {
-        const groupedNames = new Set(TRIAL_GROUPS.flatMap(g => [...g.names]));
+        const groupedNames = new Set(TRIAL_GROUPS.flatMap(g => g.names ? [...g.names] : []));
         const ungrouped = items.filter(({ it }) => !groupedNames.has(it[0]));
         if (ungrouped.length) {
           const grid = document.createElement('div');
@@ -2461,8 +2464,15 @@
           TRIAL_GROUPS.forEach(g => { if (g.names?.has(it[0])) byGroup[g.label].push({ it, i }); });
         });
         TRIAL_GROUPS.forEach(g => {
+          if (g.sectionHeader) {
+            const hdr = document.createElement('div');
+            hdr.className = 'enc-trial-section-hdr';
+            hdr.textContent = g.label;
+            section.appendChild(hdr);
+            return;
+          }
           const gItems = byGroup[g.label];
-          if (!gItems.length) return;
+          if (!gItems.length && !g.alwaysShow) return;
           const groupDiv = document.createElement('div');
           groupDiv.className = 'enc-weapon-group';
           const groupHdr = document.createElement('div');
@@ -3475,6 +3485,8 @@
     _selectedIdx = -1;
     document.querySelectorAll('.enc-type-tab').forEach(b => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
+    const wrap = document.querySelector('.enc-wrap');
+    if (wrap) wrap.classList.toggle('enc-typed', type !== 'all');
     showPanel('enc-detail-empty');
     render();
   };
