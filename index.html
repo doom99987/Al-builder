@@ -1049,6 +1049,7 @@
       <button class="enc-type-tab" data-type="Sub Class" onclick="window._encFilter('Sub Class', this)">Sub Classes</button>
       <button class="enc-type-tab" data-type="Super Class" onclick="window._encFilter('Super Class', this)">Super Classes</button>
       <button class="enc-type-tab" data-type="Trainer" onclick="window._encFilter('Trainer', this)">Trainers</button>
+      <button class="enc-type-tab" data-type="Event" onclick="window._encFilter('Event', this)">Events</button>
       <button class="enc-type-tab" data-type="Quest" onclick="window._encFilter('Quest', this)">Quests</button>
       <button class="enc-type-tab" data-type="Trial" onclick="window._encFilter('Trial', this)">Trials</button>
       <button class="enc-type-tab" data-type="Weapon" onclick="window._encFilter('Weapon', this)">Weapons</button>
@@ -1092,6 +1093,15 @@
           <div class="enc-scroll-restrict"></div>
           <div class="enc-scroll-chips"></div>
           <div class="enc-scroll-effect enc-detail-desc"></div>
+        </div>
+
+        <!-- Event detail -->
+        <div class="enc-detail-card" id="enc-event-card" style="display:none">
+          <div class="enc-event-type enc-detail-type"></div>
+          <div class="enc-event-name enc-detail-name"></div>
+          <div class="enc-event-timing"></div>
+          <div class="enc-event-desc enc-detail-desc"></div>
+          <div class="enc-event-body"></div>
         </div>
 
         <!-- Quest detail -->

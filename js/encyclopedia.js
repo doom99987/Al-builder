@@ -534,6 +534,12 @@
     ['Cursed Corpse Cleansing',           'Quest', 'NOTE: This quest is not required for Petent.\n\nYou interact with a cursed corpse named Jyphar, who tasks you with a multi-step process to obtain an enchantment.\n\nStep 1: Kill 10 cursed corpses. Only your kills count — kills by party members do not.\n\nStep 2: Start and finish a fight while having the Cursed status effect active. The fight must end by killing the enemies; PvP does not count.\n\nStep 3: Run into a Cess Anomaly in Cessgrounds and "die" to it.\n\nTip: The easiest way to become Cursed is to get hit by a Venom Shroom using Toxic Burst while having at least 1 Poison stack, which applies 2 stacks of Cursed.'],
     ['Lifesong Quest',                    'Quest', 'NOTE: This quest is not required for Petent.\n\nThe NPC named Narthana, who manifests as a large tree in the Deeproot Depths, asks if you are interested in a piece of her power. The goal is to heal other players for a total of 5000 HP.\n\nHealing yourself or healing outside of combat does not count. Overhealing and healing summons do count.'],
     ["Tor'run's final request",           'Quest', "The NPC named Tor'run tasks you with taking a flower from Cessgrounds to a graveyard near the right of the entrance to the Volcano — the grave of their close friend. Returning to Tor'run afterward rewards you with the Vastic Glaive."],
+
+    ['Mysterious Merchant', 'Event', 'Sells a variety of items. Spawns every in-game hour at xx:00 and stays for 10 minutes. Has 3 possible spawn locations in Caldera.'],
+    ['Corrupted Skies',     'Event', '"The sky is clouded with dark energies..." Occurs at a chance when the server changes to day or when Skyward Totem is used. All non-Forest mobs gain 50% more HP and a 20% Damage Buff.'],
+    ['Astral Night',        'Event', 'Triggers at a chance when the server turns to night. Spawns a meteorite and allows for encounters with Star Slime.'],
+    ['Winter Solstice',     'Event', 'Limited event that occurred during Winter 2024/2025. Slimes were replaced with winter variants. Players earned Crystallized Joy exchangeable for Icerind Weapons, Frosted, and more.'],
+    ['Easter',              'Event', 'Limited event that occurred during 2026. Introduced five new Bunny enemies that dropped Easter Eggs, exchangeable for the Ivory enchantment or Egg Basket.'],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -549,6 +555,7 @@
     'Trainer',
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
     'Quest',
+    'Event',
     'Trial',
   ];
 
@@ -578,6 +585,7 @@
     'Covenant':        '⚑',
     'Mark':            '◉',
     'Quest':           '📋',
+    'Event':           '🎉',
     'Trial':           '⚐',
   };
 
@@ -655,6 +663,101 @@
     { label: '(Lesser) +3 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Is There No Escape?', 'Potential Man']), alwaysShow: true },
     { label: '(Lesser) +2 Soul Point Multiplier & Soul Essence Multiplier', names: new Set(['Unbridled Horror', 'Quick Thinking', 'Lasting Consequences', 'Vagrant', 'Death Claims You', 'In This Economy?', "My Pants Don't Have Pockets", 'Past Stigma', 'Weak Stomach']), alwaysShow: true },
   ];
+
+  const EVENT_GROUPS = [
+    { label: 'Basic Events',   sectionHeader: true, names: new Set(['Mysterious Merchant', 'Corrupted Skies', 'Astral Night']) },
+    { label: 'Limited Events', sectionHeader: true, names: new Set(['Winter Solstice', 'Easter']) },
+  ];
+
+  const EVENT_DATA = {
+    'Mysterious Merchant': {
+      timing: 'Spawns every in-game hour at xx:00, stays for 10 minutes. Has 3 possible spawn locations.',
+      locations: [
+        'Nearby the hole that leads to the training dummy.',
+        'Right next to the build quest board in spawn.',
+        'Nearby the Blacksmith in Caldera.',
+      ],
+      stock: [
+        { category: 'Misc',            items: [{ text: 'Random Accessory (cosmetic — does not currently exist)' }] },
+        { category: 'Mob Drops',       items: [{ text: 'Slime Chunk', link: true }, { text: 'Mushroom Cap', link: true }, { text: 'Sand Core', link: true }, { text: 'Restless Fragment', link: true }] },
+        { category: 'Weapons', items: [
+          { text: 'Corealloy Cestus',     link: true }, { text: 'Corealloy Dagger',     link: true }, { text: 'Corealloy Greatsword', link: true },
+          { text: 'Jade Staff',           link: true }, { text: 'Jade Sword',           link: true },
+        ]},
+        { category: 'Scrolls',         items: [{ text: 'All Scrolls (excluding Battleworn Scroll)', encTab: 'Scroll' }] },
+        { category: 'Potions',         items: [{ text: 'All Potions', encTab: 'Potion' }] },
+        { category: 'Pseudo Artifacts',items: [{ text: 'Resplendent Essence', link: true }, { text: 'Lineage Shard', link: true }, { text: 'Phoenix Tear', link: true }, { text: 'Memory Fragment', link: true }, { text: 'Soul Dust', link: true }] },
+      ],
+    },
+    'Corrupted Skies': {
+      trigger: 'Occurs at a chance when the server changes to day, or when Skyward Totem is used.',
+      desc: '"The sky is clouded with dark energies..."',
+      effects: [
+        'All mobs EXCEPT those in the Forest gain 50% more HP.',
+        'All affected mobs gain a 20% Damage Buff.',
+        "Metrom's Vessel has additional changes during this event.",
+      ],
+    },
+    'Astral Night': {
+      trigger: 'Triggers at a chance when the server turns to night.',
+      effects: [
+        'Spawns a meteorite.',
+        'Allows for encounters with Star Slime.',
+      ],
+      notes: ['Sends "KABOOM" in chat when the event starts and "WOOM..." when it ends.'],
+    },
+    'Winter Solstice': {
+      timing: 'Occurred during Winter 2024/2025.',
+      effects: [
+        'Slimes were replaced with winter variants that dropped Unopened Presents.',
+        'Players earned Crystallized Joy, exchangeable for various items.',
+      ],
+      stock: [
+        { category: 'Crystallized Joy Exchange', items: [
+          { text: 'Unopened Present (unobtainable)', link: true },
+          { text: 'Icerind Cestus',      link: true },
+          { text: 'Icerind Dagger',      link: true },
+          { text: 'Icerind Greatsword',  link: true },
+          { text: 'Icerind Spear',       link: true },
+          { text: 'Icerind Staff',       link: true },
+          { text: 'Icerind Sword',       link: true },
+          { text: 'Icerind Shield',      link: true },
+          { text: 'Frosted',             link: true },
+          { text: 'Winter Accessories' },
+        ]},
+      ],
+      notes: ['Frosted is obtainable during Winter Solstice 2023(2024) & 2025.'],
+    },
+    'Easter': {
+      timing: 'Occurred during 2026.',
+      effects: [
+        'Introduced five new Bunny enemies.',
+        'Enemies dropped Easter Eggs.',
+      ],
+      stock: [
+        { category: 'Easter Egg Exchange', items: [
+          { text: 'Ivory',      link: true },
+          { text: 'Egg Basket', link: true },
+        ]},
+        { category: 'Egg Basket Drops', items: [
+          { text: 'Ivory Axe',        link: true },
+          { text: 'Ivory Cestus',     link: true },
+          { text: 'Ivory Dagger',     link: true },
+          { text: 'Ivory Greatsword', link: true },
+          { text: 'Ivory Hammer',     link: true },
+          { text: 'Ivory Spear',      link: true },
+          { text: 'Ivory Staff',      link: true },
+          { text: 'Ivory Sword',      link: true },
+          { text: 'Ivory Shield',     link: true },
+          { text: 'Rabbit Pelt',      link: true },
+          { text: 'Egg Shelmet',      link: true },
+          { text: "Rabbit's Foot",    link: true },
+          { text: 'Chocolate Egg',    link: true },
+          { text: 'Gleaming Carrot',  link: true },
+        ]},
+      ],
+    },
+  };
 
   const QUEST_GROUPS = [
     { label: 'Caldera Quests',  sectionHeader: true, names: new Set(['Starter Quest (Daze)', 'Potion Help (Orderly/Chaotic)', 'Guild Request Help', 'Delivery Quest (Orderly)', 'Midas Quest']) },
@@ -2305,7 +2408,7 @@
   }
 
   function showPanel(id) {
-    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-quest-card', 'enc-move-card'].forEach(pid => {
+    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-event-card', 'enc-quest-card', 'enc-move-card'].forEach(pid => {
       const el = document.getElementById(pid);
       if (el) el.style.display = pid === id ? '' : 'none';
     });
@@ -2669,6 +2772,50 @@
           groupDiv.appendChild(groupGrid);
           section.appendChild(groupDiv);
         });
+      } else if (type === 'Event') {
+        const groupedEventNames = new Set(EVENT_GROUPS.flatMap(g => g.names ? [...g.names] : []));
+        const ungroupedEvents = items.filter(({ it }) => !groupedEventNames.has(it[0]));
+        if (ungroupedEvents.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungroupedEvents].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byEventGroup = {};
+        EVENT_GROUPS.forEach(g => { if (g.names) byEventGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          EVENT_GROUPS.forEach(g => { if (g.names?.has(it[0])) byEventGroup[g.label].push({ it, i }); });
+        });
+        EVENT_GROUPS.forEach(g => {
+          if (g.sectionHeader) {
+            const hdr = document.createElement('div');
+            hdr.className = 'enc-trial-section-hdr';
+            hdr.textContent = g.label;
+            section.appendChild(hdr);
+            if (g.names && g.names.size > 0) {
+              const gItems = byEventGroup[g.label] || [];
+              const groupGrid = document.createElement('div');
+              groupGrid.className = 'enc-grid';
+              [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+                const btn = document.createElement('button');
+                btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+                btn.dataset.idx = i;
+                btn.textContent = it[0];
+                btn.addEventListener('click', () => selectItem(i));
+                groupGrid.appendChild(btn);
+              });
+              section.appendChild(groupGrid);
+            }
+            return;
+          }
+        });
       } else if (type === 'Quest') {
         const groupedQuestNames = new Set(QUEST_GROUPS.flatMap(g => g.names ? [...g.names] : []));
         const ungroupedQuests = items.filter(({ it }) => !groupedQuestNames.has(it[0]));
@@ -2882,6 +3029,8 @@
       showScrollDetail(idx);
     } else if (type === 'Quest') {
       showQuestDetail(idx);
+    } else if (type === 'Event') {
+      showEventDetail(idx);
     } else {
       showItemDetail(idx);
     }
@@ -3017,6 +3166,132 @@
           const tabBtn = document.querySelector(`.enc-type-tab[data-type="${btn.dataset.encTab}"]`);
           window._encFilter(btn.dataset.encTab, tabBtn || null);
         });
+      });
+    }
+  }
+
+  /* ── Event detail panel ─────────────────────────────────────────────────── */
+  function showEventDetail(idx) {
+    const it   = ENC_ITEMS[idx];
+    const name = it[0];
+    const data = EVENT_DATA[name] || {};
+
+    _currentView = 'item';
+    showPanel('enc-event-card');
+
+    const card = document.getElementById('enc-event-card');
+    if (!card) return;
+
+    // Type badge
+    const typeEl = card.querySelector('.enc-event-type');
+    if (typeEl) {
+      typeEl.textContent = (TYPE_ICONS['Event'] || '') + ' Event';
+      typeEl.className = 'enc-event-type enc-detail-type enc-type-Event';
+    }
+
+    // Name
+    const nameEl = card.querySelector('.enc-event-name');
+    if (nameEl) nameEl.textContent = name;
+
+    // Timing / trigger pill
+    const timingEl = card.querySelector('.enc-event-timing');
+    if (timingEl) {
+      const text = data.timing || data.trigger || '';
+      timingEl.textContent = text;
+      timingEl.style.display = text ? '' : 'none';
+    }
+
+    // Flavor quote
+    const descEl = card.querySelector('.enc-event-desc');
+    if (descEl) {
+      descEl.textContent = data.desc || '';
+      descEl.style.display = data.desc ? '' : 'none';
+    }
+
+    // Body sections
+    const body = card.querySelector('.enc-event-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const mkSection = (title) => {
+      const sec = document.createElement('div');
+      sec.className = 'enc-quest-section';
+      const hdr = document.createElement('div');
+      hdr.className = 'enc-quest-section-hdr';
+      hdr.textContent = title;
+      sec.appendChild(hdr);
+      body.appendChild(sec);
+      return sec;
+    };
+
+    // Spawn locations
+    if (data.locations && data.locations.length) {
+      const sec = mkSection('Spawn Locations');
+      data.locations.forEach((loc, i) => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-location';
+        el.innerHTML = `<span class="enc-quest-location-num">${i + 1}</span><span>${loc}</span>`;
+        sec.appendChild(el);
+      });
+    }
+
+    // Stock
+    if (data.stock && data.stock.length) {
+      const sec = mkSection('Stock');
+      data.stock.forEach(cat => {
+        const catLabel = document.createElement('div');
+        catLabel.className = 'enc-loot-cat-label';
+        catLabel.textContent = cat.category;
+        sec.appendChild(catLabel);
+        const chips = document.createElement('div');
+        chips.className = 'enc-loot-chips';
+        cat.items.forEach(r => {
+          if (r.encTab) {
+            const btn = document.createElement('button');
+            btn.className = 'enc-loot-chip enc-loot-chip-link';
+            btn.textContent = r.text;
+            btn.addEventListener('click', () => {
+              const tabBtn = document.querySelector(`.enc-type-tab[data-type="${r.encTab}"]`);
+              window._encFilter(r.encTab, tabBtn || null);
+            });
+            chips.appendChild(btn);
+          } else if (r.link) {
+            const btn = document.createElement('button');
+            btn.className = 'enc-loot-chip enc-loot-chip-link';
+            btn.textContent = r.text;
+            const ti = ENC_ITEMS.findIndex(e => e[0] === r.text);
+            if (ti !== -1) btn.addEventListener('click', () => selectItem(ti));
+            chips.appendChild(btn);
+          } else {
+            const span = document.createElement('span');
+            span.className = 'enc-loot-chip';
+            span.textContent = r.text;
+            chips.appendChild(span);
+          }
+        });
+        sec.appendChild(chips);
+      });
+    }
+
+    // Effects
+    if (data.effects && data.effects.length) {
+      const sec = mkSection('Effects');
+      data.effects.forEach(effect => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-note';
+        el.textContent = effect;
+        sec.appendChild(el);
+      });
+    }
+
+    // Notes
+    if (data.notes && data.notes.length) {
+      const sec = mkSection('Notes');
+      data.notes.forEach(note => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-note';
+        el.textContent = note;
+        sec.appendChild(el);
       });
     }
   }

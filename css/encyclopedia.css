@@ -74,6 +74,7 @@
 .enc-type-tab[data-type="Mob"].active              { background: #100e0a; border-color: #aa8844; color: #ccaa55; }
 .enc-type-tab[data-type="Mark"].active             { background: #0e0818; border-color: #cc55ee; color: #ee77ff; }
 .enc-type-tab[data-type="Quest"].active            { background: #081a14; border-color: #33bb77; color: #55ddaa; }
+.enc-type-tab[data-type="Event"].active            { background: #1a1200; border-color: #ddaa00; color: #ffcc44; }
 
 /* ── Two-column body ────────────────────────────────────────────────────── */
 .enc-body {
@@ -275,6 +276,7 @@
 .enc-type-Sub-Class       { background: #061818; color: #33bbaa; border: 1px solid #0e3030; }
 .enc-type-Race            { background: #0e1a10; color: #55cc66; border: 1px solid #143318; }
 .enc-type-Quest           { background: #081a14; color: #33bb77; border: 1px solid #0e3320; }
+.enc-type-Event           { background: #1a1000; color: #ddaa00; border: 1px solid #3a2c00; }
 
 /* ── Shared name + desc ─────────────────────────────────────────────────── */
 .enc-detail-name {
@@ -1072,6 +1074,22 @@
   .vt-grid { grid-template-columns: repeat(2, 1fr); }
   .pt-loc-grid { grid-template-columns: repeat(2, 1fr); }
   #petent-tracker-modal { padding: 16px; }
+}
+
+/* ── Event detail panel ─────────────────────────────────────────────────── */
+.enc-event-timing {
+  font-size: 11px;
+  color: #cc9922;
+  background: #130f00;
+  border: 1px solid #302400;
+  border-radius: 6px;
+  padding: 6px 10px;
+  line-height: 1.5;
+}
+.enc-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 /* ── Quest detail panel ─────────────────────────────────────────────────── */
