@@ -540,6 +540,29 @@
     ['Astral Night',        'Event', 'Triggers at a chance when the server turns to night. Spawns a meteorite and allows for encounters with Star Slime.'],
     ['Winter Solstice',     'Event', 'Limited event that occurred during Winter 2024/2025. Slimes were replaced with winter variants. Players earned Crystallized Joy exchangeable for Icerind Weapons, Frosted, and more.'],
     ['Easter',              'Event', 'Limited event that occurred during 2026. Introduced five new Bunny enemies that dropped Easter Eggs, exchangeable for the Ivory enchantment or Egg Basket.'],
+
+    ['Soul Tree',                       'Mechanic', 'The Soul Tree is a persistent upgrade tree purchased with Soul Points. Nodes can be purchased in any order.\n\nPATH OF DESTRUCTION (Leftmost Branch)\n\nDenature: DoT Damage +2% per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nCritical Point: Base crit damage +5% per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nStrike First, No Mercy: First attack +5% damage per rank, expires after 2 turns\nCosts: I:100  II:200  III:300  IV:400  V:500\n\nComeback: Gain +1 energy per turn when at or below 25% HP\nCost: I:1000\n\nEnergy-Back Guarantee: Killing an enemy grants 1 energy\nCost: I:750\n\nLil Bit of Crit: Base crit chance +1% per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nCombat Focus: After meditating, damage +2% per rank for 2 turns (one turn effectively)\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nRun That Back: Failing a minigame or having your attack dodged reduces the skill\'s cooldown by 1 turn\nCost: I:500\n\nPATH OF EMPOWERMENT (Middle Branch)\n\nEnduring Vessel: Base HP +2 per rank\nCosts: I:20  II:40  III:60  IV:80  V:100\n\nCalm Mind: Meditate damage vulnerability -5% per rank\nCosts: I:50  II:100  III:150\n\nBattle Renewal: Post-combat healing +2.5% per rank\nCosts: I:20  II:40  III:60  IV:80\n\nMending: Heal +0.5 HP at start of turn per rank (does not scale with outgoing healing)\nCosts: I:20  II:40  III:60  IV:80  V:100\n\nSwiftfoot: Allows dodging while guarding (if dodgeable)\nCost: I:1000\n\nImpervious: Start the fight with 1 Resist\nCost: I:750\n\nChug Chug Chug: Grants an additional potion slot per category per rank\nCosts: I:100  II:200  III:300\n\nLight Work, No Reaction: Minigame easier by 0.05 per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nPATH OF SUNDRY (Rightmost Branch)\n\nEssence Eater: Essence gain +10% per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nEven Further Beyond: Essence cap +1 per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nOverprepared Adventurer: Grants starting gear per rank\nI:25 + Small Healing Potion ×3, Matorr\'s Encyclopedia  |  II:100 + Pickaxe  |  III:200 + Minor Energy Elixir ×5  |  IV:300 + Explorer Blueprint  |  V:400 + Daze, Self Cure\n\nFriends in High Places: Illustris portal starts open (portal to Church of Raphion)\nCost: I:100\n\nShifting Origins: Choose respawn location from attuned spots\nCost: I:100\n\nPath Maker: Fast Travel spots carry over on death\nCost: I:250\n\nUninteresting Loan: Starting Gold +200 per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nEscape Artist: Escape chance +2% per rank (base is 20% without speed)\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nExpert Harvester: 25% chance for double harvest (stacks with Way of Life\'s Gatherer)\nCost: I:500\n\nRaphion\'s Resume: Covenant/Class level requirement -1 per rank (applies to Super, Base, and Sub classes)\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nSoul Vault: Unlocks the Soul Vault at the bank, carry 1 item through a wipe\nCost: I:500'],
+    ['Triumphs \u2191',                  'Mechanic', 'Triumphs are objectives completed to earn Soul Points. Enabling Trials multiplies the Soul Points received.\n\nNote: Soul Points are only awarded after wiping and respawning as a new character. Wiping via Lineage Shard does not grant Soul Points.\n\nREPEATABLE TRIUMPHS\nBase Class — 15 Soul Points\nObtained a unique enchant — 30 Soul Points\n? (unknown)\n\nFIRST-TIME TRIUMPHS\nFirst Base Class — 20 Soul Points\nFirst Super Class — 50 Soul Points\nFirst Mid Rank Covenant — 50 Soul Points\nFirst Boss Completed — 50 Soul Points\nFirst Artifact Equipped — 75 Soul Points\nFirst Max Rank Covenant — 75 Soul Points'],
+    ['Move Scaling',                    'Mechanic', 'Nearly every damage-dealing active in Arcane Lineage scales off stats. The formula is:\n\nBaseDMG × (1 + (stat / scaling))\n\nBaseDMG = base damage of the attack\nStat = the caster\'s relevant stat value\nScaling = a per-move number that controls stat influence\n\nExample: 200 STR, using Strike (BaseDMG: 5, scaling: STR/75)\n5 × (1 + (200/75)) ≈ 18.33 damage\n\nIf you have DMG multipliers, apply them at the end.\n\nDUAL/MULTI SCALING\nBaseDMG × (1 + (stat1/scaling1 + stat2/scaling2))\n\nExample: 100 STR and 100 ARC, using Lifeless Skull (BaseDMG: 13, both /80)\n13 × (1 + (100/80 + 100/80)) = 13 × (1 + 2.5) = 45.5 damage\n\nThis pattern continues for moves that scale with more than 2 stats.'],
+    ['Alignment',                       'Mechanic', 'Alignment (also known as Reputation) is required to obtain Super Classes.\n\nOrderly Classes require Orderly alignment\nNeutral Classes require Any alignment\nChaotic Classes require Chaotic alignment\n\nAlignment can be obtained from Alignment Potions and Alignment Quests.\n\nAlignment Potions:\nHeartsoothing Remedy — Orderly Alignment\nHeartbreaking Elixir — Chaotic Alignment\n\nTip: Drink 8–9 potions BEFORE doing 2 quests for maximum efficiency when obtaining your class.'],
+    ['Status Effects',                  'Mechanic', 'Poison: Takes damage equal to stacks at start of turn. Lethal.\n\nBleed: Takes 3% max HP as DoT when acting or blocking a hit.\n\nBurn: Takes 0.7% max HP DoT per stack at turn start, increasing with stacks. Capped at 20 stacks.\n\nGhostflame: Takes 3.85% max HP as DoT at turn start.\n\nVulnerable: Intakes 20% more damage.\n\nHexed: Incoming attacks deal double damage, removing one stack per hit.\n\nBlinded: Increased QTE difficulty for dodging and class minigames.\n\nWeakened: Deals 20% less damage.\n\nCursed: Decreases incoming and outgoing healing by 20% per stack. (Currently bugged: any stack sets outgoing healing to 0.)\n\nStun: Unable to dodge or block; next turn skipped. Taking hits removes ONE stack.\n\nHeavy Stun: Unable to dodge or block; next turn skipped.\n\nCrippled: Unable to block or dodge; disables Guarding/Escape for players.\n\nCold: Using a skill makes its cooldown 50% longer.\n\nSundered: Incoming attacks ignore resistances.\n\nFractured: Intakes 35%+ Physical/Magic damage.\n\nTaunted: Will attack the player who applied it.\n\nResist: Immune to any status effect until one is received. Cannot resist Heavy Stun.\n\nInvisibility: Immune to damage and targeting; increases escape chance. Status effects still deal damage. Enemies skip their turn if the whole party is invisible. Next attack deals 20% more damage.\n\nOverheat: +8% damage and +7.5% speed per stack. Capped at 10 stacks.\n\nEnergized: 10X% chance to gain additional Energy (X = stacks).\n\nThorns: Reflects damage (needs testing).\n\nInferno: Lose HP per turn based on stacks; decreases outgoing and incoming healing per stack. Consumed by Blaze Core, Magma Beam, and Armageddon.\n\nPlague: Each stack decreases damage and defense by an increasing amount per stack.\n\nPurified: Any healing is redirected to Seraphon. Lifesteal (excluding Parasitic Leech) and passive regen are unaffected.\n\nSee DoT Info for detailed damage breakdowns.'],
+    ['Mastery',                         'Mechanic', 'Mastery is the upgrade tree for your Super Class. Access via "I\'d like to learn more about myself." in Trainer dialogue.\n\nMastery Points: Earned by killing Bosses and Mobs (Bosses give more). Max 35 Mastery Points. Get progressively harder to earn the more you have.\n\nBreakthrough Points: Earned by consuming an Echo Shard. Maximum advisable: 3–4 breakthroughs.\n\nOn wipe: Last mastery point count is saved, along with 3 original breakthroughs.\n\nTree Structure (Left / Middle / Right):\n0-0-0 = Start (no Breakthrough points)\n1-1-1 = Passives (first Breakthrough per path)\n2-2-2 = Proficiencies (second Breakthrough per path)\n\nNote: Paths 2-2-0 and 0-2-2 are exceptions — the 1-0-0 and 0-0-1 nodes are skipped respectively to have enough mastery points for the rest.'],
+    ['Day/Night Cycle',                 'Mechanic', 'The game swaps between day and night every 13 minutes. All servers share the same cycle unless broken by a Totem.\n\nPlayers receive early alerts before transitions.\n\nNight: Spawns special enemies; chance to trigger Astral Night.\nDay: Chance to trigger Corrupted Skies.\n\nIf a Totem is used during Night (no active Astral Night), it forces Day and triggers Corrupted Skies. If Astral Night is active, the Totem has no effect.'],
+    ['Untradable Items',                'Mechanic', 'Untradable items cannot be traded in any way.\n\nList of Untradable Items:\nUnopened Present (unobtainable)\nRadiance Elixir\nCelestial Emblem\nAstral Shards\nMossy Rune'],
+    ['DoT Info',                        'Mechanic', 'BLEED\nDeals flat 3% of Max HP when the afflicted unit: uses a move, Guards, Meditates, or Escapes. Also triggers on blocking a hit. Not affected by modifiers.\n\nPOISON\nDeals damage equal to total stacks before turn start. Does not scale with DoT modifiers. Lethal.\n\nBURN\nDeals 0.7% Max HP on turn start, increasing by 0.2% per stack. Caps at 20 stacks. Based on stacks before the turn begins.\n\nGHOSTFLAME\nDeals 3.85% Max HP at base each turn. +0.35% per unique status on the target. Calculated before statuses decay.\n\nEXTRA INFO\nSummons do not inherit your DoT modifiers.\n\nIf multiple entities apply the same effect with different DoT modifiers, the value is set by the first source and stays until the effect is removed.\n\nGhostflame damage increases from new statuses (e.g. Blinded) scale with the modifier of whoever applies those statuses, regardless of who originally applied Ghostflame.\n\nDark Sigil and Spore Root have a NULL DoT value — their Weaken/Vulnerable/Poison will not increase Ghostflame damage. Chaos Orb and Enchants share your DoT value.\n\nMetrom\'s Vessel shares the same DoT resist as other bosses; wings do not change this.\n\nPoison resistance and fire resistance do not affect Burn/Poison damage respectively.'],
+    ['Outgoing and Incoming Healing',   'Mechanic', 'Every player starts with 100% outgoing and 100% incoming healing. All in-combat healing buffs are ADDITIVE and affect both.\n\nExample: 150% outgoing + a 50% buff = 200% (not 225%).\n\nPassive regeneration scales with outgoing healing. Way of Life simply doubles the final regen result. A buff that heals over multiple turns does NOT scale with outgoing or incoming healing — it is a flat amount.\n\nLifesteal is not affected by outgoing or incoming healing, except for Parasitic Leech (considered a heal).\n\nWhen using a healing move on another player: caster\'s outgoing healing × receiver\'s incoming healing, plus any additional stat scaling (e.g. Arcane/Strength for Saint moves).'],
+    ['Diminishing Returns/Fatigues',    'Mechanic', 'Diminishing Returns (Weapon Shards): The same shard type becomes less effective after the first 2.\nEffectiveness order: 100% → 100% → 25% → 25% → 25% → 25% → 25%\n\nBlock/Dodge Fatigue: Each successful dodge or block reduces the QTE bar size by 10%. Minimum size: 40% of original.\n\nCrit Fatigue: Each successful crit reduces your crit chance. Failing to land a crit resets it.'],
+    ['Titles',                          'Mechanic', 'Titles are permanent text displayed next to your in-game name. Obtained by winning events or being the first to achieve something.\n\nFool — First to wipe 100 times\nSoul Wanderer — First to reroll race 50 times\nProdigy — First Super Class\nHero — First enchant\nLoyal — First max guilds\nHands of Midas — First 100k from selling items\nArchmage — First Lost Scroll\nRiftwalker — First Petent\nVenian Prince — First Venia\nAccursed One — First Amorus\nSlime Prince — First Lentum\nSlayer of Beasts — First Boss (not Slime King)\nTinkerer — First to wear full B2 (no longer exists)\nStarborn — First Astra'],
+
+    /* ── SIGNIFICANT NPCS ────────────────────────────────────────────────── */
+    ['Hythera, Goddess of Fire',  'Significant NPC', ''],
+    ['Narthana, Goddess of Life', 'Significant NPC', ''],
+    ['Lodyssa, God of Wealth',    'Significant NPC', ''],
+    ['Sierrka, God of Festivities', 'Significant NPC', ''],
+    ['Dead King',                 'Significant NPC', ''],
+    ['Jyphar',                    'Significant NPC', ''],
+    ["El'heith",                  'Significant NPC', ''],
+    ['The Dealer',                'Significant NPC', ''],
   ];
 
   /* ── Config ─────────────────────────────────────────────────────────────── */
@@ -556,7 +579,9 @@
     'Boss', 'Mini Boss', 'Mob', 'Covenant', 'Mark',
     'Quest',
     'Event',
+    'Mechanic',
     'Trial',
+    'Significant NPC',
   ];
 
   const TYPE_ICONS = {
@@ -586,7 +611,9 @@
     'Mark':            '◉',
     'Quest':           '📋',
     'Event':           '🎉',
+    'Mechanic':        '⚙',
     'Trial':           '⚐',
+    'Significant NPC': '👤',
   };
 
   const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Covenant', 'Mark']);
@@ -755,6 +782,193 @@
           { text: 'Chocolate Egg',    link: true },
           { text: 'Gleaming Carrot',  link: true },
         ]},
+      ],
+    },
+  };
+
+  const MECHANIC_GROUPS = [
+    { label: 'Important',       sectionHeader: true, names: new Set(['Soul Tree', 'Triumphs \u2191', 'Move Scaling', 'Alignment', 'Status Effects', 'Mastery']) },
+    { label: 'Additional Info', sectionHeader: true, names: new Set(['Day/Night Cycle', 'Untradable Items', 'DoT Info', 'Outgoing and Incoming Healing', 'Diminishing Returns/Fatigues', 'Titles']) },
+  ];
+
+  const MECHANIC_DATA = {
+    'Soul Tree': {
+      note: 'Nodes can be purchased in any order.',
+      branches: [
+        { label: 'Path of Destruction', sublabel: 'Leftmost Branch', nodes: [
+          { name: 'Denature',               effect: 'DoT Damage increases by 2% per rank.', costs: [25,50,75,100,125] },
+          { name: 'Critical Point',         effect: 'Base crit damage +5% per rank.', costs: [50,100,150,200,250] },
+          { name: 'Strike First, No Mercy', effect: 'First attack +5% damage per rank, expires after 2 turns.', costs: [100,200,300,400,500] },
+          { name: 'Comeback',               effect: 'Gain +1 energy per turn when at or below 25% HP.', costs: [1000] },
+          { name: 'Energy-Back Guarantee',  effect: 'Killing an enemy grants 1 energy.', costs: [750] },
+          { name: 'Lil Bit of Crit',        effect: 'Base crit chance +1% per rank.', costs: [50,100,150,200,250] },
+          { name: 'Combat Focus',           effect: 'After meditating, damage +2% per rank for 2 turns (one turn effectively).', costs: [50,100,150,200,250] },
+          { name: 'Run That Back',          effect: "Failing a minigame or having your attack dodged reduces the skill's cooldown by 1 turn.", costs: [500] },
+        ]},
+        { label: 'Path of Empowerment', sublabel: 'Middle Branch', nodes: [
+          { name: 'Enduring Vessel',         effect: 'Base HP +2 per rank.', costs: [20,40,60,80,100] },
+          { name: 'Calm Mind',               effect: 'Meditate damage vulnerability -5% per rank.', costs: [50,100,150] },
+          { name: 'Battle Renewal',          effect: 'Post-combat healing +2.5% per rank.', costs: [20,40,60,80] },
+          { name: 'Mending',                 effect: 'Heal +0.5 HP at start of turn per rank. Does not scale with outgoing healing.', costs: [20,40,60,80,100] },
+          { name: 'Swiftfoot',               effect: 'Allows dodging while guarding (if dodgeable).', costs: [1000] },
+          { name: 'Impervious',              effect: 'Start the fight with 1 Resist.', costs: [750] },
+          { name: 'Chug Chug Chug',          effect: 'Grants an additional potion slot per category per rank.', costs: [100,200,300] },
+          { name: 'Light Work, No Reaction', effect: 'Minigame easier by 0.05 per rank.', costs: [50,100,150,200,250] },
+        ]},
+        { label: 'Path of Sundry', sublabel: 'Rightmost Branch', nodes: [
+          { name: 'Essence Eater',           effect: 'Essence gain +10% per rank.', costs: [25,50,75,100,125] },
+          { name: 'Even Further Beyond',     effect: 'Essence cap +1 per rank.', costs: [25,50,75,100,125] },
+          { name: 'Overprepared Adventurer', effect: "Grants starting gear per rank.\nI: Small Healing Potion \xd73, Matorr's Encyclopedia\nII: Pickaxe\nIII: Minor Energy Elixir \xd75\nIV: Explorer Blueprint Unlocked\nV: Daze, Self Cure", costs: [25,100,200,300,400] },
+          { name: 'Friends in High Places',  effect: 'Illustris portal starts open (portal to Church of Raphion).', costs: [100] },
+          { name: 'Shifting Origins',        effect: 'Choose respawn location from attuned spots.', costs: [100] },
+          { name: 'Path Maker',              effect: 'Fast Travel spots carry over on death.', costs: [250] },
+          { name: 'Uninteresting Loan',      effect: 'Starting Gold +200 per rank.', costs: [25,50,75,100,125] },
+          { name: 'Escape Artist',           effect: 'Escape chance +2% per rank. Base escape chance is 20% without speed.', costs: [25,50,75,100,125] },
+          { name: 'Expert Harvester',        effect: "25% chance for double harvest. Stacks with Way of Life's Gatherer.", costs: [500] },
+          { name: "Raphion's Resume",        effect: 'Covenant/Class level requirement -1 per rank. Applies to Super, Base, and Sub classes.', costs: [50,100,150,200,250] },
+          { name: 'Soul Vault',              effect: 'Unlocks the Soul Vault at the bank. Carry 1 item through a wipe.', costs: [500] },
+        ]},
+      ],
+    },
+    'Triumphs \u2191': {
+      note: 'Soul Points are only awarded after wiping and respawning as a new character. Wiping via Lineage Shard does not grant Soul Points. Enabling Trials multiplies Soul Points received.',
+      categories: [
+        { label: 'Repeatable Triumphs', items: [
+          { name: 'Obtained a Base Class', reward: '15 SP' },
+          { name: 'Obtained a unique enchant', reward: '30 SP' },
+          { name: '?', reward: '?' },
+        ]},
+        { label: 'First-Time Triumphs', items: [
+          { name: 'First Base Class',        reward: '20 SP' },
+          { name: 'First Super Class',       reward: '50 SP' },
+          { name: 'First Mid Rank Covenant', reward: '50 SP' },
+          { name: 'First Boss Completed',    reward: '50 SP' },
+          { name: 'First Artifact Equipped', reward: '75 SP' },
+          { name: 'First Max Rank Covenant', reward: '75 SP' },
+        ]},
+      ],
+    },
+    'Move Scaling': {
+      formula: 'BaseDMG \u00d7 (1 + (stat / scaling))',
+      dualFormula: 'BaseDMG \u00d7 (1 + (stat1/scaling1 + stat2/scaling2))',
+      vars: [
+        { label: 'BaseDMG',  text: 'The base damage value of the move.' },
+        { label: 'Stat',     text: "The caster's relevant stat value (e.g. STR, ARC)." },
+        { label: 'Scaling',  text: 'A per-move number that controls how much the stat influences damage.' },
+      ],
+      examples: [
+        { desc: '200 STR using Strike (BaseDMG: 5, scaling: STR/75)', calc: '5 \u00d7 (1 + (200/75)) \u2248 18.33 damage' },
+        { desc: '100 STR and 100 ARC using Lifeless Skull (BaseDMG: 13, both /80)', calc: '13 \u00d7 (1 + (100/80 + 100/80)) = 45.5 damage' },
+      ],
+      note: 'Apply DMG multipliers at the end, after calculating the base formula result.',
+    },
+    'Alignment': {
+      alignments: [
+        { type: 'Orderly', desc: 'Required for Orderly Super Classes.', color: '#4488ee' },
+        { type: 'Neutral', desc: 'Required for Neutral Super Classes. Any alignment works.', color: '#888' },
+        { type: 'Chaotic', desc: 'Required for Chaotic Super Classes.', color: '#ee4444' },
+      ],
+      potions: [
+        { name: 'Heartsoothing Remedy', type: 'Orderly' },
+        { name: 'Heartbreaking Elixir', type: 'Chaotic' },
+      ],
+      tip: 'Drink 8\u20139 potions BEFORE doing 2 quests for maximum efficiency when obtaining your class.',
+    },
+    'Status Effects': {
+      statuses: [
+        { name: 'Poison',       desc: 'Takes damage equal to stacks at start of turn. Lethal.' },
+        { name: 'Bleed',        desc: 'Takes 3% max HP as DoT when acting or blocking a hit.' },
+        { name: 'Burn',         desc: 'Takes 0.7% max HP DoT per stack at turn start, increasing with stacks. Capped at 20 stacks.' },
+        { name: 'Ghostflame',   desc: 'Takes 3.85% max HP as DoT at turn start.' },
+        { name: 'Vulnerable',   desc: 'Intakes 20% more damage.' },
+        { name: 'Hexed',        desc: 'Incoming attacks deal double damage, removing one stack per hit.' },
+        { name: 'Blinded',      desc: 'Increased QTE difficulty for dodging and class minigames.' },
+        { name: 'Weakened',     desc: 'Deals 20% less damage.' },
+        { name: 'Cursed',       desc: 'Decreases incoming and outgoing healing by 20% per stack. (Currently bugged: any stack sets outgoing healing to 0.)' },
+        { name: 'Stun',         desc: 'Unable to dodge or block; next turn skipped. Taking hits removes ONE stack.' },
+        { name: 'Heavy Stun',   desc: 'Unable to dodge or block; next turn skipped.' },
+        { name: 'Crippled',     desc: 'Unable to block or dodge; disables Guarding/Escape for players.' },
+        { name: 'Cold',         desc: 'Using a skill makes its cooldown 50% longer.' },
+        { name: 'Sundered',     desc: 'Incoming attacks ignore resistances.' },
+        { name: 'Fractured',    desc: 'Intakes 35%+ Physical/Magic damage.' },
+        { name: 'Taunted',      desc: 'Will attack the player who applied it.' },
+        { name: 'Resist',       desc: 'Immune to any status effect until one is received. Cannot resist Heavy Stun.' },
+        { name: 'Invisibility', desc: 'Immune to damage and targeting; increases escape chance. Status effects still deal damage. Enemies skip turn if the whole party is invisible. Next attack deals 20% more damage.' },
+        { name: 'Overheat',     desc: '+8% damage and +7.5% speed per stack. Capped at 10 stacks.' },
+        { name: 'Energized',    desc: '10X% chance to gain additional Energy (X = stacks).' },
+        { name: 'Thorns',       desc: 'Reflects damage. (Needs testing.)' },
+        { name: 'Inferno',      desc: 'Lose HP per turn based on stacks; decreases outgoing and incoming healing per stack. Consumed by Blaze Core, Magma Beam, and Armageddon.' },
+        { name: 'Plague',       desc: 'Each stack decreases damage and defense by an increasing amount per stack.' },
+        { name: 'Purified',     desc: 'Any healing is redirected to Seraphon. Lifesteal (excluding Parasitic Leech) and passive regen are unaffected.' },
+      ],
+    },
+    'Mastery': {
+      note: "Access via \"I'd like to learn more about myself.\" in Trainer dialogue.",
+      sections: [
+        { label: 'Mastery Points',      text: 'Earned by killing Bosses and Mobs (Bosses give more progress). Max 35 Mastery Points. Get progressively harder to earn the more you have.' },
+        { label: 'Breakthrough Points', text: 'Earned by consuming an Echo Shard. Maximum advisable: 3\u20134 breakthroughs.\nOn wipe: last mastery count is saved along with 3 original breakthroughs.' },
+        { label: 'Tree Structure',      text: '0-0-0 = Start (no Breakthrough points)\n1-1-1 = Passives (1st Breakthrough per path)\n2-2-2 = Proficiencies (2nd Breakthrough per path)\n\nPaths 2-2-0 and 0-2-2 are exceptions \u2014 certain nodes are skipped to have enough mastery points for the rest.' },
+      ],
+    },
+    'Day/Night Cycle': {
+      sections: [
+        { label: 'Cycle Duration', text: 'Swaps every 13 minutes. All servers share the same cycle unless broken by a Totem. Players receive early alerts before transitions.' },
+        { label: 'Night',         text: 'Spawns special enemies. Chance to trigger Astral Night.' },
+        { label: 'Day',           text: 'Chance to trigger Corrupted Skies.' },
+        { label: 'Totem',         text: 'Using a Totem during Night (without active Astral Night) forces Day and triggers Corrupted Skies. If Astral Night is active, the Totem has no effect.' },
+      ],
+    },
+    'Untradable Items': {
+      list: ['Unopened Present (unobtainable)', 'Radiance Elixir', 'Celestial Emblem', 'Astral Shards', 'Mossy Rune'],
+    },
+    'DoT Info': {
+      dotTypes: [
+        { name: 'Bleed',      desc: 'Deals flat 3% of Max HP when the afflicted unit: uses a move, Guards, Meditates, or Escapes. Also triggers on blocking a hit. Not affected by modifiers.' },
+        { name: 'Poison',     desc: 'Deals damage equal to total stacks before turn start. Does not scale with DoT modifiers. Lethal.' },
+        { name: 'Burn',       desc: 'Deals 0.7% Max HP on turn start, increasing by 0.2% per stack. Caps at 20 stacks. Based on stacks before the turn begins.' },
+        { name: 'Ghostflame', desc: 'Deals 3.85% Max HP at base each turn. +0.35% per unique status on the target. Calculated before statuses decay.' },
+      ],
+      extraInfo: [
+        'Summons do not inherit your DoT modifiers.',
+        'If multiple entities apply the same effect with different DoT modifiers, the value is set by the first source and stays until removed.',
+        "Ghostflame damage increases from new statuses scale with the modifier of whoever applies those statuses, regardless of who originally applied Ghostflame.",
+        "Dark Sigil and Spore Root have a NULL DoT value \u2014 their Weaken/Vulnerable/Poison will not increase Ghostflame damage. Chaos Orb and Enchants share your DoT value.",
+        "Metrom's Vessel shares the same DoT resist as other bosses; wings do not change this.",
+        "Poison resistance and fire resistance do not affect Burn/Poison damage respectively.",
+      ],
+    },
+    'Outgoing and Incoming Healing': {
+      sections: [
+        { label: 'Base Values',         text: 'Every player starts with 100% outgoing and 100% incoming healing. All in-combat healing buffs are ADDITIVE and affect both.' },
+        { label: 'Additive Example',    text: '150% outgoing + a 50% buff = 200% (not 225%).' },
+        { label: 'Passive Regen',       text: "Passive regen scales with outgoing healing. Way of Life doubles the final regen result. A buff that heals over multiple turns does NOT scale \u2014 it is a flat amount." },
+        { label: 'Lifesteal',           text: 'Not affected by outgoing or incoming healing, except for Parasitic Leech (which is considered a heal).' },
+        { label: 'Healing Moves',       text: "Applies the caster's outgoing healing \u00d7 the receiver's incoming healing, plus any additional stat scaling (e.g. Arcane/Strength for Saint moves)." },
+      ],
+    },
+    'Diminishing Returns/Fatigues': {
+      fatigues: [
+        { name: 'Diminishing Returns (Weapon Shards)', desc: 'The same shard type becomes less effective after the first 2 shards.', progression: '100% \u2192 100% \u2192 25% \u2192 25% \u2192 25% \u2192 25% \u2192 25%' },
+        { name: 'Block/Dodge Fatigue', desc: 'Each successful dodge or block reduces the QTE bar size by 10%. Minimum QTE size: 40% of original.' },
+        { name: 'Crit Fatigue',        desc: 'Each successful crit reduces your crit chance. Failing to land a crit resets it.' },
+      ],
+    },
+    'Titles': {
+      titles: [
+        { title: 'Fool',             achievement: 'First to wipe 100 times' },
+        { title: 'Soul Wanderer',    achievement: 'First to reroll race 50 times' },
+        { title: 'Prodigy',          achievement: 'First Super Class' },
+        { title: 'Hero',             achievement: 'First enchant' },
+        { title: 'Loyal',            achievement: 'First max guilds' },
+        { title: 'Hands of Midas',   achievement: 'First 100k from selling items' },
+        { title: 'Archmage',         achievement: 'First Lost Scroll' },
+        { title: 'Riftwalker',       achievement: 'First Petent' },
+        { title: 'Venian Prince',    achievement: 'First Venia' },
+        { title: 'Accursed One',     achievement: 'First Amorus' },
+        { title: 'Slime Prince',     achievement: 'First Lentum' },
+        { title: 'Slayer of Beasts', achievement: 'First Boss (not Slime King)' },
+        { title: 'Tinkerer',         achievement: 'First to wear full B2 (no longer exists)' },
+        { title: 'Starborn',         achievement: 'First Astra' },
       ],
     },
   };
@@ -1960,6 +2174,57 @@
     },
   };
 
+  /* ── Significant NPC groups & data ─────────────────────────────────────── */
+  const NPC_GROUPS = [
+  ];
+
+  const NPC_DATA = {
+    'Hythera, Goddess of Fire': {
+      role: 'Goddess of Fire',
+      desc: '"I SEE, YOU SEEM TO HAVE PASSED MY TRIAL."',
+      notes: ['Gives the Inferno Enchant when interacted with after completing her trial.'],
+    },
+    'Narthana, Goddess of Life': {
+      role: 'Goddess of Life',
+      desc: '"Ah, what an interesting lightmarked that\'s found their way here. Say… are you interested in a piece of my power?"',
+      notes: ['Gives the quest to obtain the Lifesong Enchant.'],
+    },
+    'Lodyssa, God of Wealth': {
+      role: 'God of Wealth',
+      location: 'Calderan Tavern',
+      desc: 'Lodyssa is the God of Wealth and the deity responsible for the Midas Enchant and the Venia Mark.\n\nGives you the quest to obtain the Midas Enchant. You need to fight Yar\'thul on that slot before being able to obtain the quest.',
+      notes: ['Despite the feminine name, Lodyssa is male.'],
+    },
+    'Sierrka, God of Festivities': {
+      role: 'God of Festivities',
+      desc: 'Sierrka is the God of Festivities and Desire.\n\nWhen the winter solstice arrives on the continent of Astora, the God of Festivities works alongside Raphion to bring a season of giving to the mortal races.',
+      notes: ['Appearances: Winter Solstice 2023, Winter Solstice 2025.'],
+    },
+    'Dead King': {
+      desc: 'A corpse lays motionless on the throne…',
+      notes: ['Has new dialogue if you possess the Reaper Enchant.'],
+    },
+    'Jyphar': {
+      desc: '"I n-need help, please!"',
+      notes: ['Part of the Cursed Enchant obtainment chain.'],
+    },
+    "El'heith": {
+      desc: '"…? Hello there, I didn\'t see you. I\'m just enjoying the scenery, so don\'t mind me"',
+      notes: ['Key NPC for the Astra Mark obtainment.'],
+    },
+    'The Dealer': {
+      location: 'Caldera Town, Westwood Heart, and the Tavern in Waving Sands',
+      desc: '"Here for some spelldraw I see? Alright then, state your bet. I won\'t do anything below 50."',
+      notes: [
+        'Allows you to bet gold in a game of Spelldraw — works like blackjack. Minimum bet: 50 gold.',
+        'Hit — Draw another card; you can continue acting on your next turn.',
+        'Stand — Keep your current cards and forfeit all future turns.',
+        'Double — Draw one more card and match your original bet; forfeit all future turns. Doubles your reward if you win.',
+        'Winning gives your gold back twofold. Winning via Double gives it back fourfold.',
+      ],
+    },
+  };
+
   /* ── Covenant data ──────────────────────────────────────────────────────── */
   const COVENANT_DATA = {
     'Blades of the World': {
@@ -2408,7 +2673,7 @@
   }
 
   function showPanel(id) {
-    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-event-card', 'enc-quest-card', 'enc-move-card'].forEach(pid => {
+    ['enc-detail-empty', 'enc-detail-card', 'enc-class-card', 'enc-scroll-card', 'enc-event-card', 'enc-mechanic-card', 'enc-quest-card', 'enc-npc-card', 'enc-move-card'].forEach(pid => {
       const el = document.getElementById(pid);
       if (el) el.style.display = pid === id ? '' : 'none';
     });
@@ -2816,6 +3081,50 @@
             return;
           }
         });
+      } else if (type === 'Mechanic') {
+        const groupedMechanicNames = new Set(MECHANIC_GROUPS.flatMap(g => g.names ? [...g.names] : []));
+        const ungroupedMechanics = items.filter(({ it }) => !groupedMechanicNames.has(it[0]));
+        if (ungroupedMechanics.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungroupedMechanics].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byMechanicGroup = {};
+        MECHANIC_GROUPS.forEach(g => { if (g.names) byMechanicGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          MECHANIC_GROUPS.forEach(g => { if (g.names?.has(it[0])) byMechanicGroup[g.label].push({ it, i }); });
+        });
+        MECHANIC_GROUPS.forEach(g => {
+          if (g.sectionHeader) {
+            const hdr = document.createElement('div');
+            hdr.className = 'enc-trial-section-hdr';
+            hdr.textContent = g.label;
+            section.appendChild(hdr);
+            if (g.names && g.names.size > 0) {
+              const gItems = byMechanicGroup[g.label] || [];
+              const groupGrid = document.createElement('div');
+              groupGrid.className = 'enc-grid';
+              [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+                const btn = document.createElement('button');
+                btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+                btn.dataset.idx = i;
+                btn.textContent = it[0];
+                btn.addEventListener('click', () => selectItem(i));
+                groupGrid.appendChild(btn);
+              });
+              section.appendChild(groupGrid);
+            }
+            return;
+          }
+        });
       } else if (type === 'Quest') {
         const groupedQuestNames = new Set(QUEST_GROUPS.flatMap(g => g.names ? [...g.names] : []));
         const ungroupedQuests = items.filter(({ it }) => !groupedQuestNames.has(it[0]));
@@ -2885,6 +3194,50 @@
           });
           groupDiv.appendChild(groupGrid);
           section.appendChild(groupDiv);
+        });
+      } else if (type === 'Significant NPC') {
+        const groupedNPCNames = new Set(NPC_GROUPS.flatMap(g => g.names ? [...g.names] : []));
+        const ungroupedNPCs = items.filter(({ it }) => !groupedNPCNames.has(it[0]));
+        if (ungroupedNPCs.length) {
+          const grid = document.createElement('div');
+          grid.className = 'enc-grid';
+          [...ungroupedNPCs].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+            const btn = document.createElement('button');
+            btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+            btn.dataset.idx = i;
+            btn.textContent = it[0];
+            btn.addEventListener('click', () => selectItem(i));
+            grid.appendChild(btn);
+          });
+          section.appendChild(grid);
+        }
+        const byNPCGroup = {};
+        NPC_GROUPS.forEach(g => { if (g.names) byNPCGroup[g.label] = []; });
+        items.forEach(({ it, i }) => {
+          NPC_GROUPS.forEach(g => { if (g.names?.has(it[0])) byNPCGroup[g.label].push({ it, i }); });
+        });
+        NPC_GROUPS.forEach(g => {
+          if (g.sectionHeader) {
+            const hdr = document.createElement('div');
+            hdr.className = 'enc-trial-section-hdr';
+            hdr.textContent = g.label;
+            section.appendChild(hdr);
+            if (g.names) {
+              const gItems = byNPCGroup[g.label] || [];
+              const groupGrid = document.createElement('div');
+              groupGrid.className = 'enc-grid';
+              [...gItems].sort((a, b) => a.it[0].localeCompare(b.it[0])).forEach(({ it, i }) => {
+                const btn = document.createElement('button');
+                btn.className = 'enc-item-btn' + (_selectedIdx === i ? ' active' : '');
+                btn.dataset.idx = i;
+                btn.textContent = it[0];
+                btn.addEventListener('click', () => selectItem(i));
+                groupGrid.appendChild(btn);
+              });
+              section.appendChild(groupGrid);
+            }
+            return;
+          }
         });
       } else if (type === 'Trial') {
         const groupedNames = new Set(TRIAL_GROUPS.flatMap(g => g.names ? [...g.names] : []));
@@ -3029,8 +3382,12 @@
       showScrollDetail(idx);
     } else if (type === 'Quest') {
       showQuestDetail(idx);
+    } else if (type === 'Significant NPC') {
+      showNPCDetail(idx);
     } else if (type === 'Event') {
       showEventDetail(idx);
+    } else if (type === 'Mechanic') {
+      showMechanicDetail(idx);
     } else {
       showItemDetail(idx);
     }
@@ -3167,6 +3524,301 @@
           window._encFilter(btn.dataset.encTab, tabBtn || null);
         });
       });
+    }
+  }
+
+  /* ── Mechanic detail panel ──────────────────────────────────────────────── */
+  function showMechanicDetail(idx) {
+    const it   = ENC_ITEMS[idx];
+    const name = it[0];
+    const data = MECHANIC_DATA[name] || {};
+
+    _currentView = 'item';
+    showPanel('enc-mechanic-card');
+
+    const card = document.getElementById('enc-mechanic-card');
+    if (!card) return;
+
+    const typeEl = card.querySelector('.enc-mech-type');
+    if (typeEl) {
+      typeEl.textContent = (TYPE_ICONS['Mechanic'] || '') + ' Mechanic';
+      typeEl.className = 'enc-mech-type enc-detail-type enc-type-Mechanic';
+    }
+    const nameEl = card.querySelector('.enc-mech-name');
+    if (nameEl) nameEl.textContent = name;
+
+    const body = card.querySelector('.enc-mech-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    const mkHdr = (text) => {
+      const h = document.createElement('div');
+      h.className = 'enc-quest-section-hdr';
+      h.textContent = text;
+      return h;
+    };
+
+    // Top note
+    if (data.note) {
+      const el = document.createElement('div');
+      el.className = 'enc-mech-note';
+      el.textContent = data.note;
+      body.appendChild(el);
+    }
+
+    // Soul Tree branches
+    if (data.branches) {
+      const romanNumerals = ['I','II','III','IV','V'];
+      data.branches.forEach(branch => {
+        const branchEl = document.createElement('div');
+        branchEl.className = 'enc-mech-branch';
+        const btn = document.createElement('button');
+        btn.className = 'enc-loot-btn enc-mech-branch-btn';
+        btn.innerHTML = '<span>' + branch.label + ' <span class="enc-mech-branch-sub">(' + branch.sublabel + ')</span></span><span class="enc-loot-btn-arrow">\u25be</span>';
+        const nodesEl = document.createElement('div');
+        nodesEl.className = 'enc-mech-nodes';
+        btn.addEventListener('click', () => {
+          const open = nodesEl.style.display !== 'none';
+          nodesEl.style.display = open ? 'none' : '';
+          btn.querySelector('.enc-loot-btn-arrow').textContent = open ? '\u25b8' : '\u25be';
+        });
+        branch.nodes.forEach(node => {
+          const nodeEl = document.createElement('div');
+          nodeEl.className = 'enc-mech-node';
+          const nName = document.createElement('div');
+          nName.className = 'enc-mech-node-name';
+          nName.textContent = node.name;
+          nodeEl.appendChild(nName);
+          const nEffect = document.createElement('div');
+          nEffect.className = 'enc-mech-node-effect';
+          nEffect.textContent = node.effect;
+          nodeEl.appendChild(nEffect);
+          const costsRow = document.createElement('div');
+          costsRow.className = 'enc-mech-node-costs';
+          node.costs.forEach((cost, i) => {
+            const chip = document.createElement('span');
+            chip.className = 'enc-mech-cost-chip';
+            chip.innerHTML = '<span class="enc-mech-cost-rank">' + romanNumerals[i] + '</span><span class="enc-mech-cost-val">' + cost + ' SP</span>';
+            costsRow.appendChild(chip);
+          });
+          nodeEl.appendChild(costsRow);
+          nodesEl.appendChild(nodeEl);
+        });
+        branchEl.appendChild(btn);
+        branchEl.appendChild(nodesEl);
+        body.appendChild(branchEl);
+      });
+    }
+
+    // Triumph categories
+    if (data.categories) {
+      data.categories.forEach(cat => {
+        body.appendChild(mkHdr(cat.label));
+        const listEl = document.createElement('div');
+        listEl.className = 'enc-mech-triumph-list';
+        cat.items.forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'enc-mech-triumph-row';
+          const n = document.createElement('span');
+          n.className = 'enc-mech-triumph-name';
+          n.textContent = item.name;
+          const r = document.createElement('span');
+          r.className = 'enc-mech-triumph-reward';
+          r.textContent = item.reward;
+          row.appendChild(n);
+          row.appendChild(r);
+          listEl.appendChild(row);
+        });
+        body.appendChild(listEl);
+      });
+    }
+
+    // Move Scaling formula
+    if (data.formula) {
+      body.appendChild(mkHdr('Formula'));
+      const fEl = document.createElement('div');
+      fEl.className = 'enc-mech-formula';
+      fEl.textContent = data.formula;
+      body.appendChild(fEl);
+      if (data.vars) {
+        const varsEl = document.createElement('div');
+        varsEl.className = 'enc-mech-formula-vars';
+        data.vars.forEach(v => {
+          const row = document.createElement('div');
+          row.className = 'enc-mech-formula-var';
+          row.innerHTML = '<span class="enc-mech-var-name">' + v.label + '</span><span class="enc-mech-var-desc">' + v.text + '</span>';
+          varsEl.appendChild(row);
+        });
+        body.appendChild(varsEl);
+      }
+      if (data.examples) {
+        body.appendChild(mkHdr('Examples'));
+        data.examples.forEach(ex => {
+          const exEl = document.createElement('div');
+          exEl.className = 'enc-mech-example';
+          const desc = document.createElement('div');
+          desc.className = 'enc-mech-example-desc';
+          desc.textContent = ex.desc;
+          const calc = document.createElement('div');
+          calc.className = 'enc-mech-formula';
+          calc.textContent = ex.calc;
+          exEl.appendChild(desc);
+          exEl.appendChild(calc);
+          body.appendChild(exEl);
+        });
+      }
+      if (data.dualFormula) {
+        body.appendChild(mkHdr('Dual / Multi Scaling'));
+        const dfEl = document.createElement('div');
+        dfEl.className = 'enc-mech-formula';
+        dfEl.textContent = data.dualFormula;
+        body.appendChild(dfEl);
+      }
+    }
+
+    // Alignment
+    if (data.alignments) {
+      body.appendChild(mkHdr('Alignment Types'));
+      const alignRow = document.createElement('div');
+      alignRow.className = 'enc-mech-align-row';
+      data.alignments.forEach(a => {
+        const chip = document.createElement('div');
+        chip.className = 'enc-mech-align-chip';
+        chip.style.borderColor = a.color;
+        chip.innerHTML = '<span class="enc-mech-align-type" style="color:' + a.color + '">' + a.type + '</span><span class="enc-mech-align-desc">' + a.desc + '</span>';
+        alignRow.appendChild(chip);
+      });
+      body.appendChild(alignRow);
+      if (data.potions) {
+        body.appendChild(mkHdr('Alignment Potions'));
+        const potRow = document.createElement('div');
+        potRow.className = 'enc-loot-chips';
+        data.potions.forEach(p => {
+          const btn = document.createElement('button');
+          btn.className = 'enc-loot-chip enc-loot-chip-link';
+          btn.textContent = p.name + ' (' + p.type + ')';
+          const ti = ENC_ITEMS.findIndex(e => e[0] === p.name);
+          if (ti !== -1) btn.addEventListener('click', () => selectItem(ti));
+          potRow.appendChild(btn);
+        });
+        body.appendChild(potRow);
+      }
+    }
+
+    // Status Effects
+    if (data.statuses) {
+      const statusList = document.createElement('div');
+      statusList.className = 'enc-mech-status-list';
+      data.statuses.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'enc-mech-status';
+        const badge = document.createElement('span');
+        badge.className = 'enc-mech-status-name';
+        badge.textContent = s.name;
+        const desc = document.createElement('span');
+        desc.className = 'enc-mech-status-desc';
+        desc.textContent = s.desc;
+        row.appendChild(badge);
+        row.appendChild(desc);
+        statusList.appendChild(row);
+      });
+      body.appendChild(statusList);
+    }
+
+    // Generic sections (Mastery, Day/Night, Healing -- NOT Move Scaling which uses vars)
+    if (data.sections && !data.formula) {
+      data.sections.forEach(s => {
+        const sec = document.createElement('div');
+        sec.className = 'enc-mech-section';
+        const lbl = document.createElement('div');
+        lbl.className = 'enc-mech-section-label';
+        lbl.textContent = s.label;
+        const txt = document.createElement('div');
+        txt.className = 'enc-mech-section-text';
+        txt.textContent = s.text;
+        sec.appendChild(lbl);
+        sec.appendChild(txt);
+        body.appendChild(sec);
+      });
+    }
+
+    // DoT types
+    if (data.dotTypes) {
+      body.appendChild(mkHdr('DoT Types'));
+      data.dotTypes.forEach(d => {
+        const dotCard = document.createElement('div');
+        dotCard.className = 'enc-mech-dot-card';
+        dotCard.innerHTML = '<div class="enc-mech-dot-name">' + d.name + '</div><div class="enc-mech-dot-desc">' + d.desc + '</div>';
+        body.appendChild(dotCard);
+      });
+      if (data.extraInfo) {
+        body.appendChild(mkHdr('Extra Info'));
+        data.extraInfo.forEach(info => {
+          const el = document.createElement('div');
+          el.className = 'enc-quest-note';
+          el.textContent = info;
+          body.appendChild(el);
+        });
+      }
+    }
+
+    // Fatigues
+    if (data.fatigues) {
+      data.fatigues.forEach(f => {
+        const fatCard = document.createElement('div');
+        fatCard.className = 'enc-mech-fatigue-card';
+        fatCard.innerHTML = '<div class="enc-mech-dot-name">' + f.name + '</div><div class="enc-mech-dot-desc">' + f.desc + '</div>';
+        if (f.progression) {
+          const prog = document.createElement('div');
+          prog.className = 'enc-mech-formula';
+          prog.textContent = f.progression;
+          fatCard.appendChild(prog);
+        }
+        body.appendChild(fatCard);
+      });
+    }
+
+    // Untradable item list
+    if (data.list) {
+      const listEl = document.createElement('div');
+      listEl.className = 'enc-loot-chips';
+      data.list.forEach(itemName => {
+        const ti = ENC_ITEMS.findIndex(e => e[0] === itemName);
+        if (ti !== -1) {
+          const btn = document.createElement('button');
+          btn.className = 'enc-loot-chip enc-loot-chip-link';
+          btn.textContent = itemName;
+          btn.addEventListener('click', () => selectItem(ti));
+          listEl.appendChild(btn);
+        } else {
+          const span = document.createElement('span');
+          span.className = 'enc-loot-chip';
+          span.textContent = itemName;
+          listEl.appendChild(span);
+        }
+      });
+      body.appendChild(listEl);
+    }
+
+    // Titles
+    if (data.titles) {
+      const grid = document.createElement('div');
+      grid.className = 'enc-mech-title-grid';
+      data.titles.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'enc-mech-title-row';
+        row.innerHTML = '<span class="enc-mech-title-name">' + t.title + '</span><span class="enc-mech-title-achieve">' + t.achievement + '</span>';
+        grid.appendChild(row);
+      });
+      body.appendChild(grid);
+    }
+
+    // Bottom tip
+    if (data.tip) {
+      const tipEl = document.createElement('div');
+      tipEl.className = 'enc-mech-note enc-mech-tip';
+      tipEl.textContent = data.tip;
+      body.appendChild(tipEl);
     }
   }
 
@@ -3460,6 +4112,142 @@
         el.className = 'enc-quest-location';
         el.innerHTML = `<span class="enc-quest-location-num">${i + 1}</span><span>${loc}</span>`;
         sec.appendChild(el);
+      });
+    }
+
+    // Notes
+    if (data.notes && data.notes.length) {
+      const sec = mkSection('Notes');
+      data.notes.forEach(note => {
+        const el = document.createElement('div');
+        el.className = 'enc-quest-note';
+        el.textContent = note;
+        sec.appendChild(el);
+      });
+    }
+  }
+
+  /* ── Significant NPC detail panel ──────────────────────────────────────── */
+  function showNPCDetail(idx) {
+    const it   = ENC_ITEMS[idx];
+    const name = it[0];
+    const data = NPC_DATA[name] || {};
+
+    _currentView = 'item';
+    showPanel('enc-npc-card');
+
+    const card = document.getElementById('enc-npc-card');
+    if (!card) return;
+
+    // Type badge
+    const typeEl = card.querySelector('.enc-npc-type');
+    if (typeEl) {
+      typeEl.textContent = (TYPE_ICONS['Significant NPC'] || '') + ' Significant NPC';
+      typeEl.className = 'enc-npc-type enc-detail-type enc-type-Significant-NPC';
+    }
+
+    // Name
+    const nameEl = card.querySelector('.enc-npc-name');
+    if (nameEl) nameEl.textContent = name;
+
+    // Role / location chips row
+    const infoRow = card.querySelector('.enc-npc-info-row');
+    if (infoRow) {
+      infoRow.innerHTML = '';
+      if (data.role) {
+        const chip = document.createElement('div');
+        chip.className = 'enc-quest-npc-chip';
+        chip.innerHTML = `<span class="enc-quest-npc-label">Role</span><span class="enc-quest-npc-val">${data.role}</span>`;
+        infoRow.appendChild(chip);
+      }
+      if (data.location) {
+        const chip = document.createElement('div');
+        chip.className = 'enc-quest-npc-chip';
+        chip.innerHTML = `<span class="enc-quest-npc-label">Location</span><span class="enc-quest-npc-val">${data.location}</span>`;
+        infoRow.appendChild(chip);
+      }
+    }
+
+    // Description
+    const descEl = card.querySelector('.enc-npc-desc');
+    if (descEl) {
+      if (data.desc) {
+        descEl.innerHTML = data.desc.replace(/\n/g, '<br>');
+        descEl.classList.remove('enc-detail-nodesc');
+      } else {
+        descEl.innerHTML = '';
+        descEl.classList.add('enc-detail-nodesc');
+      }
+    }
+
+    // Body sections
+    const body = card.querySelector('.enc-npc-body');
+    if (!body) return;
+    body.innerHTML = '';
+
+    function mkSection(label) {
+      const sec = document.createElement('div');
+      sec.className = 'enc-quest-body-section';
+      const hdr = document.createElement('div');
+      hdr.className = 'enc-quest-section-hdr';
+      hdr.textContent = label;
+      sec.appendChild(hdr);
+      body.appendChild(sec);
+      return sec;
+    }
+
+    // Quest involvement
+    if (data.quests && data.quests.length) {
+      const sec = mkSection('Quest Involvement');
+      const grid = document.createElement('div');
+      grid.className = 'enc-grid';
+      data.quests.forEach(qname => {
+        const btn = document.createElement('button');
+        btn.className = 'enc-loot-chip-link';
+        btn.textContent = qname;
+        const ti = ENC_ITEMS.findIndex(e => e[0] === qname);
+        if (ti !== -1) btn.addEventListener('click', () => selectItem(ti));
+        grid.appendChild(btn);
+      });
+      sec.appendChild(grid);
+    }
+
+    // Shop stock
+    if (data.stock && data.stock.length) {
+      const sec = mkSection('Shop Stock');
+      data.stock.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'enc-npc-stock-row';
+        if (s.link) {
+          const btn = document.createElement('button');
+          btn.className = 'enc-loot-chip-link';
+          btn.textContent = s.item;
+          if (s.encTab) {
+            btn.addEventListener('click', () => window._encFilter(s.encTab, null));
+          } else {
+            const ti = ENC_ITEMS.findIndex(e => e[0] === s.item);
+            if (ti !== -1) btn.addEventListener('click', () => selectItem(ti));
+          }
+          row.appendChild(btn);
+        } else {
+          const chip = document.createElement('span');
+          chip.className = 'enc-loot-chip';
+          chip.textContent = s.item;
+          row.appendChild(chip);
+        }
+        if (s.price) {
+          const price = document.createElement('span');
+          price.className = 'enc-npc-stock-price';
+          price.textContent = s.price;
+          row.appendChild(price);
+        }
+        if (s.note) {
+          const note = document.createElement('span');
+          note.className = 'enc-npc-stock-note';
+          note.textContent = s.note;
+          row.appendChild(note);
+        }
+        sec.appendChild(row);
       });
     }
 

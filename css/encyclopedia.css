@@ -75,6 +75,8 @@
 .enc-type-tab[data-type="Mark"].active             { background: #0e0818; border-color: #cc55ee; color: #ee77ff; }
 .enc-type-tab[data-type="Quest"].active            { background: #081a14; border-color: #33bb77; color: #55ddaa; }
 .enc-type-tab[data-type="Event"].active            { background: #1a1200; border-color: #ddaa00; color: #ffcc44; }
+.enc-type-tab[data-type="Mechanic"].active         { background: #0e1520; border-color: #4477cc; color: #6699ee; }
+.enc-type-tab[data-type="Significant NPC"].active  { background: #1a0e20; border-color: #aa66cc; color: #cc88ee; }
 
 /* ── Two-column body ────────────────────────────────────────────────────── */
 .enc-body {
@@ -275,8 +277,10 @@
 .enc-type-Super-Class     { background: #140a1e; color: #aa66ee; border: 1px solid #2e1055; }
 .enc-type-Sub-Class       { background: #061818; color: #33bbaa; border: 1px solid #0e3030; }
 .enc-type-Race            { background: #0e1a10; color: #55cc66; border: 1px solid #143318; }
-.enc-type-Quest           { background: #081a14; color: #33bb77; border: 1px solid #0e3320; }
-.enc-type-Event           { background: #1a1000; color: #ddaa00; border: 1px solid #3a2c00; }
+.enc-type-Quest             { background: #081a14; color: #33bb77; border: 1px solid #0e3320; }
+.enc-type-Event             { background: #1a1000; color: #ddaa00; border: 1px solid #3a2c00; }
+.enc-type-Mechanic          { background: #0a1020; color: #4477cc; border: 1px solid #162040; }
+.enc-type-Significant-NPC  { background: #1a0e20; color: #aa66cc; border: 1px solid #3a1e50; }
 
 /* ── Shared name + desc ─────────────────────────────────────────────────── */
 .enc-detail-name {
@@ -1262,3 +1266,181 @@
   min-width: 14px;
   flex-shrink: 0;
 }
+
+/* ── Mechanic detail panel ──────────────────────────────────────────────── */
+.enc-mech-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.enc-mech-note {
+  font-size: 12px;
+  color: #888;
+  background: #0a0a0a;
+  border: 1px solid #1c1c1c;
+  border-radius: 6px;
+  padding: 7px 10px;
+  line-height: 1.5;
+}
+.enc-mech-tip {
+  color: #aa8833;
+  border-color: #302400;
+  background: #130f00;
+}
+/* Soul Tree */
+.enc-mech-branch { display: flex; flex-direction: column; gap: 4px; }
+.enc-mech-branch-sub { font-size: 10px; color: #666; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.enc-mech-nodes { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+.enc-mech-node {
+  background: #0a0a0a;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.enc-mech-node-name {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ddd;
+}
+.enc-mech-node-effect {
+  font-size: 11px;
+  color: #888;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.enc-mech-node-costs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.enc-mech-cost-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  background: #0e0e0e;
+  border: 1px solid #252525;
+  border-radius: 4px;
+  padding: 3px 8px;
+  min-width: 38px;
+}
+.enc-mech-cost-rank { font-size: 9px; font-weight: 700; color: #4477cc; text-transform: uppercase; letter-spacing: 0.5px; }
+.enc-mech-cost-val  { font-size: 11px; color: #bbb; font-weight: 600; white-space: nowrap; }
+/* Triumphs */
+.enc-mech-triumph-list { display: flex; flex-direction: column; gap: 3px; }
+.enc-mech-triumph-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 5px;
+  padding: 5px 10px;
+  gap: 8px;
+}
+.enc-mech-triumph-name   { font-size: 12px; color: #aaa; }
+.enc-mech-triumph-reward { font-size: 11px; font-weight: 700; color: #4477cc; font-family: 'Rajdhani', Arial, sans-serif; letter-spacing: 0.5px; white-space: nowrap; }
+/* Formula */
+.enc-mech-formula {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #c8b8ff;
+  background: #0e0d1a;
+  border: 1px solid #2a2040;
+  border-radius: 6px;
+  padding: 8px 12px;
+  letter-spacing: 0.3px;
+}
+.enc-mech-formula-vars { display: flex; flex-direction: column; gap: 4px; }
+.enc-mech-formula-var  { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; }
+.enc-mech-var-name { font-weight: 700; color: #c8b8ff; min-width: 66px; flex-shrink: 0; }
+.enc-mech-var-desc { color: #888; line-height: 1.5; }
+.enc-mech-example { display: flex; flex-direction: column; gap: 4px; }
+.enc-mech-example-desc { font-size: 11px; color: #666; }
+/* Alignment */
+.enc-mech-align-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.enc-mech-align-chip {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #0a0a0a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+.enc-mech-align-type { font-family: 'Rajdhani', Arial, sans-serif; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.enc-mech-align-desc { font-size: 11px; color: #777; line-height: 1.4; }
+/* Status Effects */
+.enc-mech-status-list { display: flex; flex-direction: column; }
+.enc-mech-status {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 4px;
+  border-bottom: 1px solid #111;
+}
+.enc-mech-status:last-child { border-bottom: none; }
+.enc-mech-status-name {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #c8b8ff;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  min-width: 82px;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+.enc-mech-status-desc { font-size: 12px; color: #888; line-height: 1.5; }
+/* Generic sections */
+.enc-mech-section {
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.enc-mech-section-label { font-family: 'Rajdhani', Arial, sans-serif; font-size: 11px; font-weight: 700; color: #4477cc; text-transform: uppercase; letter-spacing: 0.5px; }
+.enc-mech-section-text  { font-size: 12px; color: #888; line-height: 1.55; white-space: pre-line; }
+/* DoT / Fatigue cards */
+.enc-mech-dot-card, .enc-mech-fatigue-card {
+  background: #0a0a0a;
+  border: 1px solid #1e1e1e;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.enc-mech-dot-name  { font-family: 'Rajdhani', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ddd; }
+.enc-mech-dot-desc  { font-size: 12px; color: #888; line-height: 1.5; }
+/* Titles */
+.enc-mech-title-grid { display: flex; flex-direction: column; gap: 4px; }
+.enc-mech-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0a0a0a;
+  border: 1px solid #1a1a1a;
+  border-radius: 5px;
+  padding: 5px 10px;
+  gap: 8px;
+}
+.enc-mech-title-name    { font-family: 'Rajdhani', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ddaa00; flex-shrink: 0; }
+.enc-mech-title-achieve { font-size: 11px; color: #777; text-align: right; }
+
+/* ── Significant NPC detail ─────────────────────────────────────────────── */
+.enc-npc-info-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.enc-npc-body { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+.enc-npc-stock-row {
+  display: flex; align-items: center; flex-wrap: wrap;
+  gap: 8px; padding: 4px 0;
+  border-bottom: 1px solid #222;
+}
+.enc-npc-stock-row:last-child { border-bottom: none; }
+.enc-npc-stock-price { font-size: 12px; color: #ddaa00; font-weight: 700; margin-left: auto; }
+.enc-npc-stock-note  { font-size: 11px; color: #777; font-style: italic; }

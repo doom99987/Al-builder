@@ -1050,7 +1050,9 @@
       <button class="enc-type-tab" data-type="Super Class" onclick="window._encFilter('Super Class', this)">Super Classes</button>
       <button class="enc-type-tab" data-type="Trainer" onclick="window._encFilter('Trainer', this)">Trainers</button>
       <button class="enc-type-tab" data-type="Event" onclick="window._encFilter('Event', this)">Events</button>
+      <button class="enc-type-tab" data-type="Mechanic" onclick="window._encFilter('Mechanic', this)">Mechanics</button>
       <button class="enc-type-tab" data-type="Quest" onclick="window._encFilter('Quest', this)">Quests</button>
+      <button class="enc-type-tab" data-type="Significant NPC" onclick="window._encFilter('Significant NPC', this)">Significant NPCs</button>
       <button class="enc-type-tab" data-type="Trial" onclick="window._encFilter('Trial', this)">Trials</button>
       <button class="enc-type-tab" data-type="Weapon" onclick="window._encFilter('Weapon', this)">Weapons</button>
       <button class="enc-type-tab" data-type="Weapon Modifier" onclick="window._encFilter('Weapon Modifier', this)">Weapon Modifiers</button>
@@ -1095,6 +1097,13 @@
           <div class="enc-scroll-effect enc-detail-desc"></div>
         </div>
 
+        <!-- Mechanic detail -->
+        <div class="enc-detail-card" id="enc-mechanic-card" style="display:none">
+          <div class="enc-mech-type enc-detail-type"></div>
+          <div class="enc-mech-name enc-detail-name"></div>
+          <div class="enc-mech-body"></div>
+        </div>
+
         <!-- Event detail -->
         <div class="enc-detail-card" id="enc-event-card" style="display:none">
           <div class="enc-event-type enc-detail-type"></div>
@@ -1114,6 +1123,15 @@
           <div class="enc-quest-npc-row"></div>
           <div class="enc-quest-desc enc-detail-desc"></div>
           <div class="enc-quest-body"></div>
+        </div>
+
+        <!-- Significant NPC detail -->
+        <div class="enc-detail-card" id="enc-npc-card" style="display:none">
+          <div class="enc-npc-type enc-detail-type"></div>
+          <div class="enc-npc-name enc-detail-name"></div>
+          <div class="enc-npc-info-row"></div>
+          <div class="enc-npc-desc enc-detail-desc"></div>
+          <div class="enc-npc-body"></div>
         </div>
 
         <!-- Move detail -->
