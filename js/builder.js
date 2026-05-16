@@ -3623,7 +3623,7 @@ function changeAbsRadTurn(delta) {
 }
 
 function changeBulkUpStacks(delta) {
-  bulkUpStacks = Math.min(10, Math.max(1, bulkUpStacks + delta));
+  bulkUpStacks = Math.max(1, bulkUpStacks + delta);
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
