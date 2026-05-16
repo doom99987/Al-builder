@@ -77,6 +77,7 @@
 .enc-type-tab[data-type="Event"].active            { background: #1a1200; border-color: #ddaa00; color: #ffcc44; }
 .enc-type-tab[data-type="Mechanic"].active         { background: #0e1520; border-color: #4477cc; color: #6699ee; }
 .enc-type-tab[data-type="Significant NPC"].active  { background: #1a0e20; border-color: #aa66cc; color: #cc88ee; }
+.enc-type-tab[data-type="Weapon Shard"].active     { background: #081820; border-color: #2299cc; color: #44bbee; }
 
 /* ── Two-column body ────────────────────────────────────────────────────── */
 .enc-body {
@@ -281,6 +282,7 @@
 .enc-type-Event             { background: #1a1000; color: #ddaa00; border: 1px solid #3a2c00; }
 .enc-type-Mechanic          { background: #0a1020; color: #4477cc; border: 1px solid #162040; }
 .enc-type-Significant-NPC  { background: #1a0e20; color: #aa66cc; border: 1px solid #3a1e50; }
+.enc-type-Weapon-Shard     { background: #081820; color: #2299cc; border: 1px solid #0e3050; }
 
 /* ── Shared name + desc ─────────────────────────────────────────────────── */
 .enc-detail-name {

@@ -554,6 +554,15 @@
     ['Diminishing Returns/Fatigues',    'Mechanic', 'Diminishing Returns (Weapon Shards): The same shard type becomes less effective after the first 2.\nEffectiveness order: 100% → 100% → 25% → 25% → 25% → 25% → 25%\n\nBlock/Dodge Fatigue: Each successful dodge or block reduces the QTE bar size by 10%. Minimum size: 40% of original.\n\nCrit Fatigue: Each successful crit reduces your crit chance. Failing to land a crit resets it.'],
     ['Titles',                          'Mechanic', 'Titles are permanent text displayed next to your in-game name. Obtained by winning events or being the first to achieve something.\n\nFool — First to wipe 100 times\nSoul Wanderer — First to reroll race 50 times\nProdigy — First Super Class\nHero — First enchant\nLoyal — First max guilds\nHands of Midas — First 100k from selling items\nArchmage — First Lost Scroll\nRiftwalker — First Petent\nVenian Prince — First Venia\nAccursed One — First Amorus\nSlime Prince — First Lentum\nSlayer of Beasts — First Boss (not Slime King)\nTinkerer — First to wear full B2 (no longer exists)\nStarborn — First Astra'],
 
+    /* ── WEAPON SHARDS ───────────────────────────────────────────────────── */
+    ['Striking Shard',     'Weapon Shard', 'Hitting an enemy above 80% of their max HP will increase the damage of your hit.\n\nRadiant (R): ~8.2%\nPure (P): ~7.5%\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+    ['Shattering Shard',   'Weapon Shard', 'Increases your damage for every negative status effect currently applied to your target.\n\nRadiant (R): ~3% per debuff\nPure (P): ~2.5% per debuff\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+    ['Regenerative Shard', 'Weapon Shard', 'Grants lifesteal to all your attacks.\n\nRadiant (R): 0.75%\nPure (P): 0.7%\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+    ['Voltaic Shard',      'Weapon Shard', 'Hitting an enemy has a small chance of granting you one energy.\n\nRadiant (R): Unknown chance\nPure (P): ~10% chance\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+    ['Executing Shard',    'Weapon Shard', 'Hitting an enemy below ~25% of their max HP increases the damage of your hit.\n\nRadiant (R): ~10%\nPure (P): Unknown\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+    ['Reversing Shard',    'Weapon Shard', 'Increases your damage for each negative status effect currently applied to you.\n\nRadiant (R): ~5.12% per debuff\nPure (P): ~4.5% per debuff\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+    ['Empowering Shard',   'Weapon Shard', 'Passively increases the damage of your attacks.\n\nRadiant (R): ~4.1%\nPure (P): ~3.5%\n\nNote: Diminishing returns apply when more than 2 of the same shard base type are equipped (reduced to 25% effectiveness).'],
+
     /* ── SIGNIFICANT NPCS ────────────────────────────────────────────────── */
     ['Hythera, Goddess of Fire',  'Significant NPC', ''],
     ['Narthana, Goddess of Life', 'Significant NPC', ''],
@@ -578,7 +587,7 @@
     'Race',
     'Enchant',
     'Ore', 'Ingredient', 'Potion', 'Weapon', 'Gear', 'Misc',
-    'Artifact', 'Lesser Artifact', 'Weapon Modifier',
+    'Artifact', 'Lesser Artifact', 'Weapon Modifier', 'Weapon Shard',
     'Armour',
     'Locations',
     'Scroll', 'Lost Scroll',
@@ -621,6 +630,7 @@
     'Mechanic':        '⚙',
     'Trial':           '⚐',
     'Significant NPC': '👤',
+    'Weapon Shard':    '💠',
   };
 
   const CLASS_TYPES   = new Set(['Base Class', 'Super Class', 'Sub Class', 'Race', 'Weapon', 'Gear', 'Covenant', 'Mark']);
