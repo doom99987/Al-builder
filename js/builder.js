@@ -5897,7 +5897,7 @@ function drawMasteryLines() {
 // Controls which builder panel is visible. Each tab button maps to a panel ID.
 // Panels are shown/hidden via inline display style to avoid CSS specificity conflicts.
 const tabs      = document.querySelectorAll("#page-builder .tabbar .tab");
-const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary", "saved-builds"];
+const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary", "saved-builds", "race-recs"];
 
 function _switchBuilderTab(target) {
   if (!target) return;
