@@ -2592,6 +2592,10 @@ let playerHpPct = 100; // 1-100: current player HP% — used by Bloody Berserker
 let absRadTurn = 1; // 1-5: current turn for Absolute Radiance buff
 const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
+let verdantArcherStacks = 1; // 1+: number of Verdant Archer procs (additive 7.5%/15% per stack)
+let runicShieldStacks = 1;   // 1+: number of Runic Shield block procs (additive 10% per stack, Holy only)
+let bloodlustStacks = 1;     // 1-8: Bloodlust stacks (1st=20%, each extra +10%, cap 65% at 6+)
+let looterStacks = 1;        // 1+: Looter kill stacks (15.75% LCK + 20% SPD per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (×1.20 each)
@@ -2754,6 +2758,10 @@ function getTotalStat(statKey) {
   let total = Math.round(pctBase * (1 + totalStatPct / 100)) + otherFlat;
   if (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"]) {
     total += coagNailStacks * 1.5;
+  }
+  if (dmgBonusActive["passive:Looter"] && masteryState["rm1"] && getActiveMasteryData()?.nodes?.rm1?.name === "Looter") {
+    if (statKey === "lck") total = Math.round(total * (1 + looterStacks * 0.1575));
+    if (statKey === "spd") total = Math.round(total * (1 + looterStacks * 0.20));
   }
   if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
   if (statKey === "spd") {
@@ -3137,6 +3145,16 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   } else {
     currentDmg = dmgPerHit;
   }
+
+  // Blaze Proficiency (Elementalist (Or) lm2): always +15% on Blaze, +30% vs burning
+  if (m.name === "Blaze" && masteryState["lm2"] && superPicker.value === "Elementalist (Or)") {
+    const _blazeProfBase = currentDmg * 1.15;
+    formula += ` × 1.15 <span class="dc-bonus-tag">[Blaze Prof.]</span> = <b>${_blazeProfBase.toFixed(1)}</b>`;
+    const _blazeProfBurn = currentDmg * 1.30;
+    formula += `<br><span class="dc-avg-line">vs burning: × 1.30 <span class="dc-bonus-tag">[Blaze Prof.]</span> = <b>${_blazeProfBurn.toFixed(1)}</b></span>`;
+    currentDmg = _blazeProfBase;
+  }
+
   const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
@@ -3282,7 +3300,9 @@ function collectDmgBonusPassives() {
   allData.forEach(d => {
     (d.innatePassives || []).forEach(p => tryAdd(p.name, p.description || p.effect || "", "passive"));
     (d.learns || []).forEach(m => {
-      if (m.type === "Passive") tryAdd(m.name, m.effect || "", "passive");
+      // Passives handled manually below (stacking logic, bypass parseDmgBonus)
+      const _manualPassives = ["Bloodlust"];
+      if (m.type === "Passive" && !_manualPassives.includes(m.name)) tryAdd(m.name, m.effect || "", "passive");
       if (m.type === "Active") {
         const text = m.effect || "";
         // Buff-category moves always checked for dmg bonus (they ARE the buff)
@@ -3305,7 +3325,9 @@ function collectDmgBonusPassives() {
         if (desc) {
           // If this mastery upgrades a specific buff/move, register under that name so it merges
           const name = override.upgrades || override.name || n.name;
-          tryAdd(name, desc, "mastery");
+          // Skip masteries that are move-specific modifiers handled inline in the formula builder
+          const _moveSpecificMasteries = ["Blaze Proficiency"];
+          if (!_moveSpecificMasteries.includes(name)) tryAdd(name, desc, "mastery");
         }
       });
   }
@@ -3342,6 +3364,42 @@ function collectDmgBonusPassives() {
     if (!seen.has(saKey)) {
       seen.add(saKey);
       rawEntries.push({ key: saKey, name: "Spirit Awakening", bonus: 15, kind: "buff", desc: "Grants the user a 15% buff to all stats for 4 turns. (50% summon damage buff in Summon Buffs section)" });
+    }
+  }
+
+  // Looter (Rogue (N) rm1) — stat buff (LCK/SPD per kill), bypasses parseDmgBonus
+  if ((superClass === "Rogue (N)" || baseClass === "Rogue (N)") && masteryState["rm1"]) {
+    const ltKey = "passive:Looter";
+    if (!seen.has(ltKey)) {
+      seen.add(ltKey);
+      rawEntries.push({ key: ltKey, name: "Looter", bonus: 0, kind: "mastery", desc: `+${(looterStacks * 15.75).toFixed(2)}% LCK and +${looterStacks * 20}% SPD per kill stack (permanent for battle).` });
+    }
+  }
+
+  // Bloodlust (Berserker (Ch)) — manually added to bypass parseDmgBonus picking up the wrong 40% line
+  if (superClass === "Berserker (Ch)") {
+    const blKey = "passive:Bloodlust";
+    if (!seen.has(blKey)) {
+      seen.add(blKey);
+      rawEntries.push({ key: blKey, name: "Bloodlust", bonus: Math.min(65, 20 + (bloodlustStacks - 1) * 10), kind: "passive", desc: "Stack 1: +20% dmg. Each additional stack: +10%, up to 8 stacks (65% cap). Below 30% HP: ×1.40 (multiplicative)." });
+    }
+  }
+
+  // Energy Manipulator (Elementalist (Or) lm1) — bypasses "per energy" filter in parseDmgBonus
+  if (superClass === "Elementalist (Or)" && masteryState["lm1"]) {
+    const emKey = "mastery:Energy Manipulator";
+    if (!seen.has(emKey)) {
+      seen.add(emKey);
+      rawEntries.push({ key: emKey, name: "Energy Manipulator", bonus: Math.min(22.5, 3.75 * energyCount), kind: "mastery", desc: "+3.75% dmg per energy you currently have (up to 22.5% at 6 energy)." });
+    }
+  }
+
+  // Runic Shield (Warrior rm1) — Holy-only stacking block buff, bypasses parseDmgBonus
+  if (baseClass === "Warrior" && masteryState["rm1"]) {
+    const rsKey = "mastery:Runic Shield";
+    if (!seen.has(rsKey)) {
+      seen.add(rsKey);
+      rawEntries.push({ key: rsKey, name: "Runic Shield", bonus: 10, kind: "mastery", desc: "Blocking raises ATKP +.10 (10% dmg) for 1T. Stacks. Holy moves only." });
     }
   }
 
@@ -3452,6 +3510,7 @@ function getActiveDmgMult(moveType = null) {
     "Cast Amplify":      ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"],
     "Elemental Master":  ["Fire", "Magic", "Nature", "Dark"],
     "Forest Charm":      ["Nature"],
+    "Element Mastery":   ["Magic", "Fire", "Nature", "Holy", "Dark", "Ice"],
   };
   let mult = 1;
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
@@ -3460,6 +3519,10 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Bloody Berserker")      bonus = 100 - playerHpPct;
     else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
     else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
+    else if (p.name === "Verdant Archer")        { mult *= (1 + (p.bonus / 100) * verdantArcherStacks); return; }
+    else if (p.name === "Runic Shield")          { if (!moveType || moveType === "Holy") mult *= (1 + 0.10 * runicShieldStacks); return; }
+    else if (p.name === "Energy Manipulator")    { const _emB = Math.min(22.5, 3.75 * energyCount); if (_emB > 0) mult *= (1 + _emB / 100); return; }
+    else if (p.name === "Bloodlust")             { mult *= (1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100); return; }
     else if (p.name === "Frost Stacks")          { mult *= (1 + 0.10 * boreasStacks); return; }
     else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
     else if (p.name === "Rending Barrage Proficiency") { bonus = 2.5 * rendingBarrageStacks; }
@@ -3625,6 +3688,26 @@ function changeAbsRadTurn(delta) {
 function changeBulkUpStacks(delta) {
   bulkUpStacks = Math.max(1, bulkUpStacks + delta);
   renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeVerdantArcherStacks(delta) {
+  verdantArcherStacks = Math.max(1, verdantArcherStacks + delta);
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeRunicShieldStacks(delta) {
+  runicShieldStacks = Math.max(1, runicShieldStacks + delta);
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeBloodlustStacks(delta) {
+  bloodlustStacks = Math.min(8, Math.max(1, bloodlustStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeLooterStacks(delta) {
+  looterStacks = Math.max(1, looterStacks + delta);
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function changeBoreasStacks(delta) {
@@ -3859,6 +3942,11 @@ function renderDmgBonusSection() {
     const isUnendingFlow      = p.name === "Unending Flow";
     const isRendingBarrage    = p.name === "Rending Barrage Proficiency";
     const isDemonicPresence   = p.name === "Demonic Presence";
+    const isVerdantArcher     = p.name === "Verdant Archer";
+    const isRunicShield       = p.name === "Runic Shield";
+    const isBloodlust         = p.name === "Bloodlust";
+    const isEnergyManipulator = p.name === "Energy Manipulator";
+    const isLooter            = p.name === "Looter";
     const displayBonus   = isBloodyBers      ? 100 - playerHpPct
                          : isRageEmp         ? 30 + Math.max(0, Math.min(65, 100 - playerHpPct))
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3869,10 +3957,19 @@ function renderDmgBonusSection() {
                          : isFlamingOverdrive? flamingOverdriveStacks
                          : isSpiritAwakening ? 15
                          : isVaingLocket     ? Math.max(0, 10 - 5 * (vaingLocketTurn - 1))
+                         : isVerdantArcher    ? p.bonus * verdantArcherStacks
+                         : isRunicShield      ? 10 * runicShieldStacks
+                         : isBloodlust        ? Math.min(65, 20 + (bloodlustStacks - 1) * 10)
+                         : isEnergyManipulator ? Math.min(22.5, 3.75 * energyCount)
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : p.bonus;
-    const displayBonusStr = isBulkUp          ? `×${(1 + 0.20 * bulkUpStacks).toFixed(2)}`
+    const displayBonusStr = isLooter           ? `+${(looterStacks * 15.75).toFixed(2)}% LCK · +${looterStacks * 20}% SPD`
+                         : isEnergyManipulator ? `×${(1 + Math.min(22.5, 3.75 * energyCount) / 100).toFixed(4).replace(/\.?0+$/, '')}`
+                         : isBloodlust        ? `×${(1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100).toFixed(2)}`
+                         : isRunicShield      ? `×${(1 + 0.10 * runicShieldStacks).toFixed(2)} <span style="color:#888;font-size:11px">[Holy]</span>`
+                         : isVerdantArcher    ? `×${(1 + (p.bonus / 100) * verdantArcherStacks).toFixed(2)}`
+                         : isBulkUp          ? `×${(1 + 0.20 * bulkUpStacks).toFixed(2)}`
                          : isBoreas           ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
                          : isHourglass        ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
                          : isOppression       ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
@@ -3928,6 +4025,50 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeBulkUpStacks(-1)">−</button>
           <span class="dc-energy-val">${bulkUpStacks}</span>
           <button class="dc-energy-btn" onclick="changeBulkUpStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isVerdantArcher) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Stacks</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeVerdantArcherStacks(-1)">−</button>
+          <span class="dc-energy-val">${verdantArcherStacks}</span>
+          <button class="dc-energy-btn" onclick="changeVerdantArcherStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isLooter) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Kill Stacks</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeLooterStacks(-1)">−</button>
+          <span class="dc-energy-val">${looterStacks}</span>
+          <button class="dc-energy-btn" onclick="changeLooterStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isEnergyManipulator) {
+      html += `<div class="dc-rage-slider-row"><span class="dc-rage-slider-hint" style="color:#aaa">Energy: ${energyCount} (from energy counter above) → ${(3.75 * Math.min(6, energyCount)).toFixed(2)}%</span></div>`;
+    }
+    if (isBloodlust) {
+      const _blCap = bloodlustStacks >= 6;
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Stacks (max 8${_blCap ? ' · <span style="color:#e08060">65% cap reached</span>' : ''})</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeBloodlustStacks(-1)">−</button>
+          <span class="dc-energy-val">${bloodlustStacks}</span>
+          <button class="dc-energy-btn" onclick="changeBloodlustStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isRunicShield) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Block Stacks <span style="color:#aaa;font-size:11px">(Holy only)</span></span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeRunicShieldStacks(-1)">−</button>
+          <span class="dc-energy-val">${runicShieldStacks}</span>
+          <button class="dc-energy-btn" onclick="changeRunicShieldStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -4828,7 +4969,7 @@ const masteryClassData = {
       r5:  { name: "Endurance Node" }, r6:  { name: "Endurance Node" },
       r7:  { name: "Endurance Node" }, r8:  { name: "Endurance Node" },
       r9:  { name: "Endurance Node" },
-      rm1: { name: "Runic Shield",              desc: "Blocking or dodging attacks will raise your ATKP +.25 for (3T). This cannot stack.\nNote: +.25 ATKP = 25% dmg buff. Buff lasts 1 turn, only affects holy type moves." },
+      rm1: { name: "Runic Shield",              desc: "Blocking attacks will raise your ATKP +.10 for (1T). This can stack.\nNote: +.10 ATKP = 10% dmg buff. Only affects Holy type moves. Dodging does not trigger this." },
       rm2: { name: "Sacred Call Proficiency",   desc: "Grants the target of Sacred Call 5 Energized.\nNote: Buff lasts 4 turns." },
     }
   },
@@ -6408,6 +6549,10 @@ function loadBuildState(state) {
   playerHpPct = 100;
   absRadTurn = 1;
   bulkUpStacks = 1;
+  verdantArcherStacks = 1;
+  runicShieldStacks = 1;
+  bloodlustStacks = 1;
+  looterStacks = 1;
   hourglassStacks = 1;
   boreasStacks = 1;
   unendingFlowStacks = 1;
