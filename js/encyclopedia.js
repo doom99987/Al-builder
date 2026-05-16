@@ -565,6 +565,13 @@
     ['The Dealer',                'Significant NPC', ''],
   ];
 
+  /* ── Per-type YouTube playlist links ────────────────────────────────────── */
+  const TYPE_PLAYLISTS = {
+    'Ore':        'https://www.youtube.com/playlist?list=PLFkGPaRrHFHURS5L8eLHt3yubpQY07wCY',
+    'Base Class': 'https://www.youtube.com/playlist?list=PLFkGPaRrHFHURS5L8eLHt3yubpQY07wCY',
+    'Super Class':'https://www.youtube.com/playlist?list=PLFkGPaRrHFHURS5L8eLHt3yubpQY07wCY',
+  };
+
   /* ── Config ─────────────────────────────────────────────────────────────── */
   const TYPE_ORDER = [
     'Base Class', 'Super Class', 'Sub Class',
@@ -3436,6 +3443,16 @@
         descEl.classList.add('enc-detail-nodesc');
       }
     }
+    // Playlist link
+    if (extraEl && TYPE_PLAYLISTS[it[1]]) {
+      const a = document.createElement('a');
+      a.href = TYPE_PLAYLISTS[it[1]];
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'enc-playlist-link';
+      a.textContent = '▶ YouTube Playlist';
+      extraEl.appendChild(a);
+    }
   }
 
   /* ── Scroll / Lost Scroll detail panel ─────────────────────────────────── */
@@ -4809,11 +4826,22 @@
           const btn = document.createElement('button');
           btn.className = 'enc-move-btn';
           const lvlText = m.level != null ? (type === 'Covenant' ? `Rank ${m.level}` : `Lv${m.level}`) : '';
-          const typeBadge = m.type ? `<span class="enc-move-type-pill enc-mpill-${m.type.toLowerCase()}">${m.type}</span>` : '';
-          btn.innerHTML = `<span class="enc-move-btn-name">${m.name}</span><span class="enc-move-btn-meta">${lvlText}${typeBadge}</span>`;
+          const typeBadge     = m.type ? `<span class="enc-move-type-pill enc-mpill-${m.type.toLowerCase()}">${m.type}</span>` : '';
+          const moveTypeBadge = (m.moveType && m.moveType !== 'N/A') ? `<span class="enc-move-type-pill enc-mpill-${m.moveType.toLowerCase()}">${m.moveType}</span>` : '';
+          btn.innerHTML = `<span class="enc-move-btn-name">${m.name}</span><span class="enc-move-btn-meta">${lvlText}${moveTypeBadge}${typeBadge}</span>`;
           btn.addEventListener('click', () => showMoveDetail(idx, mi, isRace));
           movesEl.appendChild(btn);
         });
+      }
+      // Playlist link
+      if (TYPE_PLAYLISTS[type]) {
+        const a = document.createElement('a');
+        a.href = TYPE_PLAYLISTS[type];
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'enc-playlist-link';
+        a.textContent = '▶ YouTube Playlist';
+        movesEl.appendChild(a);
       }
     }
   }
