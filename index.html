@@ -173,6 +173,34 @@
         <ul class="home-changelog">
           <li>
             <span class="home-cl-tag home-cl-tag-new">New</span>
+            <span class="home-cl-text">QTE Trainer: Thorian(new) tab added — drag the gold diamond onto purple targets, avoid red ones</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-new">New</span>
+            <span class="home-cl-text">Builder: Dmg Calc — Verdant Archer, Runic Shield, Bloodlust, and Looter now have stack counters</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-new">New</span>
+            <span class="home-cl-text">Builder: Dmg Calc — Bulk Up stacks are now uncapped</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-fix">Fix</span>
+            <span class="home-cl-text">Builder: Dmg Calc — Energy Manipulator (Elementalist lm1) now correctly appears and applies its bonus</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-fix">Fix</span>
+            <span class="home-cl-text">Builder: Dmg Calc — Blaze Proficiency now only applies its 15% to Blaze moves (not all moves)</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-fix">Fix</span>
+            <span class="home-cl-text">Builder: Dmg Calc — Element Mastery now correctly restricts to Magic/Fire/Nature/Holy/Dark/Ice type moves</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-fix">Fix</span>
+            <span class="home-cl-text">Builder: Runic Shield description corrected — 10% dmg (Holy only, 1T, blocking only, can stack)</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-new">New</span>
             <span class="home-cl-text">Encyclopedia: Gear tab now grouped — Easter, Winter Solstice, Forest, Desert, Deeproot, Volcano, Bosses/Minibosses</span>
           </li>
           <li>
@@ -303,6 +331,7 @@
     <button class="tab" data-qte="hammer">Hammer</button>
     <button class="tab" data-qte="dodge">Dodge</button>
     <button class="tab" data-qte="thorian">Thorian</button>
+    <button class="tab" data-qte="thorian-new">Thorian(new)</button>
   </div>
   <div class="qte-ping-bar">
     <label class="qte-ping-label">Ping</label>
@@ -434,6 +463,20 @@
         <canvas id="thorian-qte-canvas" class="thorian-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="thorian-qte-start-btn">Start</button>
         <button class="fist-qte-start-btn" id="thorian-qte-resume-btn" style="display:none">Resume</button>
+      </div>
+    </div>
+
+    <!-- Thorian New QTE -->
+    <div class="qte-panel" id="qte-panel-thorian-new" style="display:none">
+      <div class="thorian-new-qte-wrap">
+        <div class="thorian-new-qte-header">
+          <span class="thorian-new-qte-status" id="thorian-new-qte-status"></span>
+          <span class="thorian-new-qte-streak" id="thorian-new-qte-streak"></span>
+          <span class="thorian-new-qte-highscore" id="thorian-new-qte-highscore"></span>
+        </div>
+        <canvas id="thorian-new-qte-canvas" class="thorian-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="thorian-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="thorian-new-qte-resume-btn" style="display:none">Resume</button>
       </div>
     </div>
   </div>
@@ -1659,6 +1702,8 @@
     if (name !== 'staff'  && typeof window._onStaffQteHide   === 'function') window._onStaffQteHide();
     if (name === 'thorian' && typeof window._onThorianQteShow === 'function') window._onThorianQteShow();
     if (name !== 'thorian' && typeof window._onThorianQteHide === 'function') window._onThorianQteHide();
+    if (name === 'thorian-new' && typeof window._onThorianNewQteShow === 'function') window._onThorianNewQteShow();
+    if (name !== 'thorian-new' && typeof window._onThorianNewQteHide === 'function') window._onThorianNewQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

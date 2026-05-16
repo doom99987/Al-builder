@@ -2926,3 +2926,526 @@
   resizeCanvas();
   drawIdle();
 })();
+
+// === THORIAN NEW QTE ===
+// Drag the gold diamond onto purple circles to score. Avoid red circles.
+// Black eye-shaped shards float upward in the background continuously.
+(function () {
+  const canvas   = document.getElementById('thorian-new-qte-canvas');
+  if (!canvas) return;
+  const ctx      = canvas.getContext('2d');
+  const statusEl = document.getElementById('thorian-new-qte-status');
+  const streakEl = document.getElementById('thorian-new-qte-streak');
+  const hsEl     = document.getElementById('thorian-new-qte-highscore');
+  const startBtn = document.getElementById('thorian-new-qte-start-btn');
+  const resumeBtn= document.getElementById('thorian-new-qte-resume-btn');
+
+  const HS_KEY   = 'alb:thorian-new-hs';
+  let highscore  = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  // Canvas size
+  let W = 0, H = 0;
+
+  // Background shards (dark upward-floating eye shapes)
+  const SHARD_COUNT = 30;
+  let shards = [];
+
+  // Targets
+  const TARGET_R    = 22;
+  const PLAYER_R    = 26;
+  const MAX_TARGETS  = 5;
+  const GAME_SECS    = 15;
+
+  const MAX_YELLOWS = 3;
+  let targets    = [];
+  let yellows    = [];
+  let heldYellow = null;
+  let dragOX = 0, dragOY = 0;
+  let yellowSpawnTimer = 0;
+
+  // Game state
+  let running     = false;
+  let gameStarted = false;
+  let paused      = false;
+  let score       = 0;
+  let lives       = 3;
+  let gameTimer   = GAME_SECS;
+  let spawnTimer  = 0;
+  let animFrame   = null;
+  let lastTime    = 0;
+  let flashTimer  = 0; // red flash on bad hit
+
+  function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
+  function updateHs(val) {
+    if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} }
+    if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
+  }
+  updateHs(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHs(0); });
+
+  // ---- Canvas resize ----
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    W = Math.min(wrap.clientWidth, 900);
+    H = Math.max(240, Math.min(360, Math.round(W * 0.38)));
+    canvas.width        = W;
+    canvas.height       = H;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    initShards();
+  }
+
+  // ---- Background shards ----
+  function makeShard(initial) {
+    const h = 14 + Math.random() * 38;
+    const w = h * (0.15 + Math.random() * 0.12);
+    return {
+      x: Math.random() * W,
+      y: initial ? Math.random() * H : H + h + 4,
+      w, h,
+      spd: 18 + Math.random() * 45,
+      alpha: 0.25 + Math.random() * 0.55,
+      tilt: (Math.random() - 0.5) * 0.35,
+    };
+  }
+  function initShards() {
+    shards = Array.from({ length: SHARD_COUNT }, () => makeShard(true));
+  }
+  function updateShards(dt) {
+    for (const s of shards) {
+      s.y -= s.spd * dt;
+      if (s.y < -s.h - 4) Object.assign(s, makeShard(false));
+    }
+  }
+
+  // ---- Drawing ----
+  function drawBg() {
+    // Base fill
+    ctx.fillStyle = '#1f1130';
+    ctx.fillRect(0, 0, W, H);
+
+    // Subtle tiled decorative pattern
+    ctx.save();
+    ctx.globalAlpha = 0.045;
+    ctx.fillStyle = '#7744aa';
+    const step = 38;
+    for (let xi = 0; xi < W; xi += step) {
+      for (let yi = 0; yi < H; yi += step) {
+        ctx.beginPath();
+        ctx.rect(xi + 4, yi + 4, step - 8, step - 8);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawShards() {
+    for (const s of shards) {
+      ctx.save();
+      ctx.globalAlpha = s.alpha;
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.tilt);
+      // Outer dark ellipse
+      ctx.beginPath();
+      ctx.ellipse(0, 0, s.w / 2, s.h / 2, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#090510';
+      ctx.fill();
+      // Inner highlight suggestion
+      ctx.globalAlpha = s.alpha * 0.2;
+      ctx.beginPath();
+      ctx.ellipse(0, -s.h * 0.08, s.w * 0.28, s.h * 0.22, 0, 0, Math.PI * 2);
+      ctx.fillStyle = '#4a1a6a';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawTarget(t) {
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    const r = TARGET_R;
+    const isPurple = t.type === 'purple';
+    const color = isPurple ? '#bb55ff' : '#ee3311';
+    const glow  = isPurple ? 'rgba(180,60,255,0.18)' : 'rgba(220,50,10,0.18)';
+
+    // Outer glow
+    const g = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 2.0);
+    g.addColorStop(0, glow);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 2.0, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Inner ring
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2);
+    ctx.strokeStyle = isPurple ? '#9933dd' : '#cc2200';
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = isPurple ? '#ddaaff' : '#ff8866';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawDiamond(x, y) {
+    const sz = PLAYER_R;
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Outer diamond frame
+    ctx.beginPath();
+    ctx.moveTo(0, -sz);
+    ctx.lineTo(sz * 0.65, 0);
+    ctx.lineTo(0, sz);
+    ctx.lineTo(-sz * 0.65, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#140c1e';
+    ctx.fill();
+    ctx.strokeStyle = '#ddaa22';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    // Inner diamond
+    ctx.beginPath();
+    ctx.moveTo(0, -sz * 0.58);
+    ctx.lineTo(sz * 0.38, 0);
+    ctx.lineTo(0, sz * 0.58);
+    ctx.lineTo(-sz * 0.38, 0);
+    ctx.closePath();
+    ctx.strokeStyle = '#ffcc44';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Corner dots
+    for (const [px, py] of [[0,-sz],[sz*0.65,0],[0,sz],[-sz*0.65,0]]) {
+      ctx.beginPath();
+      ctx.arc(px, py, 2.8, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe066';
+      ctx.fill();
+    }
+
+    // Side decorative ticks
+    for (const [px, py, a] of [[0,-sz*0.78,0],[sz*0.51,0,Math.PI/2],[0,sz*0.78,0],[-sz*0.51,0,Math.PI/2]]) {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(a);
+      ctx.strokeStyle = '#cc9922';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(4, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -3); ctx.lineTo(0, 3); ctx.stroke();
+      ctx.restore();
+    }
+
+    // Center gem
+    ctx.beginPath();
+    ctx.arc(0, 0, sz * 0.16, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d0814';
+    ctx.fill();
+    ctx.strokeStyle = '#ffdd55';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawHUD() {
+    // Timer bar at top
+    const pct = Math.max(0, gameTimer / GAME_SECS);
+    ctx.fillStyle = '#2a1a3a';
+    ctx.fillRect(0, 0, W, 5);
+    const barColor = pct > 0.4 ? '#9944cc' : pct > 0.2 ? '#cc7722' : '#cc2222';
+    ctx.fillStyle = barColor;
+    ctx.fillRect(0, 0, W * pct, 5);
+
+    // Lives hearts
+    ctx.font = 'bold 13px Rajdhani, Arial';
+    ctx.fillStyle = '#ee5566';
+    ctx.textAlign = 'left';
+    ctx.fillText('♥'.repeat(lives) + '♡'.repeat(Math.max(0, 2 - lives)), 10, 22);
+
+    // Score
+    ctx.fillStyle = '#cc88ff';
+    ctx.textAlign = 'right';
+    ctx.fillText('Score: ' + score, W - 10, 22);
+
+    // Flash overlay on bad hit
+    if (flashTimer > 0) {
+      ctx.save();
+      ctx.globalAlpha = flashTimer * 0.35;
+      ctx.fillStyle = '#cc2200';
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+  }
+
+  function drawFrame() {
+    drawBg();
+    drawShards();
+    for (const t of targets) drawTarget(t);
+    // Draw non-held yellows first, held one on top
+    for (const y of yellows) if (y !== heldYellow) drawDiamond(y.x, y.y);
+    if (heldYellow) drawDiamond(heldYellow.x, heldYellow.y);
+    if (running) drawHUD();
+  }
+
+  function drawIdle() {
+    drawBg();
+    drawShards();
+    drawDiamond(W / 2, H / 2);
+  }
+
+  // ---- Spawn ----
+  // 5 fixed vertical columns
+  function getColumnX(col) { return Math.round(W * (col * 2 + 1) / 10); }
+
+  function spawnTarget() {
+    const margin = TARGET_R + 20;
+    const usedCols = new Set(targets.map(t => t.col));
+    const freeCols = [0,1,2,3,4].filter(c => !usedCols.has(c));
+    if (freeCols.length === 0) return;
+    const col  = freeCols[Math.floor(Math.random() * freeCols.length)];
+    const x    = getColumnX(col);
+    const type = Math.random() < 0.75 ? 'purple' : 'red';
+    const spd  = getOrbSpeed() * (0.85 + Math.random() * 0.3); // slight per-orb variation
+    targets.push({ x, y: H + TARGET_R + 4, col, type, vy: -spd });
+  }
+
+  function spawnYellow() {
+    const margin = PLAYER_R + 20;
+    const usedCols = new Set(yellows.map(y => y.col));
+    const freeCols = [0,1,2,3,4].filter(c => !usedCols.has(c));
+    if (freeCols.length === 0) return;
+    const col = freeCols[Math.floor(Math.random() * freeCols.length)];
+    const x   = getColumnX(col);
+    const y   = margin + Math.random() * (H - margin * 2);
+    yellows.push({ x, y, col, life: 3 + Math.random() * 3 });
+  }
+
+  function dist2(ax, ay, bx, by) { return (ax - bx) ** 2 + (ay - by) ** 2; }
+
+  // Orb speed scales with score (px/s)
+  function getOrbSpeed() { return Math.min(200, 45 + score * 8); }
+
+  // ---- Collision ----
+  function checkCollisions() {
+    if (!heldYellow) return;
+    const threshold = (PLAYER_R + TARGET_R * 0.72) ** 2;
+    let hit = false;
+    targets = targets.filter(t => {
+      if (!hit && dist2(heldYellow.x, heldYellow.y, t.x, t.y) < threshold) {
+        hit = true;
+        if (t.type === 'purple') {
+          score++;
+          if (streakEl) streakEl.textContent = 'Score: ' + score;
+        } else {
+          lives--;
+          flashTimer = 0.55;
+          if (lives <= 0) {
+            yellows = yellows.filter(y => y !== heldYellow);
+            heldYellow = null;
+            onGameOver();
+            return false;
+          }
+        }
+        // Both yellow diamond and target disappear together
+        yellows = yellows.filter(y => y !== heldYellow);
+        heldYellow = null;
+        return false;
+      }
+      return true;
+    });
+  }
+
+  // ---- Game loop ----
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    updateShards(dt);
+
+    gameTimer -= dt;
+    if (gameTimer <= 0) { onTimeUp(); return; }
+
+    if (flashTimer > 0) flashTimer -= dt;
+
+    // Spawn targets
+    spawnTimer -= dt;
+    if (spawnTimer <= 0 && targets.length < MAX_TARGETS) {
+      spawnTarget();
+      spawnTimer = 0.4 + Math.random() * 0.8;
+    }
+
+    // Spawn yellows
+    yellowSpawnTimer -= dt;
+    if (yellowSpawnTimer <= 0 && yellows.length < MAX_YELLOWS) {
+      spawnYellow();
+      yellowSpawnTimer = 0.3 + Math.random() * 0.4;
+    }
+
+    // Move orbs upward and remove when off-screen
+    targets = targets.filter(t => {
+      t.y += t.vy * dt;
+      if (t.y < -TARGET_R - 4) {
+        if (t.type === 'purple') {
+          lives--;
+          flashTimer = 0.55;
+          if (lives <= 0) { onGameOver(); return false; }
+        }
+        return false;
+      }
+      return true;
+    });
+
+    // Age out yellows — held yellow is immune
+    yellows = yellows.filter(y => {
+      if (y === heldYellow) return true;
+      y.life -= dt;
+      return y.life > 0;
+    });
+
+    checkCollisions();
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onTimeUp() {
+    cancelAnimationFrame(animFrame);
+    running = false;
+    updateHs(score);
+    setStatus('Time up!  Score: ' + score, '#ffcc44');
+    if (streakEl) streakEl.textContent = '';
+    setTimeout(() => {
+      gameStarted = false;
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+    }, 2200);
+  }
+
+  function onGameOver() {
+    cancelAnimationFrame(animFrame);
+    running = false;
+    updateHs(score);
+    setStatus('No lives left!  Score: ' + score, '#ee5544');
+    if (streakEl) streakEl.textContent = '';
+    setTimeout(() => {
+      gameStarted = false;
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+    }, 2200);
+  }
+
+  function startGame() {
+    score = 0; lives = 2; gameTimer = GAME_SECS;
+    targets = []; yellows = []; heldYellow = null;
+    spawnTimer = 0; yellowSpawnTimer = 0; flashTimer = 0;
+    paused = false; gameStarted = true;
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (streakEl)  streakEl.textContent    = '';
+    setStatus('Drag gold onto purple!', '#cc88ff');
+    running = true;
+    animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running = false; gameStarted = false; paused = false;
+    score = 0; lives = 2; gameTimer = GAME_SECS;
+    targets = []; yellows = []; heldYellow = null; flashTimer = 0; yellowSpawnTimer = 0;
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (streakEl)  streakEl.textContent    = '';
+    setStatus('', '#888');
+    resizeCanvas(); drawIdle();
+  }
+
+  // ---- Drag input ----
+  function getCanvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width  / rect.width;
+    const sy = canvas.height / rect.height;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
+  }
+
+  function tryStartDrag(pos) {
+    if (!gameStarted || !running || heldYellow) return;
+    const grab2 = (PLAYER_R * 1.8) ** 2;
+    for (const y of yellows) {
+      if (dist2(pos.x, pos.y, y.x, y.y) < grab2) {
+        heldYellow = y;
+        dragOX = pos.x - y.x;
+        dragOY = pos.y - y.y;
+        return;
+      }
+    }
+  }
+
+  function moveDrag(pos) {
+    if (!heldYellow) return;
+    heldYellow.x = Math.max(PLAYER_R, Math.min(W - PLAYER_R, pos.x - dragOX));
+    heldYellow.y = Math.max(PLAYER_R, Math.min(H - PLAYER_R, pos.y - dragOY));
+  }
+
+  function stopDrag() { heldYellow = null; }
+
+  canvas.addEventListener('mousedown',  e => tryStartDrag(getCanvasPos(e)));
+  canvas.addEventListener('mousemove',  e => moveDrag(getCanvasPos(e)));
+  canvas.addEventListener('mouseup',    stopDrag);
+  canvas.addEventListener('mouseleave', stopDrag);
+
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); tryStartDrag(getCanvasPos(e)); }, { passive: false });
+  canvas.addEventListener('touchmove',  e => { e.preventDefault(); moveDrag(getCanvasPos(e)); }, { passive: false });
+  canvas.addEventListener('touchend',   stopDrag);
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', () => {
+    if (!paused) return;
+    paused = false; running = true;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Drag gold onto purple!', '#cc88ff');
+    animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
+  });
+
+  // ---- Tab hooks ----
+  window._onThorianNewQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+      drawFrame();
+    } else if (!gameStarted) {
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      setStatus('', '#888');
+      drawIdle();
+    }
+  };
+
+  window._onThorianNewQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame); running = false; paused = true;
+    } else { resetToStart(); }
+  };
+
+  resizeCanvas();
+  drawIdle();
+})();
