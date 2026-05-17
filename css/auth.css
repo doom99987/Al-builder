@@ -424,6 +424,8 @@
 .sb-admin-perma-btn:hover { background: #2a1040; color: #eebeff; }
 .sb-admin-btn-scores { border-color: #2a4a7b; color: #99bbff; }
 .sb-admin-btn-scores:hover { background: #101a2a; border-color: #4466aa; color: #bbddff; }
+.sb-admin-btn-scores-one { border-color: #2a5a5a; color: #88dddd; }
+.sb-admin-btn-scores-one:hover { background: #0a1e1e; border-color: #3a8888; color: #aaffff; }
 .sb-admin-btn-listings { border-color: #4a4a20; color: #dddd88; }
 .sb-admin-btn-listings:hover { background: #1a1a08; border-color: #777730; color: #eeeeaa; }
 .sb-admin-btn-wipe {

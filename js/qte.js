@@ -2941,26 +2941,10 @@
   const resumeBtn= document.getElementById('thorian-new-qte-resume-btn');
 
   const HS_KEY      = 'alb:thorian-new-hs-v2'; // v2: scoring changed to rounds
-  const WIPE_KEY    = 'alb:thorian-new-wiped-v2';
   let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
 
-  // One-time wipe of old thorian-new scores from DB (scoring system changed)
-  if (!localStorage.getItem(WIPE_KEY)) {
-    localStorage.setItem(WIPE_KEY, '1');
-    localStorage.removeItem('alb:thorian-new-hs'); // clear old key too
-    setTimeout(async () => {
-      const sb = window._sbClient;
-      if (!sb) return;
-      await Promise.all([
-        sb.from('leaderboard').delete().eq('qte_type', 'thorian-new'),
-        sb.from('leaderboard').delete().eq('qte_type', 'thorian-new-comp'),
-        sb.from('leaderboard_records').delete().eq('qte_type', 'thorian-new'),
-        sb.from('leaderboard_records').delete().eq('qte_type', 'thorian-new-comp'),
-        sb.from('personal_bests').delete().eq('qte_type', 'thorian-new'),
-        sb.from('personal_bests').delete().eq('qte_type', 'thorian-new-comp'),
-      ]);
-    }, 2000); // wait for sb client to be ready
-  }
+  // Clear old local highscore key (scoring system changed to rounds)
+  localStorage.removeItem('alb:thorian-new-hs');
 
   // Canvas size
   let W = 0, H = 0;
