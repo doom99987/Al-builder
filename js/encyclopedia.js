@@ -5354,6 +5354,7 @@
     { name: "Yar'thul",          note: '',            t1: false },
     { name: 'Thorian',           note: '',            t1: false },
     { name: 'Handaconda',        note: '',            t1: false },
+    { name: 'King Slime',        note: '',            t1: false },
     { name: "Metrom's Vessel",   note: 'Tier 1 only', t1: true  },
   ];
 
