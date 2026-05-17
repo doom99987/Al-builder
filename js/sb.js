@@ -1192,7 +1192,8 @@
   }
 
   // ---- all leaderboards view ----
-  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian'];
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new'];
+  const QTE_LABELS = { 'thorian-new': 'Thorian (New)' };
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
   async function loadAllLeaderboards(mode, platform) {
@@ -1287,7 +1288,7 @@
         : (!rec ? `<tr><td colspan="3" class="all-lb-empty">No scores this month</td></tr>` : '');
       return `
         <div class="all-lb-card">
-          <div class="all-lb-card-title">${cap(type)}</div>
+          <div class="all-lb-card-title">${QTE_LABELS[type] || cap(type)}</div>
           <table class="sb-lb-table all-lb-table">
             <thead><tr><th>#</th><th>Player</th><th>Streak</th></tr></thead>
             <tbody>${recordRowHtml}${monthlyHtml}</tbody>
