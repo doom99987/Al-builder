@@ -1551,6 +1551,29 @@ const classMoves = {
     innatePassives: [],
     learns: [
       {
+        slot: "Base Move",
+        type: "Active",
+        name: "Strike",
+        cost: 1,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 5,
+        scaling: "STR/75",
+        effect: "Single Target.\n\n(Arbiter's Mantle: base 10, ARC/150)"
+      },
+      {
+        slot: "Base Move",
+        type: "Active",
+        name: "Daze",
+        cost: 2,
+        cooldown: 5,
+        moveType: "Physical",
+        category: "Attack",
+        damage: 9,
+        scaling: "STR/75",
+        effect: "Applies 2 Weakened.\n\nSingle Target"
+      },
+      {
         slot: "1st Learn",
         level: 15,
         type: "Passive",
