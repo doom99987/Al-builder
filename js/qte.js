@@ -2941,7 +2941,9 @@
   const resumeBtn= document.getElementById('thorian-new-qte-resume-btn');
 
   const HS_KEY      = 'alb:thorian-new-hs-v2'; // v2: scoring changed to rounds
+  const HS_KEY_COMP = 'alb:thorian-new-hs-comp';
   let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   // Clear old local highscore key (scoring system changed to rounds)
   localStorage.removeItem('alb:thorian-new-hs');
@@ -2983,15 +2985,25 @@
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
   function updateHs(val) {
-    if (val > highscore) {
-      highscore = val;
-      try { localStorage.setItem(HS_KEY, highscore); } catch(e) {}
-      if (window._sbSubmitScore) window._sbSubmitScore('thorian-new', val);
+    if (window._qteCompMode) {
+      if (val > highscoreComp) {
+        highscoreComp = val;
+        try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('thorian-new-comp', val);
+      }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
+    } else {
+      if (val > highscore) {
+        highscore = val;
+        try { localStorage.setItem(HS_KEY, highscore); } catch(e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('thorian-new', val);
+      }
+      if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
     }
-    if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
   }
   updateHs(0);
-  window.addEventListener('alb-scores-reset', () => { highscore = 0; localStorage.removeItem(HS_KEY); updateHs(0); });
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHs(0); });
+  window.addEventListener('alb-mode-changed', () => updateHs(0));
 
   // ---- Canvas resize ----
   function resizeCanvas() {
