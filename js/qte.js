@@ -3553,3 +3553,298 @@
   resizeCanvas();
   drawIdle();
 })();
+
+// === DAGGER NEW QTE (multiple spinning bars, fixed marker at 12 o'clock) ===
+(function () {
+  const canvas    = document.getElementById('dagger-new-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('dagger-new-qte-status');
+  const streakEl  = document.getElementById('dagger-new-qte-streak');
+  const hsEl      = document.getElementById('dagger-new-qte-highscore');
+  const startBtn  = document.getElementById('dagger-new-qte-start-btn');
+  const resumeBtn = document.getElementById('dagger-new-qte-resume-btn');
+  const tapBtn    = document.getElementById('dagger-new-tap-btn');
+
+  const HS_KEY      = 'alb:dagger-new-hs';
+  const HS_KEY_COMP = 'alb:dagger-new-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  // Canvas: 0 rad = right (3 o'clock), π/2 = bottom, 3π/2 = top (12 o'clock)
+  const NEEDLE_ANGLE = 3 * Math.PI / 2; // fixed marker at 12 o'clock
+  // Bar half-width: based on level count (fixed for the level, doesn't change as bars are removed)
+  function getZoneHalf() {
+    const n = Math.max(level, 1);
+    return Math.max(Math.min((Math.PI / n) * 0.5, (32 * Math.PI) / 180), (7 * Math.PI) / 180);
+  }
+
+  const LIVES_MAX = 3;
+  let running = false, gameStarted = false, paused = false;
+  let score = 0, timeLeft = 10, timerMax = 10;
+  let level = 1, hitsThisLevel = 0;
+  let lives = LIVES_MAX, maxLives = LIVES_MAX;
+  let bars = [];        // { angle, speed }
+  let flashMiss = 0, flashLevel = 0;
+  let animFrame = null, lastTime = 0;
+
+  function updateHs(val) {
+    if (window._qteCompMode) {
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new-comp', val); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
+    } else {
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new', val); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
+    }
+  }
+  updateHs(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHs(0); });
+  window.addEventListener('alb-mode-changed', () => updateHs(0));
+
+  function setStatus(text, color) { if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; } }
+
+  function getBaseSpeed()     { const b = window._qteCompMode ? 2.5 : 1.8, s = window._qteCompMode ? 0.12 : 0.08; return Math.min(b + level * s, window._qteCompMode ? 8.0 : 5.5); }
+  function getSpawnInterval() { return Math.max(window._qteCompMode ? 0.8 : 1.0, (window._qteCompMode ? 2.5 : 3.2) - level * 0.15); }
+  function getMaxBars()       { return Math.min(level, 11); }
+  function hitsNeeded()       { return level; }
+
+  function normalise(a)      { return ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); }
+  function angDist(a, b)     { const d = Math.abs(normalise(a) - normalise(b)); return Math.min(d, 2 * Math.PI - d); }
+  function barInZone(bar)    { return angDist(bar.angle, NEEDLE_ANGLE) <= getZoneHalf(); }
+
+  function spawnAllBars() {
+    const count     = getMaxBars();
+    const spd       = getBaseSpeed();
+    const slotAngle = (2 * Math.PI) / count;
+    const zh        = getZoneHalf();
+    // Place nearest bar randomly within the gap, never on the marker
+    const margin    = zh * 1.3;
+    const phase     = margin + Math.random() * (slotAngle - margin * 2);
+    const offset    = normalise(NEEDLE_ANGLE - phase);
+    bars = [];
+    for (let i = 0; i < count; i++) {
+      bars.push({ angle: normalise(offset + slotAngle * i), speed: spd });
+    }
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    const side = Math.min(wrap.clientWidth - 16, 400);
+    canvas.width = side; canvas.height = side;
+    canvas.style.width = side + 'px'; canvas.style.height = side + 'px';
+  }
+
+  function drawFrame(idle) {
+    const W = canvas.width, H = canvas.height;
+    const cx = W / 2, cy = H / 2;
+    const R  = Math.min(W, H) * 0.37;
+
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#12121e'; ctx.fillRect(0, 0, W, H);
+
+    // Miss flash overlay
+    if (flashMiss > 0) {
+      ctx.save(); ctx.globalAlpha = Math.min(flashMiss, 0.35);
+      ctx.fillStyle = '#ff3333'; ctx.fillRect(0, 0, W, H); ctx.restore();
+    }
+    // Level-up flash overlay
+    if (flashLevel > 0) {
+      ctx.save(); ctx.globalAlpha = Math.min(flashLevel, 0.3);
+      ctx.fillStyle = '#ffcc44'; ctx.fillRect(0, 0, W, H); ctx.restore();
+    }
+
+    // Outer bezel
+    ctx.beginPath(); ctx.arc(cx, cy, R + 14, 0, Math.PI * 2);
+    ctx.fillStyle = '#131320'; ctx.fill();
+    ctx.strokeStyle = '#222230'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Track ring (full, dark)
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = '#2a2a40'; ctx.lineWidth = 12; ctx.stroke();
+
+    // Draw all spinning bars (white, like original dagger)
+    if (!idle) {
+      ctx.lineCap = 'round';
+      for (const bar of bars) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, R, bar.angle - getZoneHalf(), bar.angle + getZoneHalf());
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 12; ctx.stroke();
+      }
+    }
+
+    // Fixed red marker at 12 o'clock
+    const mx  = cx + Math.cos(NEEDLE_ANGLE) * (R + 14);
+    const my  = cy + Math.sin(NEEDLE_ANGLE) * (R + 14);
+    const mix = cx + Math.cos(NEEDLE_ANGLE) * (R - 6);
+    const miy = cy + Math.sin(NEEDLE_ANGLE) * (R - 6);
+    ctx.beginPath(); ctx.moveTo(mix, miy); ctx.lineTo(mx, my);
+    ctx.strokeStyle = '#ee3344'; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(mx, my, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#ee3344'; ctx.fill();
+
+    // Timer arc (inner ring, drains clockwise from 12 o'clock)
+    if (!idle) {
+      const frac = Math.max(0, Math.min(timeLeft / timerMax, 1));
+      const timerR = R - 22;
+      // Background track
+      ctx.beginPath(); ctx.arc(cx, cy, timerR, 0, Math.PI * 2);
+      ctx.strokeStyle = '#1e1e30'; ctx.lineWidth = 7; ctx.stroke();
+      // Filled portion
+      if (frac > 0) {
+        const timerColor = frac > 0.5 ? '#5599ff' : frac > 0.25 ? '#ffaa33' : '#ff3333';
+        ctx.beginPath();
+        ctx.arc(cx, cy, timerR, -Math.PI / 2, -Math.PI / 2 + frac * 2 * Math.PI);
+        ctx.strokeStyle = timerColor; ctx.lineWidth = 7; ctx.stroke();
+      }
+    }
+
+    // Centre life dots — bright = alive, dark = lost
+    if (!idle) {
+      const dotOrbit = R * 0.22, dotSize = Math.max(5, R * 0.065);
+      for (let i = 0; i < maxLives; i++) {
+        const a = (i * 2 * Math.PI) / maxLives - Math.PI / 2;
+        const alive = i < lives;
+        ctx.beginPath(); ctx.arc(cx + Math.cos(a) * dotOrbit, cy + Math.sin(a) * dotOrbit, dotSize, 0, Math.PI * 2);
+        ctx.fillStyle = alive ? '#ccccee' : '#1e1e28'; ctx.fill();
+        if (alive) { ctx.strokeStyle = '#8888bb'; ctx.lineWidth = 1.5; ctx.stroke(); }
+      }
+    }
+
+    // Centre hub
+    ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+    ctx.fillStyle = lives > 0 ? '#bbbbcc' : '#2a1a1a'; ctx.fill();
+
+    // Idle prompt
+    if (idle) {
+      ctx.fillStyle = '#555577'; ctx.font = '14px Rajdhani, Arial';
+      ctx.textAlign = 'center'; ctx.fillText('Press Start', cx, cy + 18); ctx.textAlign = 'left';
+    }
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+
+    // Countdown timer
+    timeLeft -= dt;
+    if (timeLeft <= 0) { timeLeft = 0; drawFrame(false); onGameOver(); return; }
+
+    // Advance bars
+    for (const bar of bars) {
+      bar.angle = normalise(bar.angle + bar.speed * dt);
+    }
+
+if (flashMiss  > 0) flashMiss  -= dt;
+    if (flashLevel > 0) flashLevel -= dt;
+    drawFrame(false);
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function updateLevelDisplay() {
+    if (streakEl) streakEl.textContent = `Lvl ${level} | ${hitsThisLevel}/${hitsNeeded()}`;
+  }
+
+  function levelUp() {
+    level++;
+    hitsThisLevel = 0;
+    lives = Math.min(lives + 1, maxLives); // restore 1 life on level clear
+    timeLeft = timerMax;
+    flashLevel = 0.8;
+    spawnAllBars();
+    updateHs(score);
+    setStatus('Level ' + level + '!', '#ffcc44');
+    updateLevelDisplay();
+  }
+
+  function onPress() {
+    if (!gameStarted || !running || paused) return;
+    // Find first bar currently in the zone and remove it
+    const idx = bars.findIndex(b => barInZone(b));
+    if (idx === -1) { triggerMiss(); return; } // hit the gap
+    bars.splice(idx, 1);
+    score++;
+    hitsThisLevel++;
+    timeLeft = Math.min(timeLeft + 0.3, 10);
+    updateHs(score);
+    if (hitsThisLevel >= hitsNeeded()) {
+      levelUp();
+    } else {
+      setStatus('Hit!', '#66ee88');
+      updateLevelDisplay();
+    }
+  }
+
+  function triggerMiss() {
+    lives--; flashMiss = 0.4; setStatus('Miss!', '#ee4466');
+    timeLeft = Math.max(0, timeLeft - 3);
+    if (lives <= 0 || timeLeft <= 0) onGameOver();
+  }
+
+  function onGameOver() {
+    cancelAnimationFrame(animFrame); running = false;
+    updateHs(score); setStatus('Game over! Hits: ' + score, '#ee5544');
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = 'none';
+  }
+
+  function startGame() {
+    resizeCanvas();
+    timerMax = 10;
+    maxLives = window._qteCompMode ? 1 : LIVES_MAX;
+    score = 0; level = 1; hitsThisLevel = 0; lives = maxLives;
+    timeLeft = timerMax; flashMiss = 0; flashLevel = 0;
+    spawnAllBars();
+    running = true; gameStarted = true; paused = false;
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = IS_MOBILE ? '' : 'none';
+    updateLevelDisplay();
+    setStatus(IS_MOBILE ? 'Tap the bar at the marker!' : 'Space when bar hits the marker!', '#aa88ff');
+    lastTime = performance.now();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space') return;
+    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
+    const panel = document.getElementById('qte-panel-dagger-new');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault(); onPress();
+  });
+
+  if (IS_MOBILE) canvas.addEventListener('touchstart', e => { e.preventDefault(); onPress(); }, { passive: false });
+  if (tapBtn) {
+    tapBtn.addEventListener('touchstart', e => { e.preventDefault(); onPress(); }, { passive: false });
+    if (IS_MOBILE) tapBtn.addEventListener('click', onPress);
+  }
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', () => {
+    if (!paused) return;
+    paused = false; running = true;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus(IS_MOBILE ? 'Tap the bar at the marker!' : 'Space when bar hits the marker!', '#aa88ff');
+    lastTime = performance.now(); animFrame = requestAnimationFrame(gameLoop);
+  });
+
+  window._onDaggerNewQteShow = () => { resizeCanvas(); if (!running) drawFrame(!gameStarted); };
+  window._onDaggerNewQteHide = () => {
+    if (paused) return;
+    if (gameStarted && running) {
+      cancelAnimationFrame(animFrame); running = false; paused = true;
+      if (resumeBtn) resumeBtn.style.display = ''; if (startBtn) startBtn.style.display = 'none';
+    }
+  };
+  window.addEventListener('resize', () => {
+    const panel = document.getElementById('qte-panel-dagger-new');
+    if (!panel || panel.style.display === 'none') return;
+    resizeCanvas(); if (!running) drawFrame(!gameStarted);
+  });
+
+  resizeCanvas();
+  drawFrame(true);
+})();

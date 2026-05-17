@@ -808,3 +808,49 @@
   animation: move-card-ping 1.4s ease-out forwards;
 }
 
+.dagger-new-qte-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  margin-top: -140px;
+}
+
+.dagger-new-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.dagger-new-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #cc88ff;
+  min-width: 200px;
+  text-align: center;
+}
+
+.dagger-new-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.dagger-new-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.dagger-new-qte-canvas {
+  display: block;
+}
+
+
