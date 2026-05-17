@@ -1192,8 +1192,8 @@
   }
 
   // ---- all leaderboards view ----
-  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new'];
-  const QTE_LABELS = { 'thorian-new': 'Thorian (New)' };
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new'];
+  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)' };
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
   async function loadAllLeaderboards(mode, platform) {
