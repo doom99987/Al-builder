@@ -2627,6 +2627,7 @@ let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base 
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
+let karmaStacks = 0;          // 0+: Karma stacks on target for Arbiter (N) Pronouncement calc
 const shardToggleActive = { striking: false, executing: false };
 let selectedBoss = null;
 let bossCorrupted = false;
@@ -3061,6 +3062,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   // Full formula: BaseDMG(1 + stat1/scl1 + stat2/scl2 ...)
   // Flowing Dance Proficiency (Blade Dancer rm2): override scaling to SPD/50
   // Parry Master (Blade Dancer rm1): upgrades Parry Counter to 12 base + STR/32
+  // Arbiter's Mantle (Arbiter (N)): Strike → 10 base + ARC/150; Lookout gains ARC/50; Pronouncement base 25 if karma≥1
   let _activeScalings = scalings;
   if (m.name === "Flowing Dance" && masteryState["rm2"] && superPicker.value === "Blade Dancer (N)") {
     _activeScalings = [{ stat: "spd", scaling: 50, label: "SPD" }];
@@ -3068,6 +3070,17 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   if (m.name === "Parry Counter" && masteryState["rm1"] && superPicker.value === "Blade Dancer (N)") {
     baseDmgNum = 12;
     _activeScalings = [{ stat: "str", scaling: 32, label: "STR" }];
+  }
+  if (m.name === "Strike" && superPicker.value === "Arbiter (N)") {
+    baseDmgNum = 10;
+    _activeScalings = [{ stat: "arc", scaling: 150, label: "ARC" }];
+  }
+  if (m.name === "Lookout" && superPicker.value === "Arbiter (N)") {
+    _activeScalings = [...(_activeScalings || []), { stat: "arc", scaling: 50, label: "ARC" }];
+  }
+  if (m.name === "Pronouncement" && superPicker.value === "Arbiter (N)") {
+    if (karmaStacks >= 1) baseDmgNum = 25;
+    hitCount = 1 + Math.floor(karmaStacks / 10);
   }
   const statParts = _activeScalings.map(({ stat, scaling, label }) => {
     const val = getTotalStat(stat);
@@ -3373,6 +3386,15 @@ function collectDmgBonusPassives() {
     if (!seen.has(ltKey)) {
       seen.add(ltKey);
       rawEntries.push({ key: ltKey, name: "Looter", bonus: 0, kind: "mastery", desc: `+${(looterStacks * 15.75).toFixed(2)}% LCK and +${looterStacks * 20}% SPD per kill stack (permanent for battle).` });
+    }
+  }
+
+  // Karma Stacks (Arbiter (N)) — counter for Pronouncement calc (base 25 if ≥1, +1 hit per 10 stacks)
+  if (superClass === "Arbiter (N)") {
+    const ksKey = "passive:Karma Stacks";
+    if (!seen.has(ksKey)) {
+      seen.add(ksKey);
+      rawEntries.push({ key: ksKey, name: "Karma Stacks", bonus: 0, kind: "passive", desc: `${karmaStacks} stacks on target. Pronouncement: base 25 if ≥1 stack, +1 hit per 10 stacks.`, isKarmaStacks: true });
     }
   }
 
@@ -3757,6 +3779,11 @@ function changeOppressionCount(delta) {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
+function changeKarmaStacks(delta) {
+  karmaStacks = Math.max(0, karmaStacks + delta);
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
 function changeShatteringDebuffs(delta) {
   shatteringDebuffCount = Math.min(15, Math.max(1, shatteringDebuffCount + delta));
   renderDmgBonusSection(); recalcOpenDetails();
@@ -3947,6 +3974,7 @@ function renderDmgBonusSection() {
     const isBloodlust         = p.name === "Bloodlust";
     const isEnergyManipulator = p.name === "Energy Manipulator";
     const isLooter            = p.name === "Looter";
+    const isKarmaStacks       = p.name === "Karma Stacks";
     const displayBonus   = isBloodyBers      ? 100 - playerHpPct
                          : isRageEmp         ? 30 + Math.max(0, Math.min(65, 100 - playerHpPct))
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3979,6 +4007,7 @@ function renderDmgBonusSection() {
                          : isRendingBarrage   ? `×${(1 + 0.025 * rendingBarrageStacks).toFixed(3)}`
                          : isDemonicPresence  ? `×${(1 + 0.05 * demonicPresenceStacks).toFixed(2)}`
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
+                         : isKarmaStacks      ? `${karmaStacks} stacks`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -4059,6 +4088,17 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeBloodlustStacks(-1)">−</button>
           <span class="dc-energy-val">${bloodlustStacks}</span>
           <button class="dc-energy-btn" onclick="changeBloodlustStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isKarmaStacks) {
+      const _kHits = 1 + Math.floor(karmaStacks / 10);
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Karma stacks on target <span style="color:#aaa;font-size:11px">(Pronouncement: ${karmaStacks >= 1 ? 'base 25' : 'base 5'}, ${_kHits} hit${_kHits !== 1 ? 's' : ''})</span></span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeKarmaStacks(-1)">−</button>
+          <span class="dc-energy-val">${karmaStacks}</span>
+          <button class="dc-energy-btn" onclick="changeKarmaStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -6567,6 +6607,7 @@ function loadBuildState(state) {
   oppressionCount = 1;
   shatteringDebuffCount = 1;
   reversingDebuffCount = 1;
+  karmaStacks = 0;
   crystalStarStacks = 0;
   frozenDiademColdActive = false;
   frozenDiademIceActive = false;
