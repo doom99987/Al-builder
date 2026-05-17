@@ -3259,8 +3259,12 @@
 
   function dist2(ax, ay, bx, by) { return (ax - bx) ** 2 + (ay - by) ** 2; }
 
-  // Orb speed scales with round (px/s)
-  function getOrbSpeed() { return Math.min(220, 45 + (round - 1) * 18); }
+  // Orb speed scales with round (px/s) — comp mode scales faster
+  function getOrbSpeed() {
+    return window._qteCompMode
+      ? Math.min(300, 65 + (round - 1) * 28)
+      : Math.min(220, 45 + (round - 1) * 18);
+  }
 
   // ---- Collision ----
   function checkCollisions() {
