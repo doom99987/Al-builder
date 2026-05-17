@@ -3603,7 +3603,7 @@
 
   function setStatus(text, color) { if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; } }
 
-  function getBaseSpeed()     { const b = window._qteCompMode ? 2.5 : 1.8, s = window._qteCompMode ? 0.12 : 0.08; return Math.min(b + level * s, window._qteCompMode ? 8.0 : 5.5); }
+  function getBaseSpeed()     { const b = window._qteCompMode ? 2.4 : 1.7, s = window._qteCompMode ? 0.09 : 0.06; return Math.min(b + level * s, window._qteCompMode ? 7.0 : 5.0); }
   function getSpawnInterval() { return Math.max(window._qteCompMode ? 0.8 : 1.0, (window._qteCompMode ? 2.5 : 3.2) - level * 0.15); }
   function getMaxBars()       { return Math.min(level, 11); }
   function hitsNeeded()       { return level; }
