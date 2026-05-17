@@ -332,6 +332,7 @@
     <button class="tab" data-qte="dodge">Dodge</button>
     <button class="tab" data-qte="thorian">Thorian</button>
     <button class="tab" data-qte="thorian-new">Thorian(new)</button>
+    <button class="tab" data-qte="dagger-new">Dagger(new)</button>
   </div>
   <div class="qte-ping-bar">
     <label class="qte-ping-label">Ping</label>
@@ -485,6 +486,19 @@
         <canvas id="thorian-new-qte-canvas" class="thorian-new-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="thorian-new-qte-start-btn">Start</button>
         <button class="fist-qte-start-btn" id="thorian-new-qte-resume-btn" style="display:none">Resume</button>
+      </div>
+    </div>
+    <div class="qte-panel" id="qte-panel-dagger-new" style="display:none">
+      <div class="dagger-new-qte-wrap">
+        <div class="dagger-new-qte-header">
+          <span class="dagger-new-qte-status" id="dagger-new-qte-status"></span>
+          <span class="dagger-new-qte-streak" id="dagger-new-qte-streak"></span>
+          <span class="dagger-new-qte-highscore" id="dagger-new-qte-highscore"></span>
+        </div>
+        <canvas id="dagger-new-qte-canvas" class="dagger-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="dagger-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="dagger-new-qte-resume-btn" style="display:none">Resume</button>
+        <button class="dagger-tap-btn" id="dagger-new-tap-btn" style="display:none">TAP</button>
       </div>
     </div>
   </div>
@@ -1712,6 +1726,8 @@
     if (name !== 'thorian' && typeof window._onThorianQteHide === 'function') window._onThorianQteHide();
     if (name === 'thorian-new' && typeof window._onThorianNewQteShow === 'function') window._onThorianNewQteShow();
     if (name !== 'thorian-new' && typeof window._onThorianNewQteHide === 'function') window._onThorianNewQteHide();
+    if (name === 'dagger-new' && typeof window._onDaggerNewQteShow === 'function') window._onDaggerNewQteShow();
+    if (name !== 'dagger-new' && typeof window._onDaggerNewQteHide === 'function') window._onDaggerNewQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));
