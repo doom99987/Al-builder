@@ -3579,7 +3579,12 @@
     return Math.max(Math.min((Math.PI / n) * 0.5, (32 * Math.PI) / 180), (7 * Math.PI) / 180);
   }
 
-  const LIVES_MAX = 3;
+  const LIVES_MAX        = 3;
+  const MIN_PRESS_MS     = 140;   // fastest plausible human reaction
+  const MACRO_MIN_HITS   = 12;    // need at least this many hits before checking
+  const MACRO_AVG_DEG    = 2.5;   // avg hit offset below this = suspiciously perfect
+  const MACRO_STD_DEG    = 1.8;   // std-dev below this = suspiciously consistent
+
   let running = false, gameStarted = false, paused = false;
   let score = 0, timeLeft = 10, timerMax = 10;
   let level = 1, hitsThisLevel = 0;
@@ -3588,9 +3593,32 @@
   let flashMiss = 0, flashLevel = 0;
   let animFrame = null, lastTime = 0;
 
-  function updateHs(val) {
+  // Anti-macro tracking
+  let lastPressMs  = 0;
+  let hitOffsets   = [];   // angular distance from needle center at moment of hit (radians)
+  let hitIntervals = [];   // ms between consecutive presses
+
+  function isSuspectedMacro() {
+    if (hitOffsets.length < MACRO_MIN_HITS) return false;
+    const sample = hitOffsets.slice(-20);
+    const avg    = sample.reduce((a, b) => a + b, 0) / sample.length;
+    const stdDev = Math.sqrt(sample.reduce((a, b) => a + (b - avg) ** 2, 0) / sample.length);
+    const avgDeg = avg    * 180 / Math.PI;
+    const stdDeg = stdDev * 180 / Math.PI;
+    // Also check interval consistency
+    if (hitIntervals.length >= MACRO_MIN_HITS) {
+      const ivSample = hitIntervals.slice(-20);
+      const ivAvg    = ivSample.reduce((a, b) => a + b, 0) / ivSample.length;
+      const ivStd    = Math.sqrt(ivSample.reduce((a, b) => a + (b - ivAvg) ** 2, 0) / ivSample.length);
+      if (ivStd < 15 && avgDeg < 5) return true; // robotic timing + good accuracy
+    }
+    return avgDeg < MACRO_AVG_DEG && stdDeg < MACRO_STD_DEG;
+  }
+
+  function updateHs(val, fromGameOver) {
+    const blocked = fromGameOver && isSuspectedMacro();
     if (window._qteCompMode) {
-      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new-comp', val); }
+      if (!blocked && val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new-comp', val); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
     } else {
       if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new', val); }
@@ -3760,9 +3788,18 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   function onPress() {
     if (!gameStarted || !running || paused) return;
+    // Rate-limit: reject inputs faster than a human can react
+    const now = performance.now();
+    if (now - lastPressMs < MIN_PRESS_MS) return;
+    const interval = lastPressMs > 0 ? now - lastPressMs : null;
+    lastPressMs = now;
     // Find first bar currently in the zone and remove it
     const idx = bars.findIndex(b => barInZone(b));
     if (idx === -1) { triggerMiss(); return; } // hit the gap
+    // Record precision of this hit
+    const offset = angDist(bars[idx].angle, NEEDLE_ANGLE);
+    hitOffsets.push(offset);
+    if (interval !== null) hitIntervals.push(interval);
     bars.splice(idx, 1);
     score++;
     hitsThisLevel++;
@@ -3784,7 +3821,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   function onGameOver() {
     cancelAnimationFrame(animFrame); running = false;
-    updateHs(score); setStatus('Game over! Hits: ' + score, '#ee5544');
+    updateHs(score, true); setStatus('Game over! Hits: ' + score, '#ee5544');
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (tapBtn)    tapBtn.style.display    = 'none';
@@ -3796,6 +3833,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     maxLives = window._qteCompMode ? 1 : LIVES_MAX;
     score = 0; level = 1; hitsThisLevel = 0; lives = maxLives;
     timeLeft = timerMax; flashMiss = 0; flashLevel = 0;
+    lastPressMs = 0; hitOffsets = []; hitIntervals = [];
     spawnAllBars();
     running = true; gameStarted = true; paused = false;
     if (startBtn)  startBtn.style.display  = 'none';
