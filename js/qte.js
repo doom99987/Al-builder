@@ -356,6 +356,19 @@
   let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
   let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
+  let spearHideDying = localStorage.getItem('alb:spear-hide-dying') === '1';
+  const _hideDyingCb = document.getElementById('spear-hide-dying-cb');
+  if (_hideDyingCb) _hideDyingCb.checked = spearHideDying;
+
+  window._spearToggleHideDying = function(val) {
+    spearHideDying = val;
+    try { localStorage.setItem('alb:spear-hide-dying', val ? '1' : '0'); } catch(e) {}
+  };
+  window._spearToggleSettings = function() {
+    const panel = document.getElementById('spear-settings-panel');
+    if (panel) panel.style.display = panel.style.display === 'none' ? '' : 'none';
+  };
+
   // Game state
   let running       = false;
   let gameStarted   = false;
@@ -374,10 +387,10 @@
   const HIT_TOLERANCE = 22;
   const FADE_MS       = 280;
 
-  // starts at 4, caps at 8; comp: quadratic acceleration at high streaks
-  function getMaxSimul()      { return window._qteCompMode ? Math.min(5 + Math.floor(streak / 3), 12) : Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return window._qteCompMode ? Math.max(560, 950 - streak * 3 - Math.floor(streak * streak / 18)) : Math.max(850, 1100 - streak * 2); }
-  function getSpawnInterval() { return window._qteCompMode ? Math.max(240, 850 - streak * 12 - Math.floor(streak * streak / 6))  : Math.max(550, 1000 - streak * 10); }
+  // Casual: original scaling; comp: power curve (exponent 0.65) — drops fast early, levels off, caps at streak 200
+  function getMaxSimul()      { return window._qteCompMode ? Math.min(5 + Math.floor(10 * Math.pow(streak / 200, 0.65)), 14) : Math.min(4 + Math.floor(streak / 4), 8); }
+  function getApproachMs()    { return window._qteCompMode ? Math.max(500, Math.round(950 - 450 * Math.pow(streak / 200, 0.65))) : Math.max(850, 1100 - streak * 2); }
+  function getSpawnInterval() { return window._qteCompMode ? Math.max(200, Math.round(850 - 650 * Math.pow(streak / 200, 0.65))) : Math.max(550, 1000 - streak * 10); }
 
   // ---- highscore ----
   function updateHighscore(val) {
@@ -433,20 +446,24 @@
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // Draw dying circles first (purely visual, behind active ones)
-    for (let i = dying.length - 1; i >= 0; i--) {
-      const d     = dying[i];
-      const alpha = Math.max(0, 1 - (now - d.dieTime) / FADE_MS);
-      if (alpha <= 0) { dying.splice(i, 1); continue; }
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, INNER_R, 0, Math.PI * 2);
-      ctx.fillStyle   = d.hit ? 'rgba(100,230,120,0.25)' : 'rgba(230,80,80,0.25)';
-      ctx.strokeStyle = d.hit ? '#66ee88' : '#ee6666';
-      ctx.lineWidth = 3;
-      ctx.fill();
-      ctx.stroke();
-      ctx.restore();
+    if (!spearHideDying) {
+      for (let i = dying.length - 1; i >= 0; i--) {
+        const d     = dying[i];
+        const alpha = Math.max(0, 1 - (now - d.dieTime) / FADE_MS);
+        if (alpha <= 0) { dying.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, INNER_R, 0, Math.PI * 2);
+        ctx.fillStyle   = d.hit ? 'rgba(100,230,120,0.25)' : 'rgba(230,80,80,0.25)';
+        ctx.strokeStyle = d.hit ? '#66ee88' : '#ee6666';
+        ctx.lineWidth = 3;
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else {
+      dying.length = 0; // clear silently so array doesn't grow
     }
 
     // Draw active (hittable) circles
