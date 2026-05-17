@@ -1397,7 +1397,8 @@
           <div class="sb-admin-actions">
             <button class="sb-admin-action-btn sb-admin-btn-ban" onclick="window._adminBanUser()">🚫 Ban</button>
             <button class="sb-admin-action-btn sb-admin-btn-perma" onclick="window._adminPermaBanUser()">🔒 Perma Ban</button>
-            <button class="sb-admin-action-btn sb-admin-btn-scores" onclick="window._adminClearScores()">📊 Clear Scores</button>
+            <button class="sb-admin-action-btn sb-admin-btn-scores" onclick="window._adminClearScores()">📊 Clear All Scores</button>
+            <button class="sb-admin-action-btn sb-admin-btn-scores-one" onclick="window._adminClearOneScore()">🎯 Clear Specific Score</button>
             <button class="sb-admin-action-btn sb-admin-btn-listings" onclick="window._adminDeleteListings()">🗑 Delete Listings</button>
             <button class="sb-admin-action-btn sb-admin-btn-wipe" onclick="window._adminBanAndWipe()">☠ Ban + Wipe All</button>
           </div>
@@ -1638,15 +1639,48 @@
   async function adminClearScores() {
     if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Clearing scores…');
-    const { error } = await sb.from('leaderboard').delete().eq('user_id', _adminCurrentUser.id);
+    const { error } = await sb.rpc('admin_clear_all_scores', { p_user_id: _adminCurrentUser.id });
     if (error) { adminSetStatus(error.message); return; }
     adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
+  }
+
+  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp'];
+
+  function adminClearOneScore() {
+    if (!isAdmin() || !_adminCurrentUser) return;
+    // Remove any existing picker
+    document.getElementById('sb-admin-score-picker')?.remove();
+    const wrap = document.querySelector('.sb-admin-actions');
+    if (!wrap) return;
+    const picker = document.createElement('div');
+    picker.id = 'sb-admin-score-picker';
+    picker.style.cssText = 'margin-top:8px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;';
+    picker.innerHTML = `
+      <select id="sb-admin-score-qte" class="sb-input" style="flex:1;min-width:140px;font-size:12px">
+        ${_ALL_QTE_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+      </select>
+      <button class="sb-admin-action-btn sb-admin-btn-scores-one" style="margin:0" onclick="window._adminDoDeleteOneScore()">Delete</button>
+      <button class="sb-admin-action-btn" style="margin:0;background:#333" onclick="document.getElementById('sb-admin-score-picker')?.remove()">✕</button>`;
+    wrap.appendChild(picker);
+  }
+
+  async function adminDoDeleteOneScore() {
+    if (!isAdmin() || !_adminCurrentUser) return;
+    const qteType = document.getElementById('sb-admin-score-qte')?.value;
+    if (!qteType) return;
+    adminSetStatus(`Clearing ${qteType} score for ${_adminCurrentUser.username}…`);
+    const uid = _adminCurrentUser.id;
+    const uname = _adminCurrentUser.username;
+    const { error } = await sb.rpc('admin_clear_user_score', { p_user_id: uid, p_qte_type: qteType });
+    document.getElementById('sb-admin-score-picker')?.remove();
+    if (error) { adminSetStatus(error.message); return; }
+    adminSetStatus(`${qteType} score cleared for ${uname}.`, true);
   }
 
   async function adminDeleteListings() {
     if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Deleting listings…');
-    const { error } = await sb.from('trade_listings').delete().eq('username', _adminCurrentUser.username);
+    const { error } = await sb.rpc('admin_delete_listings', { p_username: _adminCurrentUser.username });
     if (error) { adminSetStatus(error.message); return; }
     adminSetStatus(`Trade listings deleted for ${_adminCurrentUser.username}.`, true);
   }
@@ -1656,8 +1690,8 @@
     adminSetStatus('Wiping user…');
     await Promise.all([
       sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' }),
-      sb.from('leaderboard').delete().eq('user_id', _adminCurrentUser.id),
-      sb.from('trade_listings').delete().eq('username', _adminCurrentUser.username),
+      sb.rpc('admin_clear_all_scores', { p_user_id: _adminCurrentUser.id }),
+      sb.rpc('admin_delete_listings',  { p_username: _adminCurrentUser.username }),
     ]);
     _bannedSet?.add(_adminCurrentUser.username);
     const banBtn = document.querySelector('.sb-admin-btn-ban');
@@ -1761,6 +1795,8 @@
   window._adminBanUser           = adminBanUser;
   window._adminPermaBanUser      = adminPermaBanUser;
   window._adminClearScores       = adminClearScores;
+  window._adminClearOneScore     = adminClearOneScore;
+  window._adminDoDeleteOneScore  = adminDoDeleteOneScore;
   window._adminDeleteListings    = adminDeleteListings;
   window._adminBanAndWipe        = adminBanAndWipe;
   window._unbanUser              = unbanUser;
