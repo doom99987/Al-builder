@@ -2940,8 +2940,27 @@
   const startBtn = document.getElementById('thorian-new-qte-start-btn');
   const resumeBtn= document.getElementById('thorian-new-qte-resume-btn');
 
-  const HS_KEY   = 'alb:thorian-new-hs';
-  let highscore  = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  const HS_KEY      = 'alb:thorian-new-hs-v2'; // v2: scoring changed to rounds
+  const WIPE_KEY    = 'alb:thorian-new-wiped-v2';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+
+  // One-time wipe of old thorian-new scores from DB (scoring system changed)
+  if (!localStorage.getItem(WIPE_KEY)) {
+    localStorage.setItem(WIPE_KEY, '1');
+    localStorage.removeItem('alb:thorian-new-hs'); // clear old key too
+    setTimeout(async () => {
+      const sb = window._sbClient;
+      if (!sb) return;
+      await Promise.all([
+        sb.from('leaderboard').delete().eq('qte_type', 'thorian-new'),
+        sb.from('leaderboard').delete().eq('qte_type', 'thorian-new-comp'),
+        sb.from('leaderboard_records').delete().eq('qte_type', 'thorian-new'),
+        sb.from('leaderboard_records').delete().eq('qte_type', 'thorian-new-comp'),
+        sb.from('personal_bests').delete().eq('qte_type', 'thorian-new'),
+        sb.from('personal_bests').delete().eq('qte_type', 'thorian-new-comp'),
+      ]);
+    }, 2000); // wait for sb client to be ready
+  }
 
   // Canvas size
   let W = 0, H = 0;
@@ -2964,20 +2983,27 @@
   let yellowSpawnTimer = 0;
 
   // Game state
-  let running     = false;
-  let gameStarted = false;
-  let paused      = false;
-  let score       = 0;
-  let lives       = 3;
-  let gameTimer   = GAME_SECS;
-  let spawnTimer  = 0;
-  let animFrame   = null;
-  let lastTime    = 0;
-  let flashTimer  = 0; // red flash on bad hit
+  let running       = false;
+  let gameStarted   = false;
+  let paused        = false;
+  let score         = 0; // rounds completed
+  let round         = 1;
+  let lives         = 2;
+  let gameTimer     = GAME_SECS;
+  let spawnTimer    = 0;
+  let animFrame     = null;
+  let lastTime      = 0;
+  let flashTimer    = 0;
+  let transitioning = false; // between-round countdown
+  let transitionTimer = 0;
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
   function updateHs(val) {
-    if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} }
+    if (val > highscore) {
+      highscore = val;
+      try { localStorage.setItem(HS_KEY, highscore); } catch(e) {}
+      if (window._sbSubmitScore) window._sbSubmitScore('thorian-new', val);
+    }
     if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
   }
   updateHs(0);
@@ -3177,10 +3203,10 @@
     ctx.textAlign = 'left';
     ctx.fillText('♥'.repeat(lives) + '♡'.repeat(Math.max(0, 2 - lives)), 10, 22);
 
-    // Score
+    // Round
     ctx.fillStyle = '#cc88ff';
     ctx.textAlign = 'right';
-    ctx.fillText('Score: ' + score, W - 10, 22);
+    ctx.fillText('Round ' + round, W - 10, 22);
 
     // Flash overlay on bad hit
     if (flashTimer > 0) {
@@ -3237,8 +3263,8 @@
 
   function dist2(ax, ay, bx, by) { return (ax - bx) ** 2 + (ay - by) ** 2; }
 
-  // Orb speed scales with score (px/s)
-  function getOrbSpeed() { return Math.min(200, 45 + score * 8); }
+  // Orb speed scales with round (px/s)
+  function getOrbSpeed() { return Math.min(220, 45 + (round - 1) * 18); }
 
   // ---- Collision ----
   function checkCollisions() {
@@ -3248,10 +3274,7 @@
     targets = targets.filter(t => {
       if (!hit && dist2(heldYellow.x, heldYellow.y, t.x, t.y) < threshold) {
         hit = true;
-        if (t.type === 'purple') {
-          score++;
-          if (streakEl) streakEl.textContent = 'Score: ' + score;
-        } else {
+        if (t.type === 'red') {
           lives--;
           flashTimer = 0.55;
           if (lives <= 0) {
@@ -3270,6 +3293,24 @@
     });
   }
 
+  // ---- Between-round transition ----
+  function drawTransition() {
+    drawBg();
+    drawShards();
+    ctx.save();
+    ctx.fillStyle = 'rgba(20,10,35,0.72)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ddaaff';
+    ctx.font = 'bold 22px Rajdhani, Arial';
+    ctx.fillText('Round ' + (round - 1) + ' Complete!', W / 2, H / 2 - 16);
+    ctx.fillStyle = '#aa77dd';
+    ctx.font = '15px Rajdhani, Arial';
+    ctx.fillText('Next round in ' + Math.ceil(transitionTimer) + '…', W / 2, H / 2 + 12);
+    ctx.restore();
+    drawHUD();
+  }
+
   // ---- Game loop ----
   function gameLoop(now) {
     if (!running) return;
@@ -3278,8 +3319,25 @@
 
     updateShards(dt);
 
+    // Between-round countdown
+    if (transitioning) {
+      transitionTimer -= dt;
+      if (transitionTimer <= 0) {
+        transitioning = false;
+        gameTimer = GAME_SECS;
+        lives = 2;
+        targets = []; yellows = []; heldYellow = null;
+        spawnTimer = 0; yellowSpawnTimer = 0;
+        setStatus('Round ' + round + ' — Survive!', '#cc88ff');
+      } else {
+        drawTransition();
+        animFrame = requestAnimationFrame(gameLoop);
+        return;
+      }
+    }
+
     gameTimer -= dt;
-    if (gameTimer <= 0) { onTimeUp(); return; }
+    if (gameTimer <= 0) { onRoundComplete(); return; }
 
     if (flashTimer > 0) flashTimer -= dt;
 
@@ -3323,24 +3381,22 @@
     animFrame = requestAnimationFrame(gameLoop);
   }
 
-  function onTimeUp() {
-    cancelAnimationFrame(animFrame);
-    running = false;
+  function onRoundComplete() {
+    score++;
+    round++;
+    transitioning = true;
+    transitionTimer = 1.0;
     updateHs(score);
-    setStatus('Time up!  Score: ' + score, '#ffcc44');
-    if (streakEl) streakEl.textContent = '';
-    setTimeout(() => {
-      gameStarted = false;
-      if (startBtn)  startBtn.style.display  = '';
-      if (resumeBtn) resumeBtn.style.display = 'none';
-    }, 2200);
+    if (streakEl) streakEl.textContent = 'Rounds: ' + score;
+    animFrame = requestAnimationFrame(gameLoop);
   }
 
   function onGameOver() {
     cancelAnimationFrame(animFrame);
     running = false;
+    transitioning = false;
     updateHs(score);
-    setStatus('No lives left!  Score: ' + score, '#ee5544');
+    setStatus('Game over!  Rounds: ' + score, '#ee5544');
     if (streakEl) streakEl.textContent = '';
     setTimeout(() => {
       gameStarted = false;
@@ -3350,14 +3406,15 @@
   }
 
   function startGame() {
-    score = 0; lives = 2; gameTimer = GAME_SECS;
+    score = 0; round = 1; lives = 2; gameTimer = GAME_SECS;
     targets = []; yellows = []; heldYellow = null;
     spawnTimer = 0; yellowSpawnTimer = 0; flashTimer = 0;
+    transitioning = false; transitionTimer = 0;
     paused = false; gameStarted = true;
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (streakEl)  streakEl.textContent    = '';
-    setStatus('Drag gold onto purple!', '#cc88ff');
+    setStatus('Round 1 — Survive!', '#cc88ff');
     running = true;
     animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
   }
@@ -3366,7 +3423,7 @@
     cancelAnimationFrame(animFrame);
     running = false; gameStarted = false; paused = false;
     score = 0; lives = 2; gameTimer = GAME_SECS;
-    targets = []; yellows = []; heldYellow = null; flashTimer = 0; yellowSpawnTimer = 0;
+    targets = []; yellows = []; heldYellow = null; flashTimer = 0; yellowSpawnTimer = 0; transitioning = false; transitionTimer = 0; score = 0; round = 1;
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (streakEl)  streakEl.textContent    = '';
@@ -3419,7 +3476,7 @@
     if (!paused) return;
     paused = false; running = true;
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus('Drag gold onto purple!', '#cc88ff');
+    setStatus('Round ' + round + ' — Survive!', '#cc88ff');
     animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
   });
 
