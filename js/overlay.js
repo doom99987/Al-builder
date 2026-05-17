@@ -454,8 +454,8 @@
   document.addEventListener('keydown', e => {
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    const bind = ws('overlay').keybind;
-    if (bind && e.key === bind) {
+    const bind = ws('overlay').keybind || 'Tab';
+    if (e.key === bind) {
       e.preventDefault();
       if (_pipWin && !_pipWin.closed) { _pipWin.close(); } else { openOverlay(); }
     }
