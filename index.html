@@ -380,6 +380,13 @@
           <span class="spear-qte-streak" id="spear-qte-streak"></span>
           <span class="spear-qte-highscore" id="spear-qte-highscore"></span>
           <button class="lb-open-btn" onclick="window._openLeaderboard('spear')">&#127942; Leaderboard</button>
+          <button class="lb-open-btn" id="spear-settings-btn" onclick="window._spearToggleSettings()">&#9881; Settings</button>
+        </div>
+        <div id="spear-settings-panel" style="display:none;padding:6px 10px;background:#0d0d18;border-bottom:1px solid #1e1e2e;font-size:13px;color:#aaa;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+            <input type="checkbox" id="spear-hide-dying-cb" onchange="window._spearToggleHideDying(this.checked)" style="cursor:pointer;">
+            Hide click effects (green/red circles after hitting)
+          </label>
         </div>
         <canvas id="spear-qte-canvas" class="spear-qte-canvas"></canvas>
         <button class="fist-qte-start-btn" id="spear-qte-start-btn">Start</button>
