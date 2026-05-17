@@ -374,10 +374,10 @@
   const HIT_TOLERANCE = 22;
   const FADE_MS       = 280;
 
-  // starts at 4, caps at 8
-  function getMaxSimul()      { return window._qteCompMode ? Math.min(5 + Math.floor(streak / 3), 10) : Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return window._qteCompMode ? Math.max(700, 950 - streak * 3)            : Math.max(850, 1100 - streak * 2); }
-  function getSpawnInterval() { return window._qteCompMode ? Math.max(400, 850 - streak * 12)           : Math.max(550, 1000 - streak * 10); }
+  // starts at 4, caps at 8; comp: quadratic acceleration at high streaks
+  function getMaxSimul()      { return window._qteCompMode ? Math.min(5 + Math.floor(streak / 3), 12) : Math.min(4 + Math.floor(streak / 4), 8); }
+  function getApproachMs()    { return window._qteCompMode ? Math.max(560, 950 - streak * 3 - Math.floor(streak * streak / 18)) : Math.max(850, 1100 - streak * 2); }
+  function getSpawnInterval() { return window._qteCompMode ? Math.max(240, 850 - streak * 12 - Math.floor(streak * streak / 6))  : Math.max(550, 1000 - streak * 10); }
 
   // ---- highscore ----
   function updateHighscore(val) {
@@ -3376,7 +3376,6 @@
       return y.life > 0;
     });
 
-    checkCollisions();
     drawFrame();
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -3432,13 +3431,17 @@
   }
 
   // ---- Drag input ----
-  function getCanvasPos(e) {
+  function getCanvasPosRaw(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     const sx = canvas.width  / rect.width;
     const sy = canvas.height / rect.height;
+    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+  }
+
+  function getCanvasPos(e) {
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
+    return getCanvasPosRaw(cx, cy);
   }
 
   function tryStartDrag(pos) {
@@ -3460,16 +3463,43 @@
     heldYellow.y = Math.max(PLAYER_R, Math.min(H - PLAYER_R, pos.y - dragOY));
   }
 
-  function stopDrag() { heldYellow = null; }
+  function releaseDrag(pos) {
+    if (!heldYellow) return;
+    const threshold = (PLAYER_R + TARGET_R * 0.72) ** 2;
+    let hit = false;
+    targets = targets.filter(t => {
+      if (hit) return true;
+      if (dist2(heldYellow.x, heldYellow.y, t.x, t.y) < threshold) {
+        hit = true;
+        if (t.type === 'red') {
+          yellows = yellows.filter(y => y !== heldYellow);
+          heldYellow = null;
+          onGameOver();
+          return false;
+        }
+        // purple: both disappear
+        yellows = yellows.filter(y => y !== heldYellow);
+        heldYellow = null;
+        return false;
+      }
+      return true;
+    });
+    if (heldYellow) heldYellow = null; // released over nothing
+  }
+
+  function getTouchReleasePos(e) {
+    const t = e.changedTouches?.[0] || e;
+    return getCanvasPosRaw(t.clientX, t.clientY);
+  }
 
   canvas.addEventListener('mousedown',  e => tryStartDrag(getCanvasPos(e)));
   canvas.addEventListener('mousemove',  e => moveDrag(getCanvasPos(e)));
-  canvas.addEventListener('mouseup',    stopDrag);
-  canvas.addEventListener('mouseleave', stopDrag);
+  canvas.addEventListener('mouseup',    e => releaseDrag(getCanvasPos(e)));
+  canvas.addEventListener('mouseleave', () => { heldYellow = null; });
 
   canvas.addEventListener('touchstart', e => { e.preventDefault(); tryStartDrag(getCanvasPos(e)); }, { passive: false });
   canvas.addEventListener('touchmove',  e => { e.preventDefault(); moveDrag(getCanvasPos(e)); }, { passive: false });
-  canvas.addEventListener('touchend',   stopDrag);
+  canvas.addEventListener('touchend',   e => { e.preventDefault(); releaseDrag(getTouchReleasePos(e)); }, { passive: false });
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', () => {
