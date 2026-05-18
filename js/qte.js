@@ -381,10 +381,10 @@
   let lastMissGuard = 0;
   let pauseTime     = 0;
 
-  // Circle constants — INNER_R is updated in resizeCanvas for mobile
+  // Circle constants — INNER_R and HIT_TOLERANCE are updated in resizeCanvas
   let INNER_R         = 52;
   let OUTER_R_START   = INNER_R * 2.2;
-  const HIT_TOLERANCE = 22;
+  let HIT_TOLERANCE   = 22; // scaled with INNER_R so hit-window fraction stays constant regardless of canvas size
   const FADE_MS       = 280;
 
   // Casual: original scaling; comp: power curve (exponent 0.65) — drops fast early, levels off, caps at streak 200
@@ -419,8 +419,9 @@
     canvas.height = tall
       ? Math.min(Math.round(canvas.width * 0.65), 400)
       : Math.min(Math.round(canvas.width * 0.38), 340);
-    INNER_R      = Math.min(52, Math.round(canvas.height * 0.26));
+    INNER_R       = Math.min(52, Math.round(canvas.height * 0.26));
     OUTER_R_START = INNER_R * 2.2;
+    HIT_TOLERANCE = Math.round(INNER_R * (22 / 52)); // keep hit-window ~35% of approach regardless of canvas size
   }
 
   // ---- spawn ----
