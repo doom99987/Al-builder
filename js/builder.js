@@ -2201,7 +2201,7 @@ const lostScrollMoves = {
   },
   "Permafrost Curse": {
     learns: [
-      { level: 1, type: "Active", name: "Permafrost Curse", quote: "", cost: 4, cooldown: 10, moveType: "Ice", category: "Attack", damage: 14, scaling: "STR/75", effect: "Applies 2 Cold and 1 Stun. Acts as a pseudo-AoE, hitting adjacent enemies as well." }
+      { level: 1, type: "Active", name: "Permafrost Curse", quote: "", cost: 4, cooldown: 10, moveType: "Ice", category: "Attack", damage: 14, scaling: "STR/80 + ARC/80", effect: "Applies 2 Cold and 1 Stun. Acts as a pseudo-AoE, hitting adjacent enemies as well." }
     ]
   },
   "Wild Impulse": {
@@ -3115,6 +3115,56 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
+
+  // Crucible (Citadel (Or) 1st Learn): 3-hit — hit 1 (9 base STR/65), hits 2-3 (3.6 base STR/90 + forced Vulnerable ×1.20)
+  if (m.name === "Crucible" && superPicker.value === "Citadel (Or)") {
+    const strVal  = getTotalStat('str');
+    const h1Raw   = 9   * (1 + strVal / 65);
+    const h23Raw  = 3.6 * (1 + strVal / 90);
+    const h1      = h1Raw  * totalMult;
+    const h23Vuln = h23Raw * totalMult * 1.20; // Vulnerable guaranteed from hit 1
+
+    // Status mults — hits 2-3 already have Vulnerable baked in, so exclude it for their extra status calc
+    const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
+    let h23ExtraMult = 1;
+    const h23ExtraLabels = [];
+    if (statusEffectsActive.hexed) { h23ExtraMult *= 2.00; h23ExtraLabels.push("Hexed ×2"); }
+    if (statusEffectsActive.fractured && effectiveMoveType === "Physical") { h23ExtraMult *= 1.35; h23ExtraLabels.push("Frac ×1.35"); }
+
+    const h1Final   = h1      * sMult;
+    const h23Final  = h23Vuln * h23ExtraMult;
+    const { mult: bMult, label: bLabel } = getBossResMult(effectiveMoveType);
+    const total     = (h1Final + h23Final * 2) * bMult;
+
+    formula = `${typeTag}Hit 1: 9(1 + STR(${strVal})/65) = <b>${h1Raw.toFixed(1)}</b>`;
+    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult)}</span> = <b>${h1.toFixed(1)}</b>`;
+    if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${h1Final.toFixed(1)}</b>`;
+
+    formula += `<br><span class="dc-avg-line">Hits 2–3: 3.6(1 + STR(${strVal})/90) = <b>${h23Raw.toFixed(1)}</b>`;
+    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} = <b>${(h23Raw * totalMult).toFixed(1)}</b>`;
+    formula += ` × 1.20 <span class="dc-bonus-tag">[Vuln from hit 1]</span> = <b>${h23Vuln.toFixed(1)}</b>`;
+    if (h23ExtraMult !== 1) formula += ` × ${h23ExtraMult.toFixed(2)} <span class="dc-bonus-tag">[${h23ExtraLabels.join(", ")}]</span> = <b>${h23Final.toFixed(1)}</b>`;
+    formula += ` each</span>`;
+
+    formula += `<br><span class="dc-avg-line">Total: ${h1Final.toFixed(1)} + ${h23Final.toFixed(1)} × 2 = <b>${(h1Final + h23Final * 2).toFixed(1)}</b>`;
+    if (bMult !== 1) formula += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${total.toFixed(1)}</b>`;
+    else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
+    formula += `</span>`;
+
+    const _critMult = getCritDmgMultEffective();
+    if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
+    if (_critMult !== null) {
+      formula += `<br><span class="dc-crit-line">All crits: <b>${total.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(total * _critMult).toFixed(1)}</b></span>`;
+      formula += buildOvercritLines(total, _critMult, getMoveCritChancePct());
+      const _cc = getMoveCritChancePct();
+      if (_cc !== null) {
+        const _exp = getExpectedMultiHitDmg(total, _critMult, _cc);
+        formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
+      }
+    }
+    detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
+  }
 
   // Discharge Proficiency (Lancer cm2): 4 hits [1.0, 0.38, 1/3, 1/3]
   if (m.name === "Discharge" && masteryState["cm2"] && superPicker.value === "Lancer (N)") {

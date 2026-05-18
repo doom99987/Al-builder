@@ -1523,7 +1523,8 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: 9,
-        effect: "Raise your hammer, granting a vitality-scaled DR buff, then slam it down for an explosion with two aftershock hits. First hit applies 2T Vulnerable."
+        scaling: "STR/65",
+        effect: "Raise your hammer, granting a vitality-scaled DR buff, then slam it down for an explosion with two aftershock hits. First hit applies 2T Vulnerable.\n\nHit 1: 9 base | STR/65\nHits 2–3: 3.6 base | STR/90 (Vulnerable from hit 1)"
       },
       {
         slot: "2nd Learn",
