@@ -3365,7 +3365,7 @@ function collectDmgBonusPassives() {
     (d.innatePassives || []).forEach(p => tryAdd(p.name, p.description || p.effect || "", "passive"));
     (d.learns || []).forEach(m => {
       // Passives handled manually below (stacking logic, bypass parseDmgBonus)
-      const _manualPassives = ["Bloodlust"];
+      const _manualPassives = ["Bloodlust", "Aspect of Maladaptation"];
       if (m.type === "Passive" && !_manualPassives.includes(m.name)) tryAdd(m.name, m.effect || "", "passive");
       if (m.type === "Active") {
         const text = m.effect || "";
@@ -3509,6 +3509,15 @@ function collectDmgBonusPassives() {
     if (!seen.has(cnKey)) {
       seen.add(cnKey);
       rawEntries.push({ key: cnKey, name: "Coagulated Finger Nail", bonus: coagNailStacks * 1.5, kind: "passive", desc: `+${(coagNailStacks * 1.5).toFixed(1)} to all base stats per stack (max 10 stacks = +15).`, isCoagNail: true });
+    }
+  }
+
+  // Aspect of Maladaptation — manually added (incoming-damage modifier; bypasses parseDmgBonus)
+  if (gearSlots.includes("Aspect of Maladaptation")) {
+    const amKey = "passive:Aspect of Maladaptation";
+    if (!seen.has(amKey)) {
+      seen.add(amKey);
+      rawEntries.push({ key: amKey, name: "Aspect of Maladaptation", bonus: 30, kind: "passive", desc: "When damaged by an attack, take 25% less damage from the same element, but take 30% more damage from ALL other elements." });
     }
   }
 
