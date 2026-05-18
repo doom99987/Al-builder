@@ -2512,7 +2512,6 @@
   // ---- Strip scheduler ----
   let stripHeartLeft    = 0;
   let stripHeartTimer   = 0;   // ms until next heart in strip
-  let stripSide         = 'top';
   let betweenStripTimer = 600; // ms until next strip
 
   // ---- Bar ----
@@ -2766,17 +2765,16 @@
     if (stripHeartLeft > 0) {
       stripHeartTimer -= dtMs;
       if (stripHeartTimer <= 0) {
-        spawnHeart(stripSide);
+        const sides = getActiveSides();
+        spawnHeart(sides[Math.floor(Math.random() * sides.length)]);
         stripHeartLeft--;
         stripHeartTimer = getHeartInterval();
       }
     } else {
       betweenStripTimer -= dtMs;
       if (betweenStripTimer <= 0) {
-        const sides = getActiveSides();
-        stripSide       = sides[Math.floor(Math.random() * sides.length)];
-        stripHeartLeft  = getStripLen();
-        stripHeartTimer = 0;
+        stripHeartLeft    = getStripLen();
+        stripHeartTimer   = 0;
         betweenStripTimer = getGapDelay();
       }
     }
