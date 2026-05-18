@@ -2611,6 +2611,7 @@ let overcoreActive = false;      // Overcore (Darkwraith rm1): crit mult squared
 let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
+let goldRushGold = 0; // 0-50000: gold amount for Veneri Gold Rush (0.2% per 500 gold, cap 20%)
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
@@ -3371,6 +3372,15 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Gold Rush (Veneri (6%)) — manually added (per-gold scaling, bypasses parseDmgBonus)
+  if (raceName === "Veneri (6%)") {
+    const grKey = "passive:Gold Rush";
+    if (!seen.has(grKey)) {
+      seen.add(grKey);
+      rawEntries.push({ key: grKey, name: "Gold Rush", bonus: Math.min(20, (goldRushGold / 500) * 0.2), kind: "passive", desc: "Gain a damage buff the more gold you have; 0.2% dmg buff per 500 gold and caps at 20% at 50k gold." });
+    }
+  }
+
   // Spirit Awakening — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
   if (raceName === "Vastayan (9%)") {
     const saKey = "buff:Spirit Awakening";
@@ -3551,6 +3561,7 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Demonic Presence")            { bonus = 5 * demonicPresenceStacks; }
     else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
     else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
+    else if (p.name === "Gold Rush")             bonus = Math.min(20, (goldRushGold / 500) * 0.2);
     else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
     else if (p.name === "Spirit Awakening")     bonus = 15; // 15% to all stats → ~15% dmg; 50% summon buff handled separately
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
@@ -3640,6 +3651,11 @@ function changeRendingBarrageStacks(delta) {
 
 function changeDemonicPresenceStacks(delta) {
   demonicPresenceStacks = Math.min(5, Math.max(1, demonicPresenceStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function setGoldRushGold(val) {
+  goldRushGold = Math.min(50000, Math.max(0, Math.round(+val / 500) * 500));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -3975,6 +3991,7 @@ function renderDmgBonusSection() {
     const isEnergyManipulator = p.name === "Energy Manipulator";
     const isLooter            = p.name === "Looter";
     const isKarmaStacks       = p.name === "Karma Stacks";
+    const isGoldRush          = p.name === "Gold Rush";
     const displayBonus   = isBloodyBers      ? 100 - playerHpPct
                          : isRageEmp         ? 30 + Math.max(0, Math.min(65, 100 - playerHpPct))
                          : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
@@ -3991,6 +4008,7 @@ function renderDmgBonusSection() {
                          : isEnergyManipulator ? Math.min(22.5, 3.75 * energyCount)
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
+                         : isGoldRush        ? Math.min(20, (goldRushGold / 500) * 0.2)
                          : p.bonus;
     const displayBonusStr = isLooter           ? `+${(looterStacks * 15.75).toFixed(2)}% LCK · +${looterStacks * 20}% SPD`
                          : isEnergyManipulator ? `×${(1 + Math.min(22.5, 3.75 * energyCount) / 100).toFixed(4).replace(/\.?0+$/, '')}`
@@ -4008,6 +4026,7 @@ function renderDmgBonusSection() {
                          : isDemonicPresence  ? `×${(1 + 0.05 * demonicPresenceStacks).toFixed(2)}`
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
                          : isKarmaStacks      ? `${karmaStacks} stacks`
+                         : isGoldRush        ? `×${(1 + Math.min(20, (goldRushGold / 500) * 0.2) / 100).toFixed(4).replace(/\.?0+$/, '')}`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -4201,6 +4220,14 @@ function renderDmgBonusSection() {
           <span class="dc-energy-val">${demonicPresenceStacks}</span>
           <button class="dc-energy-btn" onclick="changeDemonicPresenceStacks(1)">+</button>
         </div>
+      </div>`;
+    }
+    if (isGoldRush) {
+      const _grBonus = Math.min(20, (goldRushGold / 500) * 0.2);
+      const _grCapped = goldRushGold >= 50000;
+      html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
+        <span class="dc-rage-slider-label">Gold: <b>${goldRushGold.toLocaleString()}</b> → <span style="color:${_grCapped ? '#e0c97a' : '#ccc'}">${_grBonus.toFixed(2)}% dmg${_grCapped ? ' (cap)' : ''}</span></span>
+        <input type="range" class="dc-rage-slider" min="0" max="50000" step="500" value="${goldRushGold}" oninput="setGoldRushGold(this.value)">
       </div>`;
     }
     if (isOppression) {
