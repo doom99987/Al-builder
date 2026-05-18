@@ -1229,17 +1229,18 @@
 
   if (avgEl && _avgData.count > 0) avgEl.textContent = `Avg: ${(_avgData.total / _avgData.count).toFixed(1)}s`;
 
-  let running      = false;
-  let gameStarted  = false;
-  let paused       = false;
-  let streak       = 0;
-  let animFrame    = null;
-  let lastTime     = 0;
-  let rings        = [];
-  let currentRing  = 0;
-  let roundPending = false;
-  let arrowRadius  = 0;
-  let roundEndTime = 0; // performance.now() when the round expires
+  let running           = false;
+  let gameStarted       = false;
+  let paused            = false;
+  let streak            = 0;
+  let animFrame         = null;
+  let lastTime          = 0;
+  let rings             = [];
+  let currentRing       = 0;
+  let roundPending      = false;
+  let pendingRoundTimer = null; // tracks the between-round setTimeout so it can be cancelled on pause
+  let arrowRadius       = 0;
+  let roundEndTime      = 0; // performance.now() when the round expires
 
   const RING_THICK = 16;
   const RING_GAP   = 12;
@@ -1427,7 +1428,8 @@
     if (timerEl) timerEl.textContent = '';
     setStatus(`✓ All rings! Next: ${getRingCount()} rings`, '#88ee88');
     roundPending = true;
-    setTimeout(() => { if (running) startRound(); }, 800);
+    if (pendingRoundTimer) clearTimeout(pendingRoundTimer);
+    pendingRoundTimer = setTimeout(() => { pendingRoundTimer = null; if (running) startRound(); }, 800);
   }
 
   function triggerFail(msg) {
@@ -1443,6 +1445,7 @@
 
   function resetToStart() {
     cancelAnimationFrame(animFrame);
+    if (pendingRoundTimer) { clearTimeout(pendingRoundTimer); pendingRoundTimer = null; }
     running = gameStarted = paused = roundPending = false;
     rings = [];
     canvas.style.display = 'none';
@@ -1474,6 +1477,10 @@
     lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (tapBtn && IS_MOBILE) tapBtn.style.display = '';
+    // If we were paused mid-between-rounds, reschedule the startRound timeout
+    if (roundPending && !pendingRoundTimer) {
+      pendingRoundTimer = setTimeout(() => { pendingRoundTimer = null; if (running) startRound(); }, 400);
+    }
     setStatus(IS_MOBILE ? 'Tap when the arrow enters the gap!' : 'Press SPACE when the arrow enters the gap!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -1502,6 +1509,9 @@
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame);
       running = false; paused = true;
+      // Cancel the between-round timeout so it doesn't fire while paused (running = false)
+      // — resumeGame will reschedule it if roundPending is still true
+      if (pendingRoundTimer) { clearTimeout(pendingRoundTimer); pendingRoundTimer = null; }
     } else { resetToStart(); streak = 0; }
   };
 
