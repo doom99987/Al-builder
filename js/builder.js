@@ -2,7 +2,7 @@
 // Base stat bonuses granted by each race. Values are added on top of the
 // player's invested points before percentage formulas are applied.
 // Rarity percentages are approximate in-game encounter rates.
-// Ob = Obscure (rare/event races).
+// Ob = Obtainable
 // To add a race: "RaceName (X%)": { str, arc, end, spd, lck }
 const races = {
   "Estella (24%)": {str: 2, arc: 2, end: 2, lck: 1, spd: 1},
@@ -2968,6 +2968,69 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       baseDmgNum = +dmgStr.split(/x/i)[0];
       hitCount = darkCoreCount;
     }
+  }
+
+  // Stinger (Verdant Archer 4th Learn): two-part attack
+  // Stab: Physical, ARC/75, base 5 | Arrows: Poison, ARC/70 + SPD/100, base 10
+  if (m.name === "Stinger") {
+    const _arcVal = getTotalStat('arc');
+    const _spdVal = getTotalStat('spd');
+    const _enchantMult = getEnchantMult();
+
+    // Stab (Physical)
+    const _stabEffType  = getEffectiveMoveType("Physical");
+    const _stabRaw      = 5 * (1 + _arcVal / 75);
+    const _stabActMult  = getActiveDmgMult(_stabEffType);
+    const _stabArmPct   = getArmourDmgTypePct(_stabEffType);
+    const _stabArmMult  = 1 + _stabArmPct / 100;
+    const _stabDarkMult = getShardOfBlightMult(_stabEffType);
+    const _stabBlizMult = getBlizzardMult(_stabEffType);
+    const _stabTotalMult = _stabActMult * _stabArmMult * _stabDarkMult * _stabBlizMult * _enchantMult;
+    const _stabFinal    = _stabRaw * _stabTotalMult;
+
+    // Arrows (Poison)
+    const _arrEffType   = getEffectiveMoveType("Poison");
+    const _arrRaw       = 10 * (1 + _arcVal / 70 + _spdVal / 100);
+    const _arrActMult   = getActiveDmgMult(_arrEffType);
+    const _arrArmPct    = getArmourDmgTypePct(_arrEffType);
+    const _arrArmMult   = 1 + _arrArmPct / 100;
+    const _arrDarkMult  = getShardOfBlightMult(_arrEffType);
+    const _arrBlizMult  = getBlizzardMult(_arrEffType);
+    const _arrTotalMult = _arrActMult * _arrArmMult * _arrDarkMult * _arrBlizMult * _enchantMult;
+    const _arrFinal     = _arrRaw * _arrTotalMult;
+
+    let _stingFormula = `Stab (Physical): 5(1 + ARC(${_arcVal})/75) = <b>${_stabRaw.toFixed(1)}</b>`;
+    if (_stabTotalMult > 1) _stingFormula += ` × ${_stabTotalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_stabFinal.toFixed(1)}</b>`;
+
+    // Status / boss mults on stab
+    const { mult: _stabSMult, label: _stabSLabel } = getStatusMultiplier("Physical");
+    if (_stabSMult !== 1) _stingFormula += ` × ${_stabSMult.toFixed(2)} <span class="dc-bonus-tag">[${_stabSLabel}]</span> = <b>${(_stabFinal * _stabSMult).toFixed(1)}</b>`;
+    const _stabFinalS = _stabFinal * _stabSMult;
+    const { mult: _stabBMult, label: _stabBLabel } = getBossResMult(_stabEffType);
+    if (_stabBMult !== 1) _stingFormula += ` × ${_stabBMult.toFixed(2)} <span class="dc-bonus-tag">[${_stabBLabel}]</span> = <b>${(_stabFinalS * _stabBMult).toFixed(1)}</b>`;
+    const _stabFinalB = _stabFinalS * _stabBMult;
+
+    _stingFormula += `<br><span class="dc-avg-line">Arrows (Poison): 10(1 + ARC(${_arcVal})/70 + SPD(${_spdVal})/100) = <b>${_arrRaw.toFixed(1)}</b>`;
+    if (_arrTotalMult > 1) _stingFormula += ` × ${_arrTotalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_arrFinal.toFixed(1)}</b>`;
+    const { mult: _arrSMult, label: _arrSLabel } = getStatusMultiplier("Poison");
+    if (_arrSMult !== 1) _stingFormula += ` × ${_arrSMult.toFixed(2)} <span class="dc-bonus-tag">[${_arrSLabel}]</span> = <b>${(_arrFinal * _arrSMult).toFixed(1)}</b>`;
+    const _arrFinalS = _arrFinal * _arrSMult;
+    const { mult: _arrBMult, label: _arrBLabel } = getBossResMult(_arrEffType);
+    if (_arrBMult !== 1) _stingFormula += ` × ${_arrBMult.toFixed(2)} <span class="dc-bonus-tag">[${_arrBLabel}]</span> = <b>${(_arrFinalS * _arrBMult).toFixed(1)}</b>`;
+    const _arrFinalB = _arrFinalS * _arrBMult;
+    _stingFormula += `</span>`;
+
+    const _stingTotal = _stabFinalB + _arrFinalB;
+    _stingFormula += `<br><span class="dc-avg-line">Total: ${_stabFinalB.toFixed(1)} + ${_arrFinalB.toFixed(1)} = <b>${_stingTotal.toFixed(1)}</b></span>`;
+
+    const _stingCritMult = getCritDmgMultEffective();
+    if (_stingCritMult !== null) {
+      _stingFormula += `<br><span class="dc-crit-line">All crits: <b>${_stingTotal.toFixed(1)}</b> × ${_stingCritMult.toFixed(2)}x = <b>${(_stingTotal * _stingCritMult).toFixed(1)}</b></span>`;
+      _stingFormula += buildOvercritLines(_stingTotal, _stingCritMult, getMoveCritChancePct());
+    }
+
+    detail.innerHTML = `<div class="dc-calc">${_stingFormula}</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
   if (baseDmgNum === null) {
