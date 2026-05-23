@@ -54,9 +54,15 @@ Deno.serve(async (req) => {
 
     // Only log actually-paid sessions (not e.g. bank transfers still pending)
     if (session.payment_status === 'paid' && session.payment_intent) {
+      const rawDonorName = typeof session.metadata?.donor_name === 'string'
+        ? session.metadata.donor_name.trim()
+        : '';
+      const donorName = rawDonorName.slice(0, 30) || 'Anonymous';
+
       const { error } = await supabase.from('donations').insert({
         stripe_payment_id: String(session.payment_intent),
         amount_cents:      session.amount_total ?? 0,
+        donor_name:        donorName,
       });
       if (error) {
         // Log but don't return 500 — Stripe would retry, causing duplicates.

@@ -31,14 +31,14 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST')    return json({ error: 'Method not allowed.' }, 405);
 
-  let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown };
+  let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown; donor_name?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'Invalid JSON.' }, 400);
   }
 
-  const { amount_cents, success_url, cancel_url } = body;
+  const { amount_cents, success_url, cancel_url, donor_name } = body;
 
   // Strict server-side validation — client cannot pass arbitrary amounts
   if (typeof amount_cents !== 'number' || !ALLOWED_CENTS.has(amount_cents)) {
@@ -48,10 +48,19 @@ Deno.serve(async (req) => {
     return json({ error: 'Missing redirect URLs.' }, 400);
   }
 
-  // Basic URL safety — only allow https:// redirects
-  if (!success_url.startsWith('https://') || !cancel_url.startsWith('https://')) {
+  // Basic URL safety — allow https:// in production, http://localhost and http://127.0.0.1 for local dev
+  function isSafeUrl(u: string) {
+    return u.startsWith('https://') ||
+           u.startsWith('http://localhost') ||
+           u.startsWith('http://127.0.0.1');
+  }
+  if (!isSafeUrl(success_url) || !isSafeUrl(cancel_url)) {
     return json({ error: 'Redirect URLs must use HTTPS.' }, 400);
   }
+
+  // Sanitize donor name — strip tags, limit length, fall back to Anonymous
+  const rawName = typeof donor_name === 'string' ? donor_name.replace(/[<>&"]/g, '').trim() : '';
+  const safeName = rawName.slice(0, 30) || 'Anonymous';
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -73,6 +82,7 @@ Deno.serve(async (req) => {
       // No billing_address_collection — minimises data collected
       billing_address_collection: 'auto',
       // Don't pre-fill anything — no PII passed from our side
+      metadata: { donor_name: safeName },
     });
 
     return json({ url: session.url });

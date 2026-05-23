@@ -23,7 +23,8 @@
   // Allowed amounts mirrored from the edge function — client can't sneak in other values
   const ALLOWED_CENTS = new Set(PRESETS.map(p => p.cents));
 
-  let _selected = null; // currently selected amount in cents
+  let _selected  = null; // currently selected amount in cents
+  let _donorName = '';  // optional display name
 
   // ---- inject styles once ----
   function _injectStyles() {
@@ -42,6 +43,10 @@
       .don-submit:not(:disabled):hover { opacity:.85; }
       .don-note   { color:#555; font-size:11px; margin:10px 0 0; text-align:center; }
       .don-err    { color:#ff8888; font-size:12px; min-height:16px; margin-bottom:8px; }
+      .don-name   { width:100%; box-sizing:border-box; background:#1a1a1a; border:1px solid #333; color:#ccc;
+                    border-radius:5px; padding:8px 10px; font-size:13px; margin-bottom:10px; outline:none; }
+      .don-name:focus { border-color:#7a60dd; }
+      .don-name-label { font-size:11px; color:#555; margin-bottom:5px; display:block; }
     `;
     document.head.appendChild(s);
   }
@@ -50,7 +55,8 @@
   function openDonationModal() {
     if (document.getElementById('donation-modal')) return;
     _injectStyles();
-    _selected = null;
+    _selected  = null;
+    _donorName = (typeof window._sbGetUsername === 'function' && window._sbGetUsername()) || '';
 
     const overlay = document.createElement('div');
     overlay.id = 'donation-modal';
@@ -68,6 +74,11 @@
             <button class="don-amt" data-cents="${p.cents}" onclick="window._donPick(${p.cents})">${p.label}</button>
           `).join('')}
         </div>
+        <label class="don-name-label">Your name on the leaderboard (optional)</label>
+        <input id="don-name-input" class="don-name" type="text" maxlength="30"
+               placeholder="Anonymous"
+               value="${_donorName.replace(/"/g, '&quot;')}"
+               oninput="window._donNameChange(this.value)">
         <div id="don-err" class="don-err"></div>
         <button id="don-submit" class="don-submit" onclick="window._donSubmit()" disabled>Donate</button>
         <p class="don-note">Powered by Stripe &nbsp;·&nbsp; Secure &amp; encrypted</p>
@@ -78,7 +89,12 @@
 
   function closeDonationModal() {
     document.getElementById('donation-modal')?.remove();
-    _selected = null;
+    _selected  = null;
+    _donorName = '';
+  }
+
+  function nameChange(val) {
+    _donorName = val;
   }
 
   function pickAmount(cents) {
@@ -104,6 +120,9 @@
     const successUrl = base + '?donated=1';
     const cancelUrl  = base + '?donated=cancel';
 
+    const nameInput = document.getElementById('don-name-input');
+    const donorName = (nameInput ? nameInput.value.trim() : _donorName.trim()) || 'Anonymous';
+
     try {
       const res = await fetch(CHECKOUT_URL, {
         method:  'POST',
@@ -116,6 +135,7 @@
           amount_cents: _selected,
           success_url:  successUrl,
           cancel_url:   cancelUrl,
+          donor_name:   donorName,
         }),
       });
 
@@ -162,9 +182,53 @@
 
   _checkReturn();
 
+  // ---- donation leaderboard ----
+  async function loadDonorLeaderboard(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    const sb = window._sbClient;
+    if (!sb) {
+      el.innerHTML = '<div class="don-lb-empty">Sign in to see supporters.</div>';
+      return;
+    }
+
+    el.innerHTML = '<div class="don-lb-loading">Loading...</div>';
+
+    const { data, error } = await sb
+      .from('donations')
+      .select('donor_name, amount_cents')
+      .order('amount_cents', { ascending: false })
+      .limit(10);
+
+    if (error || !data) {
+      el.innerHTML = '<div class="don-lb-empty">Could not load supporters.</div>';
+      return;
+    }
+
+    if (!data.length) {
+      el.innerHTML = '<div class="don-lb-empty">Be the first to support!</div>';
+      return;
+    }
+
+    const medals = ['', '', ''];
+    el.innerHTML = data.map((row, i) => {
+      const medal  = medals[i] || '';
+      const dollars = (row.amount_cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+      const name   = row.donor_name || 'Anonymous';
+      return `<div class="don-lb-row">
+        <span class="don-lb-rank">${medal || (i + 1)}</span>
+        <span class="don-lb-name">${name.replace(/</g, '&lt;')}</span>
+        <span class="don-lb-amt">${dollars}</span>
+      </div>`;
+    }).join('');
+  }
+
   // Expose to global scope — call these from a button when ready
-  window._openDonationModal  = openDonationModal;
-  window._closeDonationModal = closeDonationModal;
-  window._donPick            = pickAmount;
-  window._donSubmit          = submitDonation;
+  window._openDonationModal    = openDonationModal;
+  window._closeDonationModal   = closeDonationModal;
+  window._donPick              = pickAmount;
+  window._donSubmit            = submitDonation;
+  window._donNameChange        = nameChange;
+  window._loadDonorLeaderboard = loadDonorLeaderboard;
 })();
