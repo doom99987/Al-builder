@@ -164,6 +164,25 @@
 
     </div>
 
+    <!-- Donation section -->
+    <div class="home-donate-row">
+
+      <div class="home-panel home-donate-panel">
+        <div class="home-panel-title">Support AL Builder</div>
+        <p class="home-donate-desc">AL Builder is free and always will be. If you'd like to help keep the server running, any amount is appreciated.</p>
+        <button class="home-donate-btn" onclick="window._openDonationModal && window._openDonationModal()">Donate</button>
+        <p class="home-donate-stripe-note">Powered by Stripe &nbsp;·&nbsp; Secure &amp; encrypted</p>
+      </div>
+
+      <div class="home-panel home-donors-panel">
+        <div class="home-panel-title">Top Supporters</div>
+        <div id="home-donors-list" class="home-donors-list">
+          <div class="don-lb-loading">Loading...</div>
+        </div>
+      </div>
+
+    </div>
+
     <!-- Two-column lower section -->
     <div class="home-lower">
 
@@ -313,6 +332,8 @@
     </div>
 
   </div><!-- /home-content -->
+
+  <div class="home-unofficial-note">Unofficial fan site &mdash; not affiliated with or endorsed by the creators of Arcane Lineage.</div>
 
 </div>
 
@@ -1371,6 +1392,22 @@
 <script src="js/builds.js?v=4"></script>
 <script src="js/encyclopedia.js?v=7"></script>
 <script src="js/overlay.js?v=1"></script>
+<script src="js/donation.js?v=1"></script>
+<script>
+  // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
+  (function () {
+    function tryLoad() {
+      if (typeof window._loadDonorLeaderboard === 'function') {
+        window._loadDonorLeaderboard('home-donors-list');
+      }
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function () { setTimeout(tryLoad, 600); });
+    } else {
+      setTimeout(tryLoad, 600);
+    }
+  })();
+</script>
 
 <!-- Venia Orb Tracker Modal -->
 <div id="venia-tracker-overlay" onclick="if(event.target===this)window._veniaTrackerClose()" style="display:none">
