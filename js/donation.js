@@ -100,7 +100,11 @@
         <p class="don-note">Powered by Stripe &nbsp;·&nbsp; Secure &amp; encrypted</p>
       </div>`;
     document.body.appendChild(overlay);
-    overlay.addEventListener('click', e => { if (e.target === overlay) window._closeDonationModal(); });
+    // Only close when both mousedown AND mouseup/click originate on the overlay itself.
+    // This prevents accidental dismissal when the user drags text selection off the modal.
+    let _downOnOverlay = false;
+    overlay.addEventListener('mousedown', e => { _downOnOverlay = e.target === overlay; });
+    overlay.addEventListener('click', e => { if (_downOnOverlay && e.target === overlay) window._closeDonationModal(); });
   }
 
   function closeDonationModal() {
@@ -238,7 +242,9 @@
             <p style="color:#888;font-size:13px;margin:0">Your donation is hugely appreciated and helps keep AL Builder running.</p>
           </div>`;
         document.body.appendChild(overlay);
-        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        let _tdDown = false;
+        overlay.addEventListener('mousedown', e => { _tdDown = e.target === overlay; });
+        overlay.addEventListener('click', e => { if (_tdDown && e.target === overlay) overlay.remove(); });
         // Reload the leaderboard after verify-donation has had time to write the row
         setTimeout(() => {
           if (typeof window._loadDonorLeaderboard === 'function') {
