@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ================================================================
 //  AL Builder — Stripe webhook receiver
 //  Supabase Edge Function (Deno runtime)

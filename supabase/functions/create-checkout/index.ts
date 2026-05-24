@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ================================================================
 //  AL Builder — Stripe Checkout session creator
 //  Supabase Edge Function (Deno runtime)
