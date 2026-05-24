@@ -3677,7 +3677,7 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Runic Shield")          { if (!moveType || moveType === "Holy") mult *= (1 + 0.10 * runicShieldStacks); return; }
     else if (p.name === "Energy Manipulator")    { const _emB = Math.min(22.5, 3.75 * energyCount); if (_emB > 0) mult *= (1 + _emB / 100); return; }
     else if (p.name === "Bloodlust")             { mult *= (1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100); return; }
-    else if (p.name === "Frost Stacks")          { mult *= (1 + 0.10 * boreasStacks); return; }
+    else if (p.name === "Frost Stacks")          { mult *= (1 + 0.20 * boreasStacks); return; }
     else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
     else if (p.name === "Rending Barrage Proficiency") { bonus = 2.5 * rendingBarrageStacks; }
     else if (p.name === "Demonic Presence")            { bonus = 5 * demonicPresenceStacks; }
@@ -4138,7 +4138,7 @@ function renderDmgBonusSection() {
                          : isRunicShield      ? `×${(1 + 0.10 * runicShieldStacks).toFixed(2)} <span style="color:#888;font-size:11px">[Holy]</span>`
                          : isVerdantArcher    ? `×${(1 + (p.bonus / 100) * verdantArcherStacks).toFixed(2)}`
                          : isBulkUp          ? `×${(1 + 0.20 * bulkUpStacks).toFixed(2)}`
-                         : isBoreas           ? `×${Math.pow(1.20, boreasStacks).toFixed(2)}`
+                         : isBoreas           ? `×${(1 + 0.20 * boreasStacks).toFixed(2)}`
                          : isHourglass        ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
                          : isOppression       ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
                          : isCrusher          ? `×${Math.pow(1.07, crusherStacks).toFixed(2)}`
