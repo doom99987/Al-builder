@@ -14,8 +14,9 @@
   /* ── State (keybinds only) ──────────────────────────────────────────────── */
   let _state = {};
   try { _state = JSON.parse(localStorage.getItem('al_overlay') || '{}'); } catch {}
-  function ws(key) { return (_state[key] = _state[key] || {}); }
-  function save() { try { localStorage.setItem('al_overlay', JSON.stringify(_state)); } catch {} }
+  // Returns (and initialises if missing) a sub-object for the given state key
+  function _getState(key) { return (_state[key] = _state[key] || {}); }
+  function _saveState() { try { localStorage.setItem('al_overlay', JSON.stringify(_state)); } catch {} }
 
   /* ── PiP window + active tab ────────────────────────────────────────────── */
   let _pipWin    = null;
@@ -36,7 +37,7 @@
       return;
     }
 
-    const savedSize = ws('pipSize');
+    const savedSize = _getState('pipSize');
     const pipW = savedSize.width  || 340;
     const pipH = savedSize.height || 520;
 
@@ -53,9 +54,9 @@
 
     // Save size whenever the PiP window is resized
     pipWin.addEventListener('resize', () => {
-      ws('pipSize').width  = pipWin.innerWidth;
-      ws('pipSize').height = pipWin.innerHeight;
-      save();
+      _getState('pipSize').width  = pipWin.innerWidth;
+      _getState('pipSize').height = pipWin.innerHeight;
+      _saveState();
     });
 
     pipWin.addEventListener('pagehide', () => {
@@ -422,7 +423,7 @@
         lbl.textContent = def.label;
 
         const kb = doc.createElement('input');
-        kb.value       = ws(def.key).keybind || '';
+        kb.value       = _getState(def.key).keybind || '';
         kb.placeholder = 'None';
         kb.readOnly    = true;
         kb.style.cssText =
@@ -434,13 +435,13 @@
           kb.style.borderColor = '#555'; kb.style.color = '#fff';
         });
         kb.addEventListener('blur', () => {
-          kb.placeholder = 'None'; kb.value = ws(def.key).keybind || '';
+          kb.placeholder = 'None'; kb.value = _getState(def.key).keybind || '';
           kb.style.borderColor = '#2a2a2a'; kb.style.color = '#aaa';
         });
         kb.addEventListener('keydown', e => {
           e.preventDefault();
           const k = (e.key === 'Escape' || e.key === 'Backspace') ? '' : e.key;
-          ws(def.key).keybind = k; kb.value = k; save(); kb.blur();
+          _getState(def.key).keybind = k; kb.value = k; _saveState(); kb.blur();
         });
 
         row.appendChild(lbl);
@@ -454,7 +455,7 @@
   document.addEventListener('keydown', e => {
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    const bind = ws('overlay').keybind || 'Tab';
+    const bind = _getState('overlay').keybind || 'Tab';
     if (e.key === bind) {
       e.preventDefault();
       if (_pipWin && !_pipWin.closed) { _pipWin.close(); } else { openOverlay(); }

@@ -108,6 +108,13 @@
     if (btn) btn.disabled = false;
   }
 
+  // Returns true if the donor name contains a word from sb.js's shared profanity list
+  function _nameHasProfanity(name) {
+    const list = Array.isArray(window._sbProfanityList) ? window._sbProfanityList : [];
+    const lower = name.toLowerCase();
+    return list.some(w => lower.includes(w));
+  }
+
   async function submitDonation() {
     if (!_selected || !ALLOWED_CENTS.has(_selected)) return;
 
@@ -122,6 +129,12 @@
 
     const nameInput = document.getElementById('don-name-input');
     const donorName = (nameInput ? nameInput.value.trim() : _donorName.trim()) || 'Anonymous';
+
+    if (_nameHasProfanity(donorName)) {
+      if (errEl) errEl.textContent = 'Please use an appropriate display name.';
+      if (btn)   { btn.disabled = false; btn.textContent = 'Donate'; }
+      return;
+    }
 
     try {
       const res = await fetch(CHECKOUT_URL, {
@@ -175,6 +188,12 @@
           </div>`;
         document.body.appendChild(overlay);
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        // Reload the leaderboard after verify-donation has had time to write the row
+        setTimeout(() => {
+          if (typeof window._loadDonorLeaderboard === 'function') {
+            window._loadDonorLeaderboard('home-donors-list');
+          }
+        }, 3000);
       }, 400);
     }
     // cancelled — do nothing, user just came back to the page
@@ -211,7 +230,7 @@
       return;
     }
 
-    const medals = ['', '', ''];
+    const medals = ['', '', '']; // gold, silver, bronze for top 3
     el.innerHTML = data.map((row, i) => {
       const medal  = medals[i] || '';
       const dollars = (row.amount_cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });

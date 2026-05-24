@@ -24,9 +24,18 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'content-type, stripe-signature',
+};
+
 Deno.serve(async (req) => {
+  console.log('[stripe-webhook] request method:', req.method);
+  // CORS preflight
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    console.log('[stripe-webhook] rejected non-POST method:', req.method);
+    return new Response('Method not allowed', { status: 405, headers: CORS });
   }
 
   const sig = req.headers.get('stripe-signature');
