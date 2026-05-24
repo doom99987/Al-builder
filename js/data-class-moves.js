@@ -1520,7 +1520,7 @@ const classMoves = {
         quote: "",
         cost: 2,
         cooldown: 4,
-        moveType: "Physical",
+        moveType: "Holy",
         category: "Attack",
         damage: 9,
         scaling: "STR/65",
