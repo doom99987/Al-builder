@@ -1,4 +1,4 @@
-/* ── Value List page ─────────────────────────────────────────────────────── */
+/* ── Value List (VL) page ────────────────────────────────────────────────── */
 #page-value-list.active { overflow-y: auto; }
 .vl-wrap {
   max-width: 780px;
@@ -94,6 +94,7 @@
 }
 .vl-table td:not(:first-child) { text-align: center; }
 
+/* Category badge — small coloured pill shown on each item row */
 .vl-cat {
   display: inline-block;
   font-size: 9px;
@@ -103,6 +104,7 @@
   letter-spacing: 0.3px;
   white-space: nowrap;
 }
+/* One class per item category — background/foreground chosen for readability */
 .vl-cat-Gear            { background: #152030; color: #4488bb; }
 .vl-cat-Weapon          { background: #251508; color: #cc7744; }
 .vl-cat-Artifact        { background: #1a0d2a; color: #9966cc; }

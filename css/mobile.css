@@ -184,6 +184,7 @@
   .blds-open-btn { font-size: 12px; padding: 6px 12px; }
   .blds-like-btn { font-size: 12px; padding: 5px 10px; }
 
+  /* === Builder — stats panel & columns === */
   /* Stats panel: natural width so columns sit side by side */
   #page-builder #stats {
     width: max-content;
@@ -193,7 +194,8 @@
     align-items: flex-start;
   }
 
-  /* 3-column row layout — zoom out so all content is visible and reachable */
+  /* 3-column row layout — zoom: 0.72 chosen empirically so all three columns
+     (stats, marks, gear) fit without horizontal overflow on most phone widths */
   .stats-columns  { flex-direction: row; gap: 20px; align-items: flex-start; zoom: 0.72; }
   .marks-section  { width: 150px !important; gap: 2px !important; padding-top: 2px !important; }
   .stats-left     { width: 300px !important; }

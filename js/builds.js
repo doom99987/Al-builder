@@ -44,6 +44,8 @@
   }
 
   // ── Decode build code ─────────────────────────────────────────────────────────
+  // Parses a share code and returns a small metadata object used for the submit form autofill.
+  // Keys: d = raw build data, n = build name, summ = summary HTML, summc = summary text colour
   async function _resolveMeta(code) {
     if (typeof window._builderParseBuildCode !== 'function') return null;
     try {
@@ -127,7 +129,10 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // Sanitize build summary HTML: allow only <span style="color:..."> and <br>, strip everything else
+  // Sanitize build summary HTML — XSS prevention.
+  // Summaries are stored as user-supplied HTML, so we whitelist only safe tags:
+  // <span style="color:..."> (coloured text) and <br> (line breaks). Everything
+  // else is unwrapped to plain text. This runs before injecting into innerHTML.
   function _sanitizeSumm(html) {
     if (!html) return '';
     const root = document.createElement('div');
