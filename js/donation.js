@@ -20,10 +20,10 @@
     { label: '$50', cents: 5000 },
   ];
 
-  // Allowed amounts mirrored from the edge function — client can't sneak in other values
-  const ALLOWED_CENTS = new Set(PRESETS.map(p => p.cents));
+  // Preset amounts for quick-pick buttons
+  const PRESET_CENTS = new Set(PRESETS.map(p => p.cents));
 
-  let _selected  = null; // currently selected amount in cents
+  let _selected  = null; // currently selected amount in cents (preset or custom)
   let _donorName = '';  // optional display name
 
   // ---- inject styles once ----
@@ -47,6 +47,15 @@
                     border-radius:5px; padding:8px 10px; font-size:13px; margin-bottom:10px; outline:none; }
       .don-name:focus { border-color:#7a60dd; }
       .don-name-label { font-size:11px; color:#555; margin-bottom:5px; display:block; }
+      .don-custom-wrap { margin-bottom:10px; position:relative; }
+      .don-custom-prefix { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#888; font-size:13px; pointer-events:none; }
+      .don-custom-input { width:100%; box-sizing:border-box; background:#1a1a1a; border:1px solid #333; color:#ccc;
+                          border-radius:5px; padding:8px 10px 8px 22px; font-size:13px; outline:none; }
+      .don-custom-input:focus { border-color:#7a60dd; }
+      /* remove browser spin arrows from number input */
+      .don-custom-input::-webkit-outer-spin-button,
+      .don-custom-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+      .don-custom-input[type=number] { -moz-appearance:textfield; }
     `;
     document.head.appendChild(s);
   }
@@ -73,6 +82,13 @@
           ${PRESETS.map(p => `
             <button class="don-amt" data-cents="${p.cents}" onclick="window._donPick(${p.cents})">${p.label}</button>
           `).join('')}
+          <button class="don-amt" data-cents="other" onclick="window._donPickOther()" style="grid-column:1/-1">Other</button>
+        </div>
+        <div id="don-custom-wrap" class="don-custom-wrap" style="display:none">
+          <span class="don-custom-prefix">$</span>
+          <input id="don-custom-input" class="don-custom-input" type="number" min="1" step="0.01"
+                 placeholder="Enter amount (min $1)"
+                 oninput="window._donCustomChange(this.value)">
         </div>
         <label class="don-name-label">Your name on the leaderboard (optional)</label>
         <input id="don-name-input" class="don-name" type="text" maxlength="30"
@@ -98,14 +114,45 @@
   }
 
   function pickAmount(cents) {
-    // Extra client-side guard — must be in the allowed set
-    if (!ALLOWED_CENTS.has(cents)) return;
+    if (!PRESET_CENTS.has(cents)) return;
     _selected = cents;
     document.querySelectorAll('.don-amt').forEach(b => {
       b.classList.toggle('don-on', +b.dataset.cents === cents);
     });
+    // Hide custom input when a preset is selected
+    const wrap = document.getElementById('don-custom-wrap');
+    if (wrap) wrap.style.display = 'none';
     const btn = document.getElementById('don-submit');
     if (btn) btn.disabled = false;
+  }
+
+  function pickOther() {
+    _selected = null;
+    // Highlight the Other button, deselect presets
+    document.querySelectorAll('.don-amt').forEach(b => {
+      b.classList.toggle('don-on', b.dataset.cents === 'other');
+    });
+    const wrap = document.getElementById('don-custom-wrap');
+    if (wrap) wrap.style.display = 'block';
+    const input = document.getElementById('don-custom-input');
+    if (input) { input.focus(); customChange(input.value); }
+    else {
+      const btn = document.getElementById('don-submit');
+      if (btn) btn.disabled = true;
+    }
+  }
+
+  function customChange(val) {
+    const dollars = parseFloat(val);
+    const cents   = Math.round(dollars * 100);
+    const btn     = document.getElementById('don-submit');
+    if (!isNaN(dollars) && cents >= 100) {
+      _selected = cents;
+      if (btn) btn.disabled = false;
+    } else {
+      _selected = null;
+      if (btn) btn.disabled = true;
+    }
   }
 
   // Returns true if the donor name contains a word from sb.js's shared profanity list
@@ -116,7 +163,7 @@
   }
 
   async function submitDonation() {
-    if (!_selected || !ALLOWED_CENTS.has(_selected)) return;
+    if (!_selected || _selected < 100) return;
 
     const errEl = document.getElementById('don-err');
     const btn   = document.getElementById('don-submit');
@@ -149,6 +196,10 @@
           success_url:  successUrl,
           cancel_url:   cancelUrl,
           donor_name:   donorName,
+          // user_id lets the webhook record which account donated so the leaderboard
+          // can aggregate multiple donations from the same logged-in user.
+          // Null for guests — each anonymous donation stays separate.
+          user_id: (typeof window._sbGetUserId === 'function' ? window._sbGetUserId() : null) || null,
         }),
       });
 
@@ -214,26 +265,56 @@
 
     el.innerHTML = '<div class="don-lb-loading">Loading...</div>';
 
+    // Fetch all donations and aggregate client-side.
+    // Aggregation rules:
+    //   - Logged-in donors (user_id != null): combine all their donations under one entry,
+    //     showing their most recent donor_name.
+    //   - Anonymous donors (user_id null): each row is its own separate entry.
     const { data, error } = await sb
       .from('donations')
-      .select('donor_name, amount_cents')
-      .order('amount_cents', { ascending: false })
-      .limit(10);
+      .select('donor_name, amount_cents, user_id')
+      .order('created_at', { ascending: false });
 
     if (error || !data) {
       el.innerHTML = '<div class="don-lb-empty">Could not load supporters.</div>';
       return;
     }
 
-    if (!data.length) {
+    const entries = []; // final list: { donor_name, amount_cents }
+
+    // Accumulator for logged-in users keyed by UUID
+    const byUuid = {};
+
+    data.forEach(row => {
+      const name = row.donor_name || 'Anonymous';
+      if (row.user_id) {
+        // Logged-in: combine under UUID, keep the first (most-recent) name we encounter
+        if (!byUuid[row.user_id]) {
+          byUuid[row.user_id] = { donor_name: name, amount_cents: 0 };
+        }
+        byUuid[row.user_id].amount_cents += row.amount_cents;
+      } else {
+        // Anonymous: keep as a separate entry
+        entries.push({ donor_name: name, amount_cents: row.amount_cents });
+      }
+    });
+
+    // Merge UUID-aggregated entries into the list
+    Object.values(byUuid).forEach(e => entries.push(e));
+
+    const sorted = entries
+      .sort((a, b) => b.amount_cents - a.amount_cents)
+      .slice(0, 10);
+
+    if (!sorted.length) {
       el.innerHTML = '<div class="don-lb-empty">Be the first to support!</div>';
       return;
     }
 
     const medals = ['', '', '']; // gold, silver, bronze for top 3
-    el.innerHTML = data.map((row, i) => {
+    el.innerHTML = sorted.map((row, i) => {
       const medal  = medals[i] || '';
-      const dollars = (row.amount_cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+      const dollars = (row.amount_cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const name   = row.donor_name || 'Anonymous';
       return `<div class="don-lb-row">
         <span class="don-lb-rank">${medal || (i + 1)}</span>
@@ -247,6 +328,8 @@
   window._openDonationModal    = openDonationModal;
   window._closeDonationModal   = closeDonationModal;
   window._donPick              = pickAmount;
+  window._donPickOther         = pickOther;
+  window._donCustomChange      = customChange;
   window._donSubmit            = submitDonation;
   window._donNameChange        = nameChange;
   window._loadDonorLeaderboard = loadDonorLeaderboard;

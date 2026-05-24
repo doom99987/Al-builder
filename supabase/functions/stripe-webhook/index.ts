@@ -69,10 +69,17 @@ Deno.serve(async (req) => {
         : '';
       const donorName = rawDonorName.slice(0, 30) || 'Anonymous';
 
+      // user_id is set only for logged-in donors; null means anonymous
+      const rawUserId = typeof session.metadata?.user_id === 'string'
+        ? session.metadata.user_id.trim()
+        : '';
+      const userId = /^[0-9a-f-]{36}$/.test(rawUserId) ? rawUserId : null;
+
       const { error } = await supabase.from('donations').insert({
         stripe_payment_id: String(session.payment_intent),
         amount_cents:      session.amount_total ?? 0,
         donor_name:        donorName,
+        user_id:           userId,
       });
       if (error) {
         // Log but don't return 500 — Stripe would retry, causing duplicates.

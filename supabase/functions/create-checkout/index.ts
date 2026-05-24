@@ -12,8 +12,8 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
   apiVersion: '2023-10-16',
 });
 
-// Only these preset amounts are accepted — prevents arbitrary billing
-const ALLOWED_CENTS = new Set([100, 300, 500, 1000, 2000, 5000]);
+// Minimum donation: $1 (100 cents). No maximum enforced server-side.
+const MIN_CENTS = 100;
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -32,17 +32,17 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST')    return json({ error: 'Method not allowed.' }, 405);
 
-  let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown; donor_name?: unknown };
+  let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown; donor_name?: unknown; user_id?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'Invalid JSON.' }, 400);
   }
 
-  const { amount_cents, success_url, cancel_url, donor_name } = body;
+  const { amount_cents, success_url, cancel_url, donor_name, user_id } = body;
 
-  // Strict server-side validation — client cannot pass arbitrary amounts
-  if (typeof amount_cents !== 'number' || !ALLOWED_CENTS.has(amount_cents)) {
+  // Server-side validation — must be a whole number of cents, minimum $1
+  if (typeof amount_cents !== 'number' || !Number.isInteger(amount_cents) || amount_cents < MIN_CENTS) {
     return json({ error: 'Invalid donation amount.' }, 400);
   }
   if (typeof success_url !== 'string' || typeof cancel_url !== 'string') {
@@ -60,8 +60,13 @@ Deno.serve(async (req) => {
   }
 
   // Sanitize donor name — strip tags, limit length, fall back to Anonymous
-  const rawName = typeof donor_name === 'string' ? donor_name.replace(/[<>&"]/g, '').trim() : '';
+  const rawName  = typeof donor_name === 'string' ? donor_name.replace(/[<>&"]/g, '').trim() : '';
   const safeName = rawName.slice(0, 30) || 'Anonymous';
+
+  // user_id is a Supabase UUID — only store if it looks like one, otherwise null
+  const safeUserId = typeof user_id === 'string' && /^[0-9a-f-]{36}$/.test(user_id)
+    ? user_id
+    : '';
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -83,7 +88,7 @@ Deno.serve(async (req) => {
       // No billing_address_collection — minimises data collected
       billing_address_collection: 'auto',
       // Don't pre-fill anything — no PII passed from our side
-      metadata: { donor_name: safeName },
+      metadata: { donor_name: safeName, user_id: safeUserId },
     });
 
     return json({ url: session.url });
