@@ -308,15 +308,34 @@
     renderAuthBar();
   }
 
-  // ---- submit score — server decides if it's a new best ----
-  async function submitScore(qteType, score) {
-    if (!currentUser || !score) return;
-    const { error } = await sb.rpc('submit_score', {
+  // ---- anti-cheat: session IDs keyed by qte_type, consumed on submission ----
+  const _sessionIds = {};
+
+  // Called by each QTE trainer when the player clicks Start.
+  // Fires a server-side timestamp so submit_score can validate elapsed time.
+  async function startQteSession(qteType) {
+    if (!currentUser) return;
+    const { data, error } = await sb.rpc('start_qte_session', {
       p_user_id:  currentUser.id,
       p_qte_type: qteType,
-      p_score:    score,
-      p_platform: PLATFORM,
-      p_month:    currentMonth(),
+    });
+    if (error) { console.warn('[sb] startQteSession error', error.message); return; }
+    _sessionIds[qteType] = data;
+  }
+
+  // ---- submit score — server validates session timing before accepting ----
+  async function submitScore(qteType, score) {
+    if (!currentUser || !score) return;
+    const sessionId = _sessionIds[qteType] ?? null;
+    delete _sessionIds[qteType]; // single-use — consume before the await
+    if (!sessionId) { console.warn('[sb] submitScore: no valid session for', qteType, '— score not saved'); return; }
+    const { error } = await sb.rpc('submit_score', {
+      p_user_id:    currentUser.id,
+      p_qte_type:   qteType,
+      p_score:      score,
+      p_platform:   PLATFORM,
+      p_month:      currentMonth(),
+      p_session_id: sessionId,
     });
     if (error) { console.error('[sb] submitScore error', qteType, score, error.message); return; }
     console.log('[sb] submitScore ok', qteType, score, PLATFORM);
@@ -1768,6 +1787,7 @@
   window._closeModal         = closeModal;
   window._submitAuth         = submitAuth;
   window._sbSubmitScore      = submitScore;
+  window._sbStartQteSession  = startQteSession;
   window._sbGetUsername      = () => currentProfile?.username || null;
   window._sbGetUserId        = () => currentUser?.id ?? null;
   window._toggleProfileMenu  = toggleProfileMenu;
