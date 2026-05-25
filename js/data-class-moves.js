@@ -874,7 +874,7 @@ const classMoves = {
         moveType: "Fire",
         category: "Buff",
         duration: 4,
-        effect: "You or the ally you chose gains a chance to apply burn alongside a 15% damage buff.\n\nFlaming Overdrive: gives a chance to apply Ghostflame.",
+        effect: "You or the ally you chose gains a chance to apply burn alongside a 25% strength buff.\n\nFlaming Overdrive: gives a chance to apply Ghostflame.",
         image: "https://trello.com/1/cards/67b329593631658cda777210/attachments/6980579bdc383e6a208e211a/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123330.png"
       },
       {
