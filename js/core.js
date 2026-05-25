@@ -79,6 +79,9 @@ const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coa
 window._albPing     = 0;
 window._qteCompMode = false;
 window._toggleQteMode = function () {
+  // Block mid-session switches — would let casual streaks credit to competitive scores.
+  const anyActive = Array.from(document.querySelectorAll('[id$="-qte-start-btn"]')).some(b => b.style.display === 'none');
+  if (anyActive) return;
   window._qteCompMode = !window._qteCompMode;
   const btn = document.getElementById('qte-mode-btn');
   if (btn) {

@@ -1641,6 +1641,7 @@
     adminSetStatus('Clearing scores…');
     const { error } = await sb.rpc('admin_clear_all_scores', { p_user_id: _adminCurrentUser.id });
     if (error) { adminSetStatus(error.message); return; }
+    await sb.from('personal_bests').delete().eq('user_id', _adminCurrentUser.id);
     adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
   }
 
@@ -1674,6 +1675,7 @@
     const { error } = await sb.rpc('admin_clear_user_score', { p_user_id: uid, p_qte_type: qteType });
     document.getElementById('sb-admin-score-picker')?.remove();
     if (error) { adminSetStatus(error.message); return; }
+    await sb.from('personal_bests').delete().eq('user_id', uid).eq('qte_type', qteType);
     adminSetStatus(`${qteType} score cleared for ${uname}.`, true);
   }
 
@@ -1692,6 +1694,7 @@
       sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' }),
       sb.rpc('admin_clear_all_scores', { p_user_id: _adminCurrentUser.id }),
       sb.rpc('admin_delete_listings',  { p_username: _adminCurrentUser.username }),
+      sb.from('personal_bests').delete().eq('user_id', _adminCurrentUser.id),
     ]);
     _bannedSet?.add(_adminCurrentUser.username);
     const banBtn = document.querySelector('.sb-admin-btn-ban');
