@@ -5334,8 +5334,8 @@ const masteryClassData = {
     }
   },
   "Rogue (N)": {
-    branches: { red: "Strength", green: "Speed", blue: "Endurance" },
-    branchStats: { shared: "end", red: "str", green: "spd", blue: "end" },
+    branches: { red: "Strength", green: "Speed", blue: "Luck" },
+    branchStats: { shared: "end", red: "str", green: "spd", blue: "lck" },
     nodes: {
       s1:  { name: "Endurance Node" }, s2:  { name: "Endurance Node" },
       s3:  { name: "Endurance Node" }, s4:  { name: "Endurance Node" },
@@ -5352,11 +5352,11 @@ const masteryClassData = {
       c5b: { name: "Speed Node" },
       cm1: { name: "Vital Strike",                desc: "Attacks against bleeding enemies deal 20% more damage." },
       cm2: { name: "Dagger Spread Proficiency",   desc: "Your daggers are now poison tipped and inflict 2 poisoned. Enemies killed by Dagger Spread create a burst of poison, dealing small damage to the entire enemy team." },
-      r1:  { name: "Endurance Node" }, r2:  { name: "Endurance Node" },
-      r3:  { name: "Endurance Node" }, r4:  { name: "Endurance Node" },
-      r5:  { name: "Endurance Node" }, r6:  { name: "Endurance Node" },
-      r7:  { name: "Endurance Node" }, r8:  { name: "Endurance Node" },
-      r9:  { name: "Endurance Node" },
+      r1:  { name: "Luck Node" }, r2:  { name: "Luck Node" },
+      r3:  { name: "Luck Node" }, r4:  { name: "Luck Node" },
+      r5:  { name: "Luck Node" }, r6:  { name: "Luck Node" },
+      r7:  { name: "Luck Node" }, r8:  { name: "Luck Node" },
+      r9:  { name: "Luck Node" },
       rm1: { name: "Looter",                      desc: "Killing an enemy now gives you stacking luck and speed buffs for the rest of the battle." },
       rm2: { name: "Slash Barrage Proficiency",   desc: "If the target is poisoned, it deals extra damage and inflicts 2 sundered." },
     }
