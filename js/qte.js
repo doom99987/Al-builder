@@ -243,6 +243,7 @@
   // Start button
   if (startBtn) {
     startBtn.addEventListener('click', () => {
+      if (window._sbStartQteSession) window._sbStartQteSession('fist' + (window._qteCompMode ? '-comp' : ''));
       length = 2; streak = 0;
       startRound();
     });
@@ -547,6 +548,7 @@
 
   // ---- start ----
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('spear' + (window._qteCompMode ? '-comp' : ''));
     streak        = 0;
     running       = true;
     gameStarted   = true;
@@ -874,6 +876,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('sword' + (window._qteCompMode ? '-comp' : ''));
     streak       = 0;
     running      = true;
     gameStarted  = true;
@@ -1124,6 +1127,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('dodge' + (window._qteCompMode ? '-comp' : ''));
     streak = 0;
     running = gameStarted = true;
     paused = false;
@@ -1457,6 +1461,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('dagger' + (window._qteCompMode ? '-comp' : ''));
     streak = 0;
     running = gameStarted = true;
     paused = roundPending = false;
@@ -1703,6 +1708,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('hammer' + (window._qteCompMode ? '-comp' : ''));
     streak = 0; running = gameStarted = true; paused = holding = false; fillPct = 0;
     resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
     streakEl.textContent = '';
@@ -2011,6 +2017,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('axe' + (window._qteCompMode ? '-comp' : ''));
     streak = 0; running = gameStarted = true; paused = false; fillPct = 0;
     resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
     streakEl.textContent = '';
@@ -2427,6 +2434,7 @@
 
   // ── start / resume ─────────────────────────────────────────
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('staff' + (window._qteCompMode ? '-comp' : ''));
     streak = 0; updateHUD(); newRound();
     gameStarted = true; paused = false; running = true;
     canvas.style.display = '';
@@ -2858,6 +2866,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('thorian' + (window._qteCompMode ? '-comp' : ''));
     streak = 0; lives = MAX_LIVES; thorianFlash = 0;
     paused = false; gameStarted = true; barDir = 'right';
     hearts = []; particles = [];
@@ -3431,6 +3440,7 @@
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('thorian-new' + (window._qteCompMode ? '-comp' : ''));
     score = 0; round = 1; lives = 2; gameTimer = GAME_SECS;
     targets = []; yellows = []; heldYellow = null;
     spawnTimer = 0; yellowSpawnTimer = 0; flashTimer = 0;
@@ -3837,6 +3847,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
   }
 
   function startGame() {
+    if (window._sbStartQteSession) window._sbStartQteSession('dagger-new' + (window._qteCompMode ? '-comp' : ''));
     resizeCanvas();
     timerMax = 10;
     maxLives = window._qteCompMode ? 1 : LIVES_MAX;
