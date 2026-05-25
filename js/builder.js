@@ -6007,24 +6007,27 @@ function masteryBranchHtml(branch) {
 function scaleMasteryTree() {
   const container = document.getElementById("mastery-tree-container");
   if (!container) return;
-  const trunk = container.querySelector(".mastery-trunk");
-  const branches = container.querySelector(".mastery-branches");
-  if (!trunk || !branches) return;
+  const scaler = container.querySelector(".mastery-scaler");
+  if (!scaler) return;
 
-  // Remove zoom to measure natural (unscaled) height
-  trunk.style.zoom = '';
-  branches.style.zoom = '';
+  // Clear transform to measure natural (unscaled) dimensions
+  scaler.style.transform = '';
+  scaler.style.marginBottom = '';
 
   const availH = container.clientHeight;
-  const trunkR = trunk.getBoundingClientRect();
-  const branchR = branches.getBoundingClientRect();
-  const naturalH = branchR.bottom - trunkR.top;
+  const availW = container.clientWidth;
+  const r = scaler.getBoundingClientRect();
+  const naturalH = r.height;
+  const naturalW = r.width;
 
   if (availH <= 0 || naturalH <= 0) return;
 
-  const scale = Math.min(0.92, availH / naturalH);
-  trunk.style.zoom = scale;
-  branches.style.zoom = scale;
+  // Fit to both axes; cap at 0.92 so it never looks oversized on large screens
+  const scale = Math.min(0.92, availH / naturalH, availW / naturalW);
+  scaler.style.transform = `scale(${scale})`;
+  scaler.style.transformOrigin = 'top center';
+  // Collapse the excess layout space so the container height isn't padded out
+  scaler.style.marginBottom = `${naturalH * (scale - 1)}px`;
 }
 
 function renderMastery() {
@@ -6036,7 +6039,8 @@ function renderMastery() {
     return;
   }
 
-  let html = `<div class="mastery-trunk">`;
+  let html = `<div class="mastery-scaler">`;
+  html += `<div class="mastery-trunk">`;
   ["s1","s2","s3","s4"].forEach(id => {
     html += `<div class="mastery-row"><div class="mn-wrap">${masteryNodeHtml(id)}</div></div>`;
   });
@@ -6046,6 +6050,7 @@ function renderMastery() {
   html += masteryBranchHtml("red");
   html += masteryBranchHtml("green");
   html += masteryBranchHtml("blue");
+  html += `</div>`;
   html += `</div>`;
 
   container.innerHTML = html;
