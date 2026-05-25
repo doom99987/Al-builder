@@ -3282,6 +3282,12 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     currentDmg = _blazeProfBase;
   }
 
+  // Slash Barrage (Rogue (N) 5th Learn): innate +30% damage vs bleeding enemies
+  if (m.name === "Slash Barrage") {
+    const _sbBleedDmg = currentDmg * 1.30;
+    formula += `<br><span class="dc-avg-line">vs bleeding: × 1.30 <span class="dc-bonus-tag">[Bleeding]</span> = <b>${_sbBleedDmg.toFixed(1)}</b></span>`;
+  }
+
   const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
