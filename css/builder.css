@@ -98,10 +98,12 @@ h2 {
   transform-origin: top center;
 }
 
-/* Zoom is set dynamically by scaleMasteryTree() in scripts.js */
-.mastery-trunk,
-.mastery-branches {
-  zoom: 0.82; /* fallback until JS runs */
+/* Scale is set dynamically by scaleMasteryTree() via transform on .mastery-scaler */
+.mastery-scaler {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: top center;
 }
 
 /* ============================================================
