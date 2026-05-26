@@ -560,6 +560,9 @@ function updatePecents() {
     if (stat === "crit-chance" && _pctCache.artifactPicker?.value === "Stellian Core" && dmgBonusActive["passive:Stellian Core"] && playerHpPct >= 95) {
       display = (parseFloat(display) + 15).toFixed(1);
     }
+    if (stat === "crit-chance" && tearBloodCrystalActive) {
+      display = (parseFloat(display) + 5).toFixed(1);
+    }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
   });
@@ -3953,6 +3956,11 @@ function toggleFrozenDiademIce() {
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
+function toggleTearBloodCrystal() {
+  tearBloodCrystalActive = !tearBloodCrystalActive;
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
   renderDmgBonusSection(); recalcOpenDetails();
@@ -4061,6 +4069,16 @@ function renderDmgBonusSection() {
   } else {
     if (frozenDiademColdActive) { frozenDiademColdActive = false; updatePecents(); }
     if (frozenDiademIceActive)  { frozenDiademIceActive  = false; updatePecents(); }
+  }
+
+  const hasTearBloodCrystal = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Tear Blood Crystal");
+  if (hasTearBloodCrystal) {
+    html += `<div class="dc-energy-section">
+      <span class="dc-energy-label">Applied Bleed <span style="color:#aaa;font-size:11px">(+5% crit, +5% def, 5 turns)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${tearBloodCrystalActive ? " dc-bonus-on" : ""}" onclick="toggleTearBloodCrystal()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${tearBloodCrystalActive ? "✓" : ""}</div>
+    </div>`;
+  } else {
+    if (tearBloodCrystalActive) { tearBloodCrystalActive = false; updatePecents(); }
   }
 
   if (dmgBonusPassives.length) {
@@ -6771,6 +6789,7 @@ function loadBuildState(state) {
   crystalStarStacks = 0;
   frozenDiademColdActive = false;
   frozenDiademIceActive = false;
+  tearBloodCrystalActive = false;
   flamingOverdriveStacks = 0;
   selectedBoss = null;
   bossCorrupted = false;
