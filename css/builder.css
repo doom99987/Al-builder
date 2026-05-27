@@ -800,6 +800,28 @@ h2 {
   font-size: 14px;
 }
 
+.dc-drauga-heal-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #e06080;
+}
+.dc-drauga-heal-line b {
+  color: #ff4d6d;
+  font-size: 14px;
+}
+
+.dc-lifesteal-line {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #66bb88;
+}
+.dc-lifesteal-line b {
+  color: #44dd88;
+  font-size: 14px;
+}
+
 /* Boss Target */
 .dc-boss-list {
   display: flex;
