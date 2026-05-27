@@ -527,7 +527,8 @@ function updatePecents() {
     }
     const base = calcPercentage(stat, val);
     const armourStatPct = isStatMult ? 0 : (armourPct[stat] ?? 0); // pct already in val for stat-mult stats
-    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0);
+    const _masteryHealPct = (stat === "inc-heal" && document.getElementById("super-picker")?.value === "Saint (Or)" && masteryState["cm1"]) ? 40 : 0;
+    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct;
     let display;
     if (base === "—") {
       display = "—";
@@ -2911,24 +2912,48 @@ function draugaCritHealLine(critDmg) {
 }
 
 // Mastery lifesteal heal lines shown below the final damage result
-function buildLifestealHealLines(finalDmg, m) {
+function buildLifestealHealLines(finalDmg, m, critMult = null) {
   let out = '';
   const sc = superPicker.value;
-  // Impaler rm1 — Siphoning: 5% lifesteal vs bleeding targets
-  if (sc === "Impaler (Ch)" && masteryState["rm1"]) {
-    const heal = finalDmg * 0.05;
-    out += `<br><span class="dc-lifesteal-line">🩸 Siphoning <span class="dc-bonus-tag">[vs bleeding]</span>: ${finalDmg.toFixed(1)} × 5% = <b>+${heal.toFixed(1)} HP</b></span>`;
+  function _lsLine(icon, label, pct, dmg, incHealMult = 1) {
+    const heal = dmg * pct;
+    const incTag = incHealMult !== 1 ? ` <span class="dc-bonus-tag">[×${incHealMult.toFixed(2)} inc. heal → +${(heal * incHealMult).toFixed(1)} HP received]</span>` : '';
+    let s = `${icon} ${label}: ${dmg.toFixed(1)} × ${pct * 100}% = <b>+${heal.toFixed(1)} HP</b>${incTag}`;
+    if (critMult !== null) {
+      const critHeal = dmg * critMult * pct;
+      const critIncTag = incHealMult !== 1 ? ` → +${(critHeal * incHealMult).toFixed(1)} HP` : '';
+      s += `  <span class="dc-bonus-tag">|</span>  crit: <b>+${critHeal.toFixed(1)} HP</b>${critIncTag}`;
+    }
+    return `<br><span class="dc-lifesteal-line">${s}</span>`;
   }
-  // Monk cm1 — Heated Recovery: 5% lifesteal vs burning targets
-  if (sc === "Monk (Or)" && masteryState["cm1"]) {
-    const heal = finalDmg * 0.05;
-    out += `<br><span class="dc-lifesteal-line">🔥 Heated Recovery <span class="dc-bonus-tag">[vs burning]</span>: ${finalDmg.toFixed(1)} × 5% = <b>+${heal.toFixed(1)} HP</b></span>`;
+  if (sc === "Impaler (Ch)" && masteryState["rm1"])
+    out += _lsLine('🩸', 'Siphoning <span class="dc-bonus-tag">[vs bleeding]</span>', 0.05, finalDmg);
+  if (sc === "Monk (Or)" && masteryState["cm1"])
+    out += _lsLine('🔥', 'Heated Recovery <span class="dc-bonus-tag">[vs burning]</span>', 0.05, finalDmg);
+  if (sc === "Berserker (Ch)" && masteryState["lm1"] && m.moveType === "Physical")
+    out += _lsLine('⚔️', 'The Big Sword', 0.075, finalDmg);
+  if (sc === "Saint (Or)" && masteryState["cm1"])
+    out += _lsLine('✨', 'All For One', 0.20, finalDmg, 1.40);
+  return out;
+}
+
+// Expected lifesteal heal shown below the expected damage line for multi-hit moves
+function buildLifestealExpectedLine(expectedDmg, m) {
+  let out = '';
+  const sc = superPicker.value;
+  function _lsExp(icon, label, pct, dmg, incHealMult = 1) {
+    const heal = dmg * pct;
+    const incTag = incHealMult !== 1 ? ` → +${(heal * incHealMult).toFixed(1)} HP received` : '';
+    return `<br><span class="dc-lifesteal-line">${icon} ${label} expected heal: <b>+${heal.toFixed(1)} HP</b>${incTag}</span>`;
   }
-  // Berserker lm1 — The Big Sword: 7.5% lifesteal on Physical strikes
-  if (sc === "Berserker (Ch)" && masteryState["lm1"] && m.moveType === "Physical") {
-    const heal = finalDmg * 0.075;
-    out += `<br><span class="dc-lifesteal-line">⚔️ The Big Sword: ${finalDmg.toFixed(1)} × 7.5% = <b>+${heal.toFixed(1)} HP</b></span>`;
-  }
+  if (sc === "Impaler (Ch)" && masteryState["rm1"])
+    out += _lsExp('🩸', 'Siphoning', 0.05, expectedDmg);
+  if (sc === "Monk (Or)" && masteryState["cm1"])
+    out += _lsExp('🔥', 'Heated Recovery', 0.05, expectedDmg);
+  if (sc === "Berserker (Ch)" && masteryState["lm1"] && m.moveType === "Physical")
+    out += _lsExp('⚔️', 'Big Sword', 0.075, expectedDmg);
+  if (sc === "Saint (Or)" && masteryState["cm1"])
+    out += _lsExp('✨', 'All For One', 0.20, expectedDmg, 1.40);
   return out;
 }
 
@@ -3128,7 +3153,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(1)}</b>`;
       formula += `</span>`;
     }
-    formula += buildLifestealHealLines(_resFinalDmg0, m);
+    formula += buildLifestealHealLines(_resFinalDmg0, m, _critMult0);
     if (moveCritBonus > 0 && _critMult0 !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
     if (_critMult0 !== null) { formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_resFinalDmg0 * _critMult0).toFixed(1)}</b></span>`; formula += draugaCritHealLine(_resFinalDmg0 * _critMult0); }
     formula += buildOvercritLines(_resFinalDmg0, _critMult0, getMoveCritChancePct());
@@ -3137,6 +3162,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       if (_cc0 !== null) {
         const _exp0 = getExpectedMultiHitDmg(_resFinalDmg0, _critMult0, _cc0);
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc0.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp0.toFixed(1)}</b></span>`;
+        formula += buildLifestealExpectedLine(_exp0, m);
       }
     }
     if (hasGearEquipped("DeathBeak Dagger") && _critMult0 !== null) {
@@ -3250,7 +3276,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     formula += `</span>`;
 
     const _critMult = getCritDmgMultEffective();
-    formula += buildLifestealHealLines(total, m);
+    formula += buildLifestealHealLines(total, m, _critMult);
     if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
     if (_critMult !== null) {
       formula += `<br><span class="dc-crit-line">All crits: <b>${total.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(total * _critMult).toFixed(1)}</b></span>`;
@@ -3260,6 +3286,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       if (_cc !== null) {
         const _exp = getExpectedMultiHitDmg(total, _critMult, _cc);
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
+        formula += buildLifestealExpectedLine(_exp, m);
       }
     }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
@@ -3283,7 +3310,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _dResFinal = _dCurDmg * _dbMult;
     const _dCritMult = getCritDmgMultEffective();
-    formula += buildLifestealHealLines(_dResFinal, m);
+    formula += buildLifestealHealLines(_dResFinal, m, _dCritMult);
     if (_dCritMult !== null) {
       if (moveCritBonus > 0) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
       formula += `<br><span class="dc-crit-line">All crits: <b>${_dResFinal.toFixed(1)}</b> × ${_dCritMult.toFixed(2)}x = <b>${(_dResFinal * _dCritMult).toFixed(1)}</b></span>`;
@@ -3293,6 +3320,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       if (_dCc !== null) {
         const _dExp = getExpectedMultiHitDmg(_dResFinal, _dCritMult, _dCc);
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_dCc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_dExp.toFixed(1)}</b></span>`;
+        formula += buildLifestealExpectedLine(_dExp, m);
       }
     }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
@@ -3341,7 +3369,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(1)}</b>`;
     formula += `</span>`;
   }
-  formula += buildLifestealHealLines(_resFinalDmg, m);
+  formula += buildLifestealHealLines(_resFinalDmg, m, _critMult);
   if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
   if (_critMult !== null) { formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_resFinalDmg * _critMult).toFixed(1)}</b></span>`; formula += draugaCritHealLine(_resFinalDmg * _critMult); }
   formula += buildOvercritLines(_resFinalDmg, _critMult, getMoveCritChancePct());
@@ -3350,6 +3378,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (_cc !== null) {
       const _exp = getExpectedMultiHitDmg(_resFinalDmg, _critMult, _cc);
       formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
+      formula += buildLifestealExpectedLine(_exp, m);
     }
   }
   if (hasGearEquipped("DeathBeak Dagger") && _critMult !== null) {
