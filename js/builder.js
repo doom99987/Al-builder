@@ -2605,7 +2605,8 @@ let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (×1
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
 const summonBuffsActive = { spiritAwakening: false };
-const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false, focusStepSpd: false };
+const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false, focusStepSpd: false, fireSutraStr: false };
+let exposeActive = false;
 let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
 let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
@@ -2768,6 +2769,7 @@ function getTotalStat(statKey) {
     if (statKey === "lck") total = Math.round(total * (1 + looterStacks * 0.1575));
     if (statKey === "spd") total = Math.round(total * (1 + looterStacks * 0.20));
   }
+  if (statKey === "str" && statBuffsActive.fireSutraStr) total = Math.round(total * 1.25);
   if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
   if (statKey === "spd") {
     const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
@@ -2897,6 +2899,35 @@ function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
     const purpleDmg = finalDmg * 4 * critMult;
     const purpleLabel = info.tier >= 4 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
     out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${(critMult * 4).toFixed(2)}): <b>${purpleDmg.toFixed(1)}</b></span>`;
+  }
+  return out;
+}
+
+// Drauga race passive: Vampiric Crits — heal 15% of crit damage
+function draugaCritHealLine(critDmg) {
+  if (racePicker.value !== "Drauga (6%)") return '';
+  const heal = critDmg * 0.15;
+  return `<br><span class="dc-drauga-heal-line">🩸 Vampiric Crits: ${critDmg.toFixed(1)} × 15% = <b>+${heal.toFixed(1)} HP</b></span>`;
+}
+
+// Mastery lifesteal heal lines shown below the final damage result
+function buildLifestealHealLines(finalDmg, m) {
+  let out = '';
+  const sc = superPicker.value;
+  // Impaler rm1 — Siphoning: 5% lifesteal vs bleeding targets
+  if (sc === "Impaler (Ch)" && masteryState["rm1"]) {
+    const heal = finalDmg * 0.05;
+    out += `<br><span class="dc-lifesteal-line">🩸 Siphoning <span class="dc-bonus-tag">[vs bleeding]</span>: ${finalDmg.toFixed(1)} × 5% = <b>+${heal.toFixed(1)} HP</b></span>`;
+  }
+  // Monk cm1 — Heated Recovery: 5% lifesteal vs burning targets
+  if (sc === "Monk (Or)" && masteryState["cm1"]) {
+    const heal = finalDmg * 0.05;
+    out += `<br><span class="dc-lifesteal-line">🔥 Heated Recovery <span class="dc-bonus-tag">[vs burning]</span>: ${finalDmg.toFixed(1)} × 5% = <b>+${heal.toFixed(1)} HP</b></span>`;
+  }
+  // Berserker lm1 — The Big Sword: 7.5% lifesteal on Physical strikes
+  if (sc === "Berserker (Ch)" && masteryState["lm1"] && m.moveType === "Physical") {
+    const heal = finalDmg * 0.075;
+    out += `<br><span class="dc-lifesteal-line">⚔️ The Big Sword: ${finalDmg.toFixed(1)} × 7.5% = <b>+${heal.toFixed(1)} HP</b></span>`;
   }
   return out;
 }
@@ -3097,8 +3128,9 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0).toFixed(1)}</b>`;
       formula += `</span>`;
     }
+    formula += buildLifestealHealLines(_resFinalDmg0, m);
     if (moveCritBonus > 0 && _critMult0 !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
-    if (_critMult0 !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_resFinalDmg0 * _critMult0).toFixed(1)}</b></span>`;
+    if (_critMult0 !== null) { formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x = <b>${(_resFinalDmg0 * _critMult0).toFixed(1)}</b></span>`; formula += draugaCritHealLine(_resFinalDmg0 * _critMult0); }
     formula += buildOvercritLines(_resFinalDmg0, _critMult0, getMoveCritChancePct());
     if (hitCount > 1 && _critMult0 !== null) {
       const _cc0 = getMoveCritChancePct();
@@ -3218,9 +3250,11 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     formula += `</span>`;
 
     const _critMult = getCritDmgMultEffective();
+    formula += buildLifestealHealLines(total, m);
     if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
     if (_critMult !== null) {
       formula += `<br><span class="dc-crit-line">All crits: <b>${total.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(total * _critMult).toFixed(1)}</b></span>`;
+      formula += draugaCritHealLine(total * _critMult);
       formula += buildOvercritLines(total, _critMult, getMoveCritChancePct());
       const _cc = getMoveCritChancePct();
       if (_cc !== null) {
@@ -3249,9 +3283,11 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _dResFinal = _dCurDmg * _dbMult;
     const _dCritMult = getCritDmgMultEffective();
+    formula += buildLifestealHealLines(_dResFinal, m);
     if (_dCritMult !== null) {
       if (moveCritBonus > 0) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
       formula += `<br><span class="dc-crit-line">All crits: <b>${_dResFinal.toFixed(1)}</b> × ${_dCritMult.toFixed(2)}x = <b>${(_dResFinal * _dCritMult).toFixed(1)}</b></span>`;
+      formula += draugaCritHealLine(_dResFinal * _dCritMult);
       formula += buildOvercritLines(_dResFinal, _dCritMult, getMoveCritChancePct());
       const _dCc = getMoveCritChancePct();
       if (_dCc !== null) {
@@ -3305,8 +3341,9 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult).toFixed(1)}</b>`;
     formula += `</span>`;
   }
+  formula += buildLifestealHealLines(_resFinalDmg, m);
   if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
-  if (_critMult !== null) formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_resFinalDmg * _critMult).toFixed(1)}</b></span>`;
+  if (_critMult !== null) { formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(_resFinalDmg * _critMult).toFixed(1)}</b></span>`; formula += draugaCritHealLine(_resFinalDmg * _critMult); }
   formula += buildOvercritLines(_resFinalDmg, _critMult, getMoveCritChancePct());
   if (hitCount > 1 && _critMult !== null) {
     const _cc = getMoveCritChancePct();
@@ -3991,9 +4028,11 @@ function getBossResMult(moveType) {
   if (!selectedBoss) return { mult: 1, label: "" };
   const boss = BOSS_DATA[selectedBoss];
   if (!boss) return { mult: 1, label: "" };
-  const mult = boss.res[moveType] ?? 1;
+  let mult = boss.res[moveType] ?? 1;
+  if (exposeActive && mult > 1) mult = 2 * mult - 1;
   const resPct = Math.round((1 - mult) * 100);
-  return { mult, label: `${resPct}% res` };
+  const exposeTag = (exposeActive && (boss.res[moveType] ?? 1) > 1) ? " [Exposed]" : "";
+  return { mult, label: `${resPct}% res${exposeTag}` };
 }
 
 function setPlayerHp(val) {
@@ -4575,16 +4614,19 @@ function renderDmgBonusSection() {
     _flourishSpdAmt = _hasFlourishProf ? 48 : 25;
     const _hasFocusStep = racePicker.value === "Stultus (20%)" && (+lvlInput.value || 0) >= 10;
     const _focusStepAmt = Math.max(1, +lvlInput.value || 1) * 2;
+    const _hasFireSutra = _superClass === "Monk (Or)";
     // Auto-reset if no longer available
     if (!_hasRallyingShout && statBuffsActive.rallyingSpd) statBuffsActive.rallyingSpd = false;
     if (!_hasEmpPierceProf && statBuffsActive.empPierceSpd) statBuffsActive.empPierceSpd = false;
     if (!_hasFlourish && statBuffsActive.flourishSpd) statBuffsActive.flourishSpd = false;
     if (!_hasFocusStep && statBuffsActive.focusStepSpd) statBuffsActive.focusStepSpd = false;
+    if (!_hasFireSutra && statBuffsActive.fireSutraStr) statBuffsActive.fireSutraStr = false;
     const _statBuffDefs = [
       _hasRallyingShout && { key: 'rallyingSpd', label: "Rallying Shout SPD",   val: "+25% SPD", desc: "+25% SPD buff for 4 turns" },
       _hasEmpPierceProf && { key: 'empPierceSpd', label: "Emp. Pierce Prof. SPD", val: "+25% SPD", desc: "+25% SPD buff for 2 turns (Empowering Pierce Proficiency)" },
       _hasFlourish      && { key: 'flourishSpd',  label: `Flourish SPD${_hasFlourishProf ? " (Prof.)" : ""}`, val: `+${_flourishSpdAmt} flat SPD`, desc: `+${_flourishSpdAmt} flat SPD while in Flourish stance` },
       _hasFocusStep     && { key: 'focusStepSpd', label: "Focus Step SPD", val: `+${_focusStepAmt} flat SPD`, desc: `+LVL×2 flat SPD (${_focusStepAmt} at current level) for 4 turns` },
+      _hasFireSutra     && { key: 'fireSutraStr', label: "Fire Sutra STR",  val: "+25% STR", desc: "Fire Sutra: grants a 25% Strength buff for 4 turns." },
     ].filter(Boolean);
     const _hasPermuth = markPicker.value === 'Venia';
     if (_statBuffDefs.length || _hasPermuth) {
@@ -4605,6 +4647,21 @@ function renderDmgBonusSection() {
         });
         html += `</div><span class="dc-bonus-pct" style="color:#c9b8ff">+40%</span></div>`;
       }
+      html += `</div>`;
+    }
+  }
+
+  // --- Beastmaster: Expose (shown when Beastmaster is subclass) ---
+  {
+    const _isBeastmaster = subPicker.value === "Beastmaster";
+    if (!_isBeastmaster && exposeActive) exposeActive = false;
+    if (_isBeastmaster) {
+      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Beastmaster</h3><div class="dc-bonus-list">`;
+      html += `<div class="dc-bonus-row${exposeActive ? " dc-bonus-on" : ""}" data-expose title="Expose: doubles all enemy weaknesses (×2 on damage multipliers above 1.0). Requires a boss/mob target.">
+        <div class="dc-bonus-check">${exposeActive ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Expose</span>
+        <span class="dc-bonus-pct">×2 weakness</span>
+      </div>`;
       html += `</div>`;
     }
   }
@@ -4785,6 +4842,13 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.statBuffKey) {
       row.addEventListener("click", () => toggleStatBuff(row.dataset.statBuffKey));
+      return;
+    }
+    if ('expose' in row.dataset) {
+      row.addEventListener("click", () => {
+        exposeActive = !exposeActive;
+        renderDmgBonusSection(); recalcOpenDetails();
+      });
       return;
     }
     if ('sinisterGaze' in row.dataset) {
