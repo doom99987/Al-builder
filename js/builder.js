@@ -3355,6 +3355,20 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     formula += `<br><span class="dc-avg-line">vs bleeding: × 1.30 <span class="dc-bonus-tag">[Bleeding]</span> = <b>${_sbBleedDmg.toFixed(1)}</b></span>`;
   }
 
+  // Rending Barrage (Impaler (Ch) 1st Learn): extra hit (13.5 base, STR/75+ARC/75, 7.5% lifesteal) if enemy is bleeding
+  if (m.name === "Rending Barrage") {
+    const _rbExtraRaw   = 13.5 * (1 + totalContrib);
+    const _rbExtraMult  = _rbExtraRaw * totalMult;
+    const { mult: _rbSMult } = getStatusMultiplier(m.moveType);
+    const { mult: _rbBMult } = getBossResMult(effectiveMoveType);
+    const _rbExtraFinal = _rbExtraMult * _rbSMult * _rbBMult;
+    const _rbLS         = _rbExtraFinal * 0.075;
+    formula += `<br><span class="dc-avg-line">vs bleeding (extra hit): 13.5(1 + ${scalingStr}) = <b>${_rbExtraRaw.toFixed(1)}</b>`;
+    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_rbExtraMult.toFixed(1)}</b>`;
+    if (_rbSMult !== 1 || _rbBMult !== 1) formula += ` → <b>${_rbExtraFinal.toFixed(1)}</b>`;
+    formula += ` + <b>${_rbLS.toFixed(1)}</b> HP LS <span class="dc-bonus-tag">[7.5%]</span></span>`;
+  }
+
   const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
@@ -3755,7 +3769,7 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Bloodlust")             { mult *= (1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100); return; }
     else if (p.name === "Frost Stacks")          { mult *= (1 + 0.20 * boreasStacks); return; }
     else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
-    else if (p.name === "Rending Barrage Proficiency") { bonus = 2.5 * rendingBarrageStacks; }
+    else if (p.name === "Rending Barrage") { bonus = 2.5 * rendingBarrageStacks; }
     else if (p.name === "Demonic Presence")            { bonus = 5 * demonicPresenceStacks; }
     else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
     else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
@@ -4198,7 +4212,7 @@ function renderDmgBonusSection() {
     const isStellianCore      = p.name === "Stellian Core";
     const isCoagNail          = p.name === "Coagulated Finger Nail";
     const isUnendingFlow      = p.name === "Unending Flow";
-    const isRendingBarrage    = p.name === "Rending Barrage Proficiency";
+    const isRendingBarrage    = p.name === "Rending Barrage";
     const isDemonicPresence   = p.name === "Demonic Presence";
     const isVerdantArcher     = p.name === "Verdant Archer";
     const isRunicShield       = p.name === "Runic Shield";
