@@ -2626,7 +2626,7 @@ const TEAM_BUFFS = [
   { key: 'arcaneRitual',label: "Arcane Ritual", mult: 1.40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
 ];
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
-const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false };
+const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
@@ -3180,6 +3180,14 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
         }
       }
     }
+    if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) {
+      const _frostAoeMult = activeMult * bMult0;
+      const _frostAoe = 10 * _frostAoeMult;
+      formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): 10`;
+      if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
+      else formula += ` = <b>10</b>`;
+      formula += `</span>`;
+    }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -3409,6 +3417,14 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
         formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits.toFixed(1)} exp. crits × ${_beakDmgPer.toFixed(1)}): <b>${(_expB + _eCrits * _beakDmgPer).toFixed(1)}</b></span>`;
       }
     }
+  }
+  if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) {
+    const _frostAoeMult = activeMult * bMult;
+    const _frostAoe = 10 * _frostAoeMult;
+    formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): 10`;
+    if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
+    else formula += ` = <b>10</b>`;
+    formula += `</span>`;
   }
 
   detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
@@ -4552,15 +4568,16 @@ function renderDmgBonusSection() {
   // --- Enchant (shown only when a damage-boosting enchant is equipped) ---
   const _enchantName = enchantPicker.value;
   const _enchantDefs = {
-    'Cursed':  [{ key: 'cursed',    label: 'Enemy is Cursed',  desc: '+30% damage against Cursed enemies.' }],
-    'Inferno': [{ key: 'inferno',   label: 'Enemy is Burning', desc: '+20% damage when Burn is applied.' }],
-    'Midas':   [{ key: 'midasProc', label: 'Midas Proc',       desc: '16.6% chance — +15% extra damage.' }],
-    'Reaper':  [{ key: 'reaperProc',label: 'Reaper Proc',      desc: 'On proc: up to +25% damage based on enemy current HP.' }],
+    'Cursed':  [{ key: 'cursed',           label: 'Enemy is Cursed',  desc: '+30% damage against Cursed enemies.' }],
+    'Inferno': [{ key: 'inferno',          label: 'Enemy is Burning', desc: '+20% damage when Burn is applied.' }],
+    'Midas':   [{ key: 'midasProc',        label: 'Midas Proc',       desc: '16.6% chance — +15% extra damage.' }],
+    'Reaper':  [{ key: 'reaperProc',       label: 'Reaper Proc',      desc: 'On proc: up to +25% damage based on enemy current HP.' }],
+    'Frosted': [{ key: 'frostedColdEnemy', label: 'Enemy has Cold',   desc: 'On crit vs Cold enemy: AOE explosion with 10 base dmg (pseudo-scales with damage modifiers).' }],
   };
   const _enchTogs = _enchantDefs[_enchantName];
   if (_enchTogs) {
     // Reset inactive enchant conditions when enchant changes
-    ['cursed','inferno','midasProc','reaperProc'].forEach(k => {
+    ['cursed','inferno','midasProc','reaperProc','frostedColdEnemy'].forEach(k => {
       if (!_enchantDefs[_enchantName].find(t => t.key === k)) enchantCondActive[k] = false;
     });
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
@@ -4654,7 +4671,7 @@ function renderDmgBonusSection() {
     const _hasEmpPierce = dmgCalcMoveList.some(m => m.name === "Empowered Pierce");
     const _hasEmpPierceProf = _hasEmpPierce && masteryState["rm2"] && _superClass === "Impaler (Ch)";
     const _hasFlourish = dmgCalcMoveList.some(m => m.name === "Flourish");
-    const _hasFlourishProf = _hasFlourish && masteryState["lm2"] && _superClass === "Verdant Archer (Ch)";
+    const _hasFlourishProf = _hasFlourish && masteryState["lm2"] && _superClass === "Ranger (Or)";
     _flourishSpdAmt = _hasFlourishProf ? 48 : 25;
     const _hasFocusStep = racePicker.value === "Stultus (20%)" && (+lvlInput.value || 0) >= 10;
     const _focusStepAmt = Math.max(1, +lvlInput.value || 1) * 2;
