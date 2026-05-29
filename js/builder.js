@@ -3423,6 +3423,7 @@ function parseDmgBonus(text) {
     /(\d+(?:\.\d+)?)\s*%\s*damage\s+bonus/i,
     /(\d+(?:\.\d+)?)\s*%\s*dmg\s+buff/i,
     /increases?\s+(?:(?:\w+)\s+)*?damage\s+by\s+(\d+(?:\.\d+)?)\s*%/i,
+    /damage\s+increased?\s+by\s+(\d+(?:\.\d+)?)\s*%/i,
     /deal[s]?\s+(\d+(?:\.\d+)?)\s*%\s+more\s+damage/i,
     /(\d+(?:\.\d+)?)\s*%\s+more\s+damage/i,
     /(\d+(?:\.\d+)?)\s*%\s+(?:extra|additional)\s+damage/i,
