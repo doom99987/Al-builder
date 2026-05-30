@@ -564,6 +564,9 @@ function updatePecents() {
     if (stat === "crit-chance" && tearBloodCrystalActive) {
       display = (parseFloat(display) + 5).toFixed(1);
     }
+    if (stat === "crit-chance" && racePicker.value === "Vydeer (1%)" && dmgBonusActive["passive:Crit Buildup"] && vydeerCritStacks > 0) {
+      display = (parseFloat(display) + vydeerCritStacks * 1.5).toFixed(1);
+    }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
   });
@@ -2602,6 +2605,7 @@ let bloodlustStacks = 1;     // 1-8: Bloodlust stacks (1st=20%, each extra +10%,
 let looterStacks = 1;        // 1+: Looter kill stacks (15.75% LCK + 20% SPD per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
+let vydeerCritStacks = 0; // 0-10: Vydeer Crit Buildup turns (1.5% crit per turn, max 15%)
 let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (×1.20 each)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
@@ -3582,6 +3586,15 @@ function collectDmgBonusPassives() {
     }
   });
 
+  // Vydeer Crit Buildup — manually added (crit chance buff, not a direct dmg %)
+  if (raceName === "Vydeer (1%)") {
+    const cbKey = "passive:Crit Buildup";
+    if (!seen.has(cbKey)) {
+      seen.add(cbKey);
+      rawEntries.push({ key: cbKey, name: "Crit Buildup", bonus: 0, kind: "passive", desc: "Every turn gain 1.5% extra Crit Chance, capped at 15% after 10 turns." });
+    }
+  }
+
   // Boreas Frost Stacks — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
   if (raceName === "Boreas (1%)") {
     const fsKey = "passive:Frost Stacks";
@@ -3981,6 +3994,11 @@ function changeBoreasStacks(delta) {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
+function changeVydeerCritStacks(delta) {
+  vydeerCritStacks = Math.min(10, Math.max(0, vydeerCritStacks + delta));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+
 function changeCastAmplifyStacks(delta) {
   const isCorvolus = racePicker.value === "Corvolus (3%)";
   const maxStacks = isCorvolus ? 5 : 4;
@@ -4220,6 +4238,7 @@ function renderDmgBonusSection() {
     const isHourglass        = p.name === "Sands Of Time";
     const isOppression       = p.name === "Oppression";
     const isBoreas           = p.name === "Frost Stacks";
+    const isVydeerCritBuildup = p.name === "Crit Buildup";
     const isCrusher          = p.name === "Crusher";
     const isFlamingOverdrive  = p.name === "Flaming Overdrive";
     const isSpiritAwakening   = p.name === "Spirit Awakening";
@@ -4272,6 +4291,7 @@ function renderDmgBonusSection() {
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
                          : isKarmaStacks      ? `${karmaStacks} stacks`
                          : isGoldRush        ? `×${(1 + Math.min(20, (goldRushGold / 500) * 0.2) / 100).toFixed(4).replace(/\.?0+$/, '')}`
+                         : isVydeerCritBuildup ? `+${(vydeerCritStacks * 1.5).toFixed(1)}% Crit`
                          : `×${(1 + displayBonus / 100).toFixed(2)}`;
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isRageEmp ? ' data-rage-emp' : ''}${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -4383,6 +4403,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeBoreasStacks(-1)">−</button>
           <span class="dc-energy-val">${boreasStacks}</span>
           <button class="dc-energy-btn" onclick="changeBoreasStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isVydeerCritBuildup) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Turns elapsed (max 10 = +15% Crit)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeVydeerCritStacks(-1)">−</button>
+          <span class="dc-energy-val">${vydeerCritStacks}</span>
+          <button class="dc-energy-btn" onclick="changeVydeerCritStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -6898,6 +6928,7 @@ function loadBuildState(state) {
   looterStacks = 1;
   hourglassStacks = 1;
   boreasStacks = 1;
+  vydeerCritStacks = 0;
   unendingFlowStacks = 1;
   rendingBarrageStacks = 1;
   demonicPresenceStacks = 1;
