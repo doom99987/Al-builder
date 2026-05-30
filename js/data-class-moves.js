@@ -195,7 +195,7 @@ const classMoves = {
         cooldown: 5,
         moveType: "Physical",
         category: "Attack",
-        damage: 15,
+        damage: 16,
         scaling: "STR/85",
         effect: "Deals 30% more damage if the enemy is bleeding.",
         image: "https://trello.com/1/cards/67b32950fc6607f34e915105/attachments/69803cead7b17c27b5bb2103/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105745.png"
