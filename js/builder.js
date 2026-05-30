@@ -3365,6 +3365,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   if (m.name === "Slash Barrage") {
     const _sbBleedDmg = currentDmg * 1.30;
     formula += `<br><span class="dc-avg-line">vs bleeding: × 1.30 <span class="dc-bonus-tag">[Bleeding]</span> = <b>${_sbBleedDmg.toFixed(1)}</b></span>`;
+    currentDmg = _sbBleedDmg;
   }
 
   // Rending Barrage (Impaler (Ch) 1st Learn): extra hit (13.5 base, STR/75+ARC/75, 7.5% lifesteal) if enemy is bleeding
