@@ -3361,6 +3361,12 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     currentDmg = _blazeProfBase;
   }
 
+  // Blazing Barrage Proficiency (Monk (Or) lm2): +20% damage vs burning
+  if (m.name === "Blazing Barrage" && masteryState["lm2"] && superPicker.value === "Monk (Or)") {
+    const _bbProfBurn = currentDmg * 1.20;
+    formula += `<br><span class="dc-avg-line">vs burning: × 1.20 <span class="dc-bonus-tag">[BB Prof.]</span> = <b>${_bbProfBurn.toFixed(1)}</b></span>`;
+  }
+
   // Slash Barrage (Rogue (N) 5th Learn): innate +30% damage vs bleeding enemies
   if (m.name === "Slash Barrage") {
     const _sbBleedDmg = currentDmg * 1.30;
@@ -3430,6 +3436,26 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
     else formula += ` = <b>10</b>`;
     formula += `</span>`;
+  }
+
+  // Vastic Glaive bomb procs (shown when equipped and STR or ARC is highest stat)
+  if (document.getElementById("weapon-main")?.value === "Vastic Glaive") {
+    const _fvStr = getTotalStat("str"), _fvArc = getTotalStat("arc");
+    const _fvEnd = getTotalStat("end"), _fvSpd = getTotalStat("spd"), _fvLck = getTotalStat("lck");
+    const _vasticLvl2 = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
+    const _vasticLvlBonus2 = Math.floor(_vasticLvl2 / 5);
+    const _getVB2 = stat => +(document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`)?.value || 0) + (raceBase[stat] ?? 0) + _vasticLvlBonus2;
+    const _fiStr = _getVB2("str"), _fiArc = _getVB2("arc"), _fiEnd = _getVB2("end"), _fiSpd = _getVB2("spd"), _fiLck = _getVB2("lck");
+    const _fvMax = Math.max(_fiStr, _fiArc, _fiEnd, _fiSpd, _fiLck);
+    if (_fiStr === _fvMax) {
+      const _bomb = 10 + Math.floor(_fvStr / 40);
+      const _total = _bomb * vasticProcCount;
+      formula += `<br><span class="dc-avg-line" style="color:#f4a460">+ Vastic STR Bomb: ${_bomb}${vasticProcCount > 1 ? ` × ${vasticProcCount} procs = <b>${_total}</b>` : ` = <b>${_bomb}</b>`} <span class="dc-bonus-tag">[can kill]</span></span>`;
+    } else if (_fiArc === _fvMax) {
+      const _bomb = 10 + Math.floor(_fvArc / 20);
+      const _total = _bomb * vasticProcCount;
+      formula += `<br><span class="dc-avg-line" style="color:#9b7ae8">+ Vastic ARC Bomb: ${_bomb}${vasticProcCount > 1 ? ` × ${vasticProcCount} procs = <b>${_total}</b>` : ` = <b>${_bomb}</b>`} <span class="dc-bonus-tag">[no kill]</span></span>`;
+    }
   }
 
   detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
@@ -3564,7 +3590,7 @@ function collectDmgBonusPassives() {
           // If this mastery upgrades a specific buff/move, register under that name so it merges
           const name = override.upgrades || override.name || n.name;
           // Skip masteries that are move-specific modifiers handled inline in the formula builder
-          const _moveSpecificMasteries = ["Blaze Proficiency"];
+          const _moveSpecificMasteries = ["Blaze Proficiency", "Blazing Barrage Proficiency"];
           if (!_moveSpecificMasteries.includes(name)) tryAdd(name, desc, "mastery");
         }
       });
@@ -4009,6 +4035,11 @@ function changeCastAmplifyStacks(delta) {
 
 function changeFlamingOverdriveStacks(delta) {
   flamingOverdriveStacks = Math.min(15, Math.max(0, flamingOverdriveStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeVasticProcCount(delta) {
+  vasticProcCount = Math.max(1, vasticProcCount + delta);
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -4665,6 +4696,8 @@ function renderDmgBonusSection() {
     if (_strMajor || _arcMajor || _lckMajor) {
       const _strBomb = 10 + Math.floor(_vStr / 40);
       const _arcBomb = 10 + Math.floor(_vArc / 20);
+      // Reset proc count if no longer showing bomb procs
+      if (!_strMajor && !_arcMajor && vasticProcCount > 1) vasticProcCount = 1;
       html += `<h3 class="dc-bonus-title" style="margin-top:12px">Vastic Procs</h3>
       <div class="dc-bonus-list">`;
 
@@ -4681,6 +4714,16 @@ function renderDmgBonusSection() {
           <span class="dc-bonus-pct" style="color:#9b7ae8"><b>${_arcBomb}</b></span>
         </div>
         <div class="dc-vastic-formula">Base 10 + ARC (${_vArc}) / 20</div>`;
+      }
+      if ((_strMajor || _arcMajor) && vasticProcCount !== undefined) {
+        html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+          <span class="dc-energy-label">Bomb Procs <span style="color:#aaa;font-size:11px">(multi-hit attacks)</span></span>
+          <div class="dc-energy-counter">
+            <button class="dc-energy-btn" onclick="changeVasticProcCount(-1)">−</button>
+            <span class="dc-energy-val">${vasticProcCount}</span>
+            <button class="dc-energy-btn" onclick="changeVasticProcCount(1)">+</button>
+          </div>
+        </div>`;
       }
       if (_lckMajor) {
         html += `<div class="dc-bonus-row${vasticLckProcActive ? " dc-bonus-on" : ""}" data-vastic-lck style="cursor:pointer" title="Grants 80% crit chance on your next attack">
