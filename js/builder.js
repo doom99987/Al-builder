@@ -2675,7 +2675,7 @@ const BOSS_DATA = {
   },
   "Handaconda": {
     hp: 9000,
-    hpVariants: { "Corrupted": 13500 },
+    hpVariants: { "Corrupted": 27000 },
     res: { Physical: 0.50, Holy: 0.50, Arcane: 0.50, Fire: 1.25 },
   },
   "Shadeblade": {
