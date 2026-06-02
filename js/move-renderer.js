@@ -74,7 +74,8 @@ function isSummonMove(m) {
   if (/^\d+$/.test(s)) return false; // plain numeric slot = ordering, not a summon
   return !/^\d+(st|nd|rd|th)\s+Learn$/i.test(s)
       && !/^Class\s+Active$/i.test(s)
-      && !/^Tier\s+\d+$/i.test(s);
+      && !/^Tier\s+\d+$/i.test(s)
+      && !/^Level\s+\d+$/i.test(s);
 }
 
 function _moveSlug(name) {
