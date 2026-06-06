@@ -773,7 +773,7 @@
 }
 
 .all-lb-rank { color: #666; width: 24px; }
-.all-lb-name { color: #ccc; }
+.all-lb-name { color: #ccc; max-width: 0; width: 100%; }
 .all-lb-score { color: #e0d8c8; text-align: right; white-space: nowrap; }
 
 .dc-vastic-active {
@@ -790,6 +790,13 @@
   display: flex;
   align-items: center;
   gap: 7px;
+  min-width: 0;
+}
+.lb-player-cell span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .lb-player-cell .sb-avatar {
   flex-shrink: 0;
