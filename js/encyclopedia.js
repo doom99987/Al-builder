@@ -4820,6 +4820,13 @@
         btn.addEventListener('click', window._astraTrackerOpen);
         extrasEl.appendChild(btn);
       }
+      if (name === 'Amorus (Obtainable)') {
+        const btn = document.createElement('button');
+        btn.className = 'vt-open-btn';
+        btn.textContent = 'Open Amorus Tracker';
+        btn.addEventListener('click', window._amorusTrackerOpen);
+        extrasEl.appendChild(btn);
+      }
     }
 
     // Learned moves
@@ -5112,6 +5119,7 @@
   let _vtDoc = document;
   let _ptDoc = document;
   let _atDoc = document;
+  let _amDoc = document;
 
   function vtGetMeta() {
     try {
@@ -5730,19 +5738,168 @@
     if (_astraPopupWin) { _astraPopupWin.focus(); window._astraTrackerClose(); }
   };
 
+  /* ── Amorus Obtainment Tracker ──────────────────────────────────────────── */
+  const AMORUS_ITEMS = [
+    { name: 'Phoenix Tear',       category: 'Lesser Artifact' },
+    { name: 'Lineage Shard',      category: 'Lesser Artifact' },
+    { name: 'Memory Fragment',    category: 'Lesser Artifact' },
+    { name: 'Soul Dust',          category: 'Lesser Artifact' },
+    { name: 'Void Key',           category: 'Lesser Artifact' },
+    { name: 'Reality Watch',      category: "Yar'thul Drop" },
+    { name: "Narthana's Sigil",   category: "Yar'thul Drop" },
+    { name: 'Shifting Hourglass', category: "Yar'thul Drop" },
+    { name: 'Dark Sigil',         category: 'Thorian Drop' },
+    { name: "Metrom's Amulet",    category: 'Thorian Drop' },
+    { name: 'Stellian Core',      category: 'Thorian Drop' },
+    { name: 'Chaos Orb',          category: "Metrom's / Other" },
+  ];
+
+  const AM_KEY = 'al-amorus-tracker';
+
+  function amGetMeta() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(AM_KEY));
+      if (raw && Array.isArray(raw.tabs)) return raw;
+      return { tabs: [{ id: 'am1', name: 'Run 1', data: {} }], activeTab: 'am1' };
+    } catch {
+      return { tabs: [{ id: 'am1', name: 'Run 1', data: {} }], activeTab: 'am1' };
+    }
+  }
+  function amSaveMeta(meta)   { localStorage.setItem(AM_KEY, JSON.stringify(meta)); }
+  function amNewId()          { return 'am' + Date.now(); }
+  function amActiveTab(meta)  { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function amGetData(meta)    { const d = amActiveTab(meta).data; if (!d.items) d.items = {}; return d; }
+  function amSetData(meta, d) { amActiveTab(meta).data = d; }
+
+  function amRenderTabs(meta) {
+    const tabsEl = _amDoc.getElementById('amorus-tracker-tabs');
+    if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    meta.tabs.forEach(tab => {
+      const wrap = _amDoc.createElement('div');
+      wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
+      const nameBtn = _amDoc.createElement('button');
+      nameBtn.className = 'vt-tab-btn';
+      nameBtn.textContent = tab.name;
+      nameBtn.title = 'Click to switch · Double-click to rename';
+      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; amSaveMeta(meta); amRender(); });
+      nameBtn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const newName = prompt('Rename tab:', tab.name);
+        if (newName && newName.trim()) { tab.name = newName.trim(); amSaveMeta(meta); amRender(); }
+      });
+      wrap.appendChild(nameBtn);
+      if (meta.tabs.length > 1) {
+        const delBtn = _amDoc.createElement('button');
+        delBtn.className = 'vt-tab-del';
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete tab';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!confirm(`Delete "${tab.name}"?`)) return;
+          const idx = meta.tabs.findIndex(t => t.id === tab.id);
+          meta.tabs.splice(idx, 1);
+          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
+          amSaveMeta(meta); amRender();
+        });
+        wrap.appendChild(delBtn);
+      }
+      tabsEl.appendChild(wrap);
+    });
+    const addBtn = _amDoc.createElement('button');
+    addBtn.className = 'vt-tab-add';
+    addBtn.textContent = '+ Add Tab';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Tab name:', `Run ${meta.tabs.length + 1}`);
+      if (!name || !name.trim()) return;
+      const id = amNewId();
+      meta.tabs.push({ id, name: name.trim(), data: {} });
+      meta.activeTab = id;
+      amSaveMeta(meta); amRender();
+    });
+    tabsEl.appendChild(addBtn);
+  }
+
+  function amMakeRow(label, val, onClick) {
+    const cls  = val === 1 ? 'vt-state-green' : '';
+    const icon = val === 1 ? '✓' : '○';
+    const row  = _amDoc.createElement('button');
+    row.className = `vt-artifact-row ${cls}`;
+    row.innerHTML = `<span class="vt-artifact-icon">${icon}</span><span class="vt-artifact-name">${label}</span>`;
+    row.addEventListener('click', onClick);
+    return row;
+  }
+
+  function amRender() {
+    const meta = amGetMeta();
+    const data = amGetData(meta);
+    amRenderTabs(meta);
+    const grid = _amDoc.getElementById('amorus-tracker-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    const categories = [];
+    const catMap = {};
+    AMORUS_ITEMS.forEach(({ name, category }) => {
+      if (!catMap[category]) { catMap[category] = []; categories.push(category); }
+      catMap[category].push(name);
+    });
+
+    categories.forEach(cat => {
+      const hdr = _amDoc.createElement('div');
+      hdr.className = 'pt-section-hdr';
+      hdr.textContent = cat;
+      grid.appendChild(hdr);
+      const catGrid = _amDoc.createElement('div');
+      catGrid.className = 'pt-loc-grid';
+      catMap[cat].forEach(name => {
+        catGrid.appendChild(amMakeRow(name, data.items[name] || 0, () => {
+          const m = amGetMeta(); const d = amGetData(m);
+          d.items[name] = ((d.items[name] || 0) + 1) % 2;
+          amSetData(m, d); amSaveMeta(m); amRender();
+        }));
+      });
+      grid.appendChild(catGrid);
+    });
+
+    const obtained = AMORUS_ITEMS.filter(({ name }) => data.items[name] === 1).length;
+    const total = AMORUS_ITEMS.length;
+    const progressNote = _amDoc.createElement('div');
+    progressNote.className = 'pt-info-note';
+    progressNote.textContent = `${obtained} / ${total} items collected — ${total - obtained} remaining`;
+    grid.appendChild(progressNote);
+  }
+
+  window._amorusTrackerOpen = function () {
+    if (_amDoc === document) document.getElementById('amorus-tracker-overlay').style.display = 'flex';
+    amRender();
+  };
+  window._amorusTrackerClose = function () {
+    if (_amDoc === document) document.getElementById('amorus-tracker-overlay').style.display = 'none';
+  };
+  let _amorusPopupWin = null;
+  window._amorusTrackerPopout = function () {
+    if (_amorusPopupWin && !_amorusPopupWin.closed) { _amorusPopupWin.focus(); return; }
+    _amorusPopupWin = window.open('../html/tracker-popup.html?tracker=amorus', 'alb-amorus-popup', 'width=560,height=600,resizable=yes,scrollbars=yes');
+    if (_amorusPopupWin) { _amorusPopupWin.focus(); window._amorusTrackerClose(); }
+  };
+
   // Re-render open trackers when popup saves changes back to localStorage
   window.addEventListener('storage', e => {
     if (e.key === VT_KEY && (_vtDoc !== document || document.getElementById('venia-tracker-overlay')?.style.display !== 'none')) vtRender();
     if (e.key === PT_KEY && (_ptDoc !== document || document.getElementById('petent-tracker-overlay')?.style.display !== 'none')) ptRender();
     if (e.key === AT_KEY && (_atDoc !== document || document.getElementById('astra-tracker-overlay')?.style.display !== 'none')) atRender();
+    if (e.key === AM_KEY && (_amDoc !== document || document.getElementById('amorus-tracker-overlay')?.style.display !== 'none')) amRender();
   });
 
   window._vtSetDoc = d => { _vtDoc = d || document; };
   window._ptSetDoc = d => { _ptDoc = d || document; };
   window._atSetDoc = d => { _atDoc = d || document; };
+  window._amSetDoc = d => { _amDoc = d || document; };
   window._vtRender = () => vtRender();
   window._ptRender = () => ptRender();
   window._atRender = () => atRender();
+  window._amRender = () => amRender();
 
   /* ── Init ───────────────────────────────────────────────────────────────── */
   if (document.readyState === 'loading') {
