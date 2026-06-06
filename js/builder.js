@@ -1162,6 +1162,7 @@ buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), () => {
   updateEnchantDesc();
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
+  ivoryNrgStacks = 0;
   renderDmgBonusSection(); recalcOpenDetails();
 });
 buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); updatePecents(); renderDmgBonusSection(); recalcOpenDetails(); });
@@ -2632,6 +2633,7 @@ const TEAM_BUFFS = [
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
+let ivoryNrgStacks = 0;         // 0-3: active NRG stacks from Ivory enchant (+4% all stats per stack)
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
@@ -2776,6 +2778,7 @@ function getTotalStat(statKey) {
   }
   if (statKey === "str" && statBuffsActive.fireSutraStr) total = Math.round(total * 1.25);
   if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
+  if (enchantPicker.value === 'Ivory' && ivoryNrgStacks > 0) total = Math.round(total * (1 + ivoryNrgStacks * 0.04));
   if (statKey === "spd") {
     const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
     const spdFlat = (statBuffsActive.flourishSpd ? _flourishSpdAmt : 0)
@@ -4122,6 +4125,10 @@ function setEnchantReaperHp(val) {
   enchantReaperEnemyHp = +val;
   renderDmgBonusSection(); recalcOpenDetails();
 }
+function setIvoryStacks(val) {
+  ivoryNrgStacks = Math.max(0, Math.min(3, +val));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
 
 function getStatusMultiplier(moveType) {
   let mult = 1;
@@ -4631,7 +4638,7 @@ function renderDmgBonusSection() {
   const _enchantName = enchantPicker.value;
   const _enchantDefs = {
     'Cursed':  [{ key: 'cursed',           label: 'Enemy is Cursed',  desc: '+30% damage against Cursed enemies.' }],
-    'Inferno': [{ key: 'inferno',          label: 'Enemy is Burning', desc: '+20% damage when Burn is applied.' }],
+    'Inferno': [{ key: 'inferno',          label: 'Enemy is Burning', desc: '+20% damage when Burn is applied (includes the attack that inflicts Burning).' }],
     'Midas':   [{ key: 'midasProc',        label: 'Midas Proc',       desc: '16.6% chance — +15% extra damage.' }],
     'Reaper':  [{ key: 'reaperProc',       label: 'Reaper Proc',      desc: 'On proc: up to +25% damage based on enemy current HP.' }],
     'Frosted': [{ key: 'frostedColdEnemy', label: 'Enemy has Cold',   desc: 'On crit vs Cold enemy: AOE explosion with 10 base dmg (pseudo-scales with damage modifiers).' }],
@@ -4661,6 +4668,23 @@ function renderDmgBonusSection() {
         </div>`;
       }
     });
+    html += `</div>`;
+  }
+
+  // --- Ivory Enchant NRG Stacks ---
+  if (_enchantName === 'Ivory') {
+    const _ivoryMult = (1 + ivoryNrgStacks * 0.04).toFixed(2);
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
+    html += `<div class="dc-bonus-row${ivoryNrgStacks > 0 ? ' dc-bonus-on' : ''}" title="Each NRG gained gives +4% to all stats for 3 turns. Stacks up to 3 times (max +12%).">
+      <div class="dc-bonus-check">${ivoryNrgStacks > 0 ? '✓' : ''}</div>
+      <span class="dc-bonus-name">NRG Stacks (${ivoryNrgStacks}/3)</span>
+      <span class="dc-bonus-pct">×${_ivoryMult} all stats</span>
+    </div>
+    <div class="dc-energy-section" style="margin:4px 0 6px 0">
+      <span class="dc-energy-label">Stacks: <span>${ivoryNrgStacks}</span></span>
+      <input type="range" class="dc-rage-slider" min="0" max="3" value="${ivoryNrgStacks}" oninput="setIvoryStacks(this.value)">
+      <span class="dc-rage-slider-hint">+${ivoryNrgStacks * 4}% to all stats (max 12%)</span>
+    </div>`;
     html += `</div>`;
   }
 
@@ -6998,6 +7022,7 @@ function loadBuildState(state) {
   Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
+  ivoryNrgStacks = 0;
   coagNailStacks = 1;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
