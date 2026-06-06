@@ -165,17 +165,23 @@
     <p class="vt-modal-hint">Click to mark <span class="vt-hint-green">done ✓</span>, click again to clear.</p>
     <div id="astra-tracker-grid"></div>
   </div>
+
+  <!-- Amorus-specific -->
+  <div id="amorus-section" style="display:none; flex-direction:column; gap:10px;">
+    <p class="vt-modal-hint">Click to mark <span class="vt-hint-green">collected ✓</span>, click again to clear.</p>
+    <div id="amorus-tracker-grid"></div>
+  </div>
 </div>
 <script>
 (function () {
   const params  = new URLSearchParams(location.search);
-  const TRACKER = params.get('tracker') || 'venia'; // venia | petent | astra
+  const TRACKER = params.get('tracker') || 'venia'; // venia | petent | astra | amorus
 
   // ── Show the right section ────────────────────────────────────────────────
-  const titles = { venia: 'Venia Orb Tracker', petent: 'Petent Tracker', astra: 'Astra Tracker' };
+  const titles = { venia: 'Venia Orb Tracker', petent: 'Petent Tracker', astra: 'Astra Tracker', amorus: 'Amorus Obtainment Tracker' };
   document.getElementById('tracker-title').textContent = titles[TRACKER] || 'Tracker';
   document.title = 'AL Builder — ' + (titles[TRACKER] || 'Tracker');
-  ['venia','petent','astra'].forEach(t => {
+  ['venia','petent','astra','amorus'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.style.display = (t === TRACKER) ? 'flex' : 'none';
   });
@@ -601,18 +607,125 @@
     grid.appendChild(enemyGrid);
   }
 
+  // ── AMORUS ────────────────────────────────────────────────────────────────
+  const AMORUS_ITEMS = [
+    { name: 'Phoenix Tear',       category: 'Lesser Artifact' },
+    { name: 'Lineage Shard',      category: 'Lesser Artifact' },
+    { name: 'Memory Fragment',    category: 'Lesser Artifact' },
+    { name: 'Soul Dust',          category: 'Lesser Artifact' },
+    { name: 'Void Key',           category: 'Lesser Artifact' },
+    { name: 'Reality Watch',      category: "Yar'thul Drop" },
+    { name: "Narthana's Sigil",   category: "Yar'thul Drop" },
+    { name: 'Shifting Hourglass', category: "Yar'thul Drop" },
+    { name: 'Dark Sigil',         category: 'Thorian Drop' },
+    { name: "Metrom's Amulet",    category: 'Thorian Drop' },
+    { name: 'Stellian Core',      category: 'Thorian Drop' },
+    { name: 'Chaos Orb',          category: "Metrom's / Other" },
+  ];
+  const AM_KEY = 'al-amorus-tracker';
+  function amGetMeta() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(AM_KEY));
+      if (raw && Array.isArray(raw.tabs)) return raw;
+      return { tabs: [{ id: 'am1', name: 'Run 1', data: {} }], activeTab: 'am1' };
+    } catch { return { tabs: [{ id: 'am1', name: 'Run 1', data: {} }], activeTab: 'am1' }; }
+  }
+  function amSaveMeta(meta) { localStorage.setItem(AM_KEY, JSON.stringify(meta)); }
+  function amNewId()        { return 'am' + Date.now(); }
+  function amActiveTab(meta){ return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function amGetData(meta)  { const d = amActiveTab(meta).data; if (!d.items) d.items = {}; return d; }
+  function amSetData(meta,d){ amActiveTab(meta).data = d; }
+
+  function amRenderTabs(meta) {
+    const tabsEl = document.getElementById('amorus-tracker-tabs'); if (!tabsEl) return;
+    tabsEl.innerHTML = '';
+    meta.tabs.forEach(tab => {
+      const wrap = document.createElement('div');
+      wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
+      const nameBtn = document.createElement('button');
+      nameBtn.className = 'vt-tab-btn'; nameBtn.textContent = tab.name;
+      nameBtn.title = 'Click to switch · Double-click to rename';
+      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; amSaveMeta(meta); amRender(); });
+      nameBtn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const newName = prompt('Rename tab:', tab.name);
+        if (newName && newName.trim()) { tab.name = newName.trim(); amSaveMeta(meta); amRender(); }
+      });
+      wrap.appendChild(nameBtn);
+      if (meta.tabs.length > 1) {
+        const delBtn = document.createElement('button'); delBtn.className = 'vt-tab-del'; delBtn.textContent = '×'; delBtn.title = 'Delete tab';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!confirm('Delete "' + tab.name + '"?')) return;
+          const idx = meta.tabs.findIndex(t => t.id === tab.id);
+          meta.tabs.splice(idx, 1);
+          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx-1)].id;
+          amSaveMeta(meta); amRender();
+        });
+        wrap.appendChild(delBtn);
+      }
+      tabsEl.appendChild(wrap);
+    });
+    const addBtn = document.createElement('button'); addBtn.className = 'vt-tab-add'; addBtn.textContent = '+ Add Tab';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Tab name:', 'Run ' + (meta.tabs.length + 1));
+      if (!name || !name.trim()) return;
+      const id = amNewId();
+      meta.tabs.push({ id, name: name.trim(), data: {} }); meta.activeTab = id;
+      amSaveMeta(meta); amRender();
+    });
+    tabsEl.appendChild(addBtn);
+  }
+
+  function amRender() {
+    if (TRACKER !== 'amorus') return;
+    const meta = amGetMeta(); const data = amGetData(meta);
+    amRenderTabs(meta);
+    const grid = document.getElementById('amorus-tracker-grid'); if (!grid) return;
+    grid.innerHTML = '';
+    const categories = []; const catMap = {};
+    AMORUS_ITEMS.forEach(({ name, category }) => {
+      if (!catMap[category]) { catMap[category] = []; categories.push(category); }
+      catMap[category].push(name);
+    });
+    categories.forEach(cat => {
+      const hdr = document.createElement('div'); hdr.className = 'pt-section-hdr'; hdr.textContent = cat; grid.appendChild(hdr);
+      const catGrid = document.createElement('div'); catGrid.className = 'pt-loc-grid';
+      catMap[cat].forEach(name => {
+        const val = data.items[name] || 0;
+        const row = document.createElement('button');
+        row.className = 'vt-artifact-row' + (val === 1 ? ' vt-state-green' : '');
+        row.innerHTML = '<span class="vt-artifact-icon">' + (val === 1 ? '✓' : '○') + '</span><span class="vt-artifact-name">' + name + '</span>';
+        row.addEventListener('click', () => {
+          const m = amGetMeta(); const d = amGetData(m);
+          d.items[name] = ((d.items[name] || 0) + 1) % 2;
+          amSetData(m,d); amSaveMeta(m); amRender();
+        });
+        catGrid.appendChild(row);
+      });
+      grid.appendChild(catGrid);
+    });
+    const obtained = AMORUS_ITEMS.filter(({ name }) => data.items[name] === 1).length;
+    const total = AMORUS_ITEMS.length;
+    const note = document.createElement('div'); note.className = 'pt-info-note';
+    note.textContent = obtained + ' / ' + total + ' items collected — ' + (total - obtained) + ' remaining';
+    grid.appendChild(note);
+  }
+
   // ── Initial render ────────────────────────────────────────────────────────
   if (TRACKER === 'venia')  vtRender();
   if (TRACKER === 'petent') ptRender();
   if (TRACKER === 'astra')  atRender();
+  if (TRACKER === 'amorus') amRender();
 
   // ── Sync: re-render when another tab/window writes to localStorage ────────
   window.addEventListener('storage', e => {
-    const keys = { venia: VT_KEY, petent: PT_KEY, astra: AT_KEY };
+    const keys = { venia: VT_KEY, petent: PT_KEY, astra: AT_KEY, amorus: AM_KEY };
     if (e.key === keys[TRACKER]) {
       if (TRACKER === 'venia')  vtRender();
       if (TRACKER === 'petent') ptRender();
       if (TRACKER === 'astra')  atRender();
+      if (TRACKER === 'amorus') amRender();
     }
   });
 })();

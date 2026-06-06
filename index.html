@@ -1423,6 +1423,22 @@
   </div>
 </div>
 
+<!-- Amorus Obtainment Tracker Modal -->
+<div id="amorus-tracker-overlay" onclick="if(event.target===this)window._amorusTrackerClose()" style="display:none">
+  <div id="amorus-tracker-modal">
+    <div class="vt-modal-hdr">
+      <span class="vt-modal-title">Amorus Obtainment Tracker</span>
+      <div style="display:flex;gap:6px">
+        <button class="vt-close-btn" onclick="window._amorusTrackerPopout()" title="Pop out">⧉</button>
+        <button class="vt-close-btn" onclick="window._amorusTrackerClose()">✕</button>
+      </div>
+    </div>
+    <div class="vt-tabs-bar" id="amorus-tracker-tabs"></div>
+    <p class="vt-modal-hint">Click to mark <span class="vt-hint-green">collected ✓</span>, click again to clear.</p>
+    <div id="amorus-tracker-grid"></div>
+  </div>
+</div>
+
 
 <script>
 (function () {

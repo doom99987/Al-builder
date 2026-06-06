@@ -61,7 +61,7 @@
 
     pipWin.addEventListener('pagehide', () => {
       _pipWin = null; _switchTab = null;
-      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._chatSetDoc?.(null);
+      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._amSetDoc?.(null); window._chatSetDoc?.(null);
     });
   }
 
@@ -96,6 +96,7 @@
       { key: 'venia',    icon: '🔮', title: 'Venia Tracker'  },
       { key: 'petent',   icon: '📜', title: 'Petent Tracker' },
       { key: 'astra',    icon: '✦',  title: 'Astra Tracker'  },
+      { key: 'amorus',   icon: '◆',  title: 'Amorus Tracker' },
       { key: 'chat',     icon: '💬', title: 'Party Chat'     },
       { key: 'settings', icon: '⚙',  title: 'Settings'       },
     ];
@@ -145,13 +146,14 @@
         b.style.borderBottomColor  = on ? '#fff' : 'transparent';
       });
       // Reset any active tracker / chat doc targets when switching tabs
-      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._chatSetDoc?.(null);
+      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._amSetDoc?.(null); window._chatSetDoc?.(null);
       content.innerHTML = '';
       if      (key === 'enc')      renderEnc(content);
       else if (key === 'settings') renderSettings(content);
       else if (key === 'venia')    renderTracker(content, 'venia');
       else if (key === 'petent')   renderTracker(content, 'petent');
       else if (key === 'astra')    renderTracker(content, 'astra');
+      else if (key === 'amorus')   renderTracker(content, 'amorus');
       else if (key === 'chat')     renderChat(content);
     }
 
@@ -332,6 +334,7 @@
         venia:  { ids: [['venia-tracker-tabs', 'vt-tabs-bar'], ['venia-tracker-tier', 'pt-tier-bar'], ['venia-tracker-grid', 'vt-grid']],   setDoc: '_vtSetDoc', render: '_vtRender' },
         petent: { ids: [['petent-tracker-tabs', 'vt-tabs-bar'], ['petent-tracker-tier', 'pt-tier-bar'], ['petent-tracker-grid', 'pt-tracker-grid']], setDoc: '_ptSetDoc', render: '_ptRender' },
         astra:  { ids: [['astra-tracker-tabs', 'vt-tabs-bar'], ['astra-tracker-grid', 'pt-tracker-grid']],                                           setDoc: '_atSetDoc', render: '_atRender' },
+        amorus: { ids: [['amorus-tracker-tabs', 'vt-tabs-bar'], ['amorus-tracker-grid', 'pt-tracker-grid']],                                          setDoc: '_amSetDoc', render: '_amRender' },
       };
       const cfg = configs[trackerKey];
       if (!cfg) return;
