@@ -4126,7 +4126,7 @@ function setEnchantReaperHp(val) {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 function setIvoryStacks(val) {
-  ivoryNrgStacks = Math.max(0, Math.min(3, +val));
+  ivoryNrgStacks = Math.max(0, +val);
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
@@ -4675,15 +4675,15 @@ function renderDmgBonusSection() {
   if (_enchantName === 'Ivory') {
     const _ivoryMult = (1 + ivoryNrgStacks * 0.04).toFixed(2);
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
-    html += `<div class="dc-bonus-row${ivoryNrgStacks > 0 ? ' dc-bonus-on' : ''}" title="Each NRG gained gives +4% to all stats for 3 turns. Stacks up to 3 times (max +12%).">
+    html += `<div class="dc-bonus-row${ivoryNrgStacks > 0 ? ' dc-bonus-on' : ''}" title="Each NRG gained gives +4% to all stats for 3 turns. No hard cap — realistically reaches 12–16 stacks.">
       <div class="dc-bonus-check">${ivoryNrgStacks > 0 ? '✓' : ''}</div>
-      <span class="dc-bonus-name">NRG Stacks (${ivoryNrgStacks}/3)</span>
+      <span class="dc-bonus-name">NRG Stacks (${ivoryNrgStacks})</span>
       <span class="dc-bonus-pct">×${_ivoryMult} all stats</span>
     </div>
     <div class="dc-energy-section" style="margin:4px 0 6px 0">
       <span class="dc-energy-label">Stacks: <span>${ivoryNrgStacks}</span></span>
-      <input type="range" class="dc-rage-slider" min="0" max="3" value="${ivoryNrgStacks}" oninput="setIvoryStacks(this.value)">
-      <span class="dc-rage-slider-hint">+${ivoryNrgStacks * 4}% to all stats (max 12%)</span>
+      <input type="range" class="dc-rage-slider" min="0" max="16" value="${ivoryNrgStacks}" oninput="setIvoryStacks(this.value)">
+      <span class="dc-rage-slider-hint">+${ivoryNrgStacks * 4}% to all stats</span>
     </div>`;
     html += `</div>`;
   }
