@@ -5109,6 +5109,9 @@
     { name: 'Stellian Core',       category: 'Thorian Drop' },
     { name: 'Chaos Orb',           category: "Metrom's / Other" },
     { name: 'Skyward Totem',       category: "Metrom's / Other" },
+    { name: "Arkahia's Visage",    category: "Metrom's / Other" },
+    { name: "Heaven's Authority",  category: "Metrom's / Other" },
+    { name: 'Paranoxian Crux',     category: "Metrom's / Other" },
   ];
 
   const VT_KEY = 'al-venia-tracker';
@@ -5317,7 +5320,7 @@
   };
   let _veniaPopupWin = null;
   window._veniaTrackerPopout = function () {
-    if (_veniaPopupWin && !_veniaPopupWin.closed) { _veniaPopupWin.focus(); return; }
+    if (_veniaPopupWin && !_veniaPopupWin.closed) { _veniaPopupWin.location.reload(); _veniaPopupWin.focus(); return; }
     _veniaPopupWin = window.open('../html/tracker-popup.html?tracker=venia', 'alb-venia-popup', 'width=980,height=700,resizable=yes,scrollbars=yes');
     if (_veniaPopupWin) { _veniaPopupWin.focus(); window._veniaTrackerClose(); }
   };
@@ -5579,7 +5582,7 @@
   };
   let _petentPopupWin = null;
   window._petentTrackerPopout = function () {
-    if (_petentPopupWin && !_petentPopupWin.closed) { _petentPopupWin.focus(); return; }
+    if (_petentPopupWin && !_petentPopupWin.closed) { _petentPopupWin.location.reload(); _petentPopupWin.focus(); return; }
     _petentPopupWin = window.open('../html/tracker-popup.html?tracker=petent', 'alb-petent-popup', 'width=700,height=700,resizable=yes,scrollbars=yes');
     if (_petentPopupWin) { _petentPopupWin.focus(); window._petentTrackerClose(); }
   };
@@ -5733,25 +5736,28 @@
   };
   let _astraPopupWin = null;
   window._astraTrackerPopout = function () {
-    if (_astraPopupWin && !_astraPopupWin.closed) { _astraPopupWin.focus(); return; }
+    if (_astraPopupWin && !_astraPopupWin.closed) { _astraPopupWin.location.reload(); _astraPopupWin.focus(); return; }
     _astraPopupWin = window.open('../html/tracker-popup.html?tracker=astra', 'alb-astra-popup', 'width=600,height=600,resizable=yes,scrollbars=yes');
     if (_astraPopupWin) { _astraPopupWin.focus(); window._astraTrackerClose(); }
   };
 
   /* ── Amorus Obtainment Tracker ──────────────────────────────────────────── */
   const AMORUS_ITEMS = [
-    { name: 'Phoenix Tear',       category: 'Lesser Artifact' },
-    { name: 'Lineage Shard',      category: 'Lesser Artifact' },
-    { name: 'Memory Fragment',    category: 'Lesser Artifact' },
-    { name: 'Soul Dust',          category: 'Lesser Artifact' },
-    { name: 'Void Key',           category: 'Lesser Artifact' },
-    { name: 'Reality Watch',      category: "Yar'thul Drop" },
-    { name: "Narthana's Sigil",   category: "Yar'thul Drop" },
-    { name: 'Shifting Hourglass', category: "Yar'thul Drop" },
-    { name: 'Dark Sigil',         category: 'Thorian Drop' },
-    { name: "Metrom's Amulet",    category: 'Thorian Drop' },
-    { name: 'Stellian Core',      category: 'Thorian Drop' },
-    { name: 'Chaos Orb',          category: "Metrom's / Other" },
+    { name: 'Phoenix Tear',        category: 'Lesser Artifact',   points: 1 },
+    { name: 'Lineage Shard',       category: 'Lesser Artifact',   points: 1 },
+    { name: 'Memory Fragment',     category: 'Lesser Artifact',   points: 1 },
+    { name: 'Soul Dust',           category: 'Lesser Artifact',   points: 1 },
+    { name: 'Void Key',            category: 'Lesser Artifact',   points: 2 },
+    { name: 'Reality Watch',       category: "Yar'thul Drop",     points: 2 },
+    { name: "Narthana's Sigil",    category: "Yar'thul Drop",     points: 2 },
+    { name: 'Shifting Hourglass',  category: "Yar'thul Drop",     points: 2 },
+    { name: 'Dark Sigil',          category: 'Thorian Drop',      points: 2 },
+    { name: "Metrom's Amulet",     category: 'Thorian Drop',      points: 2 },
+    { name: 'Stellian Core',       category: 'Thorian Drop',      points: 2 },
+    { name: 'Chaos Orb',           category: "Metrom's / Other",  points: 2 },
+    { name: "Arkahia's Visage",    category: "Metrom's / Other",  points: 2 },
+    { name: "Heaven's Authority",  category: "Metrom's / Other",  points: 2 },
+    { name: 'Paranoxian Crux',     category: "Metrom's / Other",  points: 2 },
   ];
 
   const AM_KEY = 'al-amorus-tracker';
@@ -5862,11 +5868,10 @@
       grid.appendChild(catGrid);
     });
 
-    const obtained = AMORUS_ITEMS.filter(({ name }) => data.items[name] === 1).length;
-    const total = AMORUS_ITEMS.length;
+    const points = AMORUS_ITEMS.reduce((sum, item) => sum + (data.items[item.name] === 1 ? item.points : 0), 0);
     const progressNote = _amDoc.createElement('div');
     progressNote.className = 'pt-info-note';
-    progressNote.textContent = `${obtained} / ${total} items collected — ${total - obtained} remaining`;
+    progressNote.textContent = `${points} / 20 points — ${Math.max(0, 20 - points)} remaining`;
     grid.appendChild(progressNote);
   }
 
@@ -5879,7 +5884,7 @@
   };
   let _amorusPopupWin = null;
   window._amorusTrackerPopout = function () {
-    if (_amorusPopupWin && !_amorusPopupWin.closed) { _amorusPopupWin.focus(); return; }
+    if (_amorusPopupWin && !_amorusPopupWin.closed) { _amorusPopupWin.location.reload(); _amorusPopupWin.focus(); return; }
     _amorusPopupWin = window.open('../html/tracker-popup.html?tracker=amorus', 'alb-amorus-popup', 'width=560,height=600,resizable=yes,scrollbars=yes');
     if (_amorusPopupWin) { _amorusPopupWin.focus(); window._amorusTrackerClose(); }
   };
