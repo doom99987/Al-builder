@@ -210,6 +210,9 @@
     { name: 'Stellian Core',       category: 'Thorian Drop' },
     { name: 'Chaos Orb',           category: "Metrom's / Other" },
     { name: 'Skyward Totem',       category: "Metrom's / Other" },
+    { name: "Arkahia's Visage",    category: "Metrom's / Other" },
+    { name: "Heaven's Authority",  category: "Metrom's / Other" },
+    { name: 'Paranoxian Crux',     category: "Metrom's / Other" },
   ];
   const VT_KEY = 'al-venia-tracker';
   function vtGetMeta() {
@@ -609,18 +612,21 @@
 
   // ── AMORUS ────────────────────────────────────────────────────────────────
   const AMORUS_ITEMS = [
-    { name: 'Phoenix Tear',       category: 'Lesser Artifact' },
-    { name: 'Lineage Shard',      category: 'Lesser Artifact' },
-    { name: 'Memory Fragment',    category: 'Lesser Artifact' },
-    { name: 'Soul Dust',          category: 'Lesser Artifact' },
-    { name: 'Void Key',           category: 'Lesser Artifact' },
-    { name: 'Reality Watch',      category: "Yar'thul Drop" },
-    { name: "Narthana's Sigil",   category: "Yar'thul Drop" },
-    { name: 'Shifting Hourglass', category: "Yar'thul Drop" },
-    { name: 'Dark Sigil',         category: 'Thorian Drop' },
-    { name: "Metrom's Amulet",    category: 'Thorian Drop' },
-    { name: 'Stellian Core',      category: 'Thorian Drop' },
-    { name: 'Chaos Orb',          category: "Metrom's / Other" },
+    { name: 'Phoenix Tear',        category: 'Lesser Artifact',   points: 1 },
+    { name: 'Lineage Shard',       category: 'Lesser Artifact',   points: 1 },
+    { name: 'Memory Fragment',     category: 'Lesser Artifact',   points: 1 },
+    { name: 'Soul Dust',           category: 'Lesser Artifact',   points: 1 },
+    { name: 'Void Key',            category: 'Lesser Artifact',   points: 2 },
+    { name: 'Reality Watch',       category: "Yar'thul Drop",     points: 2 },
+    { name: "Narthana's Sigil",    category: "Yar'thul Drop",     points: 2 },
+    { name: 'Shifting Hourglass',  category: "Yar'thul Drop",     points: 2 },
+    { name: 'Dark Sigil',          category: 'Thorian Drop',      points: 2 },
+    { name: "Metrom's Amulet",     category: 'Thorian Drop',      points: 2 },
+    { name: 'Stellian Core',       category: 'Thorian Drop',      points: 2 },
+    { name: 'Chaos Orb',           category: "Metrom's / Other",  points: 2 },
+    { name: "Arkahia's Visage",    category: "Metrom's / Other",  points: 2 },
+    { name: "Heaven's Authority",  category: "Metrom's / Other",  points: 2 },
+    { name: 'Paranoxian Crux',     category: "Metrom's / Other",  points: 2 },
   ];
   const AM_KEY = 'al-amorus-tracker';
   function amGetMeta() {
@@ -705,10 +711,9 @@
       });
       grid.appendChild(catGrid);
     });
-    const obtained = AMORUS_ITEMS.filter(({ name }) => data.items[name] === 1).length;
-    const total = AMORUS_ITEMS.length;
+    const points = AMORUS_ITEMS.reduce((sum, { name, points }) => sum + (data.items[name] === 1 ? points : 0), 0);
     const note = document.createElement('div'); note.className = 'pt-info-note';
-    note.textContent = obtained + ' / ' + total + ' items collected — ' + (total - obtained) + ' remaining';
+    note.textContent = points + ' / 20 points — ' + Math.max(0, 20 - points) + ' remaining';
     grid.appendChild(note);
   }
 
