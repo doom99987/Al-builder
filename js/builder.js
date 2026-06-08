@@ -2616,7 +2616,8 @@ let exposeActive = false;
 let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
 let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
-let sinisterGazeReflect = false; // Sinister Gaze: enemy has your Bulk Up defense debuff
+let sinisterGazeReflect = false;      // Sinister Gaze: enemy has your Bulk Up defense debuff
+let sinisterGazeBloodProf = false;    // Sinister Gaze: enemy has your Blood Eruption Prof damage debuff
 let overcoreActive = false;      // Overcore (Darkwraith rm1): crit mult squared at max darkcores
 let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
@@ -3864,6 +3865,8 @@ function getActiveDmgMult(moveType = null) {
     const bulkUpOn = dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key]);
     if (bulkUpOn) mult *= Math.pow(1.20, bulkUpStacks);
   }
+  // Sinister Gaze: enemy received your Blood Eruption Prof damage debuff → they take 20% more damage
+  if (sinisterGazeBloodProf) mult *= 1.20;
   return mult;
 }
 
@@ -3902,6 +3905,10 @@ function changeVaingLocketTurn(delta) {
 
 function toggleSinisterGaze() {
   sinisterGazeReflect = !sinisterGazeReflect;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+function toggleSinisterGazeBloodProf() {
+  sinisterGazeBloodProf = !sinisterGazeBloodProf;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -4900,16 +4907,27 @@ function renderDmgBonusSection() {
   {
     const _isAmorus = racePicker.value === "Amorus (Ob)";
     const _bulkUpOn = dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key]);
+    const _bloodProfOn = superPicker.value === "Impaler (Ch)" && masteryState["rm2"];
     if (!_isAmorus && sinisterGazeReflect) sinisterGazeReflect = false;
-    if (_isAmorus && _bulkUpOn) {
-      const _sgMult = Math.pow(1.20, bulkUpStacks).toFixed(2);
-      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Sinister Gaze</h3><div class="dc-bonus-list">
-        <div class="dc-bonus-row${sinisterGazeReflect ? " dc-bonus-on" : ""}" data-sinister-gaze title="You shared your Bulk Up defense debuff(s) to the enemy via Sinister Gaze — enemy takes more damage.">
+    if (!_isAmorus && sinisterGazeBloodProf) sinisterGazeBloodProf = false;
+    if (_isAmorus && (_bulkUpOn || _bloodProfOn)) {
+      html += `<h3 class="dc-bonus-title" style="margin-top:12px">Sinister Gaze</h3><div class="dc-bonus-list">`;
+      if (_bulkUpOn) {
+        const _sgMult = Math.pow(1.20, bulkUpStacks).toFixed(2);
+        html += `<div class="dc-bonus-row${sinisterGazeReflect ? " dc-bonus-on" : ""}" data-sinister-gaze title="You shared your Bulk Up defense debuff(s) to the enemy via Sinister Gaze — enemy takes more damage.">
           <div class="dc-bonus-check">${sinisterGazeReflect ? "✓" : ""}</div>
           <span class="dc-bonus-name">Defense debuff reflected</span>
           <span class="dc-bonus-pct">×${_sgMult}</span>
-        </div>
-      </div>`;
+        </div>`;
+      }
+      if (_bloodProfOn) {
+        html += `<div class="dc-bonus-row${sinisterGazeBloodProf ? " dc-bonus-on" : ""}" data-sinister-gaze-blood title="Blood Eruption Proficiency: your 20% damage debuff is reflected to the enemy via Sinister Gaze — enemy takes 20% more damage.">
+          <div class="dc-bonus-check">${sinisterGazeBloodProf ? "✓" : ""}</div>
+          <span class="dc-bonus-name">Blood Eruption debuff reflected</span>
+          <span class="dc-bonus-pct">×1.20</span>
+        </div>`;
+      }
+      html += `</div>`;
     }
   }
 
@@ -5012,6 +5030,10 @@ function renderDmgBonusSection() {
     }
     if ('sinisterGaze' in row.dataset) {
       row.addEventListener("click", () => toggleSinisterGaze());
+      return;
+    }
+    if ('sinisterGazeBlood' in row.dataset) {
+      row.addEventListener("click", () => toggleSinisterGazeBloodProf());
       return;
     }
     if ('overcore' in row.dataset) {
@@ -7003,6 +7025,7 @@ function loadBuildState(state) {
   ramiIdolStacks = 1;
   vaingLocketTurn = 1;
   sinisterGazeReflect = false;
+  sinisterGazeBloodProf = false;
   overcoreActive = false;
   overheatStacks = 1;
   crusherStacks = 1;
