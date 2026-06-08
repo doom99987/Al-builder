@@ -711,7 +711,7 @@
       });
       grid.appendChild(catGrid);
     });
-    const points = AMORUS_ITEMS.reduce((sum, { name, points }) => sum + (data.items[name] === 1 ? points : 0), 0);
+    const points = AMORUS_ITEMS.reduce((sum, item) => sum + (data.items[item.name] === 1 ? item.points : 0), 0);
     const note = document.createElement('div'); note.className = 'pt-info-note';
     note.textContent = points + ' / 20 points — ' + Math.max(0, 20 - points) + ' remaining';
     grid.appendChild(note);
