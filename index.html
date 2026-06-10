@@ -51,7 +51,6 @@
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
     <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
     <button class="site-nav-btn" data-page="trades">Trades</button>
-    <button class="site-nav-btn" data-page="value-list">Value List</button>
     <button class="site-nav-btn" data-page="lf-party">Lf Party</button>
     <button class="site-nav-btn" data-page="encyclopedia">Encyclopedia</button>
   </div>
@@ -144,7 +143,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card" onclick="switchPage('value-list')">
+      <div class="home-nav-card" onclick="switchPage('trades'); window._trdShowVL && window._trdShowVL()">
         <div class="home-nav-icon">◉</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Value List</div>
@@ -502,27 +501,25 @@
     <div class="trd-tabbar">
       <button class="trd-tab active" data-ttab="selling">Selling</button>
       <button class="trd-tab" data-ttab="buying">Buying</button>
+      <button class="trd-tab" data-ttab="value-list">Value List</button>
     </div>
-    <div class="trd-search-wrap">
+    <div class="trd-search-wrap" id="trd-search-wrap">
       <input id="trd-search" class="trd-search" type="text" placeholder="Search items, usernames, descriptions…" autocomplete="off">
       <button id="trd-advsearch-btn" class="trd-advsearch-btn" onclick="window._trdAdvSearch()" title="Advanced search">⚙ Filter</button>
     </div>
     <div class="trd-list" id="trades-list">
       <div class="trd-state">Select a tab to load listings.</div>
     </div>
-  </div>
-</div>
 
-<!-- Value List page -->
-<div id="page-value-list" class="site-page">
-  <div class="vl-wrap">
-    <div class="vl-header">
-      <h2 class="vl-title">Value List</h2>
-      <input class="vl-search" id="vl-search" type="text" placeholder="Search items…" oninput="window._vlSearch(this.value)" autocomplete="off">
+    <!-- Value List tab content -->
+    <div id="trd-vl" style="display:none">
+      <div class="vl-header">
+        <input class="vl-search" id="vl-search" type="text" placeholder="Search items…" oninput="window._vlSearch(this.value)" autocomplete="off">
+      </div>
+      <p class="vl-note">Format: VALUE , DEMAND &nbsp;·&nbsp; Demand max 5 &nbsp;·&nbsp; Values 1–4 non-linear &nbsp;·&nbsp; Values 4+ linear (two 4 = one 8)</p>
+      <div id="vl-tiers"></div>
+      <div class="vl-no-results" id="vl-no-results">No items found.</div>
     </div>
-    <p class="vl-note">Format: VALUE , DEMAND &nbsp;·&nbsp; Demand max 5 &nbsp;·&nbsp; Values 1–4 non-linear &nbsp;·&nbsp; Values 4+ linear (two 4 = one 8)</p>
-    <div id="vl-tiers"></div>
-    <div class="vl-no-results" id="vl-no-results">No items found.</div>
   </div>
 </div>
 
@@ -1640,7 +1637,8 @@
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.site-nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
-    document.querySelector('.site-nav-btn[data-page="' + name + '"]').classList.add('active');
+    const navBtn = document.querySelector('.site-nav-btn[data-page="' + name + '"]');
+    if (navBtn) navBtn.classList.add('active');
     history.replaceState(null, '', '#' + name);
     if (name === 'leaderboards' && typeof window._loadAllLeaderboards === 'function') window._loadAllLeaderboards();
     if (name === 'trades' && typeof window._trdLoad === 'function') window._trdLoad();

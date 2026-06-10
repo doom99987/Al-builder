@@ -1,10 +1,7 @@
-/* ── Value List (VL) page ────────────────────────────────────────────────── */
-#page-value-list.active { overflow-y: auto; }
-.vl-wrap {
-  max-width: 780px;
-  margin: 0 auto;
-  padding: 24px 16px 60px;
+/* ── Value List (tab inside Trades) ──────────────────────────────────────── */
+#trd-vl {
   font-family: 'Rajdhani', Arial, sans-serif;
+  padding-bottom: 40px;
 }
 
 .vl-header {
@@ -14,13 +11,6 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 8px;
-}
-
-.vl-title {
-  font-size: 26px;
-  font-weight: 700;
-  color: #fff;
-  margin: 0;
 }
 
 .vl-search {
