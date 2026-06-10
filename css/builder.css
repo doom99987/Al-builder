@@ -1392,3 +1392,270 @@ h2 {
   }
 }
 
+/* ============================================================
+   BUILD TAB REDESIGN — arcane panels, brass accents
+   ============================================================ */
+
+/* Brand accent: violet underline on active tabs everywhere */
+.tab.active { border-bottom-color: #8b74e0; }
+
+/* The three columns become distinct panels */
+#stats .stats-columns {
+  gap: 24px;
+  padding: 14px 0 36px;
+}
+#stats .marks-section,
+#stats .stats-left,
+#stats .gear-section {
+  background: linear-gradient(180deg, #0b0b10, #09090c);
+  border: 1px solid #1d1d28;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 12px 30px -22px rgba(0, 0, 0, 0.9);
+  padding: 16px 18px 22px;
+  box-sizing: border-box;
+}
+#stats .marks-section { width: 218px; }
+#stats .stats-left    { width: 430px; }
+
+/* Section headers: small caps with a trailing violet rule */
+#stats h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: #9d8fd0;
+  text-align: left;
+  margin: 14px 0 10px;
+  border-top: none;
+  padding-top: 0;
+}
+#stats h2::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, #272040, transparent);
+}
+#stats .marks-section h2:first-child,
+#stats .stats-left h2:first-child,
+#stats .gear-section-col h2:first-child { margin-top: 0; }
+
+/* Native selects: flat dark fields with a custom chevron */
+#stats select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: #121217;
+  border: 1px solid #262630;
+  color: #ddd;
+  border-radius: 7px;
+  padding: 7px 26px 7px 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23666677' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+#stats select:hover:not(:disabled) { border-color: #3a3a48; }
+#stats select:focus {
+  outline: none;
+  border-color: #7c66c8;
+  box-shadow: 0 0 0 1px rgba(139, 116, 224, 0.3);
+}
+#stats .shard-picker {
+  padding: 4px 18px 4px 7px;
+  background-position: right 6px center;
+  border-radius: 6px;
+}
+
+/* Points Remaining — the number that matters most gets the brass treatment */
+#stats .box { gap: 5px; } /* .box is flex — whitespace between label and value collapses without it */
+#stats .stats-left > .box {
+  width: auto;
+  align-self: center;
+  padding: 7px 22px;
+  background: #101014;
+  border: 1px solid #26262e;
+  border-radius: 999px;
+  color: #a0a0b0;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+#stats .stats-left > .box span { color: #e9c560; }
+
+/* Covenant row: let the select shrink so the rank input fits inside the panel */
+#stats .covenant-row .covenant-picker { min-width: 0; flex: 1 1 auto; width: 100%; }
+#stats .covenant-rank-input {
+  width: 40px;
+  min-width: 40px;
+  flex-shrink: 0;
+  background: #0e0e12;
+  border: 1px solid #262630;
+  border-radius: 6px;
+  text-align: center;
+  padding: 6px 2px;
+}
+#stats .covenant-rank-input:focus { border-color: #7c66c8; }
+
+/* Shard rows fill the column for clean edges */
+#stats .shard-slot { width: 100%; }
+
+/* Race / Base / Super / Sub: fixed label column + uniform select width */
+#stats .race-row { justify-content: center; gap: 10px; }
+#stats .race-label {
+  width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+  color: #8a85a0;
+  font-weight: 600;
+}
+#stats .race-row select { width: 220px; }
+
+/* Lvl / Gold boxes stay quiet */
+#stats .box-row { width: 100%; }
+#stats .box-row .box {
+  flex: 1;
+  background: #101014;
+  border: 1px solid #1f1f28;
+  border-radius: 8px;
+  color: #8a8a99;
+}
+
+/* Stat rows: hover glow, brass +/- feedback */
+#stats .stat-row {
+  padding: 3px 8px;
+  margin-bottom: 4px;
+  border-radius: 7px;
+  transition: background 0.12s;
+}
+#stats .stat-row:hover { background: #111019; }
+#stats .stat-name { color: #c9c4dc; }
+#stats .stat-btn {
+  background: #16161c;
+  border: 1px solid #2a2a34;
+  border-radius: 6px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+#stats .stat-btn:hover:not(:disabled) {
+  background: #191430;
+  border-color: #7c66c8;
+  color: #c4b5fd;
+}
+#stats .stat-val {
+  background: #0e0e12;
+  border: 1px solid #262630;
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+#stats .stat-val:focus { outline: none; border-color: #7c66c8; }
+#stats #Lvl { background: #0e0e12; border-color: #262630; }
+#stats #Lvl:focus { border-color: #7c66c8; }
+
+/* Derived-percent chips: value above, label below, readable sizes */
+#stats .percent-item {
+  height: 38px;
+  background: #101014;
+  border: 1px solid #1f1f28;
+  border-radius: 7px;
+  transition: border-color 0.15s;
+}
+#stats .percent-item:hover { border-color: #2e2a48; }
+#stats .percent-val { font-size: 13px; margin-bottom: 2px; }
+#stats .percent-label {
+  font-size: 10px;
+  color: #6a6582;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+/* Custom dropdown widget (wpick) matches the new fields */
+.wpick-display {
+  background: #121217;
+  border: 1px solid #262630;
+  border-radius: 7px;
+}
+.wpick-display:hover { border-color: #3a3a48; color: #fff; }
+.wpick-panel {
+  background: #121217;
+  border: 1px solid #33333f;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.wpick-search { background: #0c0c10; border-bottom: 1px solid #26262e; }
+.wpick-item:hover { background: #1b1530; color: #c4b5fd; }
+.wpick-item.wpick-selected { background: #221a3c; color: #c4b5fd; }
+
+/* Gear column separators tinted to match the panels */
+#stats .gear-section-col + .gear-section-col {
+  border-left: 1px solid #1b1b23;
+}
+
+/* Stat detail dropdowns match the panel system */
+.stat-detail-panel {
+  background: #0d0d11;
+  border: 1px solid #1f1f28;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+}
+.stat-detail-row { border-bottom-color: #15151c; }
+.stat-detail-label { color: #55505e; }
+.stat-detail-total .stat-detail-label { color: #8d8468; }
+.stat-detail-total-val { color: #e9c560; }
+.stat-details-btn {
+  background: #121217;
+  border-color: #262630;
+  border-radius: 5px;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.stat-details-btn:hover {
+  background: #161226;
+  border-color: #7c66c8;
+  color: #c4b5fd;
+}
+.class-cost-note { color: #4a4a55; }
+
+/* Tabbar controls join the system */
+.build-name-input {
+  background: #0e0e12;
+  border: 1px solid #262630;
+  border-radius: 6px;
+}
+.build-name-input:focus { border-color: #7c66c8; color: #eee; }
+.reset-build-btn { border-radius: 5px; }
+
+/* ============================================================
+   DMG CALC — Bosses / Mobs collapsible target groups
+   ============================================================ */
+.dc-target-group-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  margin: 8px 0 6px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #999;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.dc-target-group-btn:hover { background: #242424; color: #fff; }
+.dc-tg-open { background: #242424; color: #fff; border-color: #555; }
+.dc-tg-count {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: #666;
+}
+.dc-tg-arrow {
+  display: inline-block;
+  font-size: 11px;
+  transition: transform 0.15s;
+}
+.dc-tg-open .dc-tg-arrow { transform: rotate(180deg); }
