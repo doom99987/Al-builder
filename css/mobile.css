@@ -201,6 +201,11 @@
   .stats-left     { width: 300px !important; }
   .gear-section   { gap: 12px !important; }
 
+  /* Build-tab panels get compact padding on phones */
+  #stats .marks-section { padding: 10px 10px 14px !important; }
+  #stats .stats-left,
+  #stats .gear-section  { padding: 10px 12px 14px !important; }
+
   /* Compact headings */
   #page-builder .content h2           { font-size: 13px; margin: 2px 0 4px; }
   #page-builder .gear-sub-header      { margin: 2px 0 1px; padding-top: 3px; font-size: 13px; }

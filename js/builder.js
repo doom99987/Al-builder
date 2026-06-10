@@ -2644,6 +2644,21 @@ let karmaStacks = 0;          // 0+: Karma stacks on target for Arbiter (N) Pron
 const shardToggleActive = { striking: false, executing: false };
 let selectedBoss = null;
 let bossCorrupted = false;
+let dcTargetGroupOpen = "bosses"; // which target group is expanded: "bosses" | "mobs" | null
+
+// Entries in BOSS_DATA that belong under the "Bosses" group; everything else is a mob.
+const DC_BOSS_NAMES = new Set([
+  "Yar'Thul, The Blazing Dragon",
+  "Thorian, The Rotten",
+  "Seraphon",
+  "Arkhaia",
+  "Metrom's Vessel",
+  "Pterathanaian",
+  "Handaconda",
+  "Shadeblade",
+  "Slime King",
+  "Carnis",
+]);
 
 const BOSS_DATA = {
   "Yar'Thul, The Blazing Dragon": {
@@ -4938,37 +4953,57 @@ function renderDmgBonusSection() {
   // --- Boss Target (separate column) ---
   const bossContainer = document.getElementById("dmg-boss-section");
   if (bossContainer) {
-    let bossHtml = `<h3 class="dc-bonus-title">Boss Target</h3><div class="dc-boss-list">`;
-    Object.entries(BOSS_DATA).forEach(([name, boss]) => {
+    const bossEntryHtml = ([name, boss]) => {
       const active = selectedBoss === name;
       const corruptedHp = boss.hpVariants?.['Corrupted'];
       const displayHp = (active && bossCorrupted && corruptedHp) ? corruptedHp : boss.hp;
-      bossHtml += `<div class="dc-boss-btn${active ? ' dc-boss-selected' : ''}" data-boss-name="${name.replace(/"/g, '&quot;')}">
+      let h = `<div class="dc-boss-btn${active ? ' dc-boss-selected' : ''}" data-boss-name="${name.replace(/"/g, '&quot;')}">
         <span class="dc-boss-btn-name">${name}</span>
         <span class="dc-boss-btn-hp">${displayHp} HP${corruptedHp ? ` <span style="color:#666">/ ${corruptedHp} corrupted</span>` : ''}</span>
       </div>`;
       if (active) {
         if (corruptedHp) {
-          bossHtml += `<div class="dc-boss-corrupt-row">
+          h += `<div class="dc-boss-corrupt-row">
             <span class="dc-boss-corrupt-label">Corrupted</span>
             <div class="dc-boss-corrupt-toggle${bossCorrupted ? ' dc-boss-corrupt-on' : ''}" data-boss-corrupt>
               <span class="dc-boss-corrupt-knob"></span>
             </div>
           </div>`;
         }
-        const resEntries = Object.entries(boss.res);
-        bossHtml += `<div class="dc-boss-res">`;
-        resEntries.forEach(([type, pct]) => {
+        h += `<div class="dc-boss-res">`;
+        Object.entries(boss.res).forEach(([type, pct]) => {
           const col = MOVE_TYPE_COLORS[type] || '#aaa';
           const pctNum = Math.round(pct * 100);
           const tag = pctNum > 100 ? `<span style="color:#88ff88">+${pctNum - 100}%</span>` : pctNum < 100 ? `<span style="color:#ff8888">-${100 - pctNum}%</span>` : `<span style="color:#aaa">—</span>`;
-          bossHtml += `<span class="dc-boss-res-row"><span style="color:${col}">${type}</span> ${tag}</span>`;
+          h += `<span class="dc-boss-res-row"><span style="color:${col}">${type}</span> ${tag}</span>`;
         });
-        bossHtml += `</div>`;
+        h += `</div>`;
       }
+      return h;
+    };
+
+    const allEntries = Object.entries(BOSS_DATA);
+    const groups = [
+      { key: 'bosses', label: 'Bosses', entries: allEntries.filter(([n]) => DC_BOSS_NAMES.has(n)) },
+      { key: 'mobs',   label: 'Mobs',   entries: allEntries.filter(([n]) => !DC_BOSS_NAMES.has(n)) },
+    ];
+    let bossHtml = `<h3 class="dc-bonus-title">Boss Target</h3>`;
+    groups.forEach(g => {
+      const open = dcTargetGroupOpen === g.key;
+      bossHtml += `<div class="dc-target-group-btn${open ? ' dc-tg-open' : ''}" data-target-group="${g.key}">
+        ${g.label}<span class="dc-tg-count">${g.entries.length}</span><span class="dc-tg-arrow">▾</span>
+      </div>`;
+      if (open) bossHtml += `<div class="dc-boss-list">${g.entries.map(bossEntryHtml).join('')}</div>`;
     });
-    bossHtml += `</div>`;
     bossContainer.innerHTML = bossHtml;
+
+    bossContainer.querySelectorAll('[data-target-group]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.targetGroup;
+        dcTargetGroupOpen = dcTargetGroupOpen === key ? null : key;
+        renderDmgBonusSection();
+      });
+    });
   }
   if (_searchWasFocused) {
     const _searchEl = document.getElementById("dmg-bonus-search");

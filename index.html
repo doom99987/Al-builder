@@ -12,7 +12,7 @@
   <meta name="theme-color" content="#0a0a0a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Cinzel:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" href="images/Logo.png">
   <!--
     CSS load order — each file layers on top of the previous:
@@ -24,16 +24,16 @@
       auth.css        : auth modal, leaderboard tables, profile avatar/dropdown
       saved-builds.css: saved builds panel + Discord button
   -->
-  <link rel="stylesheet" href="css/base.css?v=11">
-  <link rel="stylesheet" href="css/nav.css?v=14">
-  <link rel="stylesheet" href="css/builder.css?v=13">
-  <link rel="stylesheet" href="css/qte.css?v=11">
-  <link rel="stylesheet" href="css/mobile.css?v=12">
+  <link rel="stylesheet" href="css/base.css?v=12">
+  <link rel="stylesheet" href="css/nav.css?v=16">
+  <link rel="stylesheet" href="css/builder.css?v=18">
+  <link rel="stylesheet" href="css/qte.css?v=12">
+  <link rel="stylesheet" href="css/mobile.css?v=13">
   <link rel="stylesheet" href="css/auth.css?v=20">
   <link rel="stylesheet" href="css/overlay.css?v=1">
   <link rel="stylesheet" href="css/saved-builds.css?v=10">
   <link rel="stylesheet" href="css/trades.css?v=19">
-  <link rel="stylesheet" href="css/vl.css?v=10">
+  <link rel="stylesheet" href="css/vl.css?v=11">
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=4">
   <link rel="stylesheet" href="css/encyclopedia.css?v=6">
@@ -65,7 +65,9 @@
 
   <!-- Hero -->
   <div class="home-hero">
-<h1 class="home-title">AL Builder</h1>
+    <div class="home-hero-eyebrow">Arcane Lineage Toolkit</div>
+    <h1 class="home-title">AL <span class="home-title-accent">Builder</span></h1>
+    <div class="home-hero-ornament"><span class="home-hero-ornament-line"></span>✦<span class="home-hero-ornament-line"></span></div>
     <p class="home-subtitle">Plan your build, train your QTEs, trade with players,<br>and dominate the leaderboards — all in one place.</p>
     <div class="home-cta-row">
       <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
@@ -107,7 +109,7 @@
     <div class="home-section-label">What you can do</div>
     <div class="home-nav-grid">
 
-      <div class="home-nav-card" onclick="switchPage('builder')">
+      <div class="home-nav-card hnc-builder" onclick="switchPage('builder')">
         <div class="home-nav-icon">⚔</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Builder</div>
@@ -116,7 +118,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card" onclick="switchPage('qte')">
+      <div class="home-nav-card hnc-qte" onclick="switchPage('qte')">
         <div class="home-nav-icon">⚡</div>
         <div class="home-nav-info">
           <div class="home-nav-title">QTE Trainer</div>
@@ -125,7 +127,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card" onclick="switchPage('trades')">
+      <div class="home-nav-card hnc-trades" onclick="switchPage('trades')">
         <div class="home-nav-icon">◈</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Trades</div>
@@ -134,7 +136,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card" onclick="switchPage('leaderboards')">
+      <div class="home-nav-card hnc-lb" onclick="switchPage('leaderboards')">
         <div class="home-nav-icon">◆</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Leaderboards</div>
@@ -143,7 +145,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card" onclick="switchPage('trades'); window._trdShowVL && window._trdShowVL()">
+      <div class="home-nav-card hnc-vl" onclick="switchPage('trades'); window._trdShowVL && window._trdShowVL()">
         <div class="home-nav-icon">◉</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Value List</div>
@@ -152,7 +154,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card" onclick="switchPage('lf-party')">
+      <div class="home-nav-card hnc-party" onclick="switchPage('lf-party')">
         <div class="home-nav-icon">◎</div>
         <div class="home-nav-info">
           <div class="home-nav-title">LF Party</div>
@@ -895,7 +897,17 @@
               </select>
             </div>
 
-            <h2 class="gear-sub-header">Weapons</h2>
+            <h2 class="gear-sub-header">Armour</h2>
+            <div class="gear-slot">
+              <label class="gear-label">Armour</label>
+              <select class="armour-picker" id="armour-main">
+                <option value="">— None —</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="gear-section-col">
+            <h2>Weapons</h2>
             <div class="gear-slot">
               <label class="gear-label">Weapon</label>
               <select class="weapon-picker" id="weapon-main">
@@ -909,17 +921,7 @@
               </select>
             </div>
 
-            <h2 class="gear-sub-header">Armour</h2>
-            <div class="gear-slot">
-              <label class="gear-label">Armour</label>
-              <select class="armour-picker" id="armour-main">
-                <option value="">— None —</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="gear-section-col">
-            <h2>Lost Scrolls</h2>
+            <h2 class="gear-sub-header">Lost Scrolls</h2>
             <div class="gear-slot">
               <label class="gear-label">Lost Scroll</label>
               <select class="scroll-picker" id="scroll-lost">
@@ -1353,7 +1355,7 @@
 <script src="js/data-class-moves.js?v=22"></script>
 <script src="js/data-race-moves.js?v=14"></script>
 <script src="js/move-renderer.js?v=12"></script>
-<script src="js/builder.js?v=55"></script>
+<script src="js/builder.js?v=56"></script>
 <script src="js/qte.js?v=23"></script>
 <script src="js/saved-builds.js?v=12"></script>
 <script src="js/trades.js?v=47"></script>
