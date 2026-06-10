@@ -280,16 +280,17 @@
 
   /* === QTE Page === */
 
-  /* QTE tabbar */
-  #qte-tabbar {
+  /* QTE tabbar — wrapper holds the Old/New row plus each expandable weapon row */
+  #qte-tabbar { flex-shrink: 0; }
+  #qte-tabbar .tabbar {
     justify-content: flex-start;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
-    flex-shrink: 0;
   }
-  #qte-tabbar::-webkit-scrollbar { display: none; }
+  #qte-tabbar .tabbar::-webkit-scrollbar { display: none; }
   #qte-tabbar .tab { padding: 9px 13px; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
+  #qte-tabbar .qte-group-btn { padding: 9px 18px; font-size: 12px; flex-shrink: 0; white-space: nowrap; }
 
   /* QTE content — keep height-constrained so flex:1 children get real height */
   .qte-content {

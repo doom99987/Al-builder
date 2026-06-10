@@ -13,6 +13,29 @@
   flex-direction: column;
 }
 
+/* --- Old / New collapsible QTE groups --- */
+.qte-group-btn {
+  padding: 12px 26px;
+  background: none;
+  border: none;
+  color: gray;
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.qte-group-btn:hover { background: #1f1f1f; color: white; }
+.qte-group-btn.open  { background: #2a2a2a; color: white; }
+
+.qte-group-arrow {
+  display: inline-block;
+  transition: transform 0.15s;
+}
+.qte-group-btn.open .qte-group-arrow { transform: rotate(180deg); }
+
+/* Expanded weapon rows sit slightly darker so they read as nested */
+.qte-group-tabs { background: #0f0f0f; }
+
 .qte-content {
   flex: 1;
   display: flex;
