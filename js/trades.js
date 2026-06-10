@@ -1544,8 +1544,16 @@
   // ============================================================
 
   function switchTab(tab) {
-    _tradeTab = tab;
     document.querySelectorAll('.trd-tab').forEach(b => b.classList.toggle('active', b.dataset.ttab === tab));
+    const isVL = tab === 'value-list';
+    const searchWrap = document.getElementById('trd-search-wrap');
+    const listEl     = document.getElementById('trades-list');
+    const vlEl       = document.getElementById('trd-vl');
+    if (searchWrap) searchWrap.style.display = isVL ? 'none' : '';
+    if (listEl)     listEl.style.display     = isVL ? 'none' : '';
+    if (vlEl)       vlEl.style.display       = isVL ? '' : 'none';
+    if (isVL) return; // value list is static — nothing to fetch
+    _tradeTab = tab;
     loadListings();
   }
 
@@ -1554,7 +1562,7 @@
   // ============================================================
 
   function init() {
-    document.querySelectorAll('.trd-tab').forEach(btn => {
+    document.querySelectorAll('.trd-tab[data-ttab]').forEach(btn => {
       btn.addEventListener('click', () => {
         const searchEl = document.getElementById('trd-search');
         if (searchEl) searchEl.value = '';
@@ -1610,6 +1618,7 @@
   };
 
   window._trdLoad          = loadListings;
+  window._trdShowVL        = () => switchTab('value-list');
   window._trdPost          = openPostModal;
   window._trdClosePost     = closePostModal;
   window._trdTypeSelect    = typeSelect;

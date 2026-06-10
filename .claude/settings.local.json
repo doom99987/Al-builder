@@ -33,7 +33,8 @@
       "Bash(python:*)",
       "Bash(grep -n \"^\\\\s*\\\\\".*\\\\\": {$\\\\|^\\\\s*\\\\\".*\\\\\":\\\\s*{$\" js/builder.js)",
       "Bash(grep:*)",
-      "Bash(git:*)"
+      "Bash(git:*)",
+      "Bash(claude update:*)"
     ]
   }
 }
