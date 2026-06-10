@@ -305,18 +305,26 @@
 
 <!-- Qte Trainer page -->
 <div id="page-qte" class="site-page">
-  <div class="tabbar" id="qte-tabbar">
-    <button class="tab active" data-qte="dagger">Dagger</button>
-    <button class="tab" data-qte="spear">Spear</button>
-    <button class="tab" data-qte="sword">Sword</button>
-    <button class="tab" data-qte="fist">Fist</button>
-    <button class="tab" data-qte="staff">Staff</button>
-    <button class="tab" data-qte="axe">Axe</button>
-    <button class="tab" data-qte="hammer">Hammer</button>
-    <button class="tab" data-qte="dodge">Dodge</button>
-    <button class="tab" data-qte="thorian">Thorian</button>
-    <button class="tab" data-qte="thorian-new">Thorian(new)</button>
-    <button class="tab" data-qte="dagger-new">Dagger(new)</button>
+  <div id="qte-tabbar">
+    <div class="tabbar qte-group-row">
+      <button class="qte-group-btn" data-qgroup="old">Old <span class="qte-group-arrow">▾</span></button>
+      <button class="qte-group-btn" data-qgroup="new">New <span class="qte-group-arrow">▾</span></button>
+    </div>
+    <div class="tabbar qte-group-tabs" id="qte-group-old" style="display:none">
+      <button class="tab active" data-qte="dagger">Dagger</button>
+      <button class="tab" data-qte="spear">Spear</button>
+      <button class="tab" data-qte="sword">Sword</button>
+      <button class="tab" data-qte="fist">Fist</button>
+      <button class="tab" data-qte="staff">Staff</button>
+      <button class="tab" data-qte="axe">Axe</button>
+      <button class="tab" data-qte="hammer">Hammer</button>
+      <button class="tab" data-qte="dodge">Dodge</button>
+      <button class="tab" data-qte="thorian">Thorian</button>
+    </div>
+    <div class="tabbar qte-group-tabs" id="qte-group-new" style="display:none">
+      <button class="tab" data-qte="thorian-new">Thorian</button>
+      <button class="tab" data-qte="dagger-new">Dagger</button>
+    </div>
   </div>
   <div class="qte-ping-bar">
     <label class="qte-ping-label">Ping</label>
@@ -1747,6 +1755,17 @@
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));
+  });
+  // Old / New group buttons — clicking one expands its tabs and collapses the other
+  document.querySelectorAll('.qte-group-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const wasOpen = btn.classList.contains('open');
+      document.querySelectorAll('.qte-group-btn').forEach(b => {
+        b.classList.toggle('open', b === btn && !wasOpen);
+        const tabs = document.getElementById('qte-group-' + b.dataset.qgroup);
+        if (tabs) tabs.style.display = b.classList.contains('open') ? '' : 'none';
+      });
+    });
   });
   switchQteTab('dagger');
 
