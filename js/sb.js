@@ -220,6 +220,7 @@
         || currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
       renderAuthBar();
+      reconcileServerScores();
       // Load full profile from DB to get avatar_url and saved username
       getProfile(currentUser.id).then(profile => {
         if (profile && currentUser) {
@@ -324,10 +325,13 @@
   }
 
   // ---- submit score — server validates session timing before accepting ----
+  // The session is NOT consumed on success: scores submit on every new high
+  // DURING a run (streak 1, 2, 3 …), so the same session must cover all of
+  // them. Consuming it after the first submission made every later (higher)
+  // score get dropped, freezing leaderboard entries at the first new high.
   async function submitScore(qteType, score) {
     if (!currentUser || !score) return;
     const sessionId = _sessionIds[qteType] ?? null;
-    delete _sessionIds[qteType]; // single-use — consume before the await
     if (!sessionId) { console.warn('[sb] submitScore: no valid session for', qteType, '— score not saved'); return; }
     const { error } = await sb.rpc('submit_score', {
       p_user_id:    currentUser.id,
@@ -337,14 +341,21 @@
       p_month:      currentMonth(),
       p_session_id: sessionId,
     });
-    if (error) { console.error('[sb] submitScore error', qteType, score, error.message); return; }
+    if (error) {
+      console.error('[sb] submitScore error', qteType, score, error.message);
+      // Session likely rejected/expired server-side — re-arm so the next high can submit
+      delete _sessionIds[qteType];
+      startQteSession(qteType);
+      return;
+    }
     console.log('[sb] submitScore ok', qteType, score, PLATFORM);
     // upsert personal best — only update if new score is higher
-    const { data: pb } = await sb.from('personal_bests')
+    const { data: pb, error: pbErr } = await sb.from('personal_bests')
       .select('score')
       .eq('user_id', currentUser.id)
       .eq('qte_type', qteType)
       .maybeSingle();
+    if (pbErr) return; // can't verify the existing best — don't risk overwriting it
     if (!pb || score > pb.score) {
       await sb.from('personal_bests').upsert(
         { user_id: currentUser.id, qte_type: qteType, score, platform: PLATFORM, updated_at: new Date().toISOString() },
@@ -366,6 +377,41 @@
 
   // ---- current month key e.g. "2026-05" ----
   function currentMonth() { return new Date().toISOString().slice(0, 7); }
+
+  // ---- reconcile local bests vs the server leaderboard ----
+  // QTE trainers only submit when a score beats the LOCAL stored best. If the
+  // server's monthly entry fell behind the local best (the old single-use
+  // session bug dropped submissions), any score below the local best — even
+  // one far above the server entry — was never re-submitted, so the
+  // leaderboard stayed frozen. On load, if any local best is ahead of the
+  // server, reset the local bests so submissions flow again as the player
+  // climbs back up.
+  let _reconciledScores = false;
+  async function reconcileServerScores() {
+    if (_reconciledScores || !currentUser) return;
+    _reconciledScores = true;
+    const { data, error } = await sb.from('leaderboard')
+      .select('qte_type, score')
+      .eq('user_id', currentUser.id)
+      .eq('score_month', currentMonth());
+    if (error) { _reconciledScores = false; return; }
+    const serverBest = {};
+    (data || []).forEach(r => { serverBest[r.qte_type] = Math.max(serverBest[r.qte_type] || 0, r.score || 0); });
+    let stale = false;
+    Object.keys(localStorage).forEach(key => {
+      let type = null, m;
+      if      ((m = key.match(/^alb:(.+)-hs-comp$/))) type = m[1] + '-comp';
+      else if ((m = key.match(/^alb:(.+)-hs-v2$/)))   type = m[1];
+      else if ((m = key.match(/^alb:(.+)-hs$/)))      type = m[1];
+      if (!type) return;
+      const local = parseInt(localStorage.getItem(key), 10) || 0;
+      if (local > (serverBest[type] || 0)) stale = true;
+    });
+    if (stale) {
+      console.log('[sb] local bests are ahead of the server leaderboard — resetting local bests so scores re-submit');
+      window.dispatchEvent(new Event('alb-scores-reset'));
+    }
+  }
 
   // ---- fetch top-10 for a QTE (current month only) ----
   // platform: 'all' (no filter) | 'M' | 'C'
