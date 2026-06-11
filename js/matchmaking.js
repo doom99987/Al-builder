@@ -119,7 +119,7 @@
   let streaks = {};              // { [userId]: latest streak }
   let fails = {};                // { [userId]: failTimestamp }
   let roundActive = false, roundResolved = false, matchResolved = false;
-  let deadline = 0, started = false;
+  let deadline = 0, started = false, oppReady = false;
   let myReported = 0, lastProgressSent = 0;
   let timerTick = null, hostTimeoutT = null, failAdjT = null, oppGoneT = null;
 
@@ -307,7 +307,7 @@
     try { sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
 
     view = 'match'; matchId = id; isHost = host; opp = opponent;
-    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; matchResolved = false; started = false;
+    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; matchResolved = false; started = false; oppReady = false;
 
     renderArena();
     mountQte(curQte);
@@ -319,6 +319,7 @@
 
     matchChan = sb.channel('mm-match-' + id, { config: { presence: { key: me.id } } });
     matchChan
+      .on('broadcast', { event: 'ready' },        ({ payload }) => onOppReady(payload))
       .on('broadcast', { event: 'round-start' },  ({ payload }) => { if (!isHost) doRoundStart(payload.round, payload.startedAt); })
       .on('broadcast', { event: 'progress' },     ({ payload }) => onOppProgress(payload))
       .on('broadcast', { event: 'fail' },         ({ payload }) => onOppFail(payload))
@@ -328,11 +329,27 @@
       .on('presence', { event: 'leave' }, ({ key }) => { if (key === opp.id) onOppPresenceLeave(); })
       .on('presence', { event: 'sync' }, () => {
         const st = matchChan.presenceState();
-        const both = st[me.id] && st[opp.id];
-        if (isHost && both && !started) { started = true; sendRoundStart(); }
+        if (st[me.id] && st[opp.id]) { oppReady = true; maybeStartMatch(); } // presence backup for the ready handshake
         if (st[opp.id] && oppGoneT) { clearTimeout(oppGoneT); oppGoneT = null; }
       })
-      .subscribe(async status => { if (status === 'SUBSCRIBED') await matchChan.track({ id: me.id }); });
+      .subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          await matchChan.track({ id: me.id });
+          bcast('ready', { id: me.id });
+        }
+      });
+  }
+
+  // Round 1 starts once BOTH players are confirmed present. We confirm via an
+  // explicit ready handshake (primary) and presence sync (backup), because
+  // presence timing alone can miss the join on one side.
+  function onOppReady(payload) {
+    if (!payload || payload.id !== opp.id) return;
+    if (!oppReady) { oppReady = true; bcast('ready', { id: me.id }); } // echo so our ready is heard even if sent early
+    maybeStartMatch();
+  }
+  function maybeStartMatch() {
+    if (isHost && !started && oppReady) { started = true; sendRoundStart(); }
   }
 
   function playerHeader(p, sideRR, sideGames) {
@@ -392,6 +409,8 @@
     mountedQte = qte;
     const hook = window['_on' + qteById(qte).hook + 'QteShow'];
     if (typeof hook === 'function') { try { hook(); } catch (_) {} }
+    // Re-run the resize after layout settles so the canvas fills the (larger) box.
+    requestAnimationFrame(() => { if (typeof hook === 'function') { try { hook(); } catch (_) {} } });
   }
   function unmountQte() {
     if (!mountedQte) return;
@@ -413,6 +432,11 @@
     const resume = $(q + '-qte-resume-btn');
     if (resume) resume.style.display = 'none';
     if (start) { start.style.display = ''; start.click(); }
+    // The QTE engines ignore keypresses while a <button> is the focused element,
+    // so make sure nothing button-like keeps focus after the programmatic start.
+    if (document.activeElement && document.activeElement.blur) { try { document.activeElement.blur(); } catch (_) {} }
+    const mount = $('mm-qte-mount');
+    if (mount) { try { mount.setAttribute('tabindex', '-1'); mount.focus({ preventScroll: true }); } catch (_) {} }
   }
   function stopLocalQte() {
     const q = mountedQte; if (!q) return;
@@ -470,7 +494,10 @@
     let winnerId;
     if (reason === 'timeout') {
       const a = streaks[me.id] | 0, b = streaks[opp.id] | 0;
-      winnerId = a > b ? me.id : (b > a ? opp.id : null); // tie → replay
+      if (a > b) winnerId = me.id;
+      else if (b > a) winnerId = opp.id;
+      else if (a === 0 && b === 0) winnerId = (Math.random() < 0.5 ? me.id : opp.id); // neither scored - avoid an endless replay loop
+      else winnerId = null; // genuine tie on equal streaks -> replay
     } else {
       if (mf && of) winnerId = (mf <= of) ? opp.id : me.id; // earlier mistake loses
       else if (mf) winnerId = opp.id;

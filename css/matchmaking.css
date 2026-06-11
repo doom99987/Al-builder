@@ -93,13 +93,13 @@
 .mm-rank-badge { color: #c7b8f0; font-size: 12px; font-weight: 700; margin-top: 2px; }
 .mm-rank-rr { color: #e7c66b; }
 
-.mm-qte-host { flex: 1; min-height: 320px; display: flex; flex-direction: column; }
+.mm-qte-host { flex: 1; min-height: 520px; display: flex; flex-direction: column; }
 .mm-qte-host .qte-panel { flex: 1; }
 .mm-streak-tag { color: #9a93b8; font-size: 13px; font-weight: 700; text-align: center; min-height: 18px; }
 
 /* Opponent progress view */
 .mm-opp-view {
-  flex: 1; min-height: 320px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  flex: 1; min-height: 520px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   background: #0c0a14; border: 1px dashed #2a2440; border-radius: 10px;
 }
 .mm-opp-status { color: #b9b0e0; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
@@ -173,7 +173,7 @@
 /* ── Mobile: stack the two boxes vertically ────────────────────────────────── */
 @media (max-width: 760px) {
   .mm-boxes { flex-direction: column; }
-  .mm-qte-host, .mm-opp-view { min-height: 240px; }
+  .mm-qte-host, .mm-opp-view { min-height: 340px; }
   .mm-arena-top { grid-template-columns: auto 1fr auto; }
   .mm-timer { font-size: 22px; min-width: 62px; }
   .mm-opp-streak { font-size: 48px; }
