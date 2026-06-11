@@ -38,8 +38,12 @@
 
   // ── Rank model (Valorant-style ladder, arcane names) ────────────────────────
   const TIERS = ['Initiate','Apprentice','Adept','Evoker','Mystic','Sage','Magus','Luminary','Transcendent'];
+  const TIER_COLORS = {
+    Initiate:'#8a8f98', Apprentice:'#7d9b76', Adept:'#5fb0a7', Evoker:'#5b8dd9',
+    Mystic:'#8b6fd0', Sage:'#c06fd0', Magus:'#d08b4f', Luminary:'#e0c24f', Transcendent:'#e85d9b'
+  };
   const ROMAN = { 1:'I', 2:'II', 3:'III' };
-  const TIER_SPAN = 300; // 3 divisions × 100 RR
+  const TIER_SPAN = 300; // 3 divisions x 100 RR
   function rankFromRR(rr) {
     rr = Math.max(0, rr | 0);
     const topStart = (TIERS.length - 1) * TIER_SPAN; // Transcendent threshold
@@ -49,6 +53,55 @@
     const div = Math.floor(inTier / 100) + 1;
     const rrInDiv = inTier % 100;
     return { tier: TIERS[ti], label: TIERS[ti] + ' ' + ROMAN[div], rrInDiv, pct: rrInDiv, top: false };
+  }
+
+  // Full ladder reference modal (the "View Rank Ladder" button).
+  function showRanksModal() {
+    const placed = isPlaced(me.games);
+    const myTi = placed ? Math.min(Math.floor(me.rr / TIER_SPAN), TIERS.length - 1) : -1;
+    const myDiv = (placed && myTi < TIERS.length - 1) ? Math.floor((me.rr - myTi * TIER_SPAN) / 100) + 1 : 0;
+
+    let rows = '';
+    for (let ti = TIERS.length - 1; ti >= 0; ti--) {
+      const name = TIERS[ti];
+      const color = TIER_COLORS[name] || '#888';
+      const isTop = ti === TIERS.length - 1;
+      const base = ti * TIER_SPAN;
+      let divs;
+      if (isTop) {
+        divs = `<span class="mm-rank-div ${myTi === ti ? 'cur' : ''}">${base}+ RR</span>`;
+      } else {
+        divs = [3, 2, 1].map(d => {
+          const lo = base + (d - 1) * 100;
+          const cur = (ti === myTi && d === myDiv) ? 'cur' : '';
+          return `<span class="mm-rank-div ${cur}">${ROMAN[d]} &middot; ${lo}-${lo + 99}</span>`;
+        }).join('');
+      }
+      rows += `<div class="mm-rank-tier ${ti === myTi ? 'mine' : ''}" style="--tc:${color}">
+        <div class="mm-rank-tier-name"><span class="mm-rank-chip"></span>${name}</div>
+        <div class="mm-rank-divs">${divs}</div>
+      </div>`;
+    }
+    const note = placed
+      ? `You are <b>${esc(rankFromRR(me.rr).label)}</b> &bull; ${rankFromRR(me.rr).rrInDiv} RR`
+      : `Finish your placement matches (${Math.min(me.games, PLACEMENT_GAMES)}/${PLACEMENT_GAMES}) to earn a rank.`;
+
+    const o = document.createElement('div');
+    o.className = 'mm-modal-overlay';
+    o.id = 'mm-ranks-modal';
+    o.innerHTML = `<div class="mm-modal">
+      <div class="mm-modal-head">
+        <h3>Rank Ladder</h3>
+        <button class="mm-modal-close" id="mm-ranks-close">&times;</button>
+      </div>
+      <div class="mm-modal-note">${note}</div>
+      <div class="mm-rank-ladder">${rows}</div>
+      <div class="mm-modal-foot">Win matches to climb; lose to drop. Each division is 100 RR.</div>
+    </div>`;
+    document.body.appendChild(o);
+    const close = () => o.remove();
+    o.addEventListener('click', e => { if (e.target === o) close(); });
+    o.querySelector('#mm-ranks-close').onclick = close;
   }
 
   // ── Module state ────────────────────────────────────────────────────────────
@@ -143,6 +196,7 @@
             ? `Your rank: <b>${esc(rk.label)}</b> &bull; ${rk.rrInDiv} RR`
             : `<b>Placement matches</b> &bull; ${Math.min(me.games, PLACEMENT_GAMES)}/${PLACEMENT_GAMES} played &mdash; win games to set your rank`}
         </div>
+        <button class="mm-btn mm-ranks-btn" id="mm-ranks-btn" style="${mode==='ranked'?'':'display:none'}">&#9733; View Rank Ladder</button>
         <p class="mm-sub">Pick a QTE to enter the queue.</p>
         <div class="mm-qte-picker">${groups}</div>
       </div></div>`;
@@ -151,8 +205,10 @@
       mode = b.dataset.mode;
       root().querySelectorAll('.mm-mode-btn').forEach(x => x.classList.toggle('active', x === b));
       const rl = $('mm-rank-line'); if (rl) rl.style.display = mode === 'ranked' ? '' : 'none';
+      const rb = $('mm-ranks-btn'); if (rb) rb.style.display = mode === 'ranked' ? '' : 'none';
     });
     root().querySelectorAll('.mm-qte-btn').forEach(b => b.onclick = () => startQueue(b.dataset.qte));
+    const rb = $('mm-ranks-btn'); if (rb) rb.onclick = showRanksModal;
   }
 
   function renderSearching(qte) {
@@ -583,6 +639,17 @@
     roundActive = false; roundResolved = false; wins = {}; streaks = {}; fails = {};
     view = 'idle';
   }
+
+  // Re-render the Matchmaking tab when auth state changes (login/logout) so the
+  // user doesn't have to switch tabs to refresh. Only acts while idle on this page.
+  (function watchAuth() {
+    const c = window._sbClient;
+    if (!c || !c.auth || !c.auth.onAuthStateChange) { setTimeout(watchAuth, 500); return; }
+    c.auth.onAuthStateChange(() => {
+      const onPage = document.getElementById('page-matchmaking')?.classList.contains('active');
+      if (onPage && view === 'idle') { try { window._mmLoad(); } catch (_) {} }
+    });
+  })();
 
   // Best-effort cleanup if the tab closes mid-search/match.
   window.addEventListener('beforeunload', () => {
