@@ -227,9 +227,17 @@
         <div class="mm-spinner"></div>
         <h2 class="mm-title">Searching…</h2>
         <p class="mm-sub">${mode === 'ranked' ? 'Ranked' : 'Unrated'} &bull; ${esc(qteLabel(qte))}</p>
+        <div class="mm-queue-count" id="mm-queue-count">1 player in queue</div>
         <button class="mm-btn" id="mm-cancel-btn">Cancel</button>
       </div></div>`;
     $('mm-cancel-btn').onclick = () => { cancelQueue(); renderHome(); };
+  }
+
+  function updateQueueCount() {
+    const el = $('mm-queue-count');
+    if (!el || !queueChan) return;
+    const n = Object.keys(queueChan.presenceState() || {}).length || 1;
+    el.textContent = n + (n === 1 ? ' player in queue' : ' players in queue');
   }
 
   // ── Queue + matching ────────────────────────────────────────────────────────
@@ -256,7 +264,7 @@
         matching = true;
         enterMatch(payload.matchId, { id: payload.host, name: payload.hostName, avatar: payload.hostAvatar, rr: payload.hostRR, games: payload.hostGames | 0 }, false);
       })
-      .on('presence', { event: 'sync' }, () => tryMatch())
+      .on('presence', { event: 'sync' }, () => { updateQueueCount(); tryMatch(); })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') await queueChan.track({ id: me.id, name: me.name, avatar: me.avatar, rr: snap, games: me.games });
       });
