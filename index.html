@@ -37,6 +37,7 @@
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=4">
   <link rel="stylesheet" href="css/encyclopedia.css?v=6">
+  <link rel="stylesheet" href="css/matchmaking.css?v=1">
 </head>
 
 <body>
@@ -49,6 +50,7 @@
     <button class="site-nav-btn" data-page="builder">Builder</button>
     <button class="site-nav-btn" data-page="builds">Builds</button>
     <button class="site-nav-btn" data-page="qte">Qte Trainer</button>
+    <button class="site-nav-btn" data-page="matchmaking">Matchmaking</button>
     <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
     <button class="site-nav-btn" data-page="trades">Trades</button>
     <button class="site-nav-btn" data-page="lf-party">Lf Party</button>
@@ -498,6 +500,14 @@
     </div>
   </div>
   <img class="qte-logo-watermark" src="images/Logo.png" alt="">
+</div>
+
+<!-- Matchmaking page -->
+<div id="page-matchmaking" class="site-page">
+  <div id="mm-root">
+    <!-- Rendered by js/matchmaking.js: mode select → QTE picker → queue → arena -->
+    <!-- The live QTE panel is relocated into #mm-qte-mount during a match. -->
+  </div>
 </div>
 
 <!-- Trades page -->
@@ -1364,6 +1374,7 @@
 <script src="js/encyclopedia.js?v=7"></script>
 <script src="js/overlay.js?v=1"></script>
 <script src="js/donation.js?v=3"></script>
+<script src="js/matchmaking.js?v=1"></script>
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
   (function () {
@@ -1644,6 +1655,9 @@
 </script>
 <script>
   function switchPage(name) {
+    // Tear down an in-progress match when navigating away from the Matchmaking tab.
+    const _leaving = document.querySelector('.site-page.active')?.id;
+    if (_leaving === 'page-matchmaking' && name !== 'matchmaking' && window._mmLeavePage) window._mmLeavePage();
     document.querySelectorAll('.site-page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.site-nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-' + name).classList.add('active');
@@ -1658,6 +1672,7 @@
     }
     if (name === 'home') loadHomeStats();
     if (name === 'builds' && typeof window._buildsLoad === 'function') window._buildsLoad();
+    if (name === 'matchmaking' && typeof window._mmLoad === 'function') window._mmLoad();
     // Auto-activate the Build tab if no builder tab is active yet
     if (name === 'builder') {
       const activeBuildTab = document.querySelector('.tabbar .tab.active[data-tab]');
@@ -1674,7 +1689,7 @@
   // On load, navigate to the page in the URL hash
   // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
-  const _validPages = ['home', 'builder', 'builds', 'qte', 'leaderboards', 'trades', 'encyclopedia'];
+  const _validPages = ['home', 'builder', 'builds', 'qte', 'matchmaking', 'leaderboards', 'trades', 'encyclopedia'];
   const _hasSharedBuild = new URLSearchParams(location.search).has('id');
 
   // ── Home page live stats ──────────────────────────────────

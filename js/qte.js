@@ -29,6 +29,7 @@
   let roundStart = 0;
 
   function updateHighscore(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     if (window._qteCompMode) {
       if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('fist-comp', val); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -105,6 +106,7 @@
     length = 2;
     setStatus('⏱ Time\'s up!', '#ee8888');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     restartTimeout = setTimeout(startRound, 900);
   }
 
@@ -194,6 +196,7 @@
     length = 2;
     setStatus(`✗ Wrong! Expected ${sequence[current].symbol}, got ${keyToSymbol(key)}`, '#ee8888');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     restartTimeout = setTimeout(startRound, 900);
   }
 
@@ -210,7 +213,7 @@
     if (!isArrow) return;
 
     // Don't capture keys while the user is typing in an input / textarea
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
 
@@ -395,6 +398,7 @@
 
   // ---- highscore ----
   function updateHighscore(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     if (window._qteCompMode) {
       if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('spear-comp', val); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -504,6 +508,7 @@
     updateHighscore(streak);
     setStatus(msg, '#ee6666');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(resetToStart, 850);
   }
 
@@ -710,6 +715,7 @@
     : (IS_MOBILE ? Math.max(0.28 - streak * 0.007, 0.14) : Math.max(0.16 - streak * 0.004, 0.10)); }
 
   function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
       if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword-comp', v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -859,6 +865,7 @@
     drawFrame();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(resetToStart, 900);
   }
 
@@ -904,7 +911,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-sword');
@@ -1007,6 +1014,7 @@
   }
 
   function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
       if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge-comp', v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -1113,6 +1121,7 @@
     drawFrame();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(resetToStart, 900);
   }
 
@@ -1157,7 +1166,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-dodge');
@@ -1263,6 +1272,7 @@
   }
 
   function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
       if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-comp', v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -1444,6 +1454,7 @@
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
     if (timerEl) timerEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(resetToStart, 900);
   }
 
@@ -1492,7 +1503,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-dagger');
@@ -1579,6 +1590,7 @@
   }
 
   function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
       if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer-comp', v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -1695,6 +1707,7 @@
     updateHighscore(streak);
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(resetToStart, 900);
   }
 
@@ -1728,7 +1741,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-hammer');
@@ -1857,6 +1870,7 @@
   }
 
   function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
       if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe-comp', v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
@@ -2004,6 +2018,7 @@
     updateHighscore(streak);
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(resetToStart, 900);
   }
 
@@ -2039,7 +2054,7 @@
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space' || e.repeat) return;
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-axe');
@@ -2208,6 +2223,7 @@
   function triggerFail(msg) {
     running = false; drag = null;
     setStatus(msg || 'Failed!', '#e05555');
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
     setTimeout(function () {
       streak = 0; updateHUD();
       newRound();
@@ -2219,7 +2235,7 @@
   function triggerSuccess() {
     running = false; drag = null;
     streak++;
-    if (window._qteCompMode) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(streak); } else if (window._qteCompMode) {
       if (streak > highscoreComp) {
         highscoreComp = streak;
         try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {}
@@ -2551,6 +2567,7 @@
 
   // ---- Highscore ----
   function updateHighscore(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     if (window._qteCompMode) {
       if (val > highscoreComp) {
         highscoreComp = val;
@@ -2846,6 +2863,7 @@
   function onGameOver() {
     cancelAnimationFrame(animFrame);
     running = false; hearts = []; particles = [];
+    if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     setStatus('Thorian fell! ' + streak + ' round' + (streak !== 1 ? 's' : '') + ' survived', '#ee5555');
     drawFrame();
     setTimeout(() => {
@@ -2898,7 +2916,7 @@
   };
 
   document.addEventListener('keydown', e => {
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const panel = document.getElementById('qte-panel-thorian');
     if (!panel || panel.style.display === 'none') return;
     const dir = KEY_MAP[e.key];
@@ -3020,6 +3038,7 @@
 
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
   function updateHs(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     if (window._qteCompMode) {
       if (val > highscoreComp) {
         highscoreComp = val;
@@ -3428,6 +3447,7 @@
   function onGameOver() {
     cancelAnimationFrame(animFrame);
     running = false;
+    if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     transitioning = false;
     updateHs(score);
     setStatus('Game over!  Rounds: ' + score, '#ee5544');
@@ -3635,6 +3655,7 @@
   }
 
   function updateHs(val, fromGameOver) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     const blocked = fromGameOver && isSuspectedMacro();
     if (window._qteCompMode) {
       if (!blocked && val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new-comp', val); }
@@ -3840,6 +3861,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   function onGameOver() {
     cancelAnimationFrame(animFrame); running = false;
+    if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     updateHs(score, true); setStatus('Game over! Hits: ' + score, '#ee5544');
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
@@ -3867,7 +3889,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
-    if (!document.getElementById('page-qte')?.classList.contains('active')) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
     const tag = document.activeElement?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
     const panel = document.getElementById('qte-panel-dagger-new');
