@@ -45,6 +45,16 @@
 }
 .report-reason:hover { background: #232338; }
 .report-reason.active { background: linear-gradient(180deg, #8b5cf6, #6d3fd4); border-color: #7a4fe0; color: #fff; }
+.report-subreasons { margin-bottom: 10px; }
+.report-sub-label { font-size: 12px; color: #9a93b8; margin-bottom: 6px; }
+.report-subreasons-row { gap: 6px; }
+.report-subreason {
+  flex: 1; cursor: pointer; border: 1px solid #2f2f48; background: #161620; color: #c7c0e8;
+  border-radius: 8px; padding: 8px 6px; font-weight: 700; font-size: 12px; transition: .15s;
+}
+.report-subreason:hover { background: #20202e; }
+.report-subreason.active { background: #c0444a; border-color: #d4504f; color: #fff; }
+
 .report-detail {
   width: 100%; box-sizing: border-box; min-height: 64px; resize: vertical; margin-bottom: 12px;
   background: #0e0e18; border: 1px solid #2a2a40; border-radius: 9px; color: #d6cff2;
