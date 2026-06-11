@@ -18,6 +18,12 @@
   const FAIL_GRACE  = 350;    // ms to wait after a fail to catch a near-simultaneous fail
   const PLACEMENT_GAMES = 3;  // first N ranked games are hidden placement/calibration matches
   const PROVISIONAL_RR  = 600;// hidden starting RR used to seed + match unplaced players
+  // Practice-bot difficulty: streak target range (minT..maxT) + pace ms/point (minP..maxP).
+  const BOT_DIFF = {
+    easy:   { label: 'Easy',   minT: 2, maxT: 5,  minP: 1100, maxP: 1600 },
+    medium: { label: 'Medium', minT: 4, maxT: 10, minP: 750,  maxP: 1200 },
+    hard:   { label: 'Hard',   minT: 9, maxT: 18, minP: 430,  maxP: 780  },
+  };
 
   // QTE registry — panel id, start-button id, show/hide hook suffix, label, group.
   const QTES = [
@@ -120,6 +126,7 @@
   let fails = {};                // { [userId]: failTimestamp }
   let roundActive = false, roundResolved = false, matchResolved = false;
   let deadline = 0, started = false, oppReady = false;
+  let isBot = false, botTimer = null, botTarget = 0, botDifficulty = 'medium';  // practice-vs-bot mode
   let myReported = 0, lastProgressSent = 0;
   let timerTick = null, hostTimeoutT = null, failAdjT = null, oppGoneT = null;
 
@@ -190,6 +197,13 @@
         <div class="mm-mode-toggle">
           <button class="mm-mode-btn ${mode==='unrated'?'active':''}" data-mode="unrated">Unrated</button>
           <button class="mm-mode-btn ${mode==='ranked'?'active':''}" data-mode="ranked">Ranked</button>
+          <button class="mm-mode-btn ${mode==='bot'?'active':''}" data-mode="bot">Practice Bot</button>
+        </div>
+        <div class="mm-bot-diff" id="mm-bot-diff" style="${mode==='bot'?'':'display:none'}">
+          <span class="mm-bot-diff-label">Bot difficulty</span>
+          <div class="mm-diff-row">
+            ${['easy','medium','hard'].map(d => `<button class="mm-diff-btn ${botDifficulty===d?'active':''}" data-diff="${d}">${BOT_DIFF[d].label}</button>`).join('')}
+          </div>
         </div>
         <div class="mm-rank-line" id="mm-rank-line" style="${mode==='ranked'?'':'display:none'}">
           ${isPlaced(me.games)
@@ -197,17 +211,13 @@
             : `<b>Placement matches</b> &bull; ${Math.min(me.games, PLACEMENT_GAMES)}/${PLACEMENT_GAMES} played &mdash; win games to set your rank`}
         </div>
         <button class="mm-btn mm-ranks-btn" id="mm-ranks-btn" style="${mode==='ranked'?'':'display:none'}">&#9733; View Rank Ladder</button>
-        <p class="mm-sub">Pick a QTE to enter the queue.</p>
+        <p class="mm-sub">${mode==='bot' ? 'Pick a QTE to practice against a bot.' : 'Pick a QTE to enter the queue.'}</p>
         <div class="mm-qte-picker">${groups}</div>
       </div></div>`;
 
-    root().querySelectorAll('.mm-mode-btn').forEach(b => b.onclick = () => {
-      mode = b.dataset.mode;
-      root().querySelectorAll('.mm-mode-btn').forEach(x => x.classList.toggle('active', x === b));
-      const rl = $('mm-rank-line'); if (rl) rl.style.display = mode === 'ranked' ? '' : 'none';
-      const rb = $('mm-ranks-btn'); if (rb) rb.style.display = mode === 'ranked' ? '' : 'none';
-    });
+    root().querySelectorAll('.mm-mode-btn').forEach(b => b.onclick = () => { mode = b.dataset.mode; renderHome(); });
     root().querySelectorAll('.mm-qte-btn').forEach(b => b.onclick = () => startQueue(b.dataset.qte));
+    root().querySelectorAll('.mm-diff-btn').forEach(b => b.onclick = () => { botDifficulty = b.dataset.diff; renderHome(); });
     const rb = $('mm-ranks-btn'); if (rb) rb.onclick = showRanksModal;
   }
 
@@ -225,6 +235,7 @@
   // ── Queue + matching ────────────────────────────────────────────────────────
   let curQte = null;
   async function startQueue(qte) {
+    if (mode === 'bot') { enterBotMatch(qte); return; }
     curQte = qte; view = 'searching'; matching = false; queueStart = Date.now();
     const r = await fetchMyRating(); me.rr = r.rr; me.games = r.games;
     const snap = matchRR(me.rr, me.games); // RR used for matchmaking
@@ -352,6 +363,41 @@
     if (isHost && !started && oppReady) { started = true; sendRoundStart(); }
   }
 
+  // Practice vs a local simulated opponent. No queue, no realtime, no rating change.
+  function enterBotMatch(qte) {
+    curQte = qte; view = 'match'; isBot = true; isHost = true; matchId = null;
+    opp = { id: '__bot__', name: 'Practice Bot (' + (BOT_DIFF[botDifficulty] || BOT_DIFF.medium).label + ')', avatar: null, rr: 0, games: PLACEMENT_GAMES };
+    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 };
+    matchResolved = false; started = true; oppReady = true;
+    renderArena();
+    mountQte(curQte);
+    window._qteMatch = { active: false, qte: curQte, report: s => onLocalReport(s), fail: () => onLocalFail() };
+    setTimeout(() => { if (view === 'match' && isBot) sendRoundStart(); }, 900);
+  }
+
+  // Drives the bot during a round: it climbs a streak at a steady pace until it
+  // reaches a randomly chosen target, then "slips up" (fails) — giving you a real
+  // opponent to outlast. If the round timer ends first it just stops where it is.
+  function startBotRound() {
+    clearInterval(botTimer);
+    const cfg = BOT_DIFF[botDifficulty] || BOT_DIFF.medium;
+    botTarget = cfg.minT + Math.floor(Math.random() * (cfg.maxT - cfg.minT + 1));
+    const pace = cfg.minP + Math.random() * (cfg.maxP - cfg.minP); // ms per point
+    streaks[opp.id] = 0; setOppStreak(0); setOppStatus('playing');
+    botTimer = setInterval(() => {
+      if (!roundActive || roundResolved) { clearInterval(botTimer); return; }
+      streaks[opp.id] = (streaks[opp.id] | 0) + 1;
+      setOppStreak(streaks[opp.id]);
+      if (fails[me.id]) hostAdjudicate('progress'); // I already slipped; bot may pass my score
+      if (streaks[opp.id] >= botTarget) {
+        clearInterval(botTimer);
+        fails[opp.id] = Date.now();
+        setOppStatus('failed');
+        scheduleFailAdjudication();
+      }
+    }, pace);
+  }
+
   function playerHeader(p, sideRR, sideGames) {
     const rankHtml = (mode === 'ranked')
       ? `<div class="mm-rank-badge">${esc(rankLabelFor(sideRR, sideGames))}${isPlaced(sideGames) ? ` <span class="mm-rank-rr">${rankFromRR(sideRR).rrInDiv} RR</span>` : ''}</div>`
@@ -463,6 +509,7 @@
     window._qteMatch.active = true;
     beginLocalQte();
     startTimerDisplay();
+    if (isBot) startBotRound();
     if (isHost) scheduleHostTimeout();
   }
 
@@ -488,23 +535,26 @@
     failAdjT = setTimeout(() => { failAdjT = null; hostAdjudicate('fail'); }, FAIL_GRACE);
   }
 
+  // A mistake CAPS a player's score (they stop scoring) but does not by itself
+  // lose the round — the round is lost by whoever has the lower score. So a player
+  // who slips while ahead still wins unless the opponent passes their frozen score.
   function hostAdjudicate(reason) {
     if (!isHost || roundResolved) return;
-    const mf = fails[me.id], of = fails[opp.id];
-    let winnerId;
-    if (reason === 'timeout') {
-      const a = streaks[me.id] | 0, b = streaks[opp.id] | 0;
-      if (a > b) winnerId = me.id;
-      else if (b > a) winnerId = opp.id;
-      else if (a === 0 && b === 0) winnerId = (Math.random() < 0.5 ? me.id : opp.id); // neither scored - avoid an endless replay loop
-      else winnerId = null; // genuine tie on equal streaks -> replay
-    } else {
-      if (mf && of) winnerId = (mf <= of) ? opp.id : me.id; // earlier mistake loses
-      else if (mf) winnerId = opp.id;
-      else if (of) winnerId = me.id;
-      else return;
-    }
-    resolveRound(winnerId);
+    const meDone = !!fails[me.id], oppDone = !!fails[opp.id];
+    const a = streaks[me.id] | 0, b = streaks[opp.id] | 0;
+    // Decide on the timer, or once both players have slipped.
+    if (reason === 'timeout' || (meDone && oppDone)) { decideRound(a, b); return; }
+    // One player has slipped (capped); the other is still playing. The slipped
+    // player only loses once the other actually passes their score.
+    if (meDone && !oppDone) { if (b > a) resolveRound(opp.id); }
+    else if (oppDone && !meDone) { if (a > b) resolveRound(me.id); }
+  }
+
+  function decideRound(a, b) {
+    if (a > b) resolveRound(me.id);
+    else if (b > a) resolveRound(opp.id);
+    else if (a === 0 && b === 0) resolveRound(Math.random() < 0.5 ? me.id : opp.id); // neither scored
+    else resolveRound(null); // equal positive scores -> replay
   }
 
   function resolveRound(winnerId) {
@@ -518,6 +568,7 @@
   function applyRoundResult(winnerId) {
     roundResolved = true; roundActive = false;
     clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); failAdjT = null;
+    clearInterval(botTimer);
     if (window._qteMatch) window._qteMatch.active = false;
     stopLocalQte();
     if (winnerId) { wins[winnerId] = (wins[winnerId] | 0) + 1; updatePips(); }
@@ -536,10 +587,10 @@
   function endMatch(winnerId) {
     if (matchResolved) return;
     matchResolved = true; roundActive = false;
-    clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT);
+    clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); clearInterval(botTimer);
     if (window._qteMatch) window._qteMatch.active = false;
     stopLocalQte();
-    if (isHost) {
+    if (isHost && !isBot) {
       bcast('match-result', { winnerId });
       sb.rpc('mm_apply_result', { match: matchId, winner: winnerId }).then(() => refreshMyRR());
     }
@@ -556,6 +607,8 @@
     setMyStreak(myReported);
     const now = Date.now();
     if (now - lastProgressSent >= PROGRESS_MS) { lastProgressSent = now; bcast('progress', { streak: myReported }); }
+    // If the opponent already slipped, my gains may now pass their capped score.
+    if (isHost && fails[opp.id]) hostAdjudicate('progress');
   }
   function onLocalFail() {
     if (!roundActive || fails[me.id]) return;
@@ -574,6 +627,8 @@
     streaks[opp.id] = p.streak | 0;
     setOppStreak(p.streak | 0);
     setOppStatus('playing');
+    // If I already slipped, the opponent's gains may now pass my capped score.
+    if (isHost && fails[me.id]) hostAdjudicate('progress');
   }
   function onOppFail(p) {
     if (!p || fails[opp.id]) return;
@@ -653,8 +708,8 @@
 
   // ── Teardown ────────────────────────────────────────────────────────────────
   function teardownMatch(abandon) {
-    clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); clearTimeout(oppGoneT);
-    if (abandon && matchId && !matchResolved) {
+    clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); clearTimeout(oppGoneT); clearInterval(botTimer);
+    if (abandon && !isBot && matchId && !matchResolved) {
       try { sb.rpc('mm_abandon_match', { match: matchId }); } catch (_) {}
       bcast('abandon', { by: me.id });
     }
@@ -662,7 +717,7 @@
     window._qteMatch = null;
     unmountQte();
     if (matchChan) { try { sb.removeChannel(matchChan); } catch (_) {} matchChan = null; }
-    matchId = null; isHost = false; opp = null; started = false; matchResolved = false;
+    matchId = null; isHost = false; isBot = false; opp = null; started = false; matchResolved = false;
     roundActive = false; roundResolved = false; wins = {}; streaks = {}; fails = {};
     view = 'idle';
   }
