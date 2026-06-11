@@ -77,6 +77,14 @@
           <button class="report-reason" data-reason="cheating">&#9888; Cheating</button>
           <button class="report-reason" data-reason="misconduct">&#128683; Misconduct</button>
         </div>
+        <div class="report-subreasons" id="report-subreasons" style="display:none">
+          <div class="report-form-label report-sub-label">What kind of misconduct?</div>
+          <div class="report-reasons report-subreasons-row">
+            <button class="report-subreason" data-sub="Inappropriate name or image">Name / image</button>
+            <button class="report-subreason" data-sub="Inappropriate chat">Chat</button>
+            <button class="report-subreason" data-sub="Other misconduct">Other</button>
+          </div>
+        </div>
         <textarea id="report-detail" class="report-detail" maxlength="300" placeholder="Optional: add details (max 300 chars)…"></textarea>
         <div class="report-actions">
           <button class="report-cancel" id="report-cancel">Cancel</button>
@@ -91,19 +99,34 @@
     const openBtn = document.getElementById('report-open-btn');
     if (openBtn) openBtn.onclick = () => { document.getElementById('report-form').style.display = 'block'; openBtn.style.display = 'none'; };
 
-    let reason = null;
+    let reason = null, subReason = null;
+    const subBox = document.getElementById('report-subreasons');
+    const submitBtn = document.getElementById('report-submit');
+    // Submit is enabled once a reason is picked — and, for misconduct, a sub-reason too.
+    const refreshSubmit = () => { if (submitBtn) submitBtn.disabled = !reason || (reason === 'misconduct' && !subReason); };
+
     o.querySelectorAll('.report-reason').forEach(b => b.onclick = () => {
       reason = b.dataset.reason;
       o.querySelectorAll('.report-reason').forEach(x => x.classList.toggle('active', x === b));
-      const s = document.getElementById('report-submit'); if (s) s.disabled = false;
+      if (reason === 'misconduct') { if (subBox) subBox.style.display = 'block'; }
+      else { if (subBox) subBox.style.display = 'none'; subReason = null; o.querySelectorAll('.report-subreason').forEach(x => x.classList.remove('active')); }
+      refreshSubmit();
     });
+    o.querySelectorAll('.report-subreason').forEach(b => b.onclick = () => {
+      subReason = b.dataset.sub;
+      o.querySelectorAll('.report-subreason').forEach(x => x.classList.toggle('active', x === b));
+      refreshSubmit();
+    });
+
     const cancel = document.getElementById('report-cancel');
     if (cancel) cancel.onclick = removeModal;
-    const submit = document.getElementById('report-submit');
+    const submit = submitBtn;
     if (submit) submit.onclick = async () => {
-      if (!reason) return;
+      if (!reason || (reason === 'misconduct' && !subReason)) return;
       submit.disabled = true; submit.textContent = 'Submitting…';
-      const detail = (document.getElementById('report-detail').value || '').trim();
+      const note = (document.getElementById('report-detail').value || '').trim();
+      // Fold the misconduct sub-reason into the stored detail.
+      const detail = [subReason, note].filter(Boolean).join(' — ');
       const ok = await submitReport(p.userId, p.username, reason, detail, p.matchId);
       removeModal();
       toast(ok ? 'Report submitted — thank you.' : 'Could not submit report.');
