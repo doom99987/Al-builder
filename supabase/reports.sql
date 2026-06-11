@@ -125,8 +125,17 @@ create policy reports_admin_update on reports for update using (
   )
 );
 
+-- Only admins may clear (delete) reports.
+drop policy if exists reports_admin_delete on reports;
+create policy reports_admin_delete on reports for delete using (
+  auth.uid() in (
+    'a508b4b7-1d32-4511-a609-4a80ded49681',
+    '3a376365-2f03-4e4f-8c5f-6b8020271809'
+  )
+);
+
 grant usage on schema public to anon, authenticated;
-grant select, insert, update on reports to authenticated;
+grant select, insert, update, delete on reports to authenticated;
 
 -- Live updates for the admin badge (optional; the bell ping already works without it).
 do $$ begin

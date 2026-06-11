@@ -1501,6 +1501,11 @@
       </div>
 
       <div class="sb-admin-panel" data-panel="reports" style="display:none">
+        <div class="sb-admin-search-row">
+          <input id="sb-reports-search" class="sb-input" type="text" placeholder="Filter by username…" autocomplete="off"
+            oninput="window._reportsFilter && window._reportsFilter(this.value)">
+          <button class="sb-admin-search-btn" onclick="window._reportsClearAll && window._reportsClearAll()">Clear All</button>
+        </div>
         <div id="sb-admin-reports-list" class="sb-admin-reports-list"><div class="sb-admin-empty">Open the tab to load reports.</div></div>
       </div>
     `);

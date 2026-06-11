@@ -162,22 +162,57 @@
   }
 
   // ── Admin: Reports tab content ──────────────────────────────────────────────
+  let _reportsData = [];
+  let _reportsQuery = '';
+
   window._reportsLoadAdmin = async function () {
     const list = document.getElementById('sb-admin-reports-list');
     if (!list) return;
     const client = sb(); if (!client) return;
     list.innerHTML = '<div class="sb-admin-empty">Loading…</div>';
-    let data;
     try {
-      const res = await client.from('reports').select('*').order('created_at', { ascending: false }).limit(100);
+      const res = await client.from('reports').select('*').order('created_at', { ascending: false }).limit(200);
       if (res.error) throw res.error;
-      data = res.data || [];
+      _reportsData = res.data || [];
     } catch (_) { list.innerHTML = '<div class="sb-admin-empty">Failed to load reports.</div>'; return; }
-    data.sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1));
-    if (!data.length) { list.innerHTML = '<div class="sb-admin-empty">No reports yet.</div>'; return; }
+    _reportsData.sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1));
+    const input = document.getElementById('sb-reports-search');
+    _reportsQuery = input ? (input.value || '').trim().toLowerCase() : _reportsQuery;
+    renderReports();
+  };
+
+  // Live username filter (reported or reporter).
+  window._reportsFilter = function (q) { _reportsQuery = (q || '').trim().toLowerCase(); renderReports(); };
+
+  function filtered() {
+    if (!_reportsQuery) return _reportsData;
+    return _reportsData.filter(r =>
+      (r.reported_name || '').toLowerCase().includes(_reportsQuery) ||
+      (r.reporter_name || '').toLowerCase().includes(_reportsQuery));
+  }
+
+  function renderReports() {
+    const list = document.getElementById('sb-admin-reports-list');
+    if (!list) return;
+    const data = filtered();
+    if (!data.length) {
+      list.innerHTML = `<div class="sb-admin-empty">${_reportsData.length ? 'No matching reports.' : 'No reports yet.'}</div>`;
+      return;
+    }
     list.innerHTML = data.map(rowHtml).join('');
     list.querySelectorAll('[data-act]').forEach(btn => btn.onclick = () => handleAction(btn));
     list.querySelectorAll('[data-scores]').forEach(btn => btn.onclick = () => showScores(btn));
+  }
+
+  // Clear (delete) every report currently shown — respects the active filter.
+  window._reportsClearAll = async function () {
+    const client = sb(); if (!client || !isAdmin()) return;
+    const data = filtered();
+    if (!data.length) return;
+    if (!window.confirm(`Delete ${data.length} report(s)? This cannot be undone.`)) return;
+    try { await client.from('reports').delete().in('id', data.map(r => r.id)); } catch (_) {}
+    await refreshOpenCount();
+    window._reportsLoadAdmin();
   };
 
   function rowHtml(r) {
@@ -187,6 +222,7 @@
     const actions = r.status === 'open'
       ? `<button class="rep-btn rep-review" data-act="reviewed" data-id="${esc(r.id)}">Mark reviewed</button>
          <button class="rep-btn rep-dismiss" data-act="dismissed" data-id="${esc(r.id)}">Dismiss</button>` : '';
+    const clearBtn = `<button class="rep-btn rep-clear" data-act="delete" data-id="${esc(r.id)}">Clear</button>`;
     return `<div class="rep-card ${r.status === 'open' ? 'rep-open' : ''}">
       <div class="rep-head">
         <span class="rep-reason ${reasonCls}">${esc(r.reason)}</span>
@@ -195,7 +231,7 @@
       </div>
       <div class="rep-who"><b>${esc(r.reporter_name || '?')}</b> reported <b>${esc(r.reported_name || '?')}</b></div>
       ${r.detail ? `<div class="rep-detail">${esc(r.detail)}</div>` : ''}
-      <div class="rep-actions">${scoresBtn}${actions}</div>
+      <div class="rep-actions">${scoresBtn}${actions}${clearBtn}</div>
       <div class="rep-scores" id="rep-scores-${esc(r.id)}" style="display:none"></div>
     </div>`;
   }
@@ -205,7 +241,11 @@
     const client = sb(); if (!client) return;
     btn.disabled = true;
     try {
-      await client.from('reports').update({ status: act, reviewed_at: new Date().toISOString() }).eq('id', id);
+      if (act === 'delete') {
+        await client.from('reports').delete().eq('id', id);
+      } else {
+        await client.from('reports').update({ status: act, reviewed_at: new Date().toISOString() }).eq('id', id);
+      }
       await refreshOpenCount();
       window._reportsLoadAdmin();
     } catch (_) { btn.disabled = false; }
