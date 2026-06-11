@@ -38,11 +38,18 @@
     return Math.floor(s / 86400) + 'd ago';
   }
 
-  function mkAvatar(name, url, size) {
-    if (url) return `<img src="${esc(url)}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;">`;
+  function mkAvatar(name, url, size, extraAttrs) {
+    const attrs = extraAttrs || '';
+    if (url) return `<img src="${esc(url)}" alt="" ${attrs} style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;">`;
     const initials = (name || '?').slice(0, 2).toUpperCase();
     const hue = [...(name || '')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xFFFFFF, 0) % 360;
-    return `<div style="width:${size}px;height:${size}px;background:hsl(${hue},55%,30%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${Math.floor(size*0.38)}px;font-weight:700;color:#fff;flex-shrink:0;">${initials}</div>`;
+    return `<div ${attrs} style="width:${size}px;height:${size}px;background:hsl(${hue},55%,30%);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${Math.floor(size*0.38)}px;font-weight:700;color:#fff;flex-shrink:0;">${initials}</div>`;
+  }
+  // Click attributes that open a player's profile/report popup (omit if no id).
+  function orbAttrs(userId, name) {
+    if (!userId || !window._openUserProfile) return '';
+    const safe = String(name || '').replace(/['"\\]/g, '');
+    return `data-orb="1" title="View profile" onclick="window._openUserProfile({userId:'${userId}',username:'${safe}'})"`;
   }
 
   // Basic profanity guard — reuse trades.js filter if available
@@ -389,7 +396,7 @@
       <div class="party-banner-boss">${esc(p.boss)}${isPrivate ? ' <span class="party-private-badge">🔒 Private</span>' : ''}</div>
       <div class="party-banner-row">
         <div class="party-banner-host">
-          ${mkAvatar(p.host_name, p.host_avatar, 26)}
+          ${mkAvatar(p.host_name, p.host_avatar, 26, orbAttrs(p.host_id, p.host_name))}
           <div>
             <span class="party-banner-host-name">${esc(p.host_name)}</span>
             ${p.host_class ? `<span class="party-banner-host-class">${esc(p.host_class)}</span>` : ''}
@@ -425,7 +432,7 @@
     return `<div class="party-card">
       <div class="party-card-boss-name">${esc(p.boss)}</div>
       <div class="party-card-host-row">
-        ${mkAvatar(p.host_name, p.host_avatar, 28)}
+        ${mkAvatar(p.host_name, p.host_avatar, 28, orbAttrs(p.host_id, p.host_name))}
         <div class="party-card-meta">
           <span class="party-card-uname">${esc(p.host_name)}</span>
           ${p.host_class ? `<span class="party-card-class">${esc(p.host_class)}</span>` : ''}
@@ -804,7 +811,7 @@
     el.innerHTML = `<div class="party-members-title">Members (${members.length}/${party?.party_size ?? '?'})</div>`
       + members.map(m => `
         <div class="party-member-row">
-          ${mkAvatar(m.username, m.avatar_url, 26)}
+          ${mkAvatar(m.username, m.avatar_url, 26, orbAttrs(m.user_id, m.username))}
           <div class="party-member-info">
             <span class="party-member-name">${esc(m.username)}${m.user_id === party?.host_id ? '<span class="party-member-badge">Host</span>' : ''}</span>
             ${m.user_class ? `<div class="party-member-class">${esc(m.user_class)}</div>` : ''}
@@ -834,7 +841,7 @@
     if (empty) empty.remove();
     const div = _chatDoc.createElement('div');
     div.className = 'party-msg' + (own ? ' own' : '');
-    div.innerHTML = (own ? '' : mkAvatar(msg.sender_name, msg.sender_avatar, 22))
+    div.innerHTML = (own ? '' : mkAvatar(msg.sender_name, msg.sender_avatar, 22, orbAttrs(msg.sender_id, msg.sender_name)))
       + `<div class="party-msg-body">`
       + (!own ? `<div class="party-msg-name">${esc(msg.sender_name)}</div>` : '')
       + `<div class="party-msg-text">${esc(msg.content)}</div>`

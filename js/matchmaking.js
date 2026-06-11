@@ -129,6 +129,7 @@
   let isBot = false, botTimer = null, botTarget = 0, botDifficulty = 'medium';  // practice-vs-bot mode
   let myReported = 0, lastProgressSent = 0;
   let timerTick = null, hostTimeoutT = null, failAdjT = null, oppGoneT = null;
+  let roundLog = [];             // host-recorded per-round scores -> persisted for reports
 
   // ── Small helpers ───────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
@@ -326,7 +327,7 @@
     try { sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
 
     view = 'match'; matchId = id; isHost = host; opp = opponent;
-    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; matchResolved = false; started = false; oppReady = false;
+    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; matchResolved = false; started = false; oppReady = false; roundLog = [];
 
     renderArena();
     mountQte(curQte);
@@ -375,7 +376,7 @@
   function enterBotMatch(qte) {
     curQte = qte; view = 'match'; isBot = true; isHost = true; matchId = null;
     opp = { id: '__bot__', name: 'Practice Bot (' + (BOT_DIFF[botDifficulty] || BOT_DIFF.medium).label + ')', avatar: null, rr: 0, games: PLACEMENT_GAMES };
-    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 };
+    roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; roundLog = [];
     matchResolved = false; started = true; oppReady = true;
     renderArena();
     mountQte(curQte);
@@ -410,8 +411,14 @@
     const rankHtml = (mode === 'ranked')
       ? `<div class="mm-rank-badge">${esc(rankLabelFor(sideRR, sideGames))}${isPlaced(sideGames) ? ` <span class="mm-rank-rr">${rankFromRR(sideRR).rrInDiv} RR</span>` : ''}</div>`
       : '';
+    // The opponent's orb is clickable to open their profile / report them (not the bot, not yourself).
+    const isOpp = p && opp && p.id === opp.id && opp.id !== '__bot__' && !isBot;
+    const avHtml = avatar(p.name, p.avatar, 40);
+    const av = isOpp
+      ? `<span class="mm-orb-click" title="View profile" onclick="window._openUserProfile({userId:'${opp.id}',username:'${opp.name}',matchId:'${matchId || ''}'})">${avHtml}</span>`
+      : avHtml;
     return `<div class="mm-head">
-      ${avatar(p.name, p.avatar, 40)}
+      ${av}
       <div class="mm-head-info"><div class="mm-head-name">${esc(p.name)}</div>${rankHtml}</div>
     </div>`;
   }
@@ -580,6 +587,8 @@
     if (window._qteMatch) window._qteMatch.active = false;
     stopLocalQte();
     if (winnerId) { wins[winnerId] = (wins[winnerId] | 0) + 1; updatePips(); }
+    // Host records the round's scores (host is always p1) for the match history / reports.
+    if (isHost && winnerId) roundLog.push({ r: roundNo, p1: streaks[me.id] | 0, p2: streaks[opp.id] | 0, w: winnerId });
     showRoundOverlay(winnerId);
     if (isHost) {
       setTimeout(() => {
@@ -600,7 +609,7 @@
     stopLocalQte();
     if (isHost && !isBot) {
       bcast('match-result', { winnerId });
-      sb.rpc('mm_apply_result', { match: matchId, winner: winnerId }).then(() => refreshMyRR());
+      sb.rpc('mm_apply_result', { match: matchId, winner: winnerId, p_rounds: roundLog }).then(() => refreshMyRR());
     }
     showMatchOverlay(winnerId);
   }
@@ -703,15 +712,19 @@
     let rrLine = '';
     if (mode === 'ranked') rrLine = `<div class="mm-overlay-sub">${won ? 'RR gained' : 'RR adjusted'} — see your new rank in the menu.</div>`;
     o.className = 'mm-overlay ' + (won ? 'win' : 'lose');
+    const canReport = opp && opp.id && opp.id !== '__bot__' && !isBot;
     o.innerHTML = `<div class="mm-overlay-card">
       <div class="mm-overlay-big">${won ? 'Victory!' : 'Defeat'}</div>
       ${note ? `<div class="mm-overlay-sub">${esc(note)}</div>` : ''}
       ${rrLine}
       <button class="mm-btn mm-btn-primary" id="mm-back-btn">Back to menu</button>
+      ${canReport ? `<button class="mm-btn mm-report-btn" id="mm-report-btn">&#9873; Report opponent</button>` : ''}
     </div>`;
     o.style.display = 'flex';
     const back = $('mm-back-btn');
     if (back) back.onclick = async () => { teardownMatch(false); try { await refreshMyRR(); } catch (_) {} renderHome(); };
+    const rep = $('mm-report-btn');
+    if (rep && canReport) rep.onclick = () => window._openUserProfile({ userId: opp.id, username: opp.name, matchId });
   }
 
   // ── Teardown ────────────────────────────────────────────────────────────────

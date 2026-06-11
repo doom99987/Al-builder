@@ -1,0 +1,113 @@
+/* =============================================================================
+   AL BUILDER — reports.css
+   Profile/report popup, admin Reports tab, and the red marker / count badges.
+   ============================================================================= */
+
+/* ── Profile + report popup ─────────────────────────────────────────────────── */
+.report-modal-overlay {
+  position: fixed; inset: 0; z-index: 100000; display: flex; align-items: center; justify-content: center;
+  background: rgba(6,6,12,.7); backdrop-filter: blur(3px); padding: 20px;
+}
+.report-modal {
+  position: relative; width: 100%; max-width: 360px;
+  background: linear-gradient(180deg, #17172a, #0f0f1c); border: 1px solid #34344e;
+  border-radius: 16px; padding: 26px 24px 22px; box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+.report-close {
+  position: absolute; top: 10px; right: 12px; cursor: pointer; background: none; border: 0;
+  color: #9a93b8; font-size: 24px; line-height: 1;
+}
+.report-close:hover { color: #fff; }
+
+.report-profile { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 16px; }
+.report-username { color: #e7e0ff; font-weight: 800; font-size: 18px; text-align: center; word-break: break-word; }
+.report-av-fallback {
+  width: 72px; height: 72px; border-radius: 50%; background: #3a2f63; color: #fff;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 30px;
+}
+
+.report-open-btn, .report-submit, .report-cancel {
+  appearance: none; cursor: pointer; border: 1px solid #34344e; border-radius: 9px;
+  font-weight: 700; font-size: 14px; padding: 10px 16px; transition: .15s;
+}
+.report-open-btn {
+  width: 100%; background: #2a1620; border-color: #5a2330; color: #ff9a9a;
+}
+.report-open-btn:hover { background: #3a1c2a; border-color: #7a2e40; }
+.report-note { text-align: center; color: #8a84a8; font-size: 13px; padding: 4px 0; }
+
+.report-form { margin-top: 4px; }
+.report-form-label { color: #c7c0e8; font-size: 13px; margin-bottom: 8px; }
+.report-reasons { display: flex; gap: 8px; margin-bottom: 10px; }
+.report-reason {
+  flex: 1; cursor: pointer; border: 1px solid #2f2f48; background: #181826; color: #d2cbef;
+  border-radius: 9px; padding: 10px; font-weight: 700; font-size: 13px; transition: .15s;
+}
+.report-reason:hover { background: #232338; }
+.report-reason.active { background: linear-gradient(180deg, #8b5cf6, #6d3fd4); border-color: #7a4fe0; color: #fff; }
+.report-detail {
+  width: 100%; box-sizing: border-box; min-height: 64px; resize: vertical; margin-bottom: 12px;
+  background: #0e0e18; border: 1px solid #2a2a40; border-radius: 9px; color: #d6cff2;
+  padding: 9px 11px; font-size: 13px; font-family: inherit;
+}
+.report-actions { display: flex; gap: 8px; }
+.report-cancel { flex: 1; background: #1b1b2a; color: #b9b0e0; }
+.report-cancel:hover { background: #232338; }
+.report-submit { flex: 2; background: linear-gradient(180deg, #d4504f, #b53636); border-color: #c0444a; color: #fff; }
+.report-submit:hover:not(:disabled) { filter: brightness(1.08); }
+.report-submit:disabled { opacity: .5; cursor: not-allowed; }
+
+.report-toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+  z-index: 100001; background: #1a1a2c; border: 1px solid #34344e; color: #e7e0ff;
+  padding: 11px 18px; border-radius: 10px; font-size: 14px; font-weight: 600;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: .25s;
+}
+.report-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Red marker / badges ────────────────────────────────────────────────────── */
+[data-orb] { cursor: pointer; }
+.sb-orb-wrap { position: relative; display: inline-block; vertical-align: middle; }
+.sb-report-dot {
+  position: absolute; top: -1px; right: -1px; width: 11px; height: 11px; border-radius: 50%;
+  background: #ff4646; border: 2px solid #0d0d16; box-shadow: 0 0 6px rgba(255,70,70,.8);
+}
+.sb-report-badge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px;
+  padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #ff4646; color: #fff;
+  font-size: 11px; font-weight: 800;
+}
+
+/* ── Admin Reports tab ──────────────────────────────────────────────────────── */
+.sb-admin-reports-list { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; }
+.rep-card {
+  background: #14141f; border: 1px solid #23233a; border-radius: 10px; padding: 11px 13px;
+}
+.rep-card.rep-open { border-color: #5a2330; background: #1a1320; }
+.rep-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rep-reason { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; padding: 2px 8px; border-radius: 6px; }
+.rep-reason.rep-cheat { background: #4a1d1d; color: #ff8d8d; }
+.rep-reason.rep-misc { background: #3a3320; color: #e7c66b; }
+.rep-status { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; text-transform: capitalize; }
+.rep-status-open { background: #2a2440; color: #b9a8ff; }
+.rep-status-reviewed { background: #1d3a26; color: #7fe0a0; }
+.rep-status-dismissed { background: #2a2a36; color: #8a84a8; }
+.rep-time { margin-left: auto; color: #7e7aa0; font-size: 12px; }
+.rep-who { color: #d6cff2; font-size: 14px; }
+.rep-who b { color: #fff; }
+.rep-detail { margin-top: 6px; color: #b9b0e0; font-size: 13px; background: #0e0e18; border-radius: 7px; padding: 7px 9px; }
+.rep-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 9px; }
+.rep-btn { cursor: pointer; border: 1px solid #34344e; background: #1b1b2a; color: #d6cff2; border-radius: 7px; padding: 6px 11px; font-size: 12px; font-weight: 700; transition: .15s; }
+.rep-btn:hover { background: #232338; }
+.rep-review { border-color: #2c5a3a; color: #8fe0aa; }
+.rep-dismiss { border-color: #4a3a3a; color: #d0a0a0; }
+.rep-scores-btn { border-color: #3a3a64; color: #b9a8ff; }
+
+.rep-scores { margin-top: 9px; }
+.rep-score-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rep-score-table th, .rep-score-table td { padding: 5px 8px; text-align: center; border-bottom: 1px solid #23233a; }
+.rep-score-table th { color: #9a93b8; font-weight: 700; }
+.rep-score-table td { color: #d6cff2; font-variant-numeric: tabular-nums; }
+.rep-score-table td.rep-w { color: #67e08a; font-weight: 800; }
+.rep-score-meta { margin-top: 5px; color: #7e7aa0; font-size: 12px; text-transform: capitalize; }
+.rep-noscores { color: #8a84a8; font-size: 13px; padding: 6px 0; }
