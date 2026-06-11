@@ -1837,6 +1837,8 @@
   window._sbStartQteSession  = startQteSession;
   window._sbGetUsername      = () => currentProfile?.username || null;
   window._sbGetUserId        = () => currentUser?.id ?? null;
+  window._sbGetAvatar        = () => currentProfile?.avatar_url || null;
+  window._sbAvatar           = renderAvatar; // reuse leaderboard avatar renderer (sb.js renderAvatar)
   window._toggleProfileMenu  = toggleProfileMenu;
   window._closeProfileMenu   = closeProfileMenu;
   window._openSettings       = openSettings;
