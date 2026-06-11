@@ -61,6 +61,8 @@
 
 /* ── Searching ─────────────────────────────────────────────────────────────── */
 .mm-searching { text-align: center; }
+.mm-queue-count { color: #9a93b8; font-size: 13px; margin: 2px 0 16px; }
+.mm-queue-count::before { content: '👥 '; }
 .mm-spinner {
   width: 46px; height: 46px; margin: 6px auto 16px; border-radius: 50%;
   border: 4px solid #2a2a40; border-top-color: #a98bff; animation: mm-spin .8s linear infinite;
