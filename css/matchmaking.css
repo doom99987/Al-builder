@@ -102,6 +102,10 @@
 .mm-head-name { color: #e7e0ff; font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-rank-badge { color: #c7b8f0; font-size: 12px; font-weight: 700; margin-top: 2px; }
 .mm-rank-rr { color: #e7c66b; }
+.mm-orb-click { cursor: pointer; display: inline-block; border-radius: 50%; transition: box-shadow .15s; }
+.mm-orb-click:hover { box-shadow: 0 0 0 2px #7a4fe0; }
+.mm-report-btn { background: #2a1620; border-color: #5a2330; color: #ff9a9a; margin-top: 8px; }
+.mm-report-btn:hover { background: #3a1c2a; }
 
 .mm-qte-host { flex: 1; min-height: 520px; display: flex; flex-direction: column; }
 .mm-qte-host .qte-panel { flex: 1; }

@@ -568,10 +568,14 @@
         `<button class="notif-bell-btn" id="notif-bell-btn" onclick="window._toggleNotifs()" title="Notifications">` +
           `&#9993;<span id="notif-badge" style="display:none">0</span>` +
         `</button>` +
-        renderAvatar(username, avatar_url, 32,
-          `title="${esc(username)}" onclick="window._toggleProfileMenu(event)"`);
+        `<span class="sb-orb-wrap">` +
+          renderAvatar(username, avatar_url, 32,
+            `title="${esc(username)}" onclick="window._toggleProfileMenu(event)"`) +
+          (isAdmin() ? `<span id="sb-admin-report-dot" class="sb-report-dot" style="display:none"></span>` : '') +
+        `</span>`;
       window._syncNotifBell?.();
       window._syncMsgBadge?.();
+      window._reportsSyncBadges?.();
     } else {
       bar.innerHTML =
         `<button class="auth-btn" onclick="window._openAuthModal('login')">Login</button>` +
@@ -608,10 +612,11 @@
       <button class="sb-menu-item sb-menu-item-astra" onclick="window._closeProfileMenu();window._astraTrackerOpen?.()">&#9733;&nbsp; Astra Tracker</button>
       <button class="sb-menu-item sb-menu-item-amorus" onclick="window._closeProfileMenu();window._amorusTrackerOpen?.()">&#9670;&nbsp; Amorus Tracker</button>
       <button class="sb-menu-item" onclick="window._closeProfileMenu();window._overlayToggle?.()">&#9707;&nbsp; UI Overlay</button>
-      ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel</button>` : ''}
+      ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel <span id="sb-menu-report-badge" class="sb-report-badge" style="display:none"></span></button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
     document.body.appendChild(menu);
+    window._reportsSyncBadges?.();
     // Position below avatar
     const r = avatar.getBoundingClientRect();
     menu.style.top   = (r.bottom + 6) + 'px';
@@ -1196,7 +1201,7 @@
     const recordRowHtml = record ? `
       <tr class="sb-lb-record-row${myName === record.username ? ' sb-lb-me' : ''}">
         <td>👑</td>
-        <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22)}<span>${esc(record.username)}</span></div></td>
+        <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${record.username}'})"`)}<span>${esc(record.username)}</span></div></td>
         <td style="white-space:nowrap"><b>${record.score}</b> ${platformBadge(record.platform)}</td>
       </tr>` : '';
 
@@ -1223,7 +1228,7 @@
       return `
       <tr class="${myName === r.username ? 'sb-lb-me' : ''}">
         <td>${rank}</td>
-        <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22)}<span>${esc(r.username)}</span></div></td>
+        <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${r.username}'})"`)}<span>${esc(r.username)}</span></div></td>
         <td style="white-space:nowrap"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
       </tr>`;
     }).join('');
@@ -1340,7 +1345,7 @@
       const recordRowHtml = rec ? `
         <tr class="sb-lb-record-row${myName && myName === rec.username ? ' sb-lb-me' : ''}">
           <td class="all-lb-rank">👑</td>
-          <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20)}<span>${esc(rec.username)}</span></div></td>
+          <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${rec.username}'})"`)}<span>${esc(rec.username)}</span></div></td>
           <td class="all-lb-score"><b>${rec.score}</b> ${platformBadge(rec.platform)}</td>
         </tr>` : '';
       const filteredRows = monthRows;
@@ -1348,7 +1353,7 @@
         ? filteredRows.map((r, i) => `
             <tr class="${myName && myName === r.username ? 'sb-lb-me' : ''}">
               <td class="all-lb-rank">${i + 1}</td>
-              <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20)}<span>${esc(r.username)}</span></div></td>
+              <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${r.username}'})"`)}<span>${esc(r.username)}</span></div></td>
               <td class="all-lb-score"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
             </tr>`).join('')
         : (!rec ? `<tr><td colspan="3" class="all-lb-empty">No scores this month</td></tr>` : '');
@@ -1443,6 +1448,7 @@
         <button class="sb-admin-tab" data-tab="banned" onclick="window._adminSwitchTab('banned')">Banned (${(bans||[]).length})</button>
         <button class="sb-admin-tab" data-tab="listings" onclick="window._adminSwitchTab('listings');window._adminLoadListings()">Listings</button>
         <button class="sb-admin-tab" data-tab="tools" onclick="window._adminSwitchTab('tools')">Tools</button>
+        <button class="sb-admin-tab" data-tab="reports" onclick="window._adminSwitchTab('reports');window._reportsLoadAdmin&&window._reportsLoadAdmin()">Reports <span id="sb-admin-reports-badge" class="sb-report-badge" style="display:none"></span></button>
       </div>
       <div id="sb-admin-status" class="sb-admin-status"></div>
 
@@ -1493,10 +1499,15 @@
           🗑 Purge Expired Trades &amp; Parties
         </button>
       </div>
+
+      <div class="sb-admin-panel" data-panel="reports" style="display:none">
+        <div id="sb-admin-reports-list" class="sb-admin-reports-list"><div class="sb-admin-empty">Open the tab to load reports.</div></div>
+      </div>
     `);
     document.querySelector('.sb-modal-box')?.classList.add('sb-admin-modal-box');
     _adminTab = 'actions';
     _adminCurrentUser = null;
+    window._reportsSyncBadges?.();
   }
 
   let _adminCurrentUser = null; // { username, id }
@@ -1875,6 +1886,17 @@
   window._banAllProfanityUsers   = banAllProfanityUsers;
   window._adminPurgeExpired      = adminPurgeExpired;
   window._sbIsAdmin              = isAdmin;
+  window._sbAdminIds             = [...ADMIN_IDS];
+  // Ping every admin via the existing notification bell (used by the report system).
+  window._sbNotifyAdmins         = async function (title, body, meta) {
+    try {
+      const meId = currentUser?.id || null;
+      const rows = [...ADMIN_IDS].filter(id => id !== meId).map(id => ({
+        user_id: id, title, body: body || null, meta: meta || null
+      }));
+      if (rows.length) await sb.from('notifications').insert(rows);
+    } catch (_) {}
+  };
   window._sbProfanityList        = PROFANITY_LIST; // live reference — mutations are reflected immediately
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)

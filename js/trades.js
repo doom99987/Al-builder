@@ -389,13 +389,19 @@
     return p[Math.abs(h) % p.length];
   }
 
-  function mkAvatar(name, url, size) {
+  function mkAvatar(name, url, size, extraAttrs) {
     const c  = avatarColor(name);
     const fs = Math.round(size * 0.44);
     const inner = url
       ? `<img src="${esc(url)}" class="sb-avatar-img" alt="" onerror="this.style.display='none'">${name.charAt(0).toUpperCase()}`
       : name.charAt(0).toUpperCase();
-    return `<div class="sb-avatar" style="background:${c};width:${size}px;height:${size}px;font-size:${fs}px">${inner}</div>`;
+    return `<div class="sb-avatar" ${extraAttrs || ''} style="background:${c};width:${size}px;height:${size}px;font-size:${fs}px">${inner}</div>`;
+  }
+  // Click attributes that open a player's profile/report popup (omit if no id).
+  function orbAttrs(userId, name) {
+    if (!userId || !window._openUserProfile) return '';
+    const safe = String(name || '').replace(/['"\\]/g, '');
+    return `data-orb="1" title="View profile" onclick="window._openUserProfile({userId:'${userId}',username:'${safe}'})"`;
   }
 
   function timeAgo(d) {
@@ -530,7 +536,7 @@
       return `<div class="trd-card">
         <div class="trd-card-top">
           <div class="trd-card-user">
-            ${mkAvatar(l.username, l.avatar_url, 34)}
+            ${mkAvatar(l.username, l.avatar_url, 34, orbAttrs(l.user_id, l.username))}
             <div class="trd-card-meta">
               <span class="trd-card-uname">${esc(l.username)}</span>
               <span class="trd-card-age">${timeAgo(l.created_at)}</span>
@@ -1205,7 +1211,7 @@
     }
     body.innerHTML = partyHtml + _dmConvs.map(c => `
       <div class="dm-conv-item" onclick="window._dmOpenThread('${esc(c.other_id)}','${esc(c.other_name)}')">
-        ${mkAvatar(c.other_name, c.other_avatar, 36)}
+        ${mkAvatar(c.other_name, c.other_avatar, 36, orbAttrs(c.other_id, c.other_name))}
         <div class="dm-conv-info">
           <div class="dm-conv-name">${esc(c.other_name)}</div>
           <div class="dm-conv-preview">${esc(c.last_msg.slice(0, 55))}${c.last_msg.length > 55 ? '…' : ''}</div>
@@ -1282,7 +1288,7 @@
   function dmMsgHtml(m, myId) {
     const mine = m.sender_id === myId;
     return `<div class="dm-msg ${mine ? 'dm-msg-mine' : 'dm-msg-theirs'}">
-      ${!mine ? mkAvatar(m.sender_name, m.sender_avatar, 24) : ''}
+      ${!mine ? mkAvatar(m.sender_name, m.sender_avatar, 24, orbAttrs(m.sender_id, m.sender_name)) : ''}
       <div class="dm-bubble">${esc(filterMsg(m.content))}<span class="dm-bubble-time">${timeAgo(m.created_at)}</span></div>
     </div>`;
   }
