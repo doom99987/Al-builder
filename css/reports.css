@@ -102,6 +102,8 @@
 .rep-review { border-color: #2c5a3a; color: #8fe0aa; }
 .rep-dismiss { border-color: #4a3a3a; color: #d0a0a0; }
 .rep-scores-btn { border-color: #3a3a64; color: #b9a8ff; }
+.rep-clear { border-color: #5a2330; color: #ff8d8d; margin-left: auto; }
+.rep-clear:hover { background: #3a1c2a; }
 
 .rep-scores { margin-top: 9px; }
 .rep-score-table { width: 100%; border-collapse: collapse; font-size: 13px; }
