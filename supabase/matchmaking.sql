@@ -68,6 +68,14 @@ create policy mm_match_read on mm_matches for select using (true);
 drop policy if exists mm_ratings_read on mm_ratings;
 create policy mm_ratings_read on mm_ratings for select using (true);
 
+-- Table privileges. Tables created from raw SQL do not always inherit Supabase's
+-- default grants, so grant them explicitly (RLS policies above still apply on top).
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on mm_queue to authenticated;
+grant select on mm_queue   to anon;
+grant select on mm_matches to anon, authenticated;
+grant select on mm_ratings to anon, authenticated;
+
 -- RPC: atomic pairing -------------------------------------------------------
 -- The smaller-uid player (the host) calls this with the opponent id.
 -- Locks both queue rows, validates same mode+qte, deletes them, inserts the match.
