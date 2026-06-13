@@ -5136,7 +5136,12 @@
   }
   function vtSaveMeta(meta)      { localStorage.setItem(VT_KEY, JSON.stringify(meta)); }
   function vtNewId()             { return 't' + Date.now(); }
-  function vtActiveTab(meta)     { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function vtActiveTab(meta)     {
+    if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 't1', name: 'Run 1', data: {} }];
+    const tab = meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0];
+    if (!tab.data || typeof tab.data !== 'object') tab.data = {};
+    return tab;
+  }
   function vtGetData(meta)       { return vtActiveTab(meta).data; }
   function vtSetData(meta, d)    { vtActiveTab(meta).data = d; }
   function vtGet(d, orb, art)    { return d[orb]?.[art] || 0; }
@@ -5434,7 +5439,12 @@
   }
   function ptSaveMeta(meta)      { localStorage.setItem(PT_KEY, JSON.stringify(meta)); }
   function ptNewId()             { return 'p' + Date.now(); }
-  function ptActiveTab(meta)     { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function ptActiveTab(meta)     {
+    if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 'p1', name: 'Run 1', tier: 1, data: {} }];
+    const tab = meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0];
+    if (!tab.data || typeof tab.data !== 'object') tab.data = {};
+    return tab;
+  }
   function ptGetTier(meta)       { return ptActiveTab(meta).tier || 1; }
   function ptSetTier(meta, tier) { ptActiveTab(meta).tier = tier; }
   function ptGetData(meta) {
@@ -5620,7 +5630,12 @@
   }
   function atSaveMeta(meta)   { localStorage.setItem(AT_KEY, JSON.stringify(meta)); }
   function atNewId()          { return 'a' + Date.now(); }
-  function atActiveTab(meta)  { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function atActiveTab(meta)  {
+    if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 'a1', name: 'Run 1', data: {} }];
+    const tab = meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0];
+    if (!tab.data || typeof tab.data !== 'object') tab.data = {};
+    return tab;
+  }
   function atGetData(meta)    { const d = atActiveTab(meta).data; if (!d.emblem) d.emblem = {}; if (!d.enemies) d.enemies = {}; return d; }
   function atSetData(meta, d) { atActiveTab(meta).data = d; }
 
@@ -5774,7 +5789,12 @@
   }
   function amSaveMeta(meta)   { localStorage.setItem(AM_KEY, JSON.stringify(meta)); }
   function amNewId()          { return 'am' + Date.now(); }
-  function amActiveTab(meta)  { return meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0]; }
+  function amActiveTab(meta)  {
+    if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 'am1', name: 'Run 1', data: {} }];
+    const tab = meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0];
+    if (!tab.data || typeof tab.data !== 'object') tab.data = {};
+    return tab;
+  }
   function amGetData(meta)    { const d = amActiveTab(meta).data; if (!d.items) d.items = {}; return d; }
   function amSetData(meta, d) { amActiveTab(meta).data = d; }
 

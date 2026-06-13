@@ -35,7 +35,8 @@
       "Bash(grep:*)",
       "Bash(git:*)",
       "Bash(claude update:*)",
-      "PowerShell(Get-Command *)"
+      "PowerShell(Get-Command *)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }
