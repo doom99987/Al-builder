@@ -2637,6 +2637,7 @@ let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let ivoryNrgStacks = 0;         // 0-3: active NRG stacks from Ivory enchant (+4% all stats per stack)
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
+let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); on proc the hit deals +35% dmg
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -3749,6 +3750,17 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Spiked Steel Ball — proc-based dmg bonus (parseDmgBonus misses the "additional 35% damage" word order)
+  if (gearSlots.includes("Spiked Steel Ball")) {
+    const ssbKey = "passive:Spiked Steel Ball";
+    if (!seen.has(ssbKey)) {
+      seen.add(ssbKey);
+      // Per-hit proc: each hit independently has ssbProcChance% to deal +35%. Expected per-hit
+      // multiplier = 1 + 0.35·p, applied in getActiveDmgMult so multi-hit moves are handled per hit.
+      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 35 * ssbProcChance / 100, kind: "passive", desc: "On proc (dev claims ~30–40% chance, set below), your attack applies 1 Vulnerable + 1 Weakened and deals an additional 35% damage. Each hit of a multi-hit move rolls independently — the expected value (1 + 0.35 × chance) is applied per hit.", isSsb: true });
+    }
+  }
+
   // Shards — passive-dmg and conditional with DR applied
   getShardBonusEntries().forEach(entry => {
     const { name, drMult, rawVal, bonusType } = entry;
@@ -3848,6 +3860,7 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Demonic Presence")            { bonus = 5 * demonicPresenceStacks; }
     else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
     else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
+    else if (p.name === "Spiked Steel Ball")     { mult *= (1 + 0.35 * ssbProcChance / 100); return; } // per-hit proc expected value
     else if (p.name === "Gold Rush")             bonus = Math.min(20, (goldRushGold / 500) * 0.2);
     else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
     else if (p.name === "Spirit Awakening")     bonus = 15; // 15% to all stats → ~15% dmg; 50% summon buff handled separately
@@ -4075,6 +4088,11 @@ function changeHourglassStacks(delta) {
 
 function changeCoagNailStacks(delta) {
   coagNailStacks = Math.min(10, Math.max(1, coagNailStacks + delta));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+
+function changeSsbProcChance(delta) {
+  ssbProcChance = Math.min(40, Math.max(30, ssbProcChance + delta));
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
@@ -4307,6 +4325,7 @@ function renderDmgBonusSection() {
     const isVaingLocket       = p.name === "Vainglorious Locket";
     const isStellianCore      = p.name === "Stellian Core";
     const isCoagNail          = p.name === "Coagulated Finger Nail";
+    const isSsb               = p.name === "Spiked Steel Ball";
     const isUnendingFlow      = p.name === "Unending Flow";
     const isRendingBarrage    = p.name === "Rending Barrage";
     const isDemonicPresence   = p.name === "Demonic Presence";
@@ -4350,6 +4369,7 @@ function renderDmgBonusSection() {
                          : isRendingBarrage   ? `×${(1 + 0.025 * rendingBarrageStacks).toFixed(3)}`
                          : isDemonicPresence  ? `×${(1 + 0.05 * demonicPresenceStacks).toFixed(2)}`
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
+                         : isSsb              ? `×${(1 + 0.35 * ssbProcChance / 100).toFixed(3)} <span style="color:#888;font-size:11px">(${ssbProcChance}% proc)</span>`
                          : isKarmaStacks      ? `${karmaStacks} stacks`
                          : isGoldRush        ? `×${(1 + Math.min(20, (goldRushGold / 500) * 0.2) / 100).toFixed(4).replace(/\.?0+$/, '')}`
                          : isVydeerCritBuildup ? `+${(vydeerCritStacks * 1.5).toFixed(1)}% Crit`
@@ -4373,6 +4393,25 @@ function renderDmgBonusSection() {
           <span class="dc-energy-val">${coagNailStacks}</span>
           <button class="dc-energy-btn" onclick="changeCoagNailStacks(1)">+</button>
         </div>
+      </div>`;
+    }
+    if (isSsb) {
+      const _p = ssbProcChance / 100;
+      const _expMult = 1 + 0.35 * _p;
+      // Per-hit proc stats for a sample 2- and 3-hit move (P(≥1 proc) = 1-(1-p)^n)
+      const _atLeast = n => (1 - Math.pow(1 - _p, n)) * 100;
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Proc chance <span style="color:#aaa;font-size:11px">(dev claims ~30–40%)</span></span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeSsbProcChance(-5)">−</button>
+          <span class="dc-energy-val">${ssbProcChance}%</span>
+          <button class="dc-energy-btn" onclick="changeSsbProcChance(5)">+</button>
+        </div>
+      </div>
+      <div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;line-height:1.5">
+        On proc the hit deals a fixed <span style="color:#e0c97a">+35% damage</span> (only the chance above is adjustable).<br>
+        Each hit rolls independently → expected <span style="color:#e0c97a">×${_expMult.toFixed(3)}</span> per hit (applied to every hit of a move).<br>
+        Chance of ≥1 proc: 2-hit <span style="color:#e0c97a">${_atLeast(2).toFixed(0)}%</span> · 3-hit <span style="color:#e0c97a">${_atLeast(3).toFixed(0)}%</span> · expected procs on N hits = N × ${(_p).toFixed(2)}.
       </div>`;
     }
     if (isRageEmp) {
@@ -7082,6 +7121,7 @@ function loadBuildState(state) {
   enchantReaperEnemyHp = 100;
   ivoryNrgStacks = 0;
   coagNailStacks = 1;
+  ssbProcChance = 35;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
 
