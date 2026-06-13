@@ -234,8 +234,31 @@
     }
   });
 
+  // ---- email validation ----
+  // Common typos of popular providers -> the address the user almost certainly meant.
+  const EMAIL_TYPOS = {
+    'gmial.com': 'gmail.com', 'gmai.com': 'gmail.com', 'gmail.co': 'gmail.com',
+    'gmail.con': 'gmail.com', 'gmail.cm': 'gmail.com', 'gnail.com': 'gmail.com',
+    'gamil.com': 'gmail.com', 'hotmial.com': 'hotmail.com', 'hotmai.com': 'hotmail.com',
+    'hotmal.com': 'hotmail.com', 'outlok.com': 'outlook.com', 'outloo.com': 'outlook.com',
+    'yaho.com': 'yahoo.com', 'yahooo.com': 'yahoo.com', 'yhaoo.com': 'yahoo.com',
+    'icloud.co': 'icloud.com', 'icloud.con': 'icloud.com'
+  };
+
+  function validateEmail(email) {
+    // Standard format check: local@domain.tld with a real TLD (2+ letters).
+    if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)) {
+      throw new Error('Please enter a valid email address.');
+    }
+    const domain = email.split('@')[1].toLowerCase();
+    if (EMAIL_TYPOS[domain]) {
+      throw new Error(`Did you mean @${EMAIL_TYPOS[domain]}? Please check your email.`);
+    }
+  }
+
   // ---- sign up ----
   async function signUp(email, password, username) {
+    validateEmail(email);
     if (!username) throw new Error('Username is required.');
     if (username.length < 3)  throw new Error('Username must be at least 3 characters.');
     if (username.length > 20) throw new Error('Username must be 20 characters or fewer.');
