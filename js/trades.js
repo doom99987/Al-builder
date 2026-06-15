@@ -366,7 +366,20 @@
   let _cachedAvatar  = null;
   let _prevUid       = null;
 
-  const CHAT_CONSENT_VERSION = '1.0';
+  // Bump this to force every user (logged in or not) to re-accept the policy.
+  const CHAT_CONSENT_VERSION = '2.0';
+  const CONSENT_LS_KEY = 'alb_consent_version';
+
+  const hasLocalConsent = () => {
+    try { return localStorage.getItem(CONSENT_LS_KEY) === CHAT_CONSENT_VERSION; }
+    catch (_) { return false; }
+  };
+  const setLocalConsent = () => {
+    try { localStorage.setItem(CONSENT_LS_KEY, CHAT_CONSENT_VERSION); } catch (_) {}
+  };
+  const clearLocalConsent = () => {
+    try { localStorage.removeItem(CONSENT_LS_KEY); } catch (_) {}
+  };
 
   // DM state
   let _dmOpen     = false;
@@ -1056,11 +1069,42 @@
   //  DIRECT MESSAGES
   // ============================================================
 
+  // Shown on site load to every visitor (logged in or not). Acceptance is
+  // remembered in localStorage; for logged-in users it is also synced to the DB.
+  function checkSiteConsent() {
+    if (hasLocalConsent()) return;
+    showChatConsentModal(null);
+  }
+
+  // Gate for the messaging feature. Messaging still requires an account, but
+  // consent itself is now site-wide, so we only re-prompt if not yet accepted.
   async function checkChatConsent(onConsented) {
     if (!authed()) { window._openAuthModal?.('login'); return; }
-    const { data } = await sb.from('profiles').select('chat_consent_version').eq('id', uid()).maybeSingle();
-    if (data?.chat_consent_version === CHAT_CONSENT_VERSION) { onConsented(); return; }
+    if (hasLocalConsent()) { onConsented(); return; }
     showChatConsentModal(onConsented);
+  }
+
+  // Keep localStorage and the DB record in agreement once we know who is logged in.
+  async function reconcileConsent() {
+    if (!authed()) return;
+    try {
+      const { data } = await sb.from('profiles').select('chat_consent_version').eq('id', uid()).maybeSingle();
+      const dbOk = data?.chat_consent_version === CHAT_CONSENT_VERSION;
+      const lsOk = hasLocalConsent();
+      if (lsOk && !dbOk) {
+        // Accepted in this browser (possibly while logged out) — record it on the account.
+        await sb.from('profiles').update({
+          chat_consent_at: new Date().toISOString(),
+          chat_consent_version: CHAT_CONSENT_VERSION,
+        }).eq('id', uid());
+      } else if (dbOk && !lsOk) {
+        // Already accepted on another device — trust it and dismiss any open prompt.
+        setLocalConsent();
+        document.getElementById('chat-consent-modal')?.remove();
+        window._pendingConsentCallback?.();
+        window._pendingConsentCallback = null;
+      }
+    } catch (_) {}
   }
 
   function showChatConsentModal(onConsented) {
@@ -1069,27 +1113,26 @@
     el.id = 'chat-consent-modal';
     el.className = 'sb-delete-confirm-overlay';
     el.innerHTML = `
-      <div class="sb-delete-confirm-box" style="max-width:420px">
-        <h3 class="sb-delete-confirm-title" style="color:#aaaaee">Messaging Policy</h3>
+      <div class="sb-delete-confirm-box" style="max-width:440px">
+        <h3 class="sb-delete-confirm-title" style="color:#aaaaee">Privacy &amp; Terms</h3>
         <p class="trd-disc-text" style="color:#999;font-size:13px;line-height:1.6;margin-bottom:10px">
-          By using the messaging feature you agree to the following:
+          Welcome to AL Builder. Before continuing, please review how we handle your data:
         </p>
         <ul style="color:#888;font-size:12px;line-height:1.8;margin:0 0 12px;padding-left:18px">
-          <li>All messages are monitored for safety and appropriate use of this platform.</li>
-          <li>Messages must remain respectful — harassment, spam, or abuse will result in account termination.</li>
-          <li>Message history is retained for moderation purposes.</li>
-          <li>Messages from terminated accounts are permanently deleted after <strong style="color:#ccc">12 months</strong>.</li>
-          <li>You may withdraw consent at any time via your account settings, which will disable messaging.</li>
+          <li>We use cookies and similar technologies for core site functionality.</li>
+          <li>We show ads via <strong style="color:#ccc">Google AdSense</strong>, which may use cookies to personalize the ads you see.</li>
+          <li>If you use messaging: messages are monitored for safety; harassment, spam, or abuse will result in account termination; message history is retained for moderation and deleted <strong style="color:#ccc">12 months</strong> after account termination.</li>
+          <li>You can withdraw consent at any time in your account settings.</li>
         </ul>
         <p style="font-size:11px;color:#555;margin-bottom:4px">
-          By clicking "I Agree" you acknowledge you have read our
-          <a href="privacy.html" target="_blank" rel="noopener" style="color:#7777cc">Privacy Policy</a> and
-          <a href="terms.html" target="_blank" rel="noopener" style="color:#7777cc">Terms and Conditions</a>.
+          By clicking "Accept" you acknowledge you have read our
+          <a href="html/privacy.html" target="_blank" rel="noopener" style="color:#7777cc">Privacy Policy</a> and
+          <a href="html/terms.html" target="_blank" rel="noopener" style="color:#7777cc">Terms and Conditions</a>.
         </p>
         <div id="chat-consent-err" style="color:#ff8888;font-size:12px;min-height:14px"></div>
         <div class="sb-delete-confirm-actions" style="margin-top:10px">
           <button class="auth-btn" style="flex:1" onclick="window._grantChatConsent()">Accept</button>
-          <button class="auth-btn auth-btn-reject" style="flex:1" onclick="document.getElementById('chat-consent-modal').remove()">Reject</button>
+          <button class="auth-btn auth-btn-reject" style="flex:1" onclick="document.getElementById('chat-consent-modal').remove()">Decline</button>
         </div>
       </div>`;
     document.body.appendChild(el);
@@ -1097,14 +1140,13 @@
   }
 
   async function grantChatConsent() {
-    const { error } = await sb.from('profiles').update({
-      chat_consent_at: new Date().toISOString(),
-      chat_consent_version: CHAT_CONSENT_VERSION,
-    }).eq('id', uid());
-    if (error) {
-      const errEl = document.getElementById('chat-consent-err');
-      if (errEl) errEl.textContent = 'Failed to save consent. Please try again.';
-      return;
+    setLocalConsent();
+    if (authed()) {
+      const { error } = await sb.from('profiles').update({
+        chat_consent_at: new Date().toISOString(),
+        chat_consent_version: CHAT_CONSENT_VERSION,
+      }).eq('id', uid());
+      if (error) console.warn('[consent] save failed:', error.message);
     }
     document.getElementById('chat-consent-modal')?.remove();
     window._pendingConsentCallback?.();
@@ -1112,11 +1154,14 @@
   }
 
   async function withdrawChatConsent() {
-    const { error } = await sb.from('profiles').update({
-      chat_consent_at: null,
-      chat_consent_version: null,
-    }).eq('id', uid());
-    if (error) { console.warn('[consent] withdraw failed:', error.message); return; }
+    clearLocalConsent();
+    if (authed()) {
+      const { error } = await sb.from('profiles').update({
+        chat_consent_at: null,
+        chat_consent_version: null,
+      }).eq('id', uid());
+      if (error) { console.warn('[consent] withdraw failed:', error.message); return; }
+    }
     const statusEl = document.getElementById('sb-consent-status');
     if (statusEl) statusEl.innerHTML = `<span style="color:#888">Not consented — messaging disabled.</span>
       <button class="sb-consent-grant-btn" onclick="window._showConsentFromSettings()">Give Consent</button>`;
@@ -1225,6 +1270,8 @@
   }
 
   async function openThread(otherId, otherName) {
+    if (!authed()) { window._openAuthModal?.('login'); return; }
+    if (!hasLocalConsent()) { showChatConsentModal(null); return; } // no consent = no chat
     _dmView     = 'thread';
     _dmWithId   = otherId;
     _dmWithName = otherName;
@@ -1360,6 +1407,7 @@
 
   async function sendDm() {
     if (!authed()) return;
+    if (!hasLocalConsent()) { showChatConsentModal(null); return; } // no consent = no chat
     const now = Date.now();
     if (now - _lastDmSend < 1000) return; // max 1 message per second
     const inp = document.getElementById('dm-input');
@@ -1527,6 +1575,7 @@
 
     if (id) {
       _cachedAvatar = null;
+      reconcileConsent();
       loadNotifs();
       subscribeNotifs();
       syncMsgBadge();
@@ -1593,6 +1642,10 @@
         }
       }
     });
+
+    // Privacy/Terms acceptance gate — shown on site load. Delayed slightly so a
+    // returning logged-in user's stored consent can be reconciled first (avoids a flash).
+    setTimeout(checkSiteConsent, 600);
   }
 
   window.addEventListener('DOMContentLoaded', init);
@@ -1711,6 +1764,8 @@
   // ── DM pop-out ────────────────────────────────────────
   let _dmPopupWin = null;
   function dmTogglePopout() {
+    if (!authed()) { window._openAuthModal?.('login'); return; }
+    if (!hasLocalConsent()) { showChatConsentModal(null); return; } // no consent = no chat
     if (_dmPopupWin && !_dmPopupWin.closed) {
       _dmPopupWin.focus();
       return;
