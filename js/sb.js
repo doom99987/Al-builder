@@ -694,7 +694,7 @@
         <button class="auth-btn sb-btn-full" id="sb-pw-btn" onclick="window._changePassword()">Confirm Change</button>
       </div>
       <div class="sb-menu-divider" style="margin:16px 0 12px"></div>
-      <p class="sb-field-label">Messaging Consent</p>
+      <p class="sb-field-label">Privacy &amp; Terms Consent</p>
       <div id="sb-consent-status" class="sb-consent-status">Loading...</div>
       <div class="sb-menu-divider" style="margin:12px 0"></div>
       <button class="auth-btn auth-btn-out sb-btn-full" onclick="window._sbSignOut();window._closeModal()">Logout</button>
