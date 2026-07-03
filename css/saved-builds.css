@@ -114,6 +114,7 @@
 }
 
 .saved-build-load-btn,
+.saved-build-overwrite-btn,
 .saved-build-del-btn {
   padding: 6px 14px;
   border: none;
@@ -133,6 +134,17 @@
 .saved-build-load-btn:hover {
   background: #2a3e2a;
   color: #aaeaaa;
+}
+
+.saved-build-overwrite-btn {
+  background: #2a271e;
+  color: #c8b47e;
+  border: 1px solid #5a4f3a;
+}
+
+.saved-build-overwrite-btn:hover {
+  background: #3e392a;
+  color: #eadfaa;
 }
 
 .saved-build-del-btn {
