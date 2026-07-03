@@ -188,11 +188,20 @@
     }
 
     try {
+      // Send the logged-in user's access token so the edge function can verify it and
+      // attribute the donation server-side (a client-supplied user_id could be spoofed).
+      // Guests fall back to the anon key → donation stays anonymous.
+      let authToken = ANON_KEY;
+      try {
+        const { data } = await window._sbClient?.auth.getSession() || {};
+        if (data?.session?.access_token) authToken = data.session.access_token;
+      } catch (e) {}
+
       const res = await fetch(CHECKOUT_URL, {
         method:  'POST',
         headers: {
           'Content-Type':  'application/json',
-          'Authorization': `Bearer ${ANON_KEY}`,
+          'Authorization': `Bearer ${authToken}`,
           'apikey':        ANON_KEY,
         },
         body: JSON.stringify({
@@ -200,10 +209,6 @@
           success_url:  successUrl,
           cancel_url:   cancelUrl,
           donor_name:   donorName,
-          // user_id lets the webhook record which account donated so the leaderboard
-          // can aggregate multiple donations from the same logged-in user.
-          // Null for guests — each anonymous donation stays separate.
-          user_id: (typeof window._sbGetUserId === 'function' ? window._sbGetUserId() : null) || null,
         }),
       });
 
