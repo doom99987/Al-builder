@@ -556,6 +556,11 @@
   function esc(s) {
     return String(s).replace(/[&<>"']/g, c => _ESC_MAP[c]);
   }
+  // For values interpolated into a JS string inside an inline onclick attribute:
+  // strip quotes/backslashes (JS-string breakout) then HTML-escape (attribute breakout).
+  function escAttrJs(s) {
+    return esc(String(s == null ? '' : s).replace(/['"\\]/g, ''));
+  }
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
   // Avatar background color derived from username
@@ -1224,7 +1229,7 @@
     const recordRowHtml = record ? `
       <tr class="sb-lb-record-row${myName === record.username ? ' sb-lb-me' : ''}">
         <td>👑</td>
-        <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${record.username}'})"`)}<span>${esc(record.username)}</span></div></td>
+        <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(record.username)}'})"`)}<span>${esc(record.username)}</span></div></td>
         <td style="white-space:nowrap"><b>${record.score}</b> ${platformBadge(record.platform)}</td>
       </tr>` : '';
 
@@ -1251,7 +1256,7 @@
       return `
       <tr class="${myName === r.username ? 'sb-lb-me' : ''}">
         <td>${rank}</td>
-        <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${r.username}'})"`)}<span>${esc(r.username)}</span></div></td>
+        <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(r.username)}'})"`)}<span>${esc(r.username)}</span></div></td>
         <td style="white-space:nowrap"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
       </tr>`;
     }).join('');
@@ -1368,7 +1373,7 @@
       const recordRowHtml = rec ? `
         <tr class="sb-lb-record-row${myName && myName === rec.username ? ' sb-lb-me' : ''}">
           <td class="all-lb-rank">👑</td>
-          <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${rec.username}'})"`)}<span>${esc(rec.username)}</span></div></td>
+          <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(rec.username)}'})"`)}<span>${esc(rec.username)}</span></div></td>
           <td class="all-lb-score"><b>${rec.score}</b> ${platformBadge(rec.platform)}</td>
         </tr>` : '';
       const filteredRows = monthRows;
@@ -1376,7 +1381,7 @@
         ? filteredRows.map((r, i) => `
             <tr class="${myName && myName === r.username ? 'sb-lb-me' : ''}">
               <td class="all-lb-rank">${i + 1}</td>
-              <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${r.username}'})"`)}<span>${esc(r.username)}</span></div></td>
+              <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(r.username)}'})"`)}<span>${esc(r.username)}</span></div></td>
               <td class="all-lb-score"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
             </tr>`).join('')
         : (!rec ? `<tr><td colspan="3" class="all-lb-empty">No scores this month</td></tr>` : '');

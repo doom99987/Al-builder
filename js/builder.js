@@ -7078,7 +7078,15 @@ function loadBuildState(state) {
   // Summary
   const summaryTA = document.getElementById('summary-textarea');
   const summaryCP = document.getElementById('summary-color-picker');
-  if (summaryTA) summaryTA.innerHTML = state.summ || '';
+  // state.summ can come from a shared link / DB row (other users' content) — sanitize
+  // before injecting. Falls back to plain text if the sanitizer isn't available.
+  if (summaryTA) {
+    if (typeof window._sanitizeSummHtml === 'function') {
+      summaryTA.innerHTML = window._sanitizeSummHtml(state.summ || '');
+    } else {
+      summaryTA.textContent = String(state.summ || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+    }
+  }
   if (summaryCP) summaryCP.value = state.summc || '#dddddd';
 
   // Reset dmg-calc state so loaded builds start clean

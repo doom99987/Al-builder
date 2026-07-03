@@ -7,6 +7,7 @@
 //    STRIPE_SECRET_KEY   — from Stripe dashboard > Developers > API keys
 // ================================================================
 import Stripe from 'npm:stripe@14';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
   apiVersion: '2023-10-16',
@@ -32,14 +33,14 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST')    return json({ error: 'Method not allowed.' }, 405);
 
-  let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown; donor_name?: unknown; user_id?: unknown };
+  let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown; donor_name?: unknown };
   try {
     body = await req.json();
   } catch {
     return json({ error: 'Invalid JSON.' }, 400);
   }
 
-  const { amount_cents, success_url, cancel_url, donor_name, user_id } = body;
+  const { amount_cents, success_url, cancel_url, donor_name } = body;
 
   // Server-side validation — must be a whole number of cents, minimum $1
   if (typeof amount_cents !== 'number' || !Number.isInteger(amount_cents) || amount_cents < MIN_CENTS) {
@@ -63,10 +64,21 @@ Deno.serve(async (req) => {
   const rawName  = typeof donor_name === 'string' ? donor_name.replace(/[<>&"]/g, '').trim() : '';
   const safeName = rawName.slice(0, 30) || 'Anonymous';
 
-  // user_id is a Supabase UUID — only store if it looks like one, otherwise null
-  const safeUserId = typeof user_id === 'string' && /^[0-9a-f-]{36}$/.test(user_id)
-    ? user_id
-    : '';
+  // Derive user_id from the caller's verified JWT — never trust the body value,
+  // or anyone could attribute donations to another account. The client sends the
+  // logged-in user's access token as the Authorization bearer (anon key for guests).
+  let safeUserId = '';
+  const authToken = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (authToken && authToken !== Deno.env.get('SUPABASE_ANON_KEY')) {
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_ANON_KEY')!,
+      );
+      const { data } = await supabase.auth.getUser(authToken);
+      if (data?.user?.id) safeUserId = data.user.id;
+    } catch (_) { /* invalid/expired token → treat as anonymous */ }
+  }
 
   try {
     const session = await stripe.checkout.sessions.create({

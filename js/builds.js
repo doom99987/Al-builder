@@ -126,41 +126,21 @@
 
   // ── Render ────────────────────────────────────────────────────────────────────
   function _esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
-  // Sanitize build summary HTML — XSS prevention.
-  // Summaries are stored as user-supplied HTML, so we whitelist only safe tags:
-  // <span style="color:..."> (coloured text) and <br> (line breaks). Everything
-  // else is unwrapped to plain text. This runs before injecting into innerHTML.
+  // For values interpolated into a JS string inside an inline onclick attribute.
+  // HTML entities are decoded before the JS runs, so escaping alone isn't enough —
+  // strip quotes/backslashes (JS-string breakout) then HTML-escape (attribute breakout).
+  function _escAttrJs(s) {
+    return _esc(String(s == null ? '' : s).replace(/['"\\]/g, ''));
+  }
+
+  // Sanitize build summary HTML — XSS prevention. Shared implementation lives in
+  // core.js (window._sanitizeSummHtml): whitelists <span style="color:..."> and <br>,
+  // unwraps everything else to plain text. Runs before injecting into innerHTML.
   function _sanitizeSumm(html) {
-    if (!html) return '';
-    const root = document.createElement('div');
-    root.innerHTML = html;
-    function clean(node) {
-      const frag = document.createDocumentFragment();
-      node.childNodes.forEach(child => {
-        if (child.nodeType === Node.TEXT_NODE) {
-          frag.appendChild(document.createTextNode(child.textContent));
-        } else if (child.nodeType === Node.ELEMENT_NODE) {
-          if (child.tagName === 'BR') {
-            frag.appendChild(document.createElement('br'));
-          } else if (child.tagName === 'SPAN') {
-            const span = document.createElement('span');
-            const color = child.style.color;
-            if (color) span.style.color = color;
-            span.appendChild(clean(child));
-            frag.appendChild(span);
-          } else {
-            frag.appendChild(clean(child));
-          }
-        }
-      });
-      return frag;
-    }
-    const out = document.createElement('div');
-    out.appendChild(clean(root));
-    return out.innerHTML;
+    return window._sanitizeSummHtml ? window._sanitizeSummHtml(html) : _esc(html);
   }
 
   function _buildCard(b) {
@@ -169,8 +149,9 @@
     const isAdmin = typeof window._sbIsAdmin === 'function' && window._sbIsAdmin();
     const date    = new Date(b.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
     const canRemove = owner || isAdmin;
+    const safeId = _escAttrJs(b.id); // row ids come from the DB and aren't guaranteed clean
     return `
-      <div class="blds-card" data-id="${b.id}">
+      <div class="blds-card" data-id="${_esc(b.id)}">
         <div class="blds-card-body">
           <div class="blds-card-name">${_esc(b.build_name)}</div>
           ${b.build_summary ? `<div class="blds-card-summary">${_sanitizeSumm(b.build_summary)}</div>` : ''}
@@ -181,12 +162,12 @@
           </div>
         </div>
         <div class="blds-card-actions">
-          <button class="blds-open-btn" onclick="window._buildsOpen('${_esc(b.build_code)}')">Open in Builder</button>
-          <button class="blds-like-btn${liked ? ' liked' : ''}" onclick="window._buildsToggleLike('${b.id}', this)" title="${liked ? 'Unlike' : 'Like'}">
+          <button class="blds-open-btn" onclick="window._buildsOpen('${_escAttrJs(b.build_code)}')">Open in Builder</button>
+          <button class="blds-like-btn${liked ? ' liked' : ''}" onclick="window._buildsToggleLike('${safeId}', this)" title="${liked ? 'Unlike' : 'Like'}">
             <span class="blds-like-icon">${liked ? '♥' : '♡'}</span>
             <span class="blds-like-count">${b.likes}</span>
           </button>
-          ${canRemove ? `<button class="blds-delete-btn${isAdmin && !owner ? ' blds-delete-btn--admin' : ''}" onclick="window._buildsDelete('${b.id}', this)" title="${isAdmin && !owner ? 'Remove (admin)' : 'Delete your build'}">✕</button>` : ''}
+          ${canRemove ? `<button class="blds-delete-btn${isAdmin && !owner ? ' blds-delete-btn--admin' : ''}" onclick="window._buildsDelete('${safeId}', this)" title="${isAdmin && !owner ? 'Remove (admin)' : 'Delete your build'}">✕</button>` : ''}
         </div>
       </div>`;
   }

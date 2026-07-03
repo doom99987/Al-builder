@@ -44,6 +44,41 @@ var _autoSaveTimer = null;           // debounce handle for auto-save writes
 // True when the device uses touch input — used to show/hide mobile controls across all QTE trainers.
 const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
 
+// Sanitize build-summary HTML — XSS prevention, shared by builder.js and builds.js.
+// Summaries are stored as user-supplied HTML (shared links / DB rows can contain other
+// users' content), so we whitelist only safe tags: <span style="color:..."> and <br>.
+// Everything else is unwrapped to plain text. Parsing uses DOMParser because its
+// document is inert — no scripts run and no images load (unlike innerHTML on a
+// detached div, where <img onerror> handlers still fire during parsing).
+window._sanitizeSummHtml = function (html) {
+  if (!html) return '';
+  const root = new DOMParser().parseFromString(String(html), 'text/html').body;
+  function clean(node) {
+    const frag = document.createDocumentFragment();
+    node.childNodes.forEach(child => {
+      if (child.nodeType === Node.TEXT_NODE) {
+        frag.appendChild(document.createTextNode(child.textContent));
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        if (child.tagName === 'BR') {
+          frag.appendChild(document.createElement('br'));
+        } else if (child.tagName === 'SPAN') {
+          const span = document.createElement('span');
+          const color = child.style.color;
+          if (color) span.style.color = color;
+          span.appendChild(clean(child));
+          frag.appendChild(span);
+        } else {
+          frag.appendChild(clean(child));
+        }
+      }
+    });
+    return frag;
+  }
+  const out = document.createElement('div');
+  out.appendChild(clean(root));
+  return out.innerHTML;
+};
+
 // § QTE SFX
 // Centralised sound player for all QTE trainers.
 // Each trainer calls window._playQteSfx(name) on a correct input.

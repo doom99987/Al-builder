@@ -414,8 +414,11 @@
     // The opponent's orb is clickable to open their profile / report them (not the bot, not yourself).
     const isOpp = p && opp && p.id === opp.id && opp.id !== '__bot__' && !isBot;
     const avHtml = avatar(p.name, p.avatar, 40);
+    // Strip quotes/backslashes (JS-string context) then HTML-escape (attribute context) —
+    // opp.name arrives via realtime presence/broadcast and is attacker-controlled.
+    const safeAttr = s => esc(String(s == null ? '' : s).replace(/['"\\]/g, ''));
     const av = isOpp
-      ? `<span class="mm-orb-click" title="View profile" onclick="window._openUserProfile({userId:'${opp.id}',username:'${opp.name}',matchId:'${matchId || ''}'})">${avHtml}</span>`
+      ? `<span class="mm-orb-click" title="View profile" onclick="window._openUserProfile({userId:'${safeAttr(opp.id)}',username:'${safeAttr(opp.name)}',matchId:'${safeAttr(matchId || '')}'})">${avHtml}</span>`
       : avHtml;
     return `<div class="mm-head">
       ${av}
