@@ -68,6 +68,7 @@ function renderSavedBuilds() {
       </div>
       <div class="saved-build-actions">
         <button class="saved-build-load-btn" onclick="loadSavedBuild(${realIdx})">Load</button>
+        <button class="saved-build-overwrite-btn" title="Overwrite this slot with your current build" onclick="overwriteSavedBuild(${realIdx})">Overwrite</button>
         <button class="saved-build-del-btn" onclick="deleteSavedBuild(${realIdx})">Delete</button>
         <button class="${starClass}" title="${starTitle}" onclick="toggleFavBuild(${realIdx})">&#9733;</button>
       </div>
@@ -83,6 +84,25 @@ function loadSavedBuild(index) {
   const nameInput = document.getElementById('build-name-input');
   if (nameInput) nameInput.value = b.name || '';
   _switchBuilderTab('stats');
+}
+
+// Overwrites an existing slot with the current build state, keeping its id and favourite
+// status. Uses the current name-input value if one is set, otherwise keeps the slot's name.
+function overwriteSavedBuild(index) {
+  const builds = _getSavedBuilds();
+  const existing = builds[index];
+  if (!existing) return;
+  if (!confirm(`Overwrite "${existing.name || 'Untitled'}" with your current build?`)) return;
+  const typedName = (document.getElementById('build-name-input')?.value.trim()) || '';
+  builds[index] = {
+    id: existing.id,
+    name: typedName || existing.name || 'Untitled',
+    ts: Date.now(),
+    fav: !!existing.fav,
+    state: getBuildState()
+  };
+  _setSavedBuilds(builds);
+  renderSavedBuilds();
 }
 
 function deleteSavedBuild(index) {
