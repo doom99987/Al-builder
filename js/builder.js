@@ -1613,23 +1613,18 @@ const easterGearsPassive = mkPassive("Easter Gears", "Gain a stacking 5% defense
 const gearMoves = {
   "Rabbit Pelt": { learns: [easterGearsPassive] },
   "Egg Shelmet": { learns: [
-    easterGearsPassive,
     mkPassive("Egg Shelmet", "Start the fight with 10% more of your max HP in the form of an HP shield.\nWhen the shield breaks, gain a permanent 10% DR."),
   ]},
   "Chocolate Egg": { learns: [
-    easterGearsPassive,
     { slot: "", level: 1, type: "Active", name: "Easter Snack", quote: "", cost: 0, cooldown: 99, effect: "Target an ally with this skill. The ally you choose will be healed for 7.5 HP and be given regen equal to 1% of their max HP for 2 turns." },
   ]},
   "Party Egg": { learns: [
-    easterGearsPassive,
     { slot: "", level: 1, type: "Active", name: "Egg Throw", quote: "", cost: 2, cooldown: 6, moveType: "Physical", duration: 3, damage: 5, scaling: "SPD/80", effect: "Throw an egg at a target. If it hits, you gain a 7.5% speed boost and apply 2 random status effects (including ghostflame) to the target." },
   ]},
   "Gleaming Carrot": { learns: [
-    easterGearsPassive,
     { slot: "", level: 1, type: "Active", name: "Carrot Munch", quote: "", cost: 2, cooldown: 99, effect: "Gives yourself +1% critical chance per turn for 6 turns." },
   ]},
   "Rabbit's Foot": { learns: [
-    easterGearsPassive,
     mkPassive("Rabbit's Foot", "+5 Luck Stat.\n+5 Speed Stat.\nEvery turn, have a 33% chance to gain a 5% luck and speed boost for that turn, a 33% chance to gain 2 cursed stacks on yourself, and a 33% chance to gain 1 cursed stack and 1 hex stack on yourself."),
   ]},
 
