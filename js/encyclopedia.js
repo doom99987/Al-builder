@@ -574,13 +574,6 @@
     ['The Dealer',                'Significant NPC', ''],
   ];
 
-  /* ── Per-type YouTube playlist links ────────────────────────────────────── */
-  const TYPE_PLAYLISTS = {
-    'Ore':        'https://www.youtube.com/playlist?list=PLFkGPaRrHFHURS5L8eLHt3yubpQY07wCY',
-    'Base Class': 'https://www.youtube.com/playlist?list=PLFkGPaRrHFHURS5L8eLHt3yubpQY07wCY',
-    'Super Class':'https://www.youtube.com/playlist?list=PLFkGPaRrHFHURS5L8eLHt3yubpQY07wCY',
-  };
-
   /* ── Config ─────────────────────────────────────────────────────────────── */
   const TYPE_ORDER = [
     'Base Class', 'Super Class', 'Sub Class',
@@ -3453,16 +3446,6 @@
         descEl.classList.add('enc-detail-nodesc');
       }
     }
-    // Playlist link
-    if (extraEl && TYPE_PLAYLISTS[it[1]]) {
-      const a = document.createElement('a');
-      a.href = TYPE_PLAYLISTS[it[1]];
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.className = 'enc-playlist-link';
-      a.textContent = '▶ YouTube Playlist';
-      extraEl.appendChild(a);
-    }
   }
 
   /* ── Scroll / Lost Scroll detail panel ─────────────────────────────────── */
@@ -4849,16 +4832,6 @@
           btn.addEventListener('click', () => showMoveDetail(idx, mi, isRace));
           movesEl.appendChild(btn);
         });
-      }
-      // Playlist link
-      if (TYPE_PLAYLISTS[type]) {
-        const a = document.createElement('a');
-        a.href = TYPE_PLAYLISTS[type];
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.className = 'enc-playlist-link';
-        a.textContent = '▶ YouTube Playlist';
-        movesEl.appendChild(a);
       }
     }
   }
