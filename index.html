@@ -28,7 +28,7 @@
       saved-builds.css: saved builds panel + Discord button
   -->
   <link rel="stylesheet" href="css/base.css?v=12">
-  <link rel="stylesheet" href="css/nav.css?v=16">
+  <link rel="stylesheet" href="css/nav.css?v=17">
   <link rel="stylesheet" href="css/builder.css?v=18">
   <link rel="stylesheet" href="css/qte.css?v=12">
   <link rel="stylesheet" href="css/mobile.css?v=13">
@@ -40,7 +40,7 @@
   <link rel="stylesheet" href="css/party.css?v=12">
   <link rel="stylesheet" href="css/builds.css?v=5">
   <link rel="stylesheet" href="css/encyclopedia.css?v=6">
-  <link rel="stylesheet" href="css/matchmaking.css?v=6">
+  <link rel="stylesheet" href="css/matchmaking.css?v=7">
   <link rel="stylesheet" href="css/reports.css?v=3">
 </head>
 
@@ -74,7 +74,7 @@
     <div class="home-hero-eyebrow">Arcane Lineage Toolkit</div>
     <h1 class="home-title">AL <span class="home-title-accent">Builder</span></h1>
     <div class="home-hero-ornament"><span class="home-hero-ornament-line"></span>✦<span class="home-hero-ornament-line"></span></div>
-    <p class="home-subtitle">Plan your build, train your QTEs, trade with players,<br>and dominate the leaderboards — all in one place.</p>
+    <p class="home-subtitle">Plan your build, share it with the community, train your QTEs,<br>and dominate the leaderboards — all in one place.</p>
     <div class="home-cta-row">
       <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
       <button class="home-cta home-cta-secondary" onclick="switchPage('qte')">QTE Trainer</button>
@@ -115,7 +115,7 @@
     <div class="home-section-label">What you can do</div>
     <div class="home-nav-grid">
 
-      <div class="home-nav-card hnc-builder" onclick="switchPage('builder')">
+      <div class="home-nav-card hnc-builder" role="button" tabindex="0" onclick="switchPage('builder')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">⚔</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Builder</div>
@@ -124,7 +124,16 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card hnc-qte" onclick="switchPage('qte')">
+      <div class="home-nav-card hnc-builds" role="button" tabindex="0" onclick="switchPage('builds')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+        <div class="home-nav-icon">❖</div>
+        <div class="home-nav-info">
+          <div class="home-nav-title">Community Builds</div>
+          <div class="home-nav-desc">Browse builds shared by other players, filter by super class, and upload your own for likes.</div>
+        </div>
+        <div class="home-nav-arrow">›</div>
+      </div>
+
+      <div class="home-nav-card hnc-qte" role="button" tabindex="0" onclick="switchPage('qte')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">⚡</div>
         <div class="home-nav-info">
           <div class="home-nav-title">QTE Trainer</div>
@@ -133,7 +142,16 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card hnc-trades" onclick="switchPage('trades')">
+      <div class="home-nav-card hnc-mm" role="button" tabindex="0" onclick="switchPage('matchmaking')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+        <div class="home-nav-icon">⌖</div>
+        <div class="home-nav-info">
+          <div class="home-nav-title">Matchmaking</div>
+          <div class="home-nav-desc">Queue up for live 1v1 QTE duels against other players and prove your reflexes head-to-head.</div>
+        </div>
+        <div class="home-nav-arrow">›</div>
+      </div>
+
+      <div class="home-nav-card hnc-trades" role="button" tabindex="0" onclick="switchPage('trades')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">◈</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Trades</div>
@@ -142,16 +160,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card hnc-lb" onclick="switchPage('leaderboards')">
-        <div class="home-nav-icon">◆</div>
-        <div class="home-nav-info">
-          <div class="home-nav-title">Leaderboards</div>
-          <div class="home-nav-desc">Top streaks for every weapon type. See where you rank globally and set new personal bests.</div>
-        </div>
-        <div class="home-nav-arrow">›</div>
-      </div>
-
-      <div class="home-nav-card hnc-vl" onclick="switchPage('trades'); window._trdShowVL && window._trdShowVL()">
+      <div class="home-nav-card hnc-vl" role="button" tabindex="0" onclick="switchPage('trades'); window._trdShowVL && window._trdShowVL()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">◉</div>
         <div class="home-nav-info">
           <div class="home-nav-title">Value List</div>
@@ -160,7 +169,7 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
-      <div class="home-nav-card hnc-party" onclick="switchPage('lf-party')">
+      <div class="home-nav-card hnc-party" role="button" tabindex="0" onclick="switchPage('lf-party')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">◎</div>
         <div class="home-nav-info">
           <div class="home-nav-title">LF Party</div>
@@ -169,9 +178,28 @@
         <div class="home-nav-arrow">›</div>
       </div>
 
+      <div class="home-nav-card hnc-lb" role="button" tabindex="0" onclick="switchPage('leaderboards')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+        <div class="home-nav-icon">◆</div>
+        <div class="home-nav-info">
+          <div class="home-nav-title">Leaderboards</div>
+          <div class="home-nav-desc">Top streaks for every weapon type. See where you rank globally and set new personal bests.</div>
+        </div>
+        <div class="home-nav-arrow">›</div>
+      </div>
+
+      <div class="home-nav-card hnc-enc" role="button" tabindex="0" onclick="switchPage('encyclopedia')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
+        <div class="home-nav-icon">✦</div>
+        <div class="home-nav-info">
+          <div class="home-nav-title">Encyclopedia</div>
+          <div class="home-nav-desc">Every class, weapon, boss, and mechanic in one searchable reference — Mator's Encyclopedia.</div>
+        </div>
+        <div class="home-nav-arrow">›</div>
+      </div>
+
     </div>
 
     <!-- Donation section -->
+    <div class="home-section-label">Support</div>
     <div class="home-donate-row">
 
       <div class="home-panel home-donate-panel">
@@ -191,12 +219,21 @@
     </div>
 
     <!-- Two-column lower section -->
+    <div class="home-section-label">News &amp; guide</div>
     <div class="home-lower">
 
       <!-- Changelog -->
       <div class="home-panel">
         <div class="home-panel-title">What's New</div>
         <ul class="home-changelog">
+          <li>
+            <span class="home-cl-tag home-cl-tag-new">New</span>
+            <span class="home-cl-text">QTE Trainer &amp; Matchmaking: macro detection — automated input forfeits the round and blocks leaderboard submissions</span>
+          </li>
+          <li>
+            <span class="home-cl-tag home-cl-tag-new">New</span>
+            <span class="home-cl-text">Community Builds: filter by super class, with class badges on every build card</span>
+          </li>
           <li>
             <span class="home-cl-tag home-cl-tag-fix">Fix</span>
             <span class="home-cl-text">Builder: Light Burst Proficiency (Saint Or) now correctly applies its 30% damage buff in the calculator</span>
@@ -220,14 +257,6 @@
           <li>
             <span class="home-cl-tag home-cl-tag-fix">Fix</span>
             <span class="home-cl-text">Encyclopedia: Crucible (Citadel Or) move type corrected to Holy</span>
-          </li>
-          <li>
-            <span class="home-cl-tag home-cl-tag-fix">Fix</span>
-            <span class="home-cl-text">Donation panel no longer closes when selecting text inside it</span>
-          </li>
-          <li>
-            <span class="home-cl-tag home-cl-tag-fix">Fix</span>
-            <span class="home-cl-text">QTE Trainer: New Dagger pattern corrected</span>
           </li>
         </ul>
       </div>
@@ -1383,6 +1412,7 @@
 <script src="js/data-race-moves.js?v=14"></script>
 <script src="js/move-renderer.js?v=12"></script>
 <script src="js/builder.js?v=58"></script>
+<script src="js/qte-guard.js?v=1"></script>
 <script src="js/qte.js?v=23"></script>
 <script src="js/saved-builds.js?v=13"></script>
 <script src="js/trades.js?v=48"></script>
@@ -1391,7 +1421,7 @@
 <script src="js/encyclopedia.js?v=7"></script>
 <script src="js/overlay.js?v=1"></script>
 <script src="js/donation.js?v=4"></script>
-<script src="js/matchmaking.js?v=8"></script>
+<script src="js/matchmaking.js?v=9"></script>
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
   (function () {
