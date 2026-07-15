@@ -174,6 +174,7 @@
   function renderLogin() {
     root().innerHTML = `<div class="mm-center">
       <div class="mm-panel">
+        <div class="mm-eyebrow">Head-to-head duels</div>
         <h2 class="mm-title">Matchmaking</h2>
         <p class="mm-sub">Log in to duel other players in head-to-head QTE matches.</p>
         <button class="mm-btn mm-btn-primary" onclick="window._openAuthModal && window._openAuthModal('login')">Log In</button>
@@ -194,6 +195,7 @@
 
     root().innerHTML = `<div class="mm-center">
       <div class="mm-panel mm-home">
+        <div class="mm-eyebrow">Head-to-head duels</div>
         <h2 class="mm-title">Matchmaking</h2>
         <div class="mm-mode-toggle">
           <button class="mm-mode-btn ${mode==='unrated'?'active':''}" data-mode="unrated">Unrated</button>
@@ -336,6 +338,7 @@
       report: s => onLocalReport(s),
       fail: () => onLocalFail(),
     };
+    if (window._qteGuard) window._qteGuard.onFlag = onGuardFlag;
 
     matchChan = sb.channel('mm-match-' + id, { config: { presence: { key: me.id } } });
     matchChan
@@ -381,6 +384,7 @@
     renderArena();
     mountQte(curQte);
     window._qteMatch = { active: false, qte: curQte, report: s => onLocalReport(s), fail: () => onLocalFail() };
+    if (window._qteGuard) window._qteGuard.onFlag = onGuardFlag;
     setTimeout(() => { if (view === 'match' && isBot) sendRoundStart(); }, 900);
   }
 
@@ -443,6 +447,7 @@
           <div class="mm-qte-host" id="mm-qte-mount"></div>
           <div class="mm-streak-tag" id="mm-my-streak">Streak: 0</div>
         </div>
+        <div class="mm-vs" aria-hidden="true"><span class="mm-vs-line"></span><span class="mm-vs-text">VS</span><span class="mm-vs-line"></span></div>
         <div class="mm-box mm-box-opp">
           ${playerHeader(opp, opp.rr, opp.games)}
           <div class="mm-opp-view">
@@ -517,11 +522,13 @@
   }
 
   function doRoundStart(round, startedAt) {
+    if (window._qteGuard) window._qteGuard.reset(); // clean slate for macro detection each round
     roundNo = round; roundActive = true; roundResolved = false;
     fails = {}; streaks[me.id] = 0; streaks[opp.id] = 0; myReported = 0; lastProgressSent = 0;
     deadline = startedAt + ROUND_MS;
     $('mm-roundno').textContent = 'Round ' + roundNo;
     setMyStreak(0); setOppStreak(0);
+    const myTag = $('mm-my-streak'); if (myTag) myTag.classList.remove('mm-guard-note');
     setMyStatusPlaying(); setOppStatus('playing');
     hideOverlay();
     window._qteMatch.active = true;
@@ -630,6 +637,14 @@
     // If the opponent already slipped, my gains may now pass their capped score.
     if (isHost && fails[opp.id]) hostAdjudicate('progress');
   }
+  // Macro detection fired mid-round (qte-guard.js). The guard already calls
+  // _qteMatch.fail(), which forfeits the round through the normal path — this
+  // hook only explains WHY in the player's own box.
+  function onGuardFlag() {
+    const tag = $('mm-my-streak');
+    if (tag) { tag.textContent = 'Automated input detected — round forfeited'; tag.classList.add('mm-guard-note'); }
+  }
+
   function onLocalFail() {
     if (!roundActive || fails[me.id]) return;
     fails[me.id] = Date.now();
@@ -739,6 +754,7 @@
     }
     if (window._qteMatch) window._qteMatch.active = false;
     window._qteMatch = null;
+    if (window._qteGuard) window._qteGuard.onFlag = null;
     unmountQte();
     if (matchChan) { try { sb.removeChannel(matchChan); } catch (_) {} matchChan = null; }
     matchId = null; isHost = false; isBot = false; opp = null; started = false; matchResolved = false;
