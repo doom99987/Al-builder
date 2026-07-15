@@ -3,7 +3,9 @@
 // Each entry: { id: Date.now(), name: string, ts: timestamp, fav: bool, state: BuildState }
 // Builds are sorted favourites-first, then by timestamp descending.
 // Search filters across name, race, class, superclass, and subclass fields.
+// Capped at _MAX_SAVED_BUILDS slots (overwrite/delete free them up).
 var _SAVED_BUILDS_KEY = 'alb:saved-builds';
+var _MAX_SAVED_BUILDS = 50;
 
 // Reads all saved builds from localStorage; returns an empty array on parse failure.
 function _getSavedBuilds() {
@@ -24,10 +26,18 @@ function _savedBuildsQuery() {
   return (document.getElementById('saved-builds-search')?.value || '').trim().toLowerCase();
 }
 
+function _updateSavedBuildsCount(n) {
+  const el = document.getElementById('saved-builds-count');
+  if (!el) return;
+  el.textContent = n + ' / ' + _MAX_SAVED_BUILDS;
+  el.classList.toggle('full', n >= _MAX_SAVED_BUILDS);
+}
+
 function renderSavedBuilds() {
   const list = document.getElementById('saved-builds-list');
   if (!list) return;
   const allBuilds = _getSavedBuilds();
+  _updateSavedBuildsCount(allBuilds.length);
 
   // Sort: favourites first, then by saved date descending
   const sorted = [...allBuilds].sort((a, b) => {
@@ -126,9 +136,15 @@ function toggleFavBuild(index) {
   const search = document.getElementById('saved-builds-search');
   if (btn) {
     btn.addEventListener('click', () => {
+      const builds = _getSavedBuilds();
+      if (builds.length >= _MAX_SAVED_BUILDS) {
+        btn.textContent = 'Limit reached — delete or overwrite a build';
+        btn.classList.add('at-limit');
+        setTimeout(() => { btn.textContent = 'Save Current Build'; btn.classList.remove('at-limit'); }, 2600);
+        return;
+      }
       const state = getBuildState();
       const name = (document.getElementById('build-name-input')?.value.trim()) || 'Untitled';
-      const builds = _getSavedBuilds();
       builds.unshift({ id: Date.now(), name, ts: Date.now(), fav: false, state });
       _setSavedBuilds(builds);
       btn.textContent = 'Saved!';

@@ -39,7 +39,9 @@
       "Bash(echo \"exit: $?\")",
       "PowerShell(node --check js\\\\builds.js; node --check js\\\\builder.js)",
       "PowerShell(node --check js\\\\qte-guard.js; node --check js\\\\matchmaking.js)",
-      "PowerShell(node --check js\\\\qte-guard.js)"
+      "PowerShell(node --check js\\\\qte-guard.js)",
+      "PowerShell(node --check js\\\\saved-builds.js)",
+      "PowerShell(node --check js\\\\builder.js)"
     ]
   }
 }

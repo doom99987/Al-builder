@@ -803,12 +803,13 @@ const markPickers = document.querySelectorAll(".mark-picker");
 
 const markPicker = document.getElementById("mark-1");
 
+// Same searchable dropdown as enchants/artifacts. buildSimpleDropdown is a
+// hoisted declaration, so calling it here (before its definition) is fine.
+// onSelect dispatches 'change' so the listener below runs exactly as it did
+// when this was a native select.
 markPickers.forEach(picker => {
-  Object.keys(markItems).forEach(name => {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    picker.appendChild(opt);
+  buildSimpleDropdown(picker, Object.keys(markItems), () => {
+    picker.dispatchEvent(new Event('change'));
   });
 });
 
@@ -7015,7 +7016,7 @@ function loadBuildState(state) {
   subPicker.dispatchEvent(new Event('change'));
 
   // Mark
-  markPicker.value = state.mark || '';
+  setPickerDisplay(markPicker, state.mark || '');
   permuthStat = (state.mark === 'Venia' && state.pStat) ? state.pStat : '';
   markPicker.dispatchEvent(new Event('change'));
 
