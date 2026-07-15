@@ -1467,29 +1467,6 @@
 .enc-mech-title-name    { font-family: 'Rajdhani', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #ddaa00; flex-shrink: 0; }
 .enc-mech-title-achieve { font-size: 11px; color: #777; text-align: right; }
 
-/* ── YouTube playlist link ──────────────────────────────────────────────── */
-.enc-playlist-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-  padding: 7px 14px;
-  background: #1a0808;
-  border: 1px solid #cc2200;
-  border-radius: 6px;
-  color: #ff4422;
-  font-family: 'Rajdhani', Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  text-decoration: none;
-  transition: background 0.15s, border-color 0.15s;
-}
-.enc-playlist-link:hover {
-  background: #2a0e08;
-  border-color: #ff4422;
-  color: #ff6644;
-}
-
 /* ── Significant NPC detail ─────────────────────────────────────────────── */
 .enc-npc-info-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .enc-npc-body { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
