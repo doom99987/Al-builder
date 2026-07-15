@@ -10,8 +10,32 @@
   let _likedSet    = new Set();
   let _sortMode    = 'likes';
   let _searchQuery = '';
+  let _classFilter = 'all';
   let _loaded      = false;
   let _filterOpen  = false;
+
+  // ── Super classes ─────────────────────────────────────────────────────────────
+  // Grouped by base class; suffix encodes alignment path: (Or)thodox / (N)eutral / (Ch)aotic
+  const SUPER_CLASSES = [
+    'Ranger (Or)', 'Rogue (N)', 'Assassin (Ch)',
+    'Paladin (Or)', 'Blade Dancer (N)', 'Berserker (Ch)',
+    'Elementalist (Or)', 'Hexer (N)', 'Necromancer (Ch)',
+    'Monk (Or)', 'Brawler (N)', 'Darkwraith (Ch)',
+    'Saint (Or)', 'Lancer (N)', 'Impaler (Ch)',
+    'Lionheart (N)', 'Citadel (Or)', 'Arbiter (N)'
+  ];
+  function _supPath(sup) {
+    const m = /\((Or|N|Ch)\)\s*$/.exec(sup || '');
+    return m ? m[1].toLowerCase() : '';
+  }
+  function _supShort(sup) {
+    return String(sup || '').replace(/\s*\((Or|N|Ch)\)\s*$/, '');
+  }
+  // Decode identity fields (super class etc.) from a packed build blob
+  function _peekBlob(d) {
+    if (!d || typeof window._builderPeekBlob !== 'function') return null;
+    return window._builderPeekBlob(d);
+  }
 
   // ── Fingerprint ───────────────────────────────────────────────────────────────
   function _getFingerprint() {
@@ -85,16 +109,21 @@
 
     return (buildsRes.data || [])
       .filter(row => !deleted.has(row.id))
-      .map(row => ({
-        id:           row.id,
-        build_code:   row.id,
-        build_name:   row.payload._displayName || row.payload.n || 'Untitled',
-        build_summary:row.payload.summ || null,
-        submitted_by: row.payload._submittedBy || 'Anonymous',
-        fp:           row.payload._fp || null,
-        likes:        counts[row.id] || 0,
-        created_at:   row.created_at
-      }));
+      .map(row => {
+        const peek = _peekBlob(row.payload.d);
+        return {
+          id:           row.id,
+          build_code:   row.id,
+          build_name:   row.payload._displayName || row.payload.n || 'Untitled',
+          build_summary:row.payload.summ || null,
+          submitted_by: row.payload._submittedBy || 'Anonymous',
+          fp:           row.payload._fp || null,
+          cls:          peek?.cls || null,
+          sup:          peek?.sup || null,
+          likes:        counts[row.id] || 0,
+          created_at:   row.created_at
+        };
+      });
   }
 
   // ── Link autofill ─────────────────────────────────────────────────────────────
@@ -150,10 +179,17 @@
     const date    = new Date(b.created_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
     const canRemove = owner || isAdmin;
     const safeId = _escAttrJs(b.id); // row ids come from the DB and aren't guaranteed clean
+    const clsLabel = b.sup ? _supShort(b.sup) : (b.cls || null);
+    const clsBadge = clsLabel
+      ? `<span class="blds-card-class${b.sup ? ' blds-path-' + _supPath(b.sup) : ''}">✦ ${_esc(clsLabel)}</span>`
+      : '';
     return `
       <div class="blds-card" data-id="${_esc(b.id)}">
         <div class="blds-card-body">
-          <div class="blds-card-name">${_esc(b.build_name)}</div>
+          <div class="blds-card-name-row">
+            <div class="blds-card-name">${_esc(b.build_name)}</div>
+            ${clsBadge}
+          </div>
           ${b.build_summary ? `<div class="blds-card-summary">${_sanitizeSumm(b.build_summary)}</div>` : ''}
           <div class="blds-card-meta">
             <span class="blds-card-by">by ${_esc(b.submitted_by)}</span>
@@ -176,12 +212,14 @@
     const list = document.getElementById('blds-list');
     if (!list) return;
     let builds = [..._allBuilds];
+    if (_classFilter !== 'all') builds = builds.filter(b => b.sup === _classFilter);
     if (_searchQuery) {
       const q = _searchQuery.toLowerCase();
       builds = builds.filter(b =>
         (b.build_name    || '').toLowerCase().includes(q) ||
         (b.build_summary || '').toLowerCase().includes(q) ||
-        (b.submitted_by  || '').toLowerCase().includes(q)
+        (b.submitted_by  || '').toLowerCase().includes(q) ||
+        (b.sup           || '').toLowerCase().includes(q)
       );
     }
     builds.sort((a, b) => _sortMode === 'newest'
@@ -189,10 +227,29 @@
       : (b.likes || 0) - (a.likes || 0)
     );
     if (!builds.length) {
-      list.innerHTML = `<div class="blds-state">${_searchQuery ? 'No builds match your search.' : 'No builds yet — be the first to share one!'}</div>`;
+      const filtered = _searchQuery || _classFilter !== 'all';
+      list.innerHTML = `<div class="blds-state">${filtered ? 'No builds match your filters.' : 'No builds yet — be the first to share one!'}</div>`;
       return;
     }
     list.innerHTML = builds.map(_buildCard).join('');
+  }
+
+  // ── Super class filter chips ──────────────────────────────────────────────────
+  function _renderClassChips() {
+    const wrap = document.getElementById('blds-class-chips');
+    if (!wrap) return;
+    const counts = {};
+    _allBuilds.forEach(b => { if (b.sup) counts[b.sup] = (counts[b.sup] || 0) + 1; });
+    const chip = (value, label, path) => {
+      const active = _classFilter === value;
+      const n      = value === 'all' ? _allBuilds.length : (counts[value] || 0);
+      return `<button class="blds-chip blds-class-chip${active ? ' active' : ''}"
+        onclick="window._buildsSetClass('${value.replace(/'/g, '')}', this)">
+        ${path ? `<span class="blds-chip-dot blds-dot-${path}"></span>` : ''}${_esc(label)}${n ? `<span class="blds-chip-count">${n}</span>` : ''}
+      </button>`;
+    };
+    wrap.innerHTML = chip('all', 'All', '') +
+      SUPER_CLASSES.map(sc => chip(sc, _supShort(sc), _supPath(sc))).join('');
   }
 
   // ── Public API ────────────────────────────────────────────────────────────────
@@ -204,10 +261,18 @@
     _setupLinkAutofill();
     _allBuilds = await _fetchBuilds();
     _loaded    = true;
+    _renderClassChips();
     _render();
   };
 
   window._buildsSearch = function (q) { _searchQuery = q; _render(); };
+
+  window._buildsSetClass = function (value, btn) {
+    _classFilter = value;
+    document.querySelectorAll('.blds-class-chip').forEach(c => c.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    _render();
+  };
 
   window._buildsToggleFilter = function () {
     _filterOpen = !_filterOpen;
@@ -272,9 +337,11 @@
 
     if (!newId) { _toast('Upload failed. Try again.', 'err'); return; }
 
-    _allBuilds.unshift({ id: newId, build_code: newId, build_name: name, build_summary: summary, submitted_by: submittedBy, fp, likes: 0, created_at: new Date().toISOString() });
+    const peek = _peekBlob(meta.d);
+    _allBuilds.unshift({ id: newId, build_code: newId, build_name: name, build_summary: summary, submitted_by: submittedBy, fp, cls: peek?.cls || null, sup: peek?.sup || null, likes: 0, created_at: new Date().toISOString() });
     linkEl.value = ''; nameEl.value = ''; if (descEl) descEl.value = '';
     _toast('Build uploaded!', 'ok');
+    _renderClassChips();
     _render();
   };
 
@@ -289,6 +356,7 @@
 
     // Remove from local list immediately
     _allBuilds = _allBuilds.filter(b => b.id !== buildId);
+    _renderClassChips();
     _render();
 
     // Insert delete marker

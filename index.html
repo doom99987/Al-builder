@@ -38,7 +38,7 @@
   <link rel="stylesheet" href="css/trades.css?v=19">
   <link rel="stylesheet" href="css/vl.css?v=11">
   <link rel="stylesheet" href="css/party.css?v=12">
-  <link rel="stylesheet" href="css/builds.css?v=4">
+  <link rel="stylesheet" href="css/builds.css?v=5">
   <link rel="stylesheet" href="css/encyclopedia.css?v=6">
   <link rel="stylesheet" href="css/matchmaking.css?v=6">
   <link rel="stylesheet" href="css/reports.css?v=3">
@@ -1187,9 +1187,22 @@
 
     <!-- Filter panel -->
     <div id="blds-filter-panel" class="blds-filter-panel" style="display:none">
-      <span class="blds-filter-label">Sort by</span>
-      <button class="blds-chip active" data-sort="likes" onclick="window._buildsSetSort('likes',this)">Most Liked</button>
-      <button class="blds-chip" data-sort="newest" onclick="window._buildsSetSort('newest',this)">Newest</button>
+      <div class="blds-filter-row">
+        <span class="blds-filter-label">Sort by</span>
+        <div class="blds-filter-chips">
+          <button class="blds-chip active" data-sort="likes" onclick="window._buildsSetSort('likes',this)">Most Liked</button>
+          <button class="blds-chip" data-sort="newest" onclick="window._buildsSetSort('newest',this)">Newest</button>
+        </div>
+      </div>
+      <div class="blds-filter-row">
+        <span class="blds-filter-label">Super Class</span>
+        <div id="blds-class-chips" class="blds-filter-chips"></div>
+      </div>
+      <div class="blds-filter-legend">
+        <span class="blds-legend-item"><span class="blds-chip-dot blds-dot-or"></span>Orthodox</span>
+        <span class="blds-legend-item"><span class="blds-chip-dot blds-dot-n"></span>Neutral</span>
+        <span class="blds-legend-item"><span class="blds-chip-dot blds-dot-ch"></span>Chaotic</span>
+      </div>
     </div>
 
     <!-- Build list -->
@@ -1369,12 +1382,12 @@
 <script src="js/data-class-moves.js?v=22"></script>
 <script src="js/data-race-moves.js?v=14"></script>
 <script src="js/move-renderer.js?v=12"></script>
-<script src="js/builder.js?v=57"></script>
+<script src="js/builder.js?v=58"></script>
 <script src="js/qte.js?v=23"></script>
 <script src="js/saved-builds.js?v=13"></script>
 <script src="js/trades.js?v=48"></script>
 <script src="js/party.js?v=31"></script>
-<script src="js/builds.js?v=5"></script>
+<script src="js/builds.js?v=6"></script>
 <script src="js/encyclopedia.js?v=7"></script>
 <script src="js/overlay.js?v=1"></script>
 <script src="js/donation.js?v=4"></script>

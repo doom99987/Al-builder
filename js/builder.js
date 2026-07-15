@@ -7240,6 +7240,15 @@ function autoSave() {
 // Expose for builds page — resolves a build code to { n, summ, summc }
 window._builderParseBuildCode = async function(code) { return _loadById(code); };
 
+// Expose for builds page — cheap synchronous peek at a packed build blob,
+// returns just the identity fields (no DOM mutation, no state load)
+window._builderPeekBlob = function (blob) {
+  try {
+    const st = _unpackState(blob, '');
+    return { lvl: st.lvl, race: st.race, cls: st.cls, sup: st.sup, sub: st.sub };
+  } catch (e) { return null; }
+};
+
 (async function () {
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id');
