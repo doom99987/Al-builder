@@ -68,6 +68,7 @@
         ${avatarHtml(p.username, p.avatarUrl, 72)}
         <div class="report-username">${esc(p.username)}</div>
       </div>
+      ${!isBot ? `<button class="report-bank-btn" id="report-bank-btn">&#127974; View Bank</button>` : ''}
       ${canReport
         ? `<button class="report-open-btn" id="report-open-btn">&#9873; Report Player</button>`
         : (isSelf ? '' : `<div class="report-note">${meId ? 'This player cannot be reported.' : 'Log in to report.'}</div>`)}
@@ -98,6 +99,9 @@
 
     const openBtn = document.getElementById('report-open-btn');
     if (openBtn) openBtn.onclick = () => { document.getElementById('report-form').style.display = 'block'; openBtn.style.display = 'none'; };
+
+    const bankBtn = document.getElementById('report-bank-btn');
+    if (bankBtn) bankBtn.onclick = () => { removeModal(); window._bankViewUser?.(p.userId, p.username); };
 
     let reason = null, subReason = null;
     const subBox = document.getElementById('report-subreasons');

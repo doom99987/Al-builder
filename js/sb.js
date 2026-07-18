@@ -635,11 +635,15 @@
       </div>
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item" onclick="window._openSettings()">&#9881;&nbsp; Settings</button>
-      <button class="sb-menu-item sb-menu-item-venia" onclick="window._closeProfileMenu();window._veniaTrackerOpen?.()">&#9711;&nbsp; Venia Orb Tracker</button>
-      <button class="sb-menu-item sb-menu-item-petent" onclick="window._closeProfileMenu();window._petentTrackerOpen?.()">&#9632;&nbsp; Petent Tracker</button>
-      <button class="sb-menu-item sb-menu-item-astra" onclick="window._closeProfileMenu();window._astraTrackerOpen?.()">&#9733;&nbsp; Astra Tracker</button>
-      <button class="sb-menu-item sb-menu-item-amorus" onclick="window._closeProfileMenu();window._amorusTrackerOpen?.()">&#9670;&nbsp; Amorus Tracker</button>
-      <button class="sb-menu-item" onclick="window._closeProfileMenu();window._overlayToggle?.()">&#9707;&nbsp; UI Overlay</button>
+      <button class="sb-menu-item" onclick="window._closeProfileMenu();window._overlayToggle?.()">UI Overlay</button>
+      <button class="sb-menu-item sb-menu-item-trackers" onclick="window._toggleTrackerSubmenu(event)">Trackers <span class="sb-submenu-arrow" id="sb-trackers-arrow">&#9656;</span></button>
+      <div class="sb-submenu" id="sb-trackers-submenu" style="display:none">
+        <button class="sb-menu-item sb-menu-item-venia" onclick="window._closeProfileMenu();window._veniaTrackerOpen?.()">&#9711;&nbsp; Venia Orb Tracker</button>
+        <button class="sb-menu-item sb-menu-item-petent" onclick="window._closeProfileMenu();window._petentTrackerOpen?.()">&#9632;&nbsp; Petent Tracker</button>
+        <button class="sb-menu-item sb-menu-item-astra" onclick="window._closeProfileMenu();window._astraTrackerOpen?.()">&#9733;&nbsp; Astra Tracker</button>
+        <button class="sb-menu-item sb-menu-item-amorus" onclick="window._closeProfileMenu();window._amorusTrackerOpen?.()">&#9670;&nbsp; Amorus Tracker</button>
+      </div>
+      <button class="sb-menu-item sb-menu-item-bank" onclick="window._closeProfileMenu();window._bankOpen?.()">Bank</button>
       ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel <span id="sb-menu-report-badge" class="sb-report-badge" style="display:none"></span></button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
@@ -657,6 +661,16 @@
     const menu   = document.getElementById('sb-profile-menu');
     const avatar = document.querySelector('.sb-avatar');
     if (menu && !menu.contains(e.target) && !avatar?.contains(e.target)) closeProfileMenu();
+  }
+
+  function toggleTrackerSubmenu(e) {
+    e?.stopPropagation();
+    const sub   = document.getElementById('sb-trackers-submenu');
+    const arrow = document.getElementById('sb-trackers-arrow');
+    if (!sub) return;
+    const open = sub.style.display !== 'none';
+    sub.style.display = open ? 'none' : 'block';
+    if (arrow) arrow.innerHTML = open ? '&#9656;' : '&#9662;';
   }
 
   function closeProfileMenu() {
@@ -1885,6 +1899,7 @@
   window._sbAvatar           = renderAvatar; // reuse leaderboard avatar renderer (sb.js renderAvatar)
   window._toggleProfileMenu  = toggleProfileMenu;
   window._closeProfileMenu   = closeProfileMenu;
+  window._toggleTrackerSubmenu = toggleTrackerSubmenu;
   window._openSettings       = openSettings;
   window._saveUsername       = saveUsername;
   window._changePassword     = changePassword;
