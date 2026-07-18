@@ -227,7 +227,12 @@
       return { tabs: [{ id: 'bk1', name: 'Slot 1', data: {} }], activeTab: 'bk1' };
     }
   }
-  function bkSaveMeta(meta)  { localStorage.setItem(BK_KEY, JSON.stringify(meta)); }
+  function bkSaveMeta(meta)  {
+    localStorage.setItem(BK_KEY, JSON.stringify(meta));
+    // The popup has no Supabase client; the main page pushes public-slot
+    // changes when it sees the storage event, or on next load via this flag.
+    localStorage.setItem('al-bank-dirty', '1');
+  }
   function bkNewId()         { return 'bk' + Date.now(); }
   function bkActiveTab(meta) {
     if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 'bk1', name: 'Slot 1', data: {} }];
@@ -238,16 +243,22 @@
   function bkGetData(meta)   { const d = bkActiveTab(meta).data; if (!Array.isArray(d.items)) d.items = []; return d; }
   function bkSetData(meta, d){ bkActiveTab(meta).data = d; }
 
+  let _poolCache = null;
+  let _lookupCache = null;
   function bkBuildPool() {
+    if (_poolCache) return _poolCache;
     try {
       const raw = JSON.parse(localStorage.getItem(BK_POOL_KEY));
-      if (raw && Array.isArray(raw.items) && Array.isArray(raw.categories)) return raw;
+      if (raw && Array.isArray(raw.items) && Array.isArray(raw.categories)) _poolCache = raw;
     } catch {}
-    return null;
+    return _poolCache;
   }
   function bkPoolLookup() {
-    const pool = bkBuildPool();
-    return new Map((pool ? pool.items : []).map(i => [i.name, i]));
+    if (!_lookupCache) {
+      const pool = bkBuildPool();
+      _lookupCache = new Map((pool ? pool.items : []).map(i => [i.name, i]));
+    }
+    return _lookupCache;
   }
 
   function bkRenderTabs(meta) {
@@ -260,11 +271,21 @@
       nameBtn.className = 'vt-tab-btn';
       nameBtn.textContent = tab.name;
       nameBtn.title = 'Click to switch · Double-click to rename';
-      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; bkSaveMeta(meta); bkRender(); });
+      // Handlers re-read meta at click time — the render-time copy can be
+      // stale (blocking prompt/confirm, or edits from the main window).
+      nameBtn.addEventListener('click', () => {
+        const m = bkGetMeta();
+        m.activeTab = tab.id;
+        bkSaveMeta(m); bkRender();
+      });
       nameBtn.addEventListener('dblclick', e => {
         e.stopPropagation();
         const newName = prompt('Rename slot:', tab.name);
-        if (newName && newName.trim()) { tab.name = newName.trim(); bkSaveMeta(meta); bkRender(); }
+        if (!newName || !newName.trim()) return;
+        const m = bkGetMeta();
+        const t = m.tabs.find(x => x.id === tab.id);
+        if (t) { t.name = newName.trim(); bkSaveMeta(m); }
+        bkRender();
       });
       wrap.appendChild(nameBtn);
       if (meta.tabs.length > 1) {
@@ -275,10 +296,14 @@
         delBtn.addEventListener('click', e => {
           e.stopPropagation();
           if (!confirm(`Delete "${tab.name}"?`)) return;
-          const idx = meta.tabs.findIndex(t => t.id === tab.id);
-          meta.tabs.splice(idx, 1);
-          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
-          bkSaveMeta(meta); bkRender();
+          const m = bkGetMeta();
+          const idx = m.tabs.findIndex(t => t.id === tab.id);
+          if (idx !== -1) {
+            m.tabs.splice(idx, 1);
+            if (m.tabs.length && m.activeTab === tab.id) m.activeTab = m.tabs[Math.max(0, idx - 1)].id;
+            bkSaveMeta(m);
+          }
+          bkRender();
         });
         wrap.appendChild(delBtn);
       }
@@ -290,10 +315,11 @@
     addBtn.addEventListener('click', () => {
       const name = prompt('Slot name:', `Slot ${meta.tabs.length + 1}`);
       if (!name || !name.trim()) return;
+      const m = bkGetMeta();
       const id = bkNewId();
-      meta.tabs.push({ id, name: name.trim(), data: {} });
-      meta.activeTab = id;
-      bkSaveMeta(meta); bkRender();
+      m.tabs.push({ id, name: name.trim(), data: {} });
+      m.activeTab = id;
+      bkSaveMeta(m); bkRender();
     });
     tabsEl.appendChild(addBtn);
   }
@@ -354,7 +380,11 @@
     if (!el) return '';
     if (!_searchBound) {
       _searchBound = true;
-      el.addEventListener('input', () => bkRender());
+      let t = null;
+      el.addEventListener('input', () => {
+        clearTimeout(t);
+        t = setTimeout(() => bkRender(), 150);
+      });
     }
     return (el.value || '').trim();
   }
@@ -423,12 +453,15 @@
       row.appendChild(badge);
     }
 
+    // Qty updates mutate the row in place (no full re-render) so the list
+    // keeps its scroll position during repeated ±1 clicks.
     const step = delta => {
       const meta = bkGetMeta(); const d = bkGetData(meta);
       const it = d.items.find(i => i.name === entry.name);
       if (!it) return;
-      it.qty = Math.max(1, (parseInt(it.qty, 10) || 1) + delta);
-      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+      it.qty = Math.min(999999, Math.max(1, (parseInt(it.qty, 10) || 1) + delta));
+      bkSetData(meta, d); bkSaveMeta(meta);
+      qty.value = it.qty;
     };
     const minus = document.createElement('button');
     minus.className = 'bank-step-btn';
@@ -449,8 +482,9 @@
       const meta = bkGetMeta(); const d = bkGetData(meta);
       const it = d.items.find(i => i.name === entry.name);
       if (!it) return;
-      if (isFinite(v) && v >= 1) it.qty = v; else qty.value = it.qty;
-      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+      if (isFinite(v) && v >= 1) it.qty = Math.min(999999, v);
+      qty.value = it.qty;
+      bkSetData(meta, d); bkSaveMeta(meta);
     });
     row.appendChild(qty);
 
@@ -612,7 +646,7 @@
   // Sync with the main page (and other windows)
   window.addEventListener('storage', e => {
     if (e.key === BK_KEY) bkRender();
-    if (e.key === BK_POOL_KEY) { bkInitPicker(); bkRender(); }
+    if (e.key === BK_POOL_KEY) { _poolCache = null; _lookupCache = null; bkInitPicker(); bkRender(); }
   });
 
   bkInitPicker();
