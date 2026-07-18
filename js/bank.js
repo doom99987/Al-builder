@@ -404,7 +404,7 @@
       items: Array.isArray(t.data?.items) ? t.data.items : [],
     }));
     try {
-      await client.from('banks').upsert({ user_id: uid, slots, updated_at: new Date().toISOString() });
+      await client.from('player_vaults').upsert({ user_id: uid, slots, updated_at: new Date().toISOString() });
     } catch {}
   }
 
@@ -832,7 +832,7 @@
     try {
       const client = window._sbClient;
       if (client) {
-        const { data } = await client.from('banks').select('slots').eq('user_id', userId).maybeSingle();
+        const { data } = await client.from('player_vaults').select('slots').eq('user_id', userId).maybeSingle();
         if (data && Array.isArray(data.slots)) slots = data.slots;
       }
     } catch {}
@@ -931,7 +931,7 @@
       return;
     }
     try {
-      const { data: rows } = await client.from('banks')
+      const { data: rows } = await client.from('player_vaults')
         .select('user_id, slots, updated_at')
         .order('updated_at', { ascending: false })
         .limit(200);
