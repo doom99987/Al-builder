@@ -164,6 +164,7 @@
     ['Darkblood Spear',       'Weapon',          ''],
     ['Darkblood Staff',       'Weapon',          ''],
     ['Darkblood Sword',       'Weapon',          ''],
+    ['Sandstone Axe',         'Weapon',          ''],
     ['Sandstone Cestus',      'Weapon',          ''],
     ['Sandstone Dagger',      'Weapon',          ''],
     ['Sandstone Hammer',      'Weapon',          ''],

@@ -149,8 +149,9 @@
     ['Sandstone Dagger', 'Weapons', 1],
     ['Sandstone Gauntlets', 'Weapons', 1],
     ['Sandstone Spear', 'Weapons', 1],
+    ['Sandstone Axe', 'Weapons', 1],
     ['Sandstone Hammer', 'Weapons', 1],
-    ['Sandstone Cestus', 'Weapons', 0],
+    ['Sandstone Cestus', 'Weapons', 1],
     ['Primordial Sword', 'Weapons', 1],
     ['Primordial Staff', 'Weapons', 1],
     ['Primordial Dagger', 'Weapons', 1],
@@ -158,8 +159,8 @@
     ['Primordial Spear', 'Weapons', 1],
     ['Primordial Axe', 'Weapons', 1],
     ['Primordial Hammer', 'Weapons', 1],
-    ['Primordial Greatsword', 'Weapons', 0],
-    ['Primordial Cestus', 'Weapons', 0],
+    ['Primordial Greatsword', 'Weapons', 1],
+    ['Primordial Cestus', 'Weapons', 1],
     ['Icerind Sword', 'Weapons', 1],
     ['Icerind Staff', 'Weapons', 1],
     ['Icerind Sai', 'Weapons', 1],
@@ -319,7 +320,7 @@
     ['Blizzard', 'Scrolls', 0],
     ['Battleworn', 'Scrolls', 0],
     // ── Lost Scrolls ──
-    ["Metrom's Grasp", 'Lost Scrolls', 0],
+    ["Metrom's Grasp", 'Lost Scrolls', 1],
     ['Absolute Radiance', 'Lost Scrolls', 0],
     ['Heavenly Prayer', 'Lost Scrolls', 0],
     ['Breath of Fungyir', 'Lost Scrolls', 0],
@@ -355,7 +356,7 @@
     ['Invisibility Potion', 'Potions', 0],
     ['Rejuvenating Elixir', 'Potions', 0],
     ['Stoneskin Potion', 'Potions', 0],
-    ['Light of Grace', 'Potions', 0],
+    ['Light of Grace', 'Potions', 1],
     ['Abhorrent Elixir', 'Potions', 0],
     ['Alluring Elixir', 'Potions', 0],
     ['Heartbreaking Elixir', 'Potions', 0],
@@ -833,6 +834,17 @@
   window._bankCopy = function () {
     const meta = bkGetMeta(); const d = bkGetData(meta);
     const { groups, order } = bkGroupEntries(d);
+    // Copy output only: shields are listed under the Weapons heading.
+    if (groups.has('Shields')) {
+      if (groups.has('Weapons')) {
+        groups.get('Weapons').push(...groups.get('Shields'));
+      } else {
+        groups.set('Weapons', groups.get('Shields'));
+        order.splice(order.indexOf('Shields'), 0, 'Weapons');
+      }
+      groups.delete('Shields');
+      order.splice(order.indexOf('Shields'), 1);
+    }
     const lines = [];
     order.forEach(cat => {
       lines.push(`${cat}:`);

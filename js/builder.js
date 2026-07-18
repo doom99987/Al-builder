@@ -1447,6 +1447,7 @@ const mainWeaponSeries = {
     "Sandstone Dagger":    { type: "Dagger" },
     "Sandstone Gauntlets": { type: "Gauntlets" },
     "Sandstone Spear":     { type: "Spear" },
+    "Sandstone Axe":       { type: "Axe" },
     "Sandstone Hammer":    { type: "Hammer" },
   },
   "Primordial": {
@@ -1579,6 +1580,7 @@ const weaponMoves = {
   "Sandstone Dagger":   w(sandstoneWepPassive),
   "Sandstone Gauntlets":w(sandstoneWepPassive),
   "Sandstone Spear":    w(sandstoneWepPassive),
+  "Sandstone Axe":      w(sandstoneWepPassive),
   "Sandstone Hammer":    w(sandstoneWepPassive),
   // Primordial
   "Primordial Sword":      w(primordialWepPassive),
