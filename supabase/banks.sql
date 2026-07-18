@@ -45,3 +45,36 @@ create policy vaults_delete on player_vaults for delete
 grant usage on schema public to anon, authenticated;
 grant select on player_vaults to anon, authenticated;
 grant insert, update, delete on player_vaults to authenticated;
+
+-- Full account bank ----------------------------------------------------------
+-- One row per user holding ALL slots (private included):
+--   [{ name, items: [{ name, qty, sharded?, shards? }], public }]
+-- This is the cross-device source of truth; player_vaults above stays as the
+-- world-readable projection of just the public slots. RLS restricts every
+-- operation to the owner, so private slots are never visible to anyone else.
+
+create table if not exists player_vaults_private (
+  user_id    uuid primary key references auth.users on delete cascade,
+  slots      jsonb not null default '[]'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table player_vaults_private enable row level security;
+
+drop policy if exists vaults_priv_select on player_vaults_private;
+create policy vaults_priv_select on player_vaults_private for select
+  using (auth.uid() = user_id);
+
+drop policy if exists vaults_priv_insert on player_vaults_private;
+create policy vaults_priv_insert on player_vaults_private for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists vaults_priv_update on player_vaults_private;
+create policy vaults_priv_update on player_vaults_private for update
+  using (auth.uid() = user_id);
+
+drop policy if exists vaults_priv_delete on player_vaults_private;
+create policy vaults_priv_delete on player_vaults_private for delete
+  using (auth.uid() = user_id);
+
+grant select, insert, update, delete on player_vaults_private to authenticated;

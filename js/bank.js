@@ -9,7 +9,10 @@
    Persistence: localStorage 'al-bank' — { tabs:[{id,name,data}], activeTab }
    (same shape as the trackers). A pool snapshot is written to 'al-bank-pool'
    so the standalone popout (html/bank-popup.html) can render without loading
-   builder.js/trades.js. Windows sync via 'storage' events.
+   builder.js/trades.js. Windows sync via 'storage' events. Logged-in users
+   additionally sync ALL slots to Supabase (player_vaults_private) so the bank
+   follows the account across devices; public slots are also projected into
+   the world-readable player_vaults row for the Banks browser.
 
    Exposes: _bankOpen/_bankClose/_bankPopout/_bankAdd/_bankCopy
    ============================================================================ */
@@ -392,16 +395,18 @@
     return _bkLookup;
   }
 
-  /* ── public-slot cloud sync ─────────────────────────────────────────────────
-     Only slots the user marked public are uploaded (one `player_vaults` row per
-     user, see supabase/banks.sql). Private slots stay in localStorage only.
-     Safety rails:
+  /* ── account cloud sync ─────────────────────────────────────────────────────
+     ALL slots (private included) live in `player_vaults_private` — one owner-
+     only row per user (see supabase/banks.sql) that is the cross-device source
+     of truth. `player_vaults` remains the world-readable projection holding
+     just the public slots for the Banks browser.
+     Reconciliation (last writer wins):
+     - meta.syncedAt records the server timestamp this browser last agreed
+       with. A pull adopts the server bank only when the server row is newer.
+     - Local unpushed edits (dirty flag) skip the pull and push instead.
      - meta.owner records which account this browser's data belongs to; a
-       different login gets all slots reset to private before any push.
-     - On the first sync for a login (new owner), the server row is pulled
-       first: a fresh device restores its public slots instead of wiping them.
-     - Uploads are skipped when nothing changed, errors are surfaced to the
-       console instead of swallowed, and an empty public set deletes the row. */
+       different login drops the previous user's public flags and adopts the
+       new account's server bank outright. */
   const BK_DIRTY_KEY = 'al-bank-dirty';
   let _bkSyncTimer  = null;
   let _bkLastSynced = null;   // JSON of the last successfully-uploaded slots
@@ -410,24 +415,23 @@
   function bkScheduleSync() {
     if (!window._sbGetUserId?.()) return;
     clearTimeout(_bkSyncTimer);
-    _bkSyncTimer = setTimeout(bkSyncPublic, 1200);
+    _bkSyncTimer = setTimeout(bkSync, 1200);
   }
 
-  function bkPublicSlots(meta) {
-    return meta.tabs.filter(t => t.public).map(t => ({
+  function bkAllSlots(meta) {
+    return meta.tabs.map(t => ({
       name: t.name,
       items: Array.isArray(t.data?.items) ? t.data.items : [],
+      public: !!t.public,
     }));
   }
 
-  // New owner on this browser: if the server has public slots and this browser
-  // has none, restore them locally so the upcoming push doesn't wipe them.
-  async function bkPullPublic(client, uid) {
-    if (_bkPulledUid === uid) return;
+  // Legacy fallback: accounts that synced before player_vaults_private existed
+  // only have a public-slots row. Restore those once so they aren't wiped.
+  async function bkPullPublicLegacy(client, uid) {
     const { data, error } = await client.from('player_vaults')
       .select('slots').eq('user_id', uid).maybeSingle();
     if (error) { console.warn('Bank pull failed:', error.message); return; }
-    _bkPulledUid = uid;
     const serverSlots = (Array.isArray(data?.slots) ? data.slots : [])
       .filter(s => s && typeof s.name === 'string' && Array.isArray(s.items));
     if (!serverSlots.length) return;
@@ -442,7 +446,36 @@
     bkRender();
   }
 
-  async function bkSyncPublic() {
+  // Adopt the account's server bank when it is newer than what this browser
+  // last synced (always when `force` — fresh browser or account switch).
+  // Returns true when the server copy replaced local data.
+  async function bkPull(client, uid, force) {
+    const { data, error } = await client.from('player_vaults_private')
+      .select('slots, updated_at').eq('user_id', uid).maybeSingle();
+    if (error) { console.warn('Bank pull failed:', error.message); return false; }
+    if (!data) { await bkPullPublicLegacy(client, uid); return false; }
+    const serverSlots = (Array.isArray(data.slots) ? data.slots : [])
+      .filter(s => s && typeof s.name === 'string' && Array.isArray(s.items));
+    if (!serverSlots.length) return false;
+    const meta = bkGetMeta();
+    if (!force && meta.syncedAt && new Date(data.updated_at) <= new Date(meta.syncedAt)) return false;
+    const prevActiveName = bkActiveTab(meta).name;
+    meta.tabs = serverSlots.map((s, i) => ({
+      id: 'bk' + Date.now() + '_' + i,
+      name: s.name,
+      data: { items: s.items },
+      public: !!s.public,
+    }));
+    meta.activeTab = (meta.tabs.find(t => t.name === prevActiveName) || meta.tabs[0]).id;
+    meta.owner = uid;
+    meta.syncedAt = data.updated_at;
+    localStorage.setItem(BK_KEY, JSON.stringify(meta));
+    _bkLastSynced = JSON.stringify(bkAllSlots(meta));
+    bkRender();
+    return true;
+  }
+
+  async function bkSync() {
     const client = window._sbClient;
     const uid = window._sbGetUserId?.();
     if (!client || !uid) return;
@@ -450,26 +483,41 @@
       let meta = bkGetMeta();
       const isNewOwner = meta.owner !== uid;
       if (meta.owner && isNewOwner) {
-        // Different account than the one this data was published under:
-        // never publish the previous user's slots — reset them to private.
+        // Different account than the one this data belongs to: never publish
+        // or upload the previous user's slots under the new login.
         meta.tabs.forEach(t => { t.public = false; });
+        delete meta.syncedAt;
+        localStorage.removeItem(BK_DIRTY_KEY);
       }
       if (isNewOwner) {
         meta.owner = uid;
         localStorage.setItem(BK_KEY, JSON.stringify(meta));
         _bkLastSynced = null;
-        await bkPullPublic(client, uid);
-        bkRender();
+      }
+      // Pull first unless this browser holds unpushed edits (dirty → push wins).
+      const dirty = !!localStorage.getItem(BK_DIRTY_KEY);
+      if (isNewOwner || _bkPulledUid !== uid || !dirty) {
+        const adopted = await bkPull(client, uid, isNewOwner);
+        _bkPulledUid = uid;
+        if (adopted) { localStorage.removeItem(BK_DIRTY_KEY); return; }
         meta = bkGetMeta();
       }
-      const slots = bkPublicSlots(meta);
+      const slots = bkAllSlots(meta);
       const payload = JSON.stringify(slots);
       if (payload === _bkLastSynced) { localStorage.removeItem(BK_DIRTY_KEY); return; }
-      const { error } = slots.length
-        ? await client.from('player_vaults').upsert({ user_id: uid, slots, updated_at: new Date().toISOString() })
-        : await client.from('player_vaults').delete().eq('user_id', uid);
+      const ts = new Date().toISOString();
+      const { error } = await client.from('player_vaults_private')
+        .upsert({ user_id: uid, slots, updated_at: ts });
       if (error) { console.warn('Bank sync failed:', error.message); return; }
+      const pub = slots.filter(s => s.public).map(s => ({ name: s.name, items: s.items }));
+      const { error: pubErr } = pub.length
+        ? await client.from('player_vaults').upsert({ user_id: uid, slots: pub, updated_at: ts })
+        : await client.from('player_vaults').delete().eq('user_id', uid);
+      if (pubErr) console.warn('Bank public sync failed:', pubErr.message);
       _bkLastSynced = payload;
+      meta = bkGetMeta();
+      meta.syncedAt = ts;
+      localStorage.setItem(BK_KEY, JSON.stringify(meta));
       localStorage.removeItem(BK_DIRTY_KEY);
     } catch (e) {
       console.warn('Bank sync failed:', e?.message || e);
@@ -1240,9 +1288,7 @@
     if (_bkDoc !== document || document.getElementById('bank-overlay')?.style.display !== 'none') bkRender();
   });
 
-  // Edits made while no logged-in main page was open (e.g. in the popout after
-  // closing this tab) leave a dirty flag — push them once auth has restored.
-  setTimeout(() => {
-    if (localStorage.getItem(BK_DIRTY_KEY)) bkScheduleSync();
-  }, 4000);
+  // On load (once auth has restored): pull the account's bank so changes made
+  // on other devices show up, and push any edits left while logged out.
+  setTimeout(bkScheduleSync, 4000);
 })();
