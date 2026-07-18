@@ -666,13 +666,24 @@
     }
   }
 
+  function bkShardLabel(entry) {
+    if (!entry.sharded) return '';
+    const s = entry.shards || {};
+    const parts = ['Vol', 'Str', 'Reg', 'E', 'Rev', 'Sha', 'Emp']
+      .filter(k => s[k] > 0).map(k => `${k} ${s[k]}`);
+    return parts.length ? ` (${parts.join(', ')})` : ' (Sharded)';
+  }
+
   function bkMakeRow(entry, info) {
+    // Sharded copies with different shard stats are separate entries.
+    const sameEntry = i => i.name === entry.name && !!i.sharded === !!entry.sharded
+      && JSON.stringify(i.shards || {}) === JSON.stringify(entry.shards || {});
     const row = _bkDoc.createElement('div');
     row.className = 'bank-item-row';
 
     const name = _bkDoc.createElement('span');
     name.className = 'bank-item-name';
-    name.textContent = entry.name;
+    name.textContent = entry.name + bkShardLabel(entry);
     row.appendChild(name);
 
     if (!info.tradable) {
@@ -686,7 +697,7 @@
     // keeps its scroll position during repeated ±1 clicks.
     const step = delta => {
       const meta = bkGetMeta(); const d = bkGetData(meta);
-      const it = d.items.find(i => i.name === entry.name);
+      const it = d.items.find(sameEntry);
       if (!it) return;
       it.qty = Math.min(999999, Math.max(1, (parseInt(it.qty, 10) || 1) + delta));
       bkSetData(meta, d); bkSaveMeta(meta);
@@ -709,7 +720,7 @@
     qty.addEventListener('change', () => {
       const v = parseInt(qty.value, 10);
       const meta = bkGetMeta(); const d = bkGetData(meta);
-      const it = d.items.find(i => i.name === entry.name);
+      const it = d.items.find(sameEntry);
       if (!it) return;
       if (isFinite(v) && v >= 1) it.qty = Math.min(999999, v);
       qty.value = it.qty;
@@ -730,7 +741,7 @@
     del.title = 'Remove';
     del.addEventListener('click', () => {
       const meta = bkGetMeta(); const d = bkGetData(meta);
-      const idx = d.items.findIndex(i => i.name === entry.name);
+      const idx = d.items.findIndex(sameEntry);
       if (idx !== -1) d.items.splice(idx, 1);
       bkSetData(meta, d); bkSaveMeta(meta); bkRender();
     });
@@ -740,6 +751,43 @@
   }
 
   /* ── item picker (modeled on trades.js buildTrdItemPicker) ──────────────── */
+  function bkShardToggle(show) {
+    const wrap = _bkDoc.getElementById('bank-shard-wrap');
+    const chk  = _bkDoc.getElementById('bank-shard-chk');
+    if (!wrap) return;
+    bkInitShardStats();
+    wrap.style.display = show ? 'flex' : 'none';
+    if (!show && chk) chk.checked = false;
+    bkShardStatsToggle(show && !!chk?.checked);
+  }
+
+  function bkShardStatsToggle(show) {
+    const box = _bkDoc.getElementById('bank-add-shards');
+    if (!box) return;
+    box.style.display = show ? 'flex' : 'none';
+    if (!show) box.querySelectorAll('input').forEach(i => { i.value = ''; });
+  }
+
+  function bkInitShardStats() {
+    const box = _bkDoc.getElementById('bank-add-shards');
+    const chk = _bkDoc.getElementById('bank-shard-chk');
+    if (!box || box.dataset.bkBound) return;
+    box.dataset.bkBound = '1';
+    if (chk) chk.addEventListener('change', () => bkShardStatsToggle(chk.checked));
+    // Combined total across all seven shard inputs is capped at 7.
+    box.addEventListener('input', e => {
+      let total = 0;
+      box.querySelectorAll('input').forEach(i => {
+        const v = parseInt(i.value, 10);
+        if (v > 0) total += v;
+      });
+      if (total > 7) {
+        const v = parseInt(e.target.value, 10) || 0;
+        e.target.value = Math.max(0, v - (total - 7)) || '';
+      }
+    });
+  }
+
   function bkInitPicker() {
     const wrap = _bkDoc.getElementById('bank-pick-wrap');
     if (!wrap || wrap.dataset.bkBound) return;
@@ -761,6 +809,7 @@
         display.classList.add('trd-pick-has-value');
         panel.style.display = 'none';
         search.value = '';
+        bkShardToggle(item.category === 'Weapons');
       });
       return el;
     }
@@ -820,14 +869,28 @@
     if (!name) return;
     let qty = parseInt(qtyEl?.value, 10);
     if (!isFinite(qty) || qty < 1) qty = 1;
+    const sharded = !!_bkDoc.getElementById('bank-shard-chk')?.checked;
+    let shards = null;
+    if (sharded) {
+      shards = {};
+      _bkDoc.querySelectorAll('#bank-add-shards input').forEach(inp => {
+        const v = parseInt(inp.value, 10);
+        if (isFinite(v) && v > 0) shards[inp.dataset.shard] = v;
+      });
+      if (!Object.keys(shards).length) shards = null;
+    }
     const meta = bkGetMeta(); const d = bkGetData(meta);
-    const existing = d.items.find(i => i.name === name);
-    if (existing) existing.qty += qty; else d.items.push({ name, qty });
+    const existing = d.items.find(i => i.name === name && !!i.sharded === sharded
+      && JSON.stringify(i.shards || {}) === JSON.stringify(shards || {}));
+    if (existing) existing.qty += qty;
+    else if (sharded) d.items.push(shards ? { name, qty, sharded: true, shards } : { name, qty, sharded: true });
+    else d.items.push({ name, qty });
     bkSetData(meta, d); bkSaveMeta(meta);
     hidden.value = '';
     const display = _bkDoc.getElementById('bank-pick-display');
     if (display) { display.textContent = '— Select item —'; display.classList.remove('trd-pick-has-value'); }
     if (qtyEl) qtyEl.value = '1';
+    bkShardToggle(false);
     bkRender();
   };
 
@@ -850,7 +913,7 @@
       lines.push(`${cat}:`);
       groups.get(cat).forEach(({ entry, info }) => {
         const mark = (bkFilter === 'all' && !info.tradable) ? ' (untradable)' : '';
-        lines.push(`- ${entry.name} x${entry.qty}${mark}`);
+        lines.push(`- ${entry.name}${bkShardLabel(entry)} x${entry.qty}${mark}`);
       });
       lines.push('');
     });
@@ -1010,7 +1073,7 @@
           row.className = 'bank-item-row';
           const name = document.createElement('span');
           name.className = 'bank-item-name';
-          name.textContent = entry.name;
+          name.textContent = entry.name + bkShardLabel(entry);
           row.appendChild(name);
           if (!info.tradable) {
             const badge = document.createElement('span');

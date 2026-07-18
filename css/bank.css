@@ -4,8 +4,9 @@
   inset: 0;
   background: rgba(0,0,0,0.78);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 4vh;
   z-index: 9000;
 }
 #bank-modal {
@@ -13,8 +14,9 @@
   border: 1px solid #2a2a2a;
   border-radius: 12px;
   padding: 24px;
-  width: min(96vw, 640px);
-  max-height: 88vh;
+  width: min(96vw, 760px);
+  min-height: 60vh;
+  max-height: 92vh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -140,6 +142,50 @@
   flex-shrink: 0;
 }
 .bank-row-del:hover { color: #ee5555; }
+
+.bank-shard-wrap {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  color: #bbb;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.bank-shard-wrap input { accent-color: #4a3a88; cursor: pointer; }
+
+.bank-shard-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 8px 8px;
+}
+.bank-shard-stat {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #888;
+  font-size: 11px;
+}
+.bank-shard-stat input {
+  width: 34px;
+  background: #111;
+  border: 1px solid #252525;
+  border-radius: 3px;
+  color: #ddd;
+  font-size: 11px;
+  padding: 2px 4px;
+  outline: none;
+  text-align: center;
+  font-family: inherit;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.bank-shard-stat input:focus { border-color: #4a3a88; }
+.bank-shard-stat input::-webkit-outer-spin-button,
+.bank-shard-stat input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
 .bank-note-input {
   width: 100%;

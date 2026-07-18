@@ -1554,7 +1554,17 @@
         </div>
       </div>
       <input class="bank-qty-input" id="bank-add-qty" type="number" min="1" max="999999" value="1" title="Amount">
+      <label class="bank-shard-wrap" id="bank-shard-wrap"><input type="checkbox" id="bank-shard-chk">Sharded</label>
       <button class="bank-add-btn" onclick="window._bankAdd()">Add</button>
+    </div>
+    <div class="bank-shard-stats" id="bank-add-shards" style="display:none">
+      <label class="bank-shard-stat">Vol<input type="number" min="0" max="7" data-shard="Vol"></label>
+      <label class="bank-shard-stat">Str<input type="number" min="0" max="7" data-shard="Str"></label>
+      <label class="bank-shard-stat">Reg<input type="number" min="0" max="7" data-shard="Reg"></label>
+      <label class="bank-shard-stat">E<input type="number" min="0" max="7" data-shard="E"></label>
+      <label class="bank-shard-stat">Rev<input type="number" min="0" max="7" data-shard="Rev"></label>
+      <label class="bank-shard-stat">Sha<input type="number" min="0" max="7" data-shard="Sha"></label>
+      <label class="bank-shard-stat">Emp<input type="number" min="0" max="7" data-shard="Emp"></label>
     </div>
     <input class="bank-note-input" id="bank-search" type="text"
            placeholder="Search your items..." autocomplete="off">
