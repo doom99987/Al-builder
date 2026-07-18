@@ -201,9 +201,9 @@
   </div>
   <input class="bank-note-input" id="bank-search" type="text"
          placeholder="Search your items..." autocomplete="off">
-  <div id="bank-list"></div>
   <input class="bank-note-input" id="bank-note" type="text" maxlength="200"
          placeholder="End of message text &mdash; e.g. LF: Chaos Orb" autocomplete="off">
+  <div id="bank-list"></div>
 </div>
 
 <script>
@@ -607,6 +607,17 @@
   window._bankCopy = function () {
     const meta = bkGetMeta(); const d = bkGetData(meta);
     const { groups, order } = bkGroupEntries(d);
+    // Copy output only: shields are listed under the Weapons heading.
+    if (groups.has('Shields')) {
+      if (groups.has('Weapons')) {
+        groups.get('Weapons').push(...groups.get('Shields'));
+      } else {
+        groups.set('Weapons', groups.get('Shields'));
+        order.splice(order.indexOf('Shields'), 0, 'Weapons');
+      }
+      groups.delete('Shields');
+      order.splice(order.indexOf('Shields'), 1);
+    }
     const lines = [];
     order.forEach(cat => {
       lines.push(`${cat}:`);
