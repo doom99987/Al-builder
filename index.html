@@ -60,6 +60,7 @@
     <button class="site-nav-btn" data-page="trades">Trades</button>
     <button class="site-nav-btn" data-page="lf-party">Lf Party</button>
     <button class="site-nav-btn" data-page="encyclopedia">Encyclopedia</button>
+    <button class="site-nav-btn" data-page="banks">Banks</button>
   </div>
   <div id="auth-bar">
     <button class="auth-btn" onclick="window._openAuthModal && window._openAuthModal('login')">Login</button>
@@ -1380,6 +1381,22 @@
   </div>
 </div>
 
+<!-- Banks page -->
+<div id="page-banks" class="site-page">
+  <div class="banks-wrap">
+    <div class="enc-header">
+      <h2 class="enc-title">Player Banks</h2>
+    </div>
+    <div class="banks-search-row">
+      <input id="banks-search" class="bank-note-input banks-search" type="text"
+             placeholder="Search usernames..." autocomplete="off" oninput="window._banksFilter&&window._banksFilter()">
+      <input id="banks-item-search" class="bank-note-input banks-search" type="text"
+             placeholder="Search items..." autocomplete="off" oninput="window._banksFilter&&window._banksFilter()">
+    </div>
+    <div id="banks-list" class="banks-list"></div>
+  </div>
+</div>
+
 <!-- Mastery node instant tooltip -->
 <div id="mastery-tip"></div>
 
@@ -1539,6 +1556,8 @@
       <input class="bank-qty-input" id="bank-add-qty" type="number" min="1" max="999999" value="1" title="Amount">
       <button class="bank-add-btn" onclick="window._bankAdd()">Add</button>
     </div>
+    <input class="bank-note-input" id="bank-search" type="text"
+           placeholder="Search your items..." autocomplete="off">
     <div id="bank-list"></div>
     <input class="bank-note-input" id="bank-note" type="text" maxlength="200"
            placeholder="End of message text &mdash; e.g. LF: Chaos Orb" autocomplete="off">
@@ -1760,6 +1779,7 @@
     }
     if (name === 'home') loadHomeStats();
     if (name === 'builds' && typeof window._buildsLoad === 'function') window._buildsLoad();
+    if (name === 'banks' && typeof window._banksLoad === 'function') window._banksLoad();
     if (name === 'matchmaking' && typeof window._mmLoad === 'function') window._mmLoad();
     // Auto-activate the Build tab if no builder tab is active yet
     if (name === 'builder') {
@@ -1777,7 +1797,7 @@
   // On load, navigate to the page in the URL hash
   // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
-  const _validPages = ['home', 'builder', 'builds', 'qte', 'matchmaking', 'leaderboards', 'trades', 'encyclopedia'];
+  const _validPages = ['home', 'builder', 'builds', 'qte', 'matchmaking', 'leaderboards', 'trades', 'encyclopedia', 'banks'];
   const _hasSharedBuild = new URLSearchParams(location.search).has('id');
 
   // ── Home page live stats ──────────────────────────────────

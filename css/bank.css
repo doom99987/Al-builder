@@ -201,6 +201,60 @@
   flex-shrink: 0;
 }
 
+/* ── Banks page (main nav) ───────────────────────────────────────────────── */
+.banks-wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.banks-search-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.banks-search { max-width: 340px; flex: 1; min-width: 200px; }
+.banks-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.bank-user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #111;
+  border: 1px solid #1e1e1e;
+  border-radius: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
+}
+.bank-user-card:hover { background: #16162a; border-color: #4a3a88; }
+.bank-user-av { flex-shrink: 0; pointer-events: none; }
+.bank-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.bank-user-name {
+  color: #ccccff;
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bank-user-meta { color: #666; font-size: 11px; }
+.bank-user-has {
+  color: #7dd8a0;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* "View Bank" button in the player profile popup (reports.js modal) */
 .report-bank-btn {
   appearance: none;

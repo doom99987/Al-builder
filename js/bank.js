@@ -497,6 +497,18 @@
     if (el && _bkDoc.activeElement !== el) el.value = data.note || '';
   }
 
+  /* ── search through stored items ────────────────────────────────────────── */
+  function bkInitSearch() {
+    const el = _bkDoc.getElementById('bank-search');
+    if (!el || el.dataset.bkBound) return;
+    el.dataset.bkBound = '1';
+    el.addEventListener('input', () => bkRender());
+  }
+  function bkSearchQuery() {
+    bkInitSearch();
+    return (_bkDoc.getElementById('bank-search')?.value || '').trim();
+  }
+
   /* ── active-slot privacy toggle ─────────────────────────────────────────── */
   function bkRenderPrivacy() {
     const btn = _bkDoc.getElementById('bank-priv-btn');
@@ -518,10 +530,12 @@
   };
 
   /* ── entry grouping (shared by render + copy) ───────────────────────────── */
-  function bkGroupEntries(data) {
+  function bkGroupEntries(data, query) {
     const lookup = bkPoolLookup();
     const groups = new Map();
+    const q = (query || '').toLowerCase();
     data.items.forEach(entry => {
+      if (q && !entry.name.toLowerCase().includes(q)) return;
       const info = lookup.get(entry.name) || { category: 'Other', tradable: false };
       if (bkFilter === 'tradable' && !info.tradable) return;
       if (!groups.has(info.category)) groups.set(info.category, []);
@@ -543,7 +557,8 @@
     if (!list) return;
     list.innerHTML = '';
 
-    const { groups, order } = bkGroupEntries(data);
+    const query = bkSearchQuery();
+    const { groups, order } = bkGroupEntries(data, query);
     order.forEach(cat => {
       const hdr = _bkDoc.createElement('div');
       hdr.className = 'pt-section-hdr';
@@ -555,9 +570,11 @@
     if (!list.children.length) {
       const note = _bkDoc.createElement('div');
       note.className = 'pt-info-note';
-      note.textContent = bkFilter === 'tradable'
-        ? 'No tradable items in this slot.'
-        : 'Empty slot — pick an item above and hit Add.';
+      note.textContent = query
+        ? 'No items match your search.'
+        : bkFilter === 'tradable'
+          ? 'No tradable items in this slot.'
+          : 'Empty slot — pick an item above and hit Add.';
       list.appendChild(note);
     }
   }
@@ -895,6 +912,117 @@
     });
     showSlot(0);
   };
+
+  /* ── Banks page (main nav): browse all public banks + username search ───── */
+  let _banksCache = null;
+
+  window._banksLoad = async function () {
+    const listEl = document.getElementById('banks-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const loading = document.createElement('div');
+    loading.className = 'pt-info-note';
+    loading.textContent = 'Loading…';
+    listEl.appendChild(loading);
+
+    const client = window._sbClient;
+    if (!client) {
+      loading.textContent = 'Banks are unavailable right now — try again in a moment.';
+      return;
+    }
+    try {
+      const { data: rows } = await client.from('banks')
+        .select('user_id, slots, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(200);
+      const open = (rows || []).filter(r => Array.isArray(r.slots) && r.slots.length);
+      let pmap = new Map();
+      if (open.length) {
+        const { data: profs } = await client.from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', open.map(r => r.user_id));
+        pmap = new Map((profs || []).map(p => [p.id, p]));
+      }
+      _banksCache = open.map(r => {
+        const p = pmap.get(r.user_id);
+        return {
+          userId: r.user_id,
+          username: p?.username || 'Unknown',
+          avatarUrl: p?.avatar_url || null,
+          slots: r.slots,
+        };
+      });
+    } catch {
+      _banksCache = [];
+    }
+    bkRenderBanksList();
+  };
+
+  window._banksFilter = function () { bkRenderBanksList(); };
+
+  function bkBankMatchedItems(b, q) {
+    const hits = [];
+    b.slots.forEach(sl => (Array.isArray(sl.items) ? sl.items : []).forEach(it => {
+      if (it && typeof it.name === 'string' && it.name.toLowerCase().includes(q) && !hits.includes(it.name)) hits.push(it.name);
+    }));
+    return hits;
+  }
+
+  function bkRenderBanksList() {
+    const listEl = document.getElementById('banks-list');
+    if (!listEl) return;
+    const qUser = (document.getElementById('banks-search')?.value || '').trim().toLowerCase();
+    const qItem = (document.getElementById('banks-item-search')?.value || '').trim().toLowerCase();
+    listEl.innerHTML = '';
+    // Username bar filters players; item bar filters banks holding that item.
+    const rows = (_banksCache || [])
+      .map(b => ({ ...b, matchedItems: qItem ? bkBankMatchedItems(b, qItem) : [] }))
+      .filter(b => (!qUser || b.username.toLowerCase().includes(qUser)) && (!qItem || b.matchedItems.length));
+
+    if (!rows.length) {
+      const note = document.createElement('div');
+      note.className = 'pt-info-note';
+      note.textContent = (qUser || qItem)
+        ? 'No public banks match your search.'
+        : 'No public banks yet — be the first: open your Bank and set a slot to Public.';
+      listEl.appendChild(note);
+      return;
+    }
+
+    rows.forEach(b => {
+      const card = document.createElement('button');
+      card.className = 'bank-user-card';
+      card.addEventListener('click', () => window._bankViewUser?.(b.userId, b.username));
+
+      const av = document.createElement('span');
+      av.className = 'bank-user-av';
+      if (window._sbAvatar) av.innerHTML = window._sbAvatar(b.username, b.avatarUrl, 40);
+      card.appendChild(av);
+
+      const info = document.createElement('span');
+      info.className = 'bank-user-info';
+      const name = document.createElement('span');
+      name.className = 'bank-user-name';
+      name.textContent = b.username;
+      info.appendChild(name);
+      const meta = document.createElement('span');
+      meta.className = 'bank-user-meta';
+      const nItems = b.slots.reduce((s, sl) => s + (Array.isArray(sl.items) ? sl.items.length : 0), 0);
+      meta.textContent = `${b.slots.length} public slot${b.slots.length === 1 ? '' : 's'} · ${nItems} item${nItems === 1 ? '' : 's'}`;
+      info.appendChild(meta);
+      if (b.matchedItems && b.matchedItems.length) {
+        const has = document.createElement('span');
+        has.className = 'bank-user-has';
+        const shown = b.matchedItems.slice(0, 3).join(', ');
+        const more = b.matchedItems.length - 3;
+        has.textContent = `has: ${shown}${more > 0 ? ` +${more} more` : ''}`;
+        info.appendChild(has);
+      }
+      card.appendChild(info);
+
+      listEl.appendChild(card);
+    });
+  }
 
   // PiP/overlay support (overlay.js retargets renders into the PiP window)
   window._bkSetDoc = d => { _bkDoc = d || document; };

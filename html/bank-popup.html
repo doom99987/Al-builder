@@ -199,6 +199,8 @@
     <input class="bank-qty-input" id="bank-add-qty" type="number" min="1" max="999999" value="1" title="Amount">
     <button class="bank-add-btn" id="bank-add-btn" onclick="window._bankAdd()">Add</button>
   </div>
+  <input class="bank-note-input" id="bank-search" type="text"
+         placeholder="Search your items..." autocomplete="off">
   <div id="bank-list"></div>
   <input class="bank-note-input" id="bank-note" type="text" maxlength="200"
          placeholder="End of message text &mdash; e.g. LF: Chaos Orb" autocomplete="off">
@@ -346,10 +348,23 @@
     bkRender();
   };
 
-  function bkGroupEntries(data) {
+  let _searchBound = false;
+  function bkSearchQuery() {
+    const el = document.getElementById('bank-search');
+    if (!el) return '';
+    if (!_searchBound) {
+      _searchBound = true;
+      el.addEventListener('input', () => bkRender());
+    }
+    return (el.value || '').trim();
+  }
+
+  function bkGroupEntries(data, query) {
     const lookup = bkPoolLookup();
     const groups = new Map();
+    const q = (query || '').toLowerCase();
     data.items.forEach(entry => {
+      if (q && !entry.name.toLowerCase().includes(q)) return;
       const info = lookup.get(entry.name) || { category: 'Other', tradable: false };
       if (bkFilter === 'tradable' && !info.tradable) return;
       if (!groups.has(info.category)) groups.set(info.category, []);
@@ -370,7 +385,8 @@
     const list = document.getElementById('bank-list');
     list.innerHTML = '';
 
-    const { groups, order } = bkGroupEntries(data);
+    const query = bkSearchQuery();
+    const { groups, order } = bkGroupEntries(data, query);
     order.forEach(cat => {
       const hdr = document.createElement('div');
       hdr.className = 'pt-section-hdr';
@@ -382,9 +398,11 @@
     if (!list.children.length) {
       const note = document.createElement('div');
       note.className = 'pt-info-note';
-      note.textContent = bkFilter === 'tradable'
-        ? 'No tradable items in this slot.'
-        : 'Empty slot — pick an item above and hit Add.';
+      note.textContent = query
+        ? 'No items match your search.'
+        : bkFilter === 'tradable'
+          ? 'No tradable items in this slot.'
+          : 'Empty slot — pick an item above and hit Add.';
       list.appendChild(note);
     }
   }
