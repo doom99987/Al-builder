@@ -94,7 +94,7 @@
       </div>
     </div>`;
     document.body.appendChild(o);
-    o.addEventListener('click', e => { if (e.target === o) removeModal(); });
+    o.addEventListener('mousedown', e => { if (e.target === o) removeModal(); });
     document.getElementById('report-close').onclick = removeModal;
 
     const openBtn = document.getElementById('report-open-btn');

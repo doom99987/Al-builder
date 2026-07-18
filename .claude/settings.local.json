@@ -41,7 +41,9 @@
       "PowerShell(node --check js\\\\qte-guard.js; node --check js\\\\matchmaking.js)",
       "PowerShell(node --check js\\\\qte-guard.js)",
       "PowerShell(node --check js\\\\saved-builds.js)",
-      "PowerShell(node --check js\\\\builder.js)"
+      "PowerShell(node --check js\\\\builder.js)",
+      "PowerShell(node --check js\\\\trades.js; node --check js\\\\sb.js; node --check js\\\\bank.js; git diff --stat)",
+      "PowerShell(node --check js\\\\sb.js; node --check js\\\\bank.js)"
     ]
   }
 }

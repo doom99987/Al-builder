@@ -232,6 +232,8 @@
       currentProfile = null;
       renderAuthBar();
     }
+    // Let other modules (bank sync, etc.) react to login/logout/session restore.
+    window.dispatchEvent(new Event('alb-auth-changed'));
   });
 
   // ---- email validation ----
@@ -1151,7 +1153,10 @@
     if (!m) return;
     m.innerHTML = `<div class="sb-modal-box">${html}</div>`;
     m.style.display = 'flex';
-    m.onclick = e => { if (e.target === m) closeModal(); };
+    // Close on backdrop press (not click): a click fires on the backdrop even
+    // when a text-selection drag merely ends there, closing the modal mid-edit.
+    m.onclick = null;
+    m.onmousedown = e => { if (e.target === m) closeModal(); };
   }
 
   function closeModal() {
