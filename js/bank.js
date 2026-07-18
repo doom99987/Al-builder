@@ -32,7 +32,11 @@
       return { tabs: [{ id: 'bk1', name: 'Slot 1', data: {} }], activeTab: 'bk1' };
     }
   }
-  function bkSaveMeta(meta)  { localStorage.setItem(BK_KEY, JSON.stringify(meta)); bkScheduleSync(); }
+  function bkSaveMeta(meta)  {
+    localStorage.setItem(BK_KEY, JSON.stringify(meta));
+    localStorage.setItem('al-bank-dirty', '1');
+    bkScheduleSync();
+  }
   function bkNewId()         { return 'bk' + Date.now(); }
   function bkActiveTab(meta) {
     if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 'bk1', name: 'Slot 1', data: {} }];
@@ -381,31 +385,94 @@
     return _bkPool;
   }
 
+  let _bkLookup = null;
   function bkPoolLookup() {
-    return new Map(bkBuildPool().items.map(i => [i.name, i]));
+    if (!_bkLookup) _bkLookup = new Map(bkBuildPool().items.map(i => [i.name, i]));
+    return _bkLookup;
   }
 
   /* ── public-slot cloud sync ─────────────────────────────────────────────────
-     Only slots the user marked public are uploaded (one `banks` row per user,
-     see supabase/banks.sql). Private slots stay in localStorage only. */
-  let _bkSyncTimer = null;
+     Only slots the user marked public are uploaded (one `player_vaults` row per
+     user, see supabase/banks.sql). Private slots stay in localStorage only.
+     Safety rails:
+     - meta.owner records which account this browser's data belongs to; a
+       different login gets all slots reset to private before any push.
+     - On the first sync for a login (new owner), the server row is pulled
+       first: a fresh device restores its public slots instead of wiping them.
+     - Uploads are skipped when nothing changed, errors are surfaced to the
+       console instead of swallowed, and an empty public set deletes the row. */
+  const BK_DIRTY_KEY = 'al-bank-dirty';
+  let _bkSyncTimer  = null;
+  let _bkLastSynced = null;   // JSON of the last successfully-uploaded slots
+  let _bkPulledUid  = null;   // uid we've already reconciled with the server
+
   function bkScheduleSync() {
     if (!window._sbGetUserId?.()) return;
     clearTimeout(_bkSyncTimer);
     _bkSyncTimer = setTimeout(bkSyncPublic, 1200);
   }
+
+  function bkPublicSlots(meta) {
+    return meta.tabs.filter(t => t.public).map(t => ({
+      name: t.name,
+      items: Array.isArray(t.data?.items) ? t.data.items : [],
+    }));
+  }
+
+  // New owner on this browser: if the server has public slots and this browser
+  // has none, restore them locally so the upcoming push doesn't wipe them.
+  async function bkPullPublic(client, uid) {
+    if (_bkPulledUid === uid) return;
+    const { data, error } = await client.from('player_vaults')
+      .select('slots').eq('user_id', uid).maybeSingle();
+    if (error) { console.warn('Bank pull failed:', error.message); return; }
+    _bkPulledUid = uid;
+    const serverSlots = (Array.isArray(data?.slots) ? data.slots : [])
+      .filter(s => s && typeof s.name === 'string' && Array.isArray(s.items));
+    if (!serverSlots.length) return;
+    const meta = bkGetMeta();
+    if (meta.tabs.some(t => t.public)) return; // local public slots exist — local wins
+    serverSlots.forEach((s, i) => {
+      const existing = meta.tabs.find(t => t.name === s.name);
+      if (existing) { existing.public = true; return; }
+      meta.tabs.push({ id: 'bk' + Date.now() + '_' + i, name: s.name, data: { items: s.items }, public: true });
+    });
+    localStorage.setItem(BK_KEY, JSON.stringify(meta));
+    bkRender();
+  }
+
   async function bkSyncPublic() {
     const client = window._sbClient;
     const uid = window._sbGetUserId?.();
     if (!client || !uid) return;
-    const meta = bkGetMeta();
-    const slots = meta.tabs.filter(t => t.public).map(t => ({
-      name: t.name,
-      items: Array.isArray(t.data?.items) ? t.data.items : [],
-    }));
     try {
-      await client.from('player_vaults').upsert({ user_id: uid, slots, updated_at: new Date().toISOString() });
-    } catch {}
+      let meta = bkGetMeta();
+      const isNewOwner = meta.owner !== uid;
+      if (meta.owner && isNewOwner) {
+        // Different account than the one this data was published under:
+        // never publish the previous user's slots — reset them to private.
+        meta.tabs.forEach(t => { t.public = false; });
+      }
+      if (isNewOwner) {
+        meta.owner = uid;
+        localStorage.setItem(BK_KEY, JSON.stringify(meta));
+        _bkLastSynced = null;
+        await bkPullPublic(client, uid);
+        bkRender();
+        meta = bkGetMeta();
+      }
+      const slots = bkPublicSlots(meta);
+      const payload = JSON.stringify(slots);
+      if (payload === _bkLastSynced) { localStorage.removeItem(BK_DIRTY_KEY); return; }
+      const { error } = slots.length
+        ? await client.from('player_vaults').upsert({ user_id: uid, slots, updated_at: new Date().toISOString() })
+        : await client.from('player_vaults').delete().eq('user_id', uid);
+      if (error) { console.warn('Bank sync failed:', error.message); return; }
+      _bkLastSynced = payload;
+      localStorage.removeItem(BK_DIRTY_KEY);
+    } catch (e) {
+      console.warn('Bank sync failed:', e?.message || e);
+    }
   }
 
   function bkWritePoolSnapshot() {
@@ -424,11 +491,21 @@
       nameBtn.className = 'vt-tab-btn';
       nameBtn.textContent = tab.name;
       nameBtn.title = 'Click to switch · Double-click to rename';
-      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; bkSaveMeta(meta); bkRender(); });
+      // Handlers re-read meta at click time — the render-time copy can be
+      // stale (blocking prompt/confirm, or edits from the popout window).
+      nameBtn.addEventListener('click', () => {
+        const m = bkGetMeta();
+        m.activeTab = tab.id;
+        bkSaveMeta(m); bkRender();
+      });
       nameBtn.addEventListener('dblclick', e => {
         e.stopPropagation();
         const newName = prompt('Rename slot:', tab.name);
-        if (newName && newName.trim()) { tab.name = newName.trim(); bkSaveMeta(meta); bkRender(); }
+        if (!newName || !newName.trim()) return;
+        const m = bkGetMeta();
+        const t = m.tabs.find(x => x.id === tab.id);
+        if (t) { t.name = newName.trim(); bkSaveMeta(m); }
+        bkRender();
       });
       wrap.appendChild(nameBtn);
       if (meta.tabs.length > 1) {
@@ -439,10 +516,14 @@
         delBtn.addEventListener('click', e => {
           e.stopPropagation();
           if (!confirm(`Delete "${tab.name}"?`)) return;
-          const idx = meta.tabs.findIndex(t => t.id === tab.id);
-          meta.tabs.splice(idx, 1);
-          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
-          bkSaveMeta(meta); bkRender();
+          const m = bkGetMeta();
+          const idx = m.tabs.findIndex(t => t.id === tab.id);
+          if (idx !== -1) {
+            m.tabs.splice(idx, 1);
+            if (m.tabs.length && m.activeTab === tab.id) m.activeTab = m.tabs[Math.max(0, idx - 1)].id;
+            bkSaveMeta(m);
+          }
+          bkRender();
         });
         wrap.appendChild(delBtn);
       }
@@ -454,10 +535,11 @@
     addBtn.addEventListener('click', () => {
       const name = prompt('Slot name:', `Slot ${meta.tabs.length + 1}`);
       if (!name || !name.trim()) return;
+      const m = bkGetMeta();
       const id = bkNewId();
-      meta.tabs.push({ id, name: name.trim(), data: {} });
-      meta.activeTab = id;
-      bkSaveMeta(meta); bkRender();
+      m.tabs.push({ id, name: name.trim(), data: {} });
+      m.activeTab = id;
+      bkSaveMeta(m); bkRender();
     });
     tabsEl.appendChild(addBtn);
   }
@@ -502,7 +584,11 @@
     const el = _bkDoc.getElementById('bank-search');
     if (!el || el.dataset.bkBound) return;
     el.dataset.bkBound = '1';
-    el.addEventListener('input', () => bkRender());
+    let t = null;
+    el.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => bkRender(), 150);
+    });
   }
   function bkSearchQuery() {
     bkInitSearch();
@@ -595,12 +681,15 @@
       row.appendChild(badge);
     }
 
+    // Qty updates mutate the row in place (no full re-render) so the list
+    // keeps its scroll position during repeated ±1 clicks.
     const step = delta => {
       const meta = bkGetMeta(); const d = bkGetData(meta);
       const it = d.items.find(i => i.name === entry.name);
       if (!it) return;
-      it.qty = Math.max(1, (parseInt(it.qty, 10) || 1) + delta);
-      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+      it.qty = Math.min(999999, Math.max(1, (parseInt(it.qty, 10) || 1) + delta));
+      bkSetData(meta, d); bkSaveMeta(meta);
+      qty.value = it.qty;
     };
     const minus = _bkDoc.createElement('button');
     minus.className = 'bank-step-btn';
@@ -621,8 +710,9 @@
       const meta = bkGetMeta(); const d = bkGetData(meta);
       const it = d.items.find(i => i.name === entry.name);
       if (!it) return;
-      if (isFinite(v) && v >= 1) it.qty = v; else qty.value = it.qty;
-      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+      if (isFinite(v) && v >= 1) it.qty = Math.min(999999, v);
+      qty.value = it.qty;
+      bkSetData(meta, d); bkSaveMeta(meta);
     });
     row.appendChild(qty);
 
@@ -707,9 +797,18 @@
       }
     });
     search.addEventListener('input', () => buildList(search.value));
-    _bkDoc.addEventListener('mousedown', e => {
-      if (!wrap.contains(e.target)) panel.style.display = 'none';
-    });
+    // One outside-click listener per document (the PiP overlay recreates the
+    // picker elements on every tab visit, so binding per-element would stack
+    // listeners on the PiP document). Resolve elements at event time.
+    const docRef = _bkDoc;
+    if (!docRef.__bkPickerOutside) {
+      docRef.__bkPickerOutside = true;
+      docRef.addEventListener('mousedown', e => {
+        const w = docRef.getElementById('bank-pick-wrap');
+        const p = docRef.getElementById('bank-pick-panel');
+        if (w && p && !w.contains(e.target)) p.style.display = 'none';
+      });
+    }
   }
 
   /* ── actions ────────────────────────────────────────────────────────────── */
@@ -775,8 +874,13 @@
   window._bankOpen = function () {
     bkWritePoolSnapshot();
     bkScheduleSync();
-    const ov = document.getElementById('bank-overlay');
-    if (ov) ov.style.display = 'flex';
+    // Same guard as the trackers: while the PiP overlay's Bank tab is active
+    // (_bkDoc !== document), render there instead of opening a modal that
+    // would stay blank because all output targets the PiP document.
+    if (_bkDoc === document) {
+      const ov = document.getElementById('bank-overlay');
+      if (ov) ov.style.display = 'flex';
+    }
     bkInitPicker();
     bkRender();
   };
@@ -829,15 +933,25 @@
     document.body.appendChild(o);
 
     let slots = null;
+    let failed = false;
     try {
       const client = window._sbClient;
-      if (client) {
-        const { data } = await client.from('player_vaults').select('slots').eq('user_id', userId).maybeSingle();
-        if (data && Array.isArray(data.slots)) slots = data.slots;
+      if (!client) failed = true;
+      else {
+        const { data, error } = await client.from('player_vaults').select('slots').eq('user_id', userId).maybeSingle();
+        if (error) { console.warn('Bank view failed:', error.message); failed = true; }
+        else if (data && Array.isArray(data.slots)) slots = data.slots;
       }
-    } catch {}
+    } catch (e) { console.warn('Bank view failed:', e?.message || e); failed = true; }
 
     body.innerHTML = '';
+    if (failed) {
+      const err = document.createElement('div');
+      err.className = 'pt-info-note';
+      err.textContent = "Couldn't load this bank — try again in a moment.";
+      body.appendChild(err);
+      return;
+    }
     slots = (slots || []).filter(s => s && typeof s.name === 'string' && Array.isArray(s.items));
     if (!slots.length) {
       const empty = document.createElement('div');
@@ -856,9 +970,7 @@
     body.appendChild(list);
 
     const lookup = bkPoolLookup();
-    let active = 0;
     function showSlot(idx) {
-      active = idx;
       [...tabsBar.children].forEach((b, i) => b.classList.toggle('pt-tier-active', i === idx));
       list.innerHTML = '';
       const items = slots[idx].items;
@@ -930,20 +1042,28 @@
       loading.textContent = 'Banks are unavailable right now — try again in a moment.';
       return;
     }
+    let loadedList = null;
     try {
-      const { data: rows } = await client.from('player_vaults')
+      const { data: rows, error } = await client.from('player_vaults')
         .select('user_id, slots, updated_at')
         .order('updated_at', { ascending: false })
         .limit(200);
-      const open = (rows || []).filter(r => Array.isArray(r.slots) && r.slots.length);
+      if (error) throw error;
+      // Keep only well-formed, non-empty public slots; hide banks with no items.
+      const open = (rows || []).map(r => ({
+        user_id: r.user_id,
+        slots: (Array.isArray(r.slots) ? r.slots : []).filter(s =>
+          s && typeof s.name === 'string' && Array.isArray(s.items) && s.items.length),
+      })).filter(r => r.slots.length);
       let pmap = new Map();
       if (open.length) {
-        const { data: profs } = await client.from('profiles')
+        const { data: profs, error: pErr } = await client.from('profiles')
           .select('id, username, avatar_url')
           .in('id', open.map(r => r.user_id));
+        if (pErr) throw pErr;
         pmap = new Map((profs || []).map(p => [p.id, p]));
       }
-      _banksCache = open.map(r => {
+      loadedList = open.map(r => {
         const p = pmap.get(r.user_id);
         return {
           userId: r.user_id,
@@ -952,8 +1072,18 @@
           slots: r.slots,
         };
       });
-    } catch {
-      _banksCache = [];
+    } catch (e) {
+      console.warn('Banks load failed:', e?.message || e);
+    }
+    // On failure keep the previous cache (if any) instead of blanking the list.
+    if (loadedList) _banksCache = loadedList;
+    if (!loadedList && !_banksCache) {
+      listEl.innerHTML = '';
+      const err = document.createElement('div');
+      err.className = 'pt-info-note';
+      err.textContent = "Couldn't load banks — check your connection and try again.";
+      listEl.appendChild(err);
+      return;
     }
     bkRenderBanksList();
   };
@@ -1034,4 +1164,10 @@
     bkScheduleSync();
     if (_bkDoc !== document || document.getElementById('bank-overlay')?.style.display !== 'none') bkRender();
   });
+
+  // Edits made while no logged-in main page was open (e.g. in the popout after
+  // closing this tab) leave a dirty flag — push them once auth has restored.
+  setTimeout(() => {
+    if (localStorage.getItem(BK_DIRTY_KEY)) bkScheduleSync();
+  }, 4000);
 })();

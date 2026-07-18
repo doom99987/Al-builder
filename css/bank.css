@@ -27,22 +27,7 @@
   justify-content: space-between;
   gap: 8px;
 }
-.bank-copy-btn {
-  background: #111;
-  border: 1px solid #252525;
-  border-radius: 4px;
-  color: #888;
-  font-family: 'Rajdhani', Arial, sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 14px;
-  cursor: pointer;
-  letter-spacing: 0.3px;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
-.bank-copy-btn:hover { color: #c4b5fd; border-color: #4a3a88; }
-
+.bank-copy-btn,
 .bank-priv-btn {
   background: #111;
   border: 1px solid #252525;
@@ -57,6 +42,7 @@
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   white-space: nowrap;
 }
+.bank-copy-btn:hover { color: #c4b5fd; border-color: #4a3a88; }
 .bank-priv-btn:hover { color: #aaa; border-color: #3a3a3a; }
 .bank-priv-btn.bank-priv-public { color: #7dd8a0; border-color: #2a5a3a; background: #0e1a12; }
 
