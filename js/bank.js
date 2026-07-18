@@ -480,6 +480,23 @@
     });
   }
 
+  /* ── end-of-message note (appended to copied lists, e.g. "LF: ...") ─────── */
+  function bkInitNote() {
+    const el = _bkDoc.getElementById('bank-note');
+    if (!el || el.dataset.bkBound) return;
+    el.dataset.bkBound = '1';
+    el.addEventListener('change', () => {
+      const meta = bkGetMeta(); const d = bkGetData(meta);
+      d.note = el.value.trim();
+      bkSetData(meta, d); bkSaveMeta(meta);
+    });
+  }
+  function bkRenderNote(data) {
+    bkInitNote();
+    const el = _bkDoc.getElementById('bank-note');
+    if (el && _bkDoc.activeElement !== el) el.value = data.note || '';
+  }
+
   /* ── active-slot privacy toggle ─────────────────────────────────────────── */
   function bkRenderPrivacy() {
     const btn = _bkDoc.getElementById('bank-priv-btn');
@@ -521,6 +538,7 @@
     bkRenderTabs(meta);
     bkRenderFilter();
     bkRenderPrivacy();
+    bkRenderNote(data);
     const list = _bkDoc.getElementById('bank-list');
     if (!list) return;
     list.innerHTML = '';
@@ -710,6 +728,8 @@
     });
     let text = lines.join('\n').trim();
     if (!text) return;
+    const note = (d.note || '').trim();
+    if (note) text += '\n\n' + note;
     text += '\n\n- made by Arcane Lineage Builder';
 
     const btn = _bkDoc.getElementById('bank-copy-btn');

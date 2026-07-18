@@ -492,6 +492,16 @@
       list.id = 'bank-list';
       root.appendChild(list);
 
+      const noteInput = doc.createElement('input');
+      noteInput.id = 'bank-note';
+      noteInput.className = 'bank-note-input';
+      noteInput.type = 'text';
+      noteInput.maxLength = 200;
+      noteInput.placeholder = 'End of message text — e.g. LF: Chaos Orb';
+      noteInput.autocomplete = 'off';
+      noteInput.style.marginTop = '10px';
+      root.appendChild(noteInput);
+
       window._bkSetDoc?.(doc);
       window._bkRender?.();
     }

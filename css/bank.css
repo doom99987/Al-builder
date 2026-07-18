@@ -155,6 +155,21 @@
 }
 .bank-row-del:hover { color: #ee5555; }
 
+.bank-note-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #111;
+  border: 1px solid #252525;
+  border-radius: 4px;
+  color: #ddd;
+  font-size: 13px;
+  padding: 6px 10px;
+  outline: none;
+  font-family: inherit;
+}
+.bank-note-input:focus { border-color: #4a3a88; }
+.bank-note-input::placeholder { color: #444; }
+
 /* ── Read-only viewer for another player's public bank ───────────────────── */
 #bank-view-overlay {
   position: fixed;
