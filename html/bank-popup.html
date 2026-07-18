@@ -165,6 +165,13 @@
       padding: 2px 6px; cursor: pointer; line-height: 1; transition: color 0.15s; flex-shrink: 0;
     }
     .bank-row-del:hover { color: #ee5555; }
+    .bank-note-input {
+      width: 100%; box-sizing: border-box; background: #111; border: 1px solid #252525;
+      border-radius: 4px; color: #ddd; font-size: 13px; padding: 6px 10px; outline: none;
+      font-family: inherit;
+    }
+    .bank-note-input:focus { border-color: #4a3a88; }
+    .bank-note-input::placeholder { color: #444; }
   </style>
 </head>
 <body>
@@ -193,6 +200,8 @@
     <button class="bank-add-btn" id="bank-add-btn" onclick="window._bankAdd()">Add</button>
   </div>
   <div id="bank-list"></div>
+  <input class="bank-note-input" id="bank-note" type="text" maxlength="200"
+         placeholder="End of message text &mdash; e.g. LF: Chaos Orb" autocomplete="off">
 </div>
 
 <script>
@@ -303,6 +312,21 @@
     });
   }
 
+  let _noteBound = false;
+  function bkRenderNote(data) {
+    const el = document.getElementById('bank-note');
+    if (!el) return;
+    if (!_noteBound) {
+      _noteBound = true;
+      el.addEventListener('change', () => {
+        const meta = bkGetMeta(); const d = bkGetData(meta);
+        d.note = el.value.trim();
+        bkSetData(meta, d); bkSaveMeta(meta);
+      });
+    }
+    if (document.activeElement !== el) el.value = data.note || '';
+  }
+
   function bkRenderPrivacy() {
     const btn = document.getElementById('bank-priv-btn');
     if (!btn) return;
@@ -342,6 +366,7 @@
     bkRenderTabs(meta);
     bkRenderFilter();
     bkRenderPrivacy();
+    bkRenderNote(data);
     const list = document.getElementById('bank-list');
     list.innerHTML = '';
 
@@ -541,6 +566,8 @@
     });
     let text = lines.join('\n').trim();
     if (!text) return;
+    const note = (d.note || '').trim();
+    if (note) text += '\n\n' + note;
     text += '\n\n- made by Arcane Lineage Builder';
 
     const btn = document.getElementById('bank-copy-btn');
