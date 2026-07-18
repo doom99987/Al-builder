@@ -106,7 +106,7 @@
     </div>`;
     document.body.appendChild(o);
     const close = () => o.remove();
-    o.addEventListener('click', e => { if (e.target === o) close(); });
+    o.addEventListener('mousedown', e => { if (e.target === o) close(); });
     o.querySelector('#mm-ranks-close').onclick = close;
   }
 

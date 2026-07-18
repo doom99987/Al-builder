@@ -638,7 +638,7 @@
         </div>
       </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', e => { if (e.target === m) window._trdClosePost(); });
+    m.addEventListener('mousedown', e => { if (e.target === m) window._trdClosePost(); });
     m.querySelectorAll('.trd-pick-wrap').forEach(w => buildTrdItemPicker(w));
     _prefillEditModal(listing);
   }
@@ -854,7 +854,7 @@
         </div>
       </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', e => { if (e.target === m) window._trdClosePost(); });
+    m.addEventListener('mousedown', e => { if (e.target === m) window._trdClosePost(); });
     m.querySelectorAll('.trd-pick-wrap').forEach(w => buildTrdItemPicker(w));
   }
 
@@ -949,7 +949,7 @@
         </div>
       </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', e => { if (e.target === m) window._trdCloseAdvSearch(); });
+    m.addEventListener('mousedown', e => { if (e.target === m) window._trdCloseAdvSearch(); });
     m.querySelectorAll('.trd-pick-wrap').forEach(w => buildTrdItemPicker(w, 'trd-advsearch-modal'));
     // Pre-fill with existing filters
     if (_advFilters.items.length) {

@@ -1026,7 +1026,7 @@
 
     const o = document.createElement('div');
     o.id = 'bank-view-overlay';
-    o.addEventListener('click', e => { if (e.target === o) o.remove(); });
+    o.addEventListener('mousedown', e => { if (e.target === o) o.remove(); });
 
     const modal = document.createElement('div');
     modal.id = 'bank-view-modal';
@@ -1288,8 +1288,10 @@
     if (_bkDoc !== document || document.getElementById('bank-overlay')?.style.display !== 'none') bkRender();
   });
 
-  // On load (once auth has restored): pull the account's bank so changes made
-  // on other devices show up, and push any edits left while logged out.
+  // Sync whenever auth settles (session restore on load, login, account
+  // switch) so changes made on other devices are pulled in, plus a fallback
+  // timer in case the auth event fired before this script loaded.
+  window.addEventListener('alb-auth-changed', bkScheduleSync);
   setTimeout(bkScheduleSync, 4000);
 })();
 
