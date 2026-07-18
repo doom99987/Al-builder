@@ -311,6 +311,13 @@
 .sb-menu-item-petent:hover { background: #0e1a18; color: #aaddcc; }
 .sb-menu-item-astra { color: #aaa870; }
 .sb-menu-item-astra:hover { background: #1a1a0e; color: #dddd99; }
+.sb-menu-item-bank { color: #d8c088; }
+.sb-menu-item-bank:hover { background: #251e0e; color: #f0dcaa; }
+.sb-menu-item-trackers { color: #9bb8d8; }
+.sb-menu-item-trackers:hover { background: #101a28; color: #c0d8f0; }
+.sb-submenu-arrow { float: right; font-size: 11px; opacity: 0.7; }
+.sb-submenu { background: #14142a; }
+.sb-submenu .sb-menu-item { padding-left: 28px; }
 
 /* ---- Admin panel ---- */
 .sb-admin-modal-box {

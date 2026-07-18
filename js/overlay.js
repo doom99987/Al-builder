@@ -2,7 +2,7 @@
    Opens a Document Picture-in-Picture window (always on top).
    Toggle via keybind or the "UI Overlay" button in the profile dropdown.
    Requires Chrome 116+ for PiP; shows an alert otherwise.
-   Tabs: Encyclopedia · Venia Tracker · Petent Tracker · Astra Tracker · Party Chat · Settings
+   Tabs: Encyclopedia · Venia Tracker · Petent Tracker · Astra Tracker · Party Chat · Bank · Settings
    ──────────────────────────────────────────────────────────────────────────── */
 (function () {
   'use strict';
@@ -61,7 +61,7 @@
 
     pipWin.addEventListener('pagehide', () => {
       _pipWin = null; _switchTab = null;
-      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._amSetDoc?.(null); window._chatSetDoc?.(null);
+      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._amSetDoc?.(null); window._chatSetDoc?.(null); window._bkSetDoc?.(null);
     });
   }
 
@@ -98,6 +98,7 @@
       { key: 'astra',    icon: '✦',  title: 'Astra Tracker'  },
       { key: 'amorus',   icon: '◆',  title: 'Amorus Tracker' },
       { key: 'chat',     icon: '💬', title: 'Party Chat'     },
+      { key: 'bank',     icon: '🏦', title: 'Bank'           },
       { key: 'settings', icon: '⚙',  title: 'Settings'       },
     ];
 
@@ -146,7 +147,7 @@
         b.style.borderBottomColor  = on ? '#fff' : 'transparent';
       });
       // Reset any active tracker / chat doc targets when switching tabs
-      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._amSetDoc?.(null); window._chatSetDoc?.(null);
+      window._vtSetDoc?.(null); window._ptSetDoc?.(null); window._atSetDoc?.(null); window._amSetDoc?.(null); window._chatSetDoc?.(null); window._bkSetDoc?.(null);
       content.innerHTML = '';
       if      (key === 'enc')      renderEnc(content);
       else if (key === 'settings') renderSettings(content);
@@ -155,6 +156,7 @@
       else if (key === 'astra')    renderTracker(content, 'astra');
       else if (key === 'amorus')   renderTracker(content, 'amorus');
       else if (key === 'chat')     renderChat(content);
+      else if (key === 'bank')     renderBank(content);
     }
 
     _switchTab = switchTab;
@@ -403,6 +405,95 @@
 
       window._chatSetDoc?.(doc);
       window._chatOpenInPip?.();
+    }
+
+    /* ── Bank tab ── */
+    function renderBank(root) {
+      const tabsBar = doc.createElement('div');
+      tabsBar.id = 'bank-tabs';
+      tabsBar.className = 'vt-tabs-bar';
+      root.appendChild(tabsBar);
+
+      const toolbar = doc.createElement('div');
+      toolbar.className = 'bank-toolbar';
+      const filterBar = doc.createElement('div');
+      filterBar.id = 'bank-filter-bar';
+      filterBar.className = 'pt-tier-bar';
+      filterBar.style.padding = '0';
+      toolbar.appendChild(filterBar);
+      const btnGroup = doc.createElement('div');
+      btnGroup.style.cssText = 'display:flex;gap:6px';
+      const privBtn = doc.createElement('button');
+      privBtn.id = 'bank-priv-btn';
+      privBtn.className = 'bank-priv-btn';
+      privBtn.addEventListener('click', () => window._bankTogglePrivacy?.());
+      btnGroup.appendChild(privBtn);
+      const copyBtn = doc.createElement('button');
+      copyBtn.id = 'bank-copy-btn';
+      copyBtn.className = 'bank-copy-btn';
+      copyBtn.textContent = 'Copy List';
+      copyBtn.addEventListener('click', () => window._bankCopy?.());
+      btnGroup.appendChild(copyBtn);
+      toolbar.appendChild(btnGroup);
+      root.appendChild(toolbar);
+
+      const addRow = doc.createElement('div');
+      addRow.className = 'bank-add-row';
+      addRow.style.margin = '10px 0';
+
+      const pickWrap = doc.createElement('div');
+      pickWrap.id = 'bank-pick-wrap';
+      pickWrap.className = 'trd-pick-wrap';
+      const hidden = doc.createElement('input');
+      hidden.id = 'bank-pick-name';
+      hidden.type = 'hidden';
+      pickWrap.appendChild(hidden);
+      const display = doc.createElement('div');
+      display.id = 'bank-pick-display';
+      display.className = 'trd-pick-display';
+      display.textContent = '— Select item —';
+      pickWrap.appendChild(display);
+      const panel = doc.createElement('div');
+      panel.id = 'bank-pick-panel';
+      panel.className = 'trd-pick-panel';
+      panel.style.display = 'none';
+      const searchInput = doc.createElement('input');
+      searchInput.id = 'bank-pick-search';
+      searchInput.className = 'trd-pick-search';
+      searchInput.type = 'text';
+      searchInput.placeholder = 'Search items...';
+      searchInput.autocomplete = 'off';
+      panel.appendChild(searchInput);
+      const pickList = doc.createElement('div');
+      pickList.id = 'bank-pick-list';
+      pickList.className = 'trd-pick-list';
+      panel.appendChild(pickList);
+      pickWrap.appendChild(panel);
+      addRow.appendChild(pickWrap);
+
+      const qty = doc.createElement('input');
+      qty.id = 'bank-add-qty';
+      qty.className = 'bank-qty-input';
+      qty.type = 'number';
+      qty.min = '1';
+      qty.max = '999999';
+      qty.value = '1';
+      qty.title = 'Amount';
+      addRow.appendChild(qty);
+
+      const addBtn = doc.createElement('button');
+      addBtn.className = 'bank-add-btn';
+      addBtn.textContent = 'Add';
+      addBtn.addEventListener('click', () => window._bankAdd?.());
+      addRow.appendChild(addBtn);
+      root.appendChild(addRow);
+
+      const list = doc.createElement('div');
+      list.id = 'bank-list';
+      root.appendChild(list);
+
+      window._bkSetDoc?.(doc);
+      window._bkRender?.();
     }
 
     /* ── Settings tab (keybinds) ── */

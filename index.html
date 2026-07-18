@@ -42,6 +42,7 @@
   <link rel="stylesheet" href="css/encyclopedia.css?v=6">
   <link rel="stylesheet" href="css/matchmaking.css?v=7">
   <link rel="stylesheet" href="css/reports.css?v=3">
+  <link rel="stylesheet" href="css/bank.css?v=1">
 </head>
 
 <body>
@@ -1399,7 +1400,7 @@
 
 <script src="js/supabase.min.js"></script>
 <script src="js/sb.js?v=104"></script>
-<script src="js/reports.js?v=3"></script>
+<script src="js/reports.js?v=4"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
     core.js            : global constants, QTE SFX, ping sim, LB hook, dmgcalc state
@@ -1422,7 +1423,8 @@
 <script src="js/party.js?v=31"></script>
 <script src="js/builds.js?v=6"></script>
 <script src="js/encyclopedia.js?v=7"></script>
-<script src="js/overlay.js?v=1"></script>
+<script src="js/bank.js?v=1"></script>
+<script src="js/overlay.js?v=2"></script>
 <script src="js/donation.js?v=4"></script>
 <script src="js/matchmaking.js?v=9"></script>
 <script>
@@ -1504,6 +1506,40 @@
     <div class="vt-tabs-bar" id="amorus-tracker-tabs"></div>
     <p class="vt-modal-hint">Click to mark <span class="vt-hint-green">collected ✓</span>, click again to clear.</p>
     <div id="amorus-tracker-grid"></div>
+  </div>
+</div>
+
+<!-- Bank Modal -->
+<div id="bank-overlay" onclick="if(event.target===this)window._bankClose()" style="display:none">
+  <div id="bank-modal">
+    <div class="vt-modal-hdr">
+      <span class="vt-modal-title">Bank</span>
+      <div style="display:flex;gap:6px">
+        <button class="vt-close-btn" onclick="window._bankPopout()" title="Pop out">⧉</button>
+        <button class="vt-close-btn" onclick="window._bankClose()">✕</button>
+      </div>
+    </div>
+    <div class="vt-tabs-bar" id="bank-tabs"></div>
+    <div class="bank-toolbar">
+      <div class="pt-tier-bar" id="bank-filter-bar" style="padding:0"></div>
+      <div style="display:flex;gap:6px">
+        <button class="bank-priv-btn" id="bank-priv-btn" onclick="window._bankTogglePrivacy()">&#128274;&nbsp;Private</button>
+        <button class="bank-copy-btn" id="bank-copy-btn" onclick="window._bankCopy()">Copy List</button>
+      </div>
+    </div>
+    <div class="bank-add-row">
+      <div class="trd-pick-wrap" id="bank-pick-wrap">
+        <input id="bank-pick-name" type="hidden" value="">
+        <div class="trd-pick-display" id="bank-pick-display">&mdash; Select item &mdash;</div>
+        <div class="trd-pick-panel" id="bank-pick-panel" style="display:none">
+          <input class="trd-pick-search" id="bank-pick-search" type="text" placeholder="Search items..." autocomplete="off">
+          <div class="trd-pick-list" id="bank-pick-list"></div>
+        </div>
+      </div>
+      <input class="bank-qty-input" id="bank-add-qty" type="number" min="1" max="999999" value="1" title="Amount">
+      <button class="bank-add-btn" onclick="window._bankAdd()">Add</button>
+    </div>
+    <div id="bank-list"></div>
   </div>
 </div>
 

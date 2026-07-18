@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AL Builder — Bank</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      min-height: 100%;
+      background: #0d0d0d;
+      color: #ccc;
+      font-family: 'Inter', system-ui, sans-serif;
+      font-size: 13px;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 16px;
+      gap: 12px;
+    }
+    #hdr {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 12px; border-bottom: 1px solid #1e1e1e;
+    }
+    .tracker-title {
+      font-family: 'Rajdhani', Arial, sans-serif;
+      font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.5px;
+    }
+
+    /* Tabs */
+    .vt-tabs-bar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+      padding-bottom: 10px; border-bottom: 1px solid #1a1a1a; margin-bottom: 2px;
+    }
+    .vt-tab-wrap {
+      display: flex; align-items: stretch; border-radius: 4px; overflow: hidden;
+      border: 1px solid #252525; background: #111;
+    }
+    .vt-tab-wrap.vt-tab-active { border-color: #4a3a88; background: #1a1230; }
+    .vt-tab-btn {
+      background: none; border: none; color: #666;
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 13px; font-weight: 600;
+      padding: 5px 12px; cursor: pointer; letter-spacing: 0.3px;
+      transition: color 0.15s; white-space: nowrap;
+    }
+    .vt-tab-wrap.vt-tab-active .vt-tab-btn { color: #c4b5fd; }
+    .vt-tab-btn:hover { color: #aaa; }
+    .vt-tab-del {
+      background: none; border: none; border-left: 1px solid #252525; color: #444;
+      font-size: 14px; padding: 4px 7px; cursor: pointer; line-height: 1;
+      transition: color 0.15s, background 0.15s;
+    }
+    .vt-tab-del:hover { color: #ee5555; background: #2a0f0f; }
+    .vt-tab-add {
+      background: none; border: 1px dashed #2a2a2a; border-radius: 4px; color: #484848;
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 12px; font-weight: 600;
+      padding: 5px 10px; cursor: pointer; letter-spacing: 0.3px;
+      transition: color 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .vt-tab-add:hover { color: #9988dd; border-color: #4a3a88; }
+
+    /* Filter bar */
+    .pt-tier-bar { display: flex; align-items: center; gap: 6px; }
+    .pt-tier-label {
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 11px; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; color: #444; margin-right: 2px;
+    }
+    .pt-tier-btn {
+      background: #111; border: 1px solid #252525; border-radius: 4px; color: #555;
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 12px; font-weight: 700;
+      padding: 4px 14px; cursor: pointer; letter-spacing: 0.3px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .pt-tier-btn:hover { color: #aaa; border-color: #3a3a3a; }
+    .pt-tier-btn.pt-tier-active { background: #1a1230; border-color: #4a3a88; color: #c4b5fd; }
+
+    .pt-section-hdr {
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 10px; font-weight: 700;
+      letter-spacing: 2px; text-transform: uppercase; color: #444;
+      padding: 8px 0 4px; border-top: 1px solid #1a1a1a; margin-top: 4px;
+    }
+    .pt-section-hdr:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+    .pt-info-note { font-size: 11px; color: #4a4a4a; font-style: italic; padding: 2px 0 4px; line-height: 1.5; }
+
+    /* Item picker */
+    .trd-pick-wrap { flex: 1; min-width: 0; position: relative; }
+    .trd-pick-display {
+      background: #1a1a1a; border: 1px solid #333; color: #666;
+      padding: 6px 10px; border-radius: 4px; font-size: 13px; cursor: pointer; user-select: none;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .trd-pick-display:hover { border-color: #555; color: #bbb; }
+    .trd-pick-display.trd-pick-has-value { color: #ddd; }
+    .trd-pick-panel {
+      position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 500;
+      background: #1a1a1a; border: 1px solid #444; border-radius: 4px; overflow: hidden;
+    }
+    .trd-pick-search {
+      display: block; width: 100%; box-sizing: border-box;
+      background: #111; border: none; border-bottom: 1px solid #2a2a2a;
+      color: #ddd; padding: 7px 10px; font-size: 13px; outline: none;
+    }
+    .trd-pick-search::placeholder { color: #444; }
+    .trd-pick-list { max-height: 220px; overflow-y: auto; }
+    .trd-pick-group {
+      padding: 6px 10px 3px; font-size: 10px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase; color: #555;
+    }
+    .trd-pick-item { padding: 5px 12px; font-size: 13px; color: #aaa; cursor: pointer; }
+    .trd-pick-item:hover { background: #242424; color: #fff; }
+    .trd-pick-item.trd-pick-selected { background: #2a2a2a; color: #fff; }
+
+    /* Bank */
+    .bank-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .bank-copy-btn {
+      background: #111; border: 1px solid #252525; border-radius: 4px; color: #888;
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 12px; font-weight: 700;
+      padding: 4px 14px; cursor: pointer; letter-spacing: 0.3px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .bank-copy-btn:hover { color: #c4b5fd; border-color: #4a3a88; }
+    .bank-priv-btn {
+      background: #111; border: 1px solid #252525; border-radius: 4px; color: #888;
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 12px; font-weight: 700;
+      padding: 4px 14px; cursor: pointer; letter-spacing: 0.3px;
+      transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .bank-priv-btn:hover { color: #aaa; border-color: #3a3a3a; }
+    .bank-priv-btn.bank-priv-public { color: #7dd8a0; border-color: #2a5a3a; background: #0e1a12; }
+    .bank-add-row { display: flex; gap: 8px; align-items: stretch; }
+    .bank-qty-input {
+      width: 70px; flex-shrink: 0; background: #111; border: 1px solid #252525;
+      border-radius: 4px; color: #ddd; font-size: 13px; text-align: center; padding: 4px 6px;
+    }
+    .bank-add-btn {
+      background: #1a1230; border: 1px solid #4a3a88; border-radius: 4px; color: #c4b5fd;
+      font-family: 'Rajdhani', Arial, sans-serif; font-size: 13px; font-weight: 700;
+      padding: 4px 18px; cursor: pointer; letter-spacing: 0.3px; transition: background 0.15s;
+    }
+    .bank-add-btn:hover { background: #241a44; }
+    .bank-add-btn:disabled { opacity: 0.4; cursor: default; }
+    #bank-list { display: flex; flex-direction: column; gap: 3px; min-height: 60px; }
+    .bank-item-row {
+      display: flex; align-items: center; gap: 8px; padding: 4px 8px;
+      background: #111; border: 1px solid #1e1e1e; border-radius: 5px;
+    }
+    .bank-item-name { flex: 1; color: #ccc; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bank-untradable-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
+      color: #cc7777; border: 1px solid #3a2020; background: #1a0f0f;
+      border-radius: 3px; padding: 1px 6px; flex-shrink: 0;
+    }
+    .bank-row-qty { width: 60px; }
+    .bank-step-btn {
+      background: #161616; border: 1px solid #2a2a2a; border-radius: 4px; color: #888;
+      font-size: 11px; font-weight: 700; padding: 3px 7px; cursor: pointer;
+      line-height: 1.2; flex-shrink: 0; transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .bank-step-btn:hover { color: #c4b5fd; border-color: #4a3a88; background: #1a1230; }
+    .bank-row-del {
+      background: none; border: none; color: #444; font-size: 15px;
+      padding: 2px 6px; cursor: pointer; line-height: 1; transition: color 0.15s; flex-shrink: 0;
+    }
+    .bank-row-del:hover { color: #ee5555; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="hdr">
+    <span class="tracker-title">Bank</span>
+  </div>
+  <div class="vt-tabs-bar" id="bank-tabs"></div>
+  <div class="bank-toolbar">
+    <div class="pt-tier-bar" id="bank-filter-bar"></div>
+    <div style="display:flex;gap:6px">
+      <button class="bank-priv-btn" id="bank-priv-btn" onclick="window._bankTogglePrivacy()">&#128274;&nbsp;Private</button>
+      <button class="bank-copy-btn" id="bank-copy-btn" onclick="window._bankCopy()">Copy List</button>
+    </div>
+  </div>
+  <div class="bank-add-row">
+    <div class="trd-pick-wrap" id="bank-pick-wrap">
+      <input id="bank-pick-name" type="hidden" value="">
+      <div class="trd-pick-display" id="bank-pick-display">&mdash; Select item &mdash;</div>
+      <div class="trd-pick-panel" id="bank-pick-panel" style="display:none">
+        <input class="trd-pick-search" id="bank-pick-search" type="text" placeholder="Search items..." autocomplete="off">
+        <div class="trd-pick-list" id="bank-pick-list"></div>
+      </div>
+    </div>
+    <input class="bank-qty-input" id="bank-add-qty" type="number" min="1" max="999999" value="1" title="Amount">
+    <button class="bank-add-btn" id="bank-add-btn" onclick="window._bankAdd()">Add</button>
+  </div>
+  <div id="bank-list"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* Standalone copy of the Bank logic (see js/bank.js). The item pool is read
+     from the 'al-bank-pool' snapshot written by the main page — this popup
+     never loads builder.js/trades.js. Entries sync both ways via 'storage'. */
+
+  const BK_KEY      = 'al-bank';
+  const BK_POOL_KEY = 'al-bank-pool';
+  let bkFilter = 'all';
+
+  function bkGetMeta() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(BK_KEY));
+      if (raw && Array.isArray(raw.tabs)) return raw;
+      return { tabs: [{ id: 'bk1', name: 'Slot 1', data: {} }], activeTab: 'bk1' };
+    } catch {
+      return { tabs: [{ id: 'bk1', name: 'Slot 1', data: {} }], activeTab: 'bk1' };
+    }
+  }
+  function bkSaveMeta(meta)  { localStorage.setItem(BK_KEY, JSON.stringify(meta)); }
+  function bkNewId()         { return 'bk' + Date.now(); }
+  function bkActiveTab(meta) {
+    if (!Array.isArray(meta.tabs) || !meta.tabs.length) meta.tabs = [{ id: 'bk1', name: 'Slot 1', data: {} }];
+    const tab = meta.tabs.find(t => t.id === meta.activeTab) || meta.tabs[0];
+    if (!tab.data || typeof tab.data !== 'object') tab.data = {};
+    return tab;
+  }
+  function bkGetData(meta)   { const d = bkActiveTab(meta).data; if (!Array.isArray(d.items)) d.items = []; return d; }
+  function bkSetData(meta, d){ bkActiveTab(meta).data = d; }
+
+  function bkBuildPool() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(BK_POOL_KEY));
+      if (raw && Array.isArray(raw.items) && Array.isArray(raw.categories)) return raw;
+    } catch {}
+    return null;
+  }
+  function bkPoolLookup() {
+    const pool = bkBuildPool();
+    return new Map((pool ? pool.items : []).map(i => [i.name, i]));
+  }
+
+  function bkRenderTabs(meta) {
+    const tabsEl = document.getElementById('bank-tabs');
+    tabsEl.innerHTML = '';
+    meta.tabs.forEach(tab => {
+      const wrap = document.createElement('div');
+      wrap.className = 'vt-tab-wrap' + (tab.id === meta.activeTab ? ' vt-tab-active' : '');
+      const nameBtn = document.createElement('button');
+      nameBtn.className = 'vt-tab-btn';
+      nameBtn.textContent = tab.name;
+      nameBtn.title = 'Click to switch · Double-click to rename';
+      nameBtn.addEventListener('click', () => { meta.activeTab = tab.id; bkSaveMeta(meta); bkRender(); });
+      nameBtn.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        const newName = prompt('Rename slot:', tab.name);
+        if (newName && newName.trim()) { tab.name = newName.trim(); bkSaveMeta(meta); bkRender(); }
+      });
+      wrap.appendChild(nameBtn);
+      if (meta.tabs.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'vt-tab-del';
+        delBtn.textContent = '×';
+        delBtn.title = 'Delete slot';
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!confirm(`Delete "${tab.name}"?`)) return;
+          const idx = meta.tabs.findIndex(t => t.id === tab.id);
+          meta.tabs.splice(idx, 1);
+          if (meta.activeTab === tab.id) meta.activeTab = meta.tabs[Math.max(0, idx - 1)].id;
+          bkSaveMeta(meta); bkRender();
+        });
+        wrap.appendChild(delBtn);
+      }
+      tabsEl.appendChild(wrap);
+    });
+    const addBtn = document.createElement('button');
+    addBtn.className = 'vt-tab-add';
+    addBtn.textContent = '+ Add Slot';
+    addBtn.addEventListener('click', () => {
+      const name = prompt('Slot name:', `Slot ${meta.tabs.length + 1}`);
+      if (!name || !name.trim()) return;
+      const id = bkNewId();
+      meta.tabs.push({ id, name: name.trim(), data: {} });
+      meta.activeTab = id;
+      bkSaveMeta(meta); bkRender();
+    });
+    tabsEl.appendChild(addBtn);
+  }
+
+  function bkRenderFilter() {
+    const bar = document.getElementById('bank-filter-bar');
+    bar.innerHTML = '';
+    const label = document.createElement('span');
+    label.className = 'pt-tier-label';
+    label.textContent = 'Show:';
+    bar.appendChild(label);
+    [['all', 'All'], ['tradable', 'Tradable']].forEach(([key, text]) => {
+      const btn = document.createElement('button');
+      btn.className = 'pt-tier-btn' + (bkFilter === key ? ' pt-tier-active' : '');
+      btn.textContent = text;
+      btn.addEventListener('click', () => { bkFilter = key; bkRender(); });
+      bar.appendChild(btn);
+    });
+  }
+
+  function bkRenderPrivacy() {
+    const btn = document.getElementById('bank-priv-btn');
+    if (!btn) return;
+    const tab = bkActiveTab(bkGetMeta());
+    const pub = !!tab.public;
+    btn.innerHTML = pub ? '&#127760;&nbsp;Public' : '&#128274;&nbsp;Private';
+    btn.classList.toggle('bank-priv-public', pub);
+    btn.title = pub
+      ? 'This slot is visible on your profile — click to make it private'
+      : 'This slot is private — click to show it on your profile';
+  }
+  window._bankTogglePrivacy = function () {
+    const meta = bkGetMeta();
+    const tab = bkActiveTab(meta);
+    tab.public = !tab.public;
+    bkSaveMeta(meta);
+    bkRender();
+  };
+
+  function bkGroupEntries(data) {
+    const lookup = bkPoolLookup();
+    const groups = new Map();
+    data.items.forEach(entry => {
+      const info = lookup.get(entry.name) || { category: 'Other', tradable: false };
+      if (bkFilter === 'tradable' && !info.tradable) return;
+      if (!groups.has(info.category)) groups.set(info.category, []);
+      groups.get(info.category).push({ entry, info });
+    });
+    const pool = bkBuildPool();
+    const order = (pool ? pool.categories : []).concat('Other').filter(c => groups.has(c));
+    return { groups, order };
+  }
+
+  function bkRender() {
+    const meta = bkGetMeta();
+    const data = bkGetData(meta);
+    bkRenderTabs(meta);
+    bkRenderFilter();
+    bkRenderPrivacy();
+    const list = document.getElementById('bank-list');
+    list.innerHTML = '';
+
+    const { groups, order } = bkGroupEntries(data);
+    order.forEach(cat => {
+      const hdr = document.createElement('div');
+      hdr.className = 'pt-section-hdr';
+      hdr.textContent = cat;
+      list.appendChild(hdr);
+      groups.get(cat).forEach(({ entry, info }) => list.appendChild(bkMakeRow(entry, info)));
+    });
+
+    if (!list.children.length) {
+      const note = document.createElement('div');
+      note.className = 'pt-info-note';
+      note.textContent = bkFilter === 'tradable'
+        ? 'No tradable items in this slot.'
+        : 'Empty slot — pick an item above and hit Add.';
+      list.appendChild(note);
+    }
+  }
+
+  function bkMakeRow(entry, info) {
+    const row = document.createElement('div');
+    row.className = 'bank-item-row';
+
+    const name = document.createElement('span');
+    name.className = 'bank-item-name';
+    name.textContent = entry.name;
+    row.appendChild(name);
+
+    if (!info.tradable) {
+      const badge = document.createElement('span');
+      badge.className = 'bank-untradable-badge';
+      badge.textContent = 'untradable';
+      row.appendChild(badge);
+    }
+
+    const step = delta => {
+      const meta = bkGetMeta(); const d = bkGetData(meta);
+      const it = d.items.find(i => i.name === entry.name);
+      if (!it) return;
+      it.qty = Math.max(1, (parseInt(it.qty, 10) || 1) + delta);
+      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+    };
+    const minus = document.createElement('button');
+    minus.className = 'bank-step-btn';
+    minus.textContent = '−1';
+    minus.title = 'Remove one';
+    minus.addEventListener('click', () => step(-1));
+    row.appendChild(minus);
+
+    const qty = document.createElement('input');
+    qty.type = 'number';
+    qty.min = '1';
+    qty.max = '999999';
+    qty.value = entry.qty;
+    qty.className = 'bank-qty-input bank-row-qty';
+    qty.title = 'Amount';
+    qty.addEventListener('change', () => {
+      const v = parseInt(qty.value, 10);
+      const meta = bkGetMeta(); const d = bkGetData(meta);
+      const it = d.items.find(i => i.name === entry.name);
+      if (!it) return;
+      if (isFinite(v) && v >= 1) it.qty = v; else qty.value = it.qty;
+      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+    });
+    row.appendChild(qty);
+
+    const plus = document.createElement('button');
+    plus.className = 'bank-step-btn';
+    plus.textContent = '+1';
+    plus.title = 'Add one';
+    plus.addEventListener('click', () => step(1));
+    row.appendChild(plus);
+
+    const del = document.createElement('button');
+    del.className = 'bank-row-del';
+    del.textContent = '×';
+    del.title = 'Remove';
+    del.addEventListener('click', () => {
+      const meta = bkGetMeta(); const d = bkGetData(meta);
+      const idx = d.items.findIndex(i => i.name === entry.name);
+      if (idx !== -1) d.items.splice(idx, 1);
+      bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+    });
+    row.appendChild(del);
+
+    return row;
+  }
+
+  let _pickerBound = false;
+  function bkInitPicker() {
+    const wrap    = document.getElementById('bank-pick-wrap');
+    const hidden  = document.getElementById('bank-pick-name');
+    const display = document.getElementById('bank-pick-display');
+    const panel   = document.getElementById('bank-pick-panel');
+    const search  = document.getElementById('bank-pick-search');
+    const list    = document.getElementById('bank-pick-list');
+
+    if (!bkBuildPool()) {
+      display.textContent = 'Open the Bank on the main page once to load items';
+      document.getElementById('bank-add-btn').disabled = true;
+      return;
+    }
+    document.getElementById('bank-add-btn').disabled = false;
+    if (!hidden.value && !display.classList.contains('trd-pick-has-value')) {
+      display.textContent = '— Select item —';
+    }
+    if (_pickerBound) return;
+    _pickerBound = true;
+
+    function makeItem(item) {
+      const el = document.createElement('div');
+      el.className = 'trd-pick-item' + (hidden.value === item.name ? ' trd-pick-selected' : '');
+      el.textContent = item.name;
+      el.addEventListener('mousedown', e => {
+        e.preventDefault();
+        hidden.value = item.name;
+        display.textContent = item.name;
+        display.classList.add('trd-pick-has-value');
+        panel.style.display = 'none';
+        search.value = '';
+      });
+      return el;
+    }
+
+    function buildList(q) {
+      list.innerHTML = '';
+      const pool = bkBuildPool();
+      if (!pool) return;
+      const visible = pool.items.filter(i => bkFilter !== 'tradable' || i.tradable);
+      if (q) {
+        const lq = q.toLowerCase();
+        visible.filter(i => i.name.toLowerCase().includes(lq))
+               .forEach(i => list.appendChild(makeItem(i)));
+      } else {
+        pool.categories.forEach(cat => {
+          const items = visible.filter(i => i.category === cat);
+          if (!items.length) return;
+          const hdr = document.createElement('div');
+          hdr.className = 'trd-pick-group';
+          hdr.textContent = cat;
+          list.appendChild(hdr);
+          items.forEach(i => list.appendChild(makeItem(i)));
+        });
+      }
+    }
+
+    display.addEventListener('click', () => {
+      const isOpen = panel.style.display !== 'none';
+      if (!isOpen) {
+        panel.style.display = 'block';
+        search.value = '';
+        buildList('');
+        search.focus();
+      } else {
+        panel.style.display = 'none';
+      }
+    });
+    search.addEventListener('input', () => buildList(search.value));
+    document.addEventListener('mousedown', e => {
+      if (!wrap.contains(e.target)) panel.style.display = 'none';
+    });
+  }
+
+  window._bankAdd = function () {
+    const hidden = document.getElementById('bank-pick-name');
+    const qtyEl  = document.getElementById('bank-add-qty');
+    const name = hidden.value;
+    if (!name) return;
+    let qty = parseInt(qtyEl.value, 10);
+    if (!isFinite(qty) || qty < 1) qty = 1;
+    const meta = bkGetMeta(); const d = bkGetData(meta);
+    const existing = d.items.find(i => i.name === name);
+    if (existing) existing.qty += qty; else d.items.push({ name, qty });
+    bkSetData(meta, d); bkSaveMeta(meta);
+    hidden.value = '';
+    const display = document.getElementById('bank-pick-display');
+    display.textContent = '— Select item —';
+    display.classList.remove('trd-pick-has-value');
+    qtyEl.value = '1';
+    bkRender();
+  };
+
+  window._bankCopy = function () {
+    const meta = bkGetMeta(); const d = bkGetData(meta);
+    const { groups, order } = bkGroupEntries(d);
+    const lines = [];
+    order.forEach(cat => {
+      lines.push(`${cat}:`);
+      groups.get(cat).forEach(({ entry, info }) => {
+        const mark = (bkFilter === 'all' && !info.tradable) ? ' (untradable)' : '';
+        lines.push(`- ${entry.name} x${entry.qty}${mark}`);
+      });
+      lines.push('');
+    });
+    let text = lines.join('\n').trim();
+    if (!text) return;
+    text += '\n\n- made by Arcane Lineage Builder';
+
+    const btn = document.getElementById('bank-copy-btn');
+    const flash = () => {
+      const old = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = old; }, 1200);
+    };
+    const fallback = () => {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); flash(); } catch {}
+      ta.remove();
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(flash).catch(fallback);
+    } else {
+      fallback();
+    }
+  };
+
+  // Sync with the main page (and other windows)
+  window.addEventListener('storage', e => {
+    if (e.key === BK_KEY) bkRender();
+    if (e.key === BK_POOL_KEY) { bkInitPicker(); bkRender(); }
+  });
+
+  bkInitPicker();
+  bkRender();
+})();
+</script>
+</body>
+</html>
