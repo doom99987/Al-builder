@@ -53,28 +53,29 @@ grant insert, update, delete on player_vaults to authenticated;
 -- world-readable projection of just the public slots. RLS restricts every
 -- operation to the owner, so private slots are never visible to anyone else.
 
-create table if not exists player_vaults_private (
+create table if not exists player_vaults_full (
   user_id    uuid primary key references auth.users on delete cascade,
   slots      jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
 
-alter table player_vaults_private enable row level security;
+alter table player_vaults_full enable row level security;
 
-drop policy if exists vaults_priv_select on player_vaults_private;
-create policy vaults_priv_select on player_vaults_private for select
+drop policy if exists vaults_full_select on player_vaults_full;
+create policy vaults_full_select on player_vaults_full for select
   using (auth.uid() = user_id);
 
-drop policy if exists vaults_priv_insert on player_vaults_private;
-create policy vaults_priv_insert on player_vaults_private for insert
+drop policy if exists vaults_full_insert on player_vaults_full;
+create policy vaults_full_insert on player_vaults_full for insert
   with check (auth.uid() = user_id);
 
-drop policy if exists vaults_priv_update on player_vaults_private;
-create policy vaults_priv_update on player_vaults_private for update
+drop policy if exists vaults_full_update on player_vaults_full;
+create policy vaults_full_update on player_vaults_full for update
   using (auth.uid() = user_id);
 
-drop policy if exists vaults_priv_delete on player_vaults_private;
-create policy vaults_priv_delete on player_vaults_private for delete
+drop policy if exists vaults_full_delete on player_vaults_full;
+create policy vaults_full_delete on player_vaults_full for delete
   using (auth.uid() = user_id);
 
-grant select, insert, update, delete on player_vaults_private to authenticated;
+grant select, insert, update, delete on player_vaults_full to authenticated;
+

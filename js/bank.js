@@ -10,7 +10,7 @@
    (same shape as the trackers). A pool snapshot is written to 'al-bank-pool'
    so the standalone popout (html/bank-popup.html) can render without loading
    builder.js/trades.js. Windows sync via 'storage' events. Logged-in users
-   additionally sync ALL slots to Supabase (player_vaults_private) so the bank
+   additionally sync ALL slots to Supabase (player_vaults_full) so the bank
    follows the account across devices; public slots are also projected into
    the world-readable player_vaults row for the Banks browser.
 
@@ -396,7 +396,7 @@
   }
 
   /* ── account cloud sync ─────────────────────────────────────────────────────
-     ALL slots (private included) live in `player_vaults_private` — one owner-
+     ALL slots (private included) live in `player_vaults_full` — one owner-
      only row per user (see supabase/banks.sql) that is the cross-device source
      of truth. `player_vaults` remains the world-readable projection holding
      just the public slots for the Banks browser.
@@ -426,7 +426,7 @@
     }));
   }
 
-  // Legacy fallback: accounts that synced before player_vaults_private existed
+  // Legacy fallback: accounts that synced before player_vaults_full existed
   // only have a public-slots row. Restore those once so they aren't wiped.
   async function bkPullPublicLegacy(client, uid) {
     const { data, error } = await client.from('player_vaults')
@@ -450,7 +450,7 @@
   // last synced (always when `force` — fresh browser or account switch).
   // Returns true when the server copy replaced local data.
   async function bkPull(client, uid, force) {
-    const { data, error } = await client.from('player_vaults_private')
+    const { data, error } = await client.from('player_vaults_full')
       .select('slots, updated_at').eq('user_id', uid).maybeSingle();
     if (error) { console.warn('Bank pull failed:', error.message); return false; }
     if (!data) { await bkPullPublicLegacy(client, uid); return false; }
@@ -506,7 +506,7 @@
       const payload = JSON.stringify(slots);
       if (payload === _bkLastSynced) { localStorage.removeItem(BK_DIRTY_KEY); return; }
       const ts = new Date().toISOString();
-      const { error } = await client.from('player_vaults_private')
+      const { error } = await client.from('player_vaults_full')
         .upsert({ user_id: uid, slots, updated_at: ts });
       if (error) { console.warn('Bank sync failed:', error.message); return; }
       const pub = slots.filter(s => s.public).map(s => ({ name: s.name, items: s.items }));
@@ -1292,3 +1292,4 @@
   // on other devices show up, and push any edits left while logged out.
   setTimeout(bkScheduleSync, 4000);
 })();
+
