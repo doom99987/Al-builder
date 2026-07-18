@@ -488,6 +488,15 @@
       addRow.appendChild(addBtn);
       root.appendChild(addRow);
 
+      const searchInp = doc.createElement('input');
+      searchInp.id = 'bank-search';
+      searchInp.className = 'bank-note-input';
+      searchInp.type = 'text';
+      searchInp.placeholder = 'Search your items...';
+      searchInp.autocomplete = 'off';
+      searchInp.style.marginBottom = '10px';
+      root.appendChild(searchInp);
+
       const list = doc.createElement('div');
       list.id = 'bank-list';
       root.appendChild(list);
