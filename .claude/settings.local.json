@@ -43,7 +43,10 @@
       "PowerShell(node --check js\\\\saved-builds.js)",
       "PowerShell(node --check js\\\\builder.js)",
       "PowerShell(node --check js\\\\trades.js; node --check js\\\\sb.js; node --check js\\\\bank.js; git diff --stat)",
-      "PowerShell(node --check js\\\\sb.js; node --check js\\\\bank.js)"
+      "PowerShell(node --check js\\\\sb.js; node --check js\\\\bank.js)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(npx --yes playwright install chromium)",
+      "Bash(npm ls *)"
     ]
   }
 }
