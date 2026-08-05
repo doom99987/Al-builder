@@ -125,10 +125,10 @@
   .tabbar::-webkit-scrollbar { display: none; }
   .tab { padding: 9px 13px; font-size: 11px; white-space: nowrap; flex-shrink: 0; }
 
-  /* Content scrolls both axes — build tab is 3 columns, swipe right to reach gear */
+  /* Content scrolls vertically only — build tab stacks into one column */
   .content {
     padding: 6px 8px;
-    overflow-x: auto;
+    overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     justify-content: flex-start;
@@ -185,24 +185,85 @@
   .blds-like-btn { font-size: 12px; padding: 5px 10px; }
 
   /* === Builder — stats panel & columns === */
-  /* Stats panel: natural width so columns sit side by side */
+  /* Stats panel fills the viewport width; no horizontal scrolling */
   #page-builder #stats {
-    width: max-content;
-    min-width: 100%;
+    width: 100%;
+    max-width: 100%;
     display: flex;
     justify-content: flex-start;
     align-items: flex-start;
   }
 
-  /* 3-column row layout — zoom: 0.72 chosen empirically so all three columns
-     (stats, marks, gear) fit without horizontal overflow on most phone widths */
-  .stats-columns  { flex-direction: row; gap: 20px; align-items: flex-start; zoom: 0.72; }
-  .marks-section  { width: 150px !important; gap: 2px !important; padding-top: 2px !important; }
-  .stats-left     { width: 300px !important; }
-  .gear-section   { gap: 12px !important; }
+  /* Single-column stack — the three desktop columns become stacked panels.
+     Stats leads since it's the primary panel; marks and gear follow. */
+  #stats .stats-columns {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 0 28px;
+  }
+  #stats .stats-left    { order: 1; }
+  #stats .marks-section { order: 2; }
+  #stats .gear-section  { order: 3; }
+
+  #stats .marks-section,
+  #stats .stats-left,
+  #stats .gear-section {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+  }
+  #stats .marks-section { gap: 4px; }
+
+  /* Gear's two inner columns stack too — pickers need ~160px each */
+  #stats .gear-section {
+    flex-direction: column;
+    gap: 10px;
+  }
+  #stats .gear-section-col { width: 100%; min-width: 0; }
+
+  /* Stacked, so the column divider becomes a horizontal rule */
+  #stats .gear-section-col + .gear-section-col {
+    border-left: none;
+    border-top: 1px solid #1b1b23;
+    padding-left: 0;
+    margin-left: 0;
+    padding-top: 10px;
+  }
+
+  /* Every picker fills its panel instead of holding a fixed min-width */
+  #stats .gear-picker,
+  #stats .weapon-picker,
+  #stats .armour-picker,
+  #stats .covenant-picker,
+  #stats .mark-picker,
+  #stats .shard-picker,
+  #stats #enchant-picker,
+  #stats #artifact-picker,
+  #stats #race-picker,
+  #stats #class-picker,
+  #stats #super-picker,
+  #stats #sub-picker,
+  #stats .wpick-wrap,
+  #stats .wpick-display {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .shard-slot { width: 100% !important; }
+  #stats .covenant-rank-input { flex-shrink: 0; }
+
+  /* Labels keep their width so pickers shrink instead of the text wrapping */
+  #page-builder .race-label,
+  #page-builder .gear-label,
+  #page-builder .shard-label { flex-shrink: 0; }
+  #page-builder .race-row { justify-content: flex-start; }
+  #page-builder .race-label { width: 48px; text-align: right; }
 
   /* Build-tab panels get compact padding on phones */
-  #stats .marks-section { padding: 10px 10px 14px !important; }
+  #stats .marks-section { padding: 10px 12px 14px !important; }
   #stats .stats-left,
   #stats .gear-section  { padding: 10px 12px 14px !important; }
 
@@ -217,10 +278,15 @@
   #page-builder .race-label           { font-size: 11px; }
   #page-builder .race-row             { margin-bottom: 5px; gap: 6px; }
 
-  /* Shards compact */
-  .shards-grid   { gap: 2px !important; }
-  .shard-slot    { width: 140px !important; }
-  .shard-label   { font-size: 10px; }
+  /* Shards — full-width rows */
+  .shards-grid   { gap: 4px !important; }
+  .shard-slot    { width: 100% !important; }
+  .shard-label   { font-size: 11px; }
+
+  /* Stat rows span the panel (fit-content won't shrink below ~320px) */
+  #stats .stat-list        { width: 100%; max-width: 100%; margin: 0; }
+  #stats .stat-row         { width: 100%; }
+  #stats .stat-details-btn { margin-left: auto; }
 
   /* Stat row compact */
   #page-builder .stat-row             { margin-bottom: 4px; }
@@ -279,6 +345,17 @@
 
   /* Dmg calc horizontal scroll */
   #dmg-calc { overflow-x: auto; }
+
+  /* Soul tree — two paths side by side, but let them shrink to fit */
+  .soul-tree-columns { gap: 10px; padding: 12px 8px; }
+  .soul-tree-path { min-width: 0; }
+  .soul-node { padding: 8px 10px; }
+  .soul-tree-actions { flex-wrap: wrap; }
+
+  /* Summary tab — textarea was a fixed 600px */
+  .summary-panel { width: 100%; max-width: 100%; padding: 12px; box-sizing: border-box; }
+  .summary-header { flex-wrap: wrap; gap: 10px; }
+  .summary-textarea { width: 100%; max-width: 100%; }
 
   /* Watermarks hidden */
   .qte-logo-watermark, .builder-logo-watermark { display: none; }
