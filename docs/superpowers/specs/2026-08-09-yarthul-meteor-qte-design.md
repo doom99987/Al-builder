@@ -93,9 +93,32 @@ the two existing site-wide systems work on this trainer for free:
 
 Neither needs changes.
 
-On touch devices (`IS_MOBILE` from `core.js`) two on-screen ◀ ▶ buttons appear below
-the canvas, holding the same movement state on `touchstart`/`touchend`, mirroring
-the fist trainer's d-pad.
+### Mobile controls
+
+On touch devices (`IS_MOBILE` from `core.js`) a two-button d-pad is injected below
+the canvas — ◀ and ▶ — built the same way the fist trainer builds its d-pad:
+created in JS, inserted after the canvas, and only when `IS_MOBILE` is true.
+
+The fist d-pad fires discrete taps on `touchstart`. This trainer needs *held*
+movement instead, so each button binds three events:
+
+| Event | Effect |
+|---|---|
+| `touchstart` | `preventDefault()`, set that direction's held flag |
+| `touchend` | clear the flag |
+| `touchcancel` | clear the flag |
+
+Both listeners are registered with `{ passive: false }` so `preventDefault()` can
+suppress scrolling and long-press selection. Clearing on `touchcancel` as well as
+`touchend` prevents the flame sticking in one direction if the browser steals the
+touch (notification, gesture, incoming call).
+
+The buttons write to the same two held-direction flags the keyboard handler sets, so
+movement has one code path regardless of input device. Pressing both directions at
+once cancels out to no movement, matching A+D on keyboard.
+
+Buttons are sized for thumbs (minimum 56px touch targets) and laid out at the
+canvas's lower corners, styled to match the existing `.fist-dpad-btn` treatment.
 
 ## Rendering
 
