@@ -34,7 +34,7 @@
   <link rel="stylesheet" href="css/mobile.css?v=14">
   <link rel="stylesheet" href="css/auth.css?v=21">
   <link rel="stylesheet" href="css/overlay.css?v=1">
-  <link rel="stylesheet" href="css/saved-builds.css?v=13">
+  <link rel="stylesheet" href="css/saved-builds.css?v=14">
   <link rel="stylesheet" href="css/trades.css?v=19">
   <link rel="stylesheet" href="css/vl.css?v=11">
   <link rel="stylesheet" href="css/party.css?v=12">
@@ -1069,6 +1069,10 @@
           <button class="save-current-btn" id="save-current-btn">Save Current Build</button>
         </div>
         <input type="text" id="saved-builds-search" class="saved-builds-search" placeholder="Search builds...">
+        <div class="saved-builds-notice" id="saved-builds-notice" style="display:none">
+          <span id="saved-builds-notice-text"></span>
+          <button type="button" id="saved-builds-notice-dismiss" aria-label="Dismiss">&times;</button>
+        </div>
         <div class="saved-builds-list" id="saved-builds-list"></div>
       </div>
     </div>
@@ -1441,7 +1445,7 @@
     move-renderer.js   : move card HTML generators + renderMoves()
     builder.js         : full builder UI (stats, pickers, dmgcalc, soul/mastery trees, build I/O)
     qte.js             : all 8 QTE trainer IIFEs
-    saved-builds.js    : saved builds (localStorage persistence + UI)
+    saved-builds.js    : saved builds (localStorage + account sync to player_builds)
 -->
 <script src="js/core.js?v=14"></script>
 <script src="js/data-class-moves.js?v=22"></script>
@@ -1450,7 +1454,7 @@
 <script src="js/builder.js?v=59"></script>
 <script src="js/qte-guard.js?v=1"></script>
 <script src="js/qte.js?v=23"></script>
-<script src="js/saved-builds.js?v=14"></script>
+<script src="js/saved-builds.js?v=15"></script>
 <script src="js/trades.js?v=48"></script>
 <script src="js/party.js?v=31"></script>
 <script src="js/builds.js?v=6"></script>
