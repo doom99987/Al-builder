@@ -626,3 +626,30 @@
   border-color: #8888cc;
 }
 
+
+/* ----- Yar'Thul QTE arrows (left / right only) ----- */
+.yarthul-arrows {
+  display: flex;
+  justify-content: center;
+  gap: 90px;
+  margin: 8px auto 0;
+  flex-shrink: 0;
+}
+.yarthul-arrow-btn {
+  width: 68px;
+  height: 68px;
+  font-size: 28px;
+  background: #2a1510;
+  color: #ffb070;
+  border: 2px solid #a85a2a;
+  border-radius: 10px;
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.yarthul-arrow-btn:active { background: #7a3a18; color: #fff; }

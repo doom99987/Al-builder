@@ -362,6 +362,7 @@
     <div class="tabbar qte-group-tabs" id="qte-group-new" style="display:none">
       <button class="tab" data-qte="thorian-new">Thorian</button>
       <button class="tab" data-qte="dagger-new">Dagger</button>
+      <button class="tab" data-qte="yarthul-new">Yar&#39;Thul</button>
     </div>
   </div>
   <div class="qte-ping-bar">
@@ -530,6 +531,20 @@
         <button class="fist-qte-start-btn" id="dagger-new-qte-start-btn">Start</button>
         <button class="fist-qte-start-btn" id="dagger-new-qte-resume-btn" style="display:none">Resume</button>
         <button class="dagger-tap-btn" id="dagger-new-tap-btn" style="display:none">TAP</button>
+      </div>
+    </div>
+    <!-- Yar'Thul New QTE -->
+    <div class="qte-panel" id="qte-panel-yarthul-new" style="display:none">
+      <div class="yarthul-new-qte-wrap">
+        <div class="yarthul-new-qte-header">
+          <span class="yarthul-new-qte-status" id="yarthul-new-qte-status"></span>
+          <span class="yarthul-new-qte-streak" id="yarthul-new-qte-streak"></span>
+          <span class="yarthul-new-qte-highscore" id="yarthul-new-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('yarthul-new')">&#127942; Leaderboard</button>
+        </div>
+        <canvas id="yarthul-new-qte-canvas" class="yarthul-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="yarthul-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="yarthul-new-qte-resume-btn" style="display:none">Resume</button>
       </div>
     </div>
   </div>
@@ -1887,6 +1902,8 @@
     if (name !== 'thorian-new' && typeof window._onThorianNewQteHide === 'function') window._onThorianNewQteHide();
     if (name === 'dagger-new' && typeof window._onDaggerNewQteShow === 'function') window._onDaggerNewQteShow();
     if (name !== 'dagger-new' && typeof window._onDaggerNewQteHide === 'function') window._onDaggerNewQteHide();
+    if (name === 'yarthul-new' && typeof window._onYarthulNewQteShow === 'function') window._onYarthulNewQteShow();
+    if (name !== 'yarthul-new' && typeof window._onYarthulNewQteHide === 'function') window._onYarthulNewQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

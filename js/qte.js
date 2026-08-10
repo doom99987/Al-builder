@@ -3928,3 +3928,628 @@ if (flashMiss  > 0) flashMiss  -= dt;
   resizeCanvas();
   drawFrame(true);
 })();
+
+// === YARTHUL NEW QTE ===
+// Blue flame on a rock platform beneath Yar'Thul's eye. Meteors fall in a constant
+// stream; A/D slides the flame left and right. One hit ends the run.
+// Stage n lasts min(5 + (n-1), 20) seconds. Stages are infinite.
+(function () {
+  const canvas = document.getElementById('yarthul-new-qte-canvas');
+  if (!canvas) return;
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('yarthul-new-qte-status');
+  const stageEl   = document.getElementById('yarthul-new-qte-streak');
+  const hsEl      = document.getElementById('yarthul-new-qte-highscore');
+  const startBtn  = document.getElementById('yarthul-new-qte-start-btn');
+  const resumeBtn = document.getElementById('yarthul-new-qte-resume-btn');
+
+  const HS_KEY      = 'alb:yarthul-new-hs';
+  const HS_KEY_COMP = 'alb:yarthul-new-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  // ---- TUNING ----
+  const PLATFORM_TOP_FRAC   = 0.80; // platform surface, as a fraction of H
+  const PLATFORM_WIDTH_FRAC = 0.62; // platform span, as a fraction of W
+
+  const PLAYER_SPEED_FRAC = 0.42; // W travelled per second
+  const PLAYER_H_FRAC     = 0.13; // flame height, as a fraction of H
+  const PLAYER_HIT_FRAC   = 0.60; // hit radius vs. drawn flame half-width
+
+  const METEOR_R_FRAC = 0.034; // meteor head radius, as a fraction of H
+  const BURST_SECS    = 0.35;  // impact ring lifetime
+
+  const BASE_STAGE_SECS = 5;   // stage 1 duration
+  const STAGE_STEP_SECS = 1;   // added per stage
+  const MAX_STAGE_SECS  = 20;  // cap, reached at stage 16
+  const TRANSITION_SECS = 1.5; // "Stage N" banner between stages
+
+  let W = 0, H = 0;
+
+  let playerX   = 0;     // flame centre x
+  let moveLeft  = false;
+  let moveRight = false;
+  let animFrame = null;
+  let lastTime  = 0;
+  let flickerT  = 0;     // drives the flame's idle flicker
+
+  let meteors    = [];
+  let bursts     = [];
+  let spawnAccum = 0; // ms accumulator driving the constant spawn cadence
+  let stage      = 1;
+
+  let running         = false;
+  let gameStarted     = false;
+  let paused          = false;
+  let score           = 0; // stages fully cleared
+  let stageTimer      = 0; // seconds left in the current stage
+  let transitioning   = false;
+  let transitionTimer = 0;
+
+  function platformTop()   { return H * PLATFORM_TOP_FRAC; }
+  function platformLeft()  { return (W - W * PLATFORM_WIDTH_FRAC) / 2; }
+  function platformRight() { return platformLeft() + W * PLATFORM_WIDTH_FRAC; }
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+  }
+
+  function updateHs(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
+    if (window._qteCompMode) {
+      if (val > highscoreComp) {
+        highscoreComp = val;
+        try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('yarthul-new-comp', val);
+      }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
+    } else {
+      if (val > highscore) {
+        highscore = val;
+        try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
+        if (window._sbSubmitScore) window._sbSubmitScore('yarthul-new', val);
+      }
+      if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
+    }
+  }
+  updateHs(0);
+
+  window.addEventListener('alb-scores-reset', () => {
+    highscore = 0; highscoreComp = 0;
+    localStorage.removeItem(HS_KEY);
+    localStorage.removeItem(HS_KEY_COMP);
+    updateHs(0);
+  });
+  window.addEventListener('alb-mode-changed', () => updateHs(0));
+
+  // ---- DIFFICULTY RAMP ----
+  // Speeds are fractions of canvas height so difficulty is identical at every
+  // viewport size. Competitive mode uses a steeper curve, as other trainers do.
+  function stageDuration(n) {
+    return Math.min(BASE_STAGE_SECS + (n - 1) * STAGE_STEP_SECS, MAX_STAGE_SECS);
+  }
+  function spawnIntervalMs(n) {
+    return window._qteCompMode
+      ? Math.max(70, 150 - 5 * (n - 1))
+      : Math.max(105, 210 - 7 * (n - 1));
+  }
+  function fallSpeedFrac(n) {
+    return window._qteCompMode
+      ? Math.min(1.10 + 0.06 * (n - 1), 1.90)
+      : Math.min(0.90 + 0.05 * (n - 1), 1.55);
+  }
+  function driftFrac() { return window._qteCompMode ? 0.22 : 0.18; }
+
+  // ---- CANVAS SIZE ----
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    W = Math.min(wrap.clientWidth, 900);
+    H = Math.max(260, Math.min(380, Math.round(W * 0.46)));
+    canvas.width        = W;
+    canvas.height       = H;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    if (!playerX) playerX = W / 2;
+    clampPlayer();
+  }
+
+  function clampPlayer() {
+    playerX = Math.min(Math.max(playerX, platformLeft()), platformRight());
+  }
+
+  // ---- BACKDROP ----
+  // Almond socket: two mirrored beziers meeting at sharp inner/outer corners.
+  function eyePath(cx, cy, ew, eh) {
+    ctx.beginPath();
+    ctx.moveTo(cx - ew, cy);
+    ctx.bezierCurveTo(cx - ew * 0.45, cy - eh, cx + ew * 0.45, cy - eh, cx + ew, cy);
+    ctx.bezierCurveTo(cx + ew * 0.45, cy + eh, cx - ew * 0.45, cy + eh, cx - ew, cy);
+    ctx.closePath();
+  }
+
+  function drawEye(cx, cy) {
+    const ew = W * 0.30, eh = H * 0.36;
+
+    ctx.save();
+    eyePath(cx, cy, ew, eh);
+    ctx.clip();
+
+    const iris = ctx.createRadialGradient(cx, cy, eh * 0.06, cx, cy, ew * 0.95);
+    iris.addColorStop(0,    '#ffe6a4');
+    iris.addColorStop(0.35, '#f0921f');
+    iris.addColorStop(0.75, '#a83a08');
+    iris.addColorStop(1,    '#3d0e04');
+    ctx.fillStyle = iris;
+    ctx.fillRect(cx - ew, cy - eh, ew * 2, eh * 2);
+
+    // Faint outer striations. They stay well clear of the centre — drawn all the
+    // way in, they converge into a bright hub and the iris reads as a paper fan.
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.strokeStyle = '#4a1503';
+    ctx.lineWidth   = Math.max(1, W * 0.0018);
+    for (let i = 0; i < 40; i++) {
+      const a = (i / 40) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * ew * 0.55, cy + Math.sin(a) * eh * 0.55);
+      ctx.lineTo(cx + Math.cos(a) * ew, cy + Math.sin(a) * eh);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Vertical slit pupil — narrow and full height, the way a dragon's reads
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, ew * 0.055, eh * 0.88, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#0d0402';
+    ctx.fill();
+
+    // Dark limbal ring, so falling meteors stay readable over the bright iris
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    const rim = ctx.createRadialGradient(cx, cy, ew * 0.55, cx, cy, ew * 1.05);
+    rim.addColorStop(0, 'rgba(255,255,255,1)');
+    rim.addColorStop(1, 'rgba(60,18,6,1)');
+    ctx.fillStyle = rim;
+    ctx.fillRect(cx - ew, cy - eh, ew * 2, eh * 2);
+    ctx.restore();
+
+    ctx.restore();
+
+    // Heavy socket rim
+    eyePath(cx, cy, ew, eh);
+    ctx.strokeStyle = 'rgba(22, 8, 5, 0.95)';
+    ctx.lineWidth   = Math.max(4, H * 0.024);
+    ctx.stroke();
+
+    // A single brow ridge hugging the socket. Multiple concentric arcs read as
+    // floating hoops rather than anatomy, so there is only one and it is dim.
+    ctx.save();
+    ctx.strokeStyle = 'rgba(52, 20, 11, 0.5)';
+    ctx.lineWidth   = Math.max(2, H * 0.020);
+    ctx.beginPath();
+    ctx.moveTo(cx - ew * 1.07, cy - eh * 0.06);
+    ctx.bezierCurveTo(cx - ew * 0.48, cy - eh * 1.16, cx + ew * 0.48, cy - eh * 1.16, cx + ew * 1.07, cy - eh * 0.06);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Deterministic jitter so the rock silhouette is stable across frames.
+  function notch(i) { return (Math.sin(i * 12.9898) * 43758.5453) % 1; }
+
+  function drawPlatform() {
+    const l = platformLeft(), r = platformRight(), t = platformTop();
+    const span = r - l;
+
+    ctx.beginPath();
+    ctx.moveTo(l, t);
+    // Chipped upper edge — small notches, never deep enough to affect the clamp
+    const steps = 11;
+    for (let i = 1; i <= steps; i++) {
+      const x = l + (span * i) / steps;
+      ctx.lineTo(x, t + Math.abs(notch(i)) * H * 0.018);
+    }
+    ctx.lineTo(r, t);
+    ctx.lineTo(r - span * 0.10, H);
+    ctx.lineTo(l + span * 0.10, H);
+    ctx.closePath();
+
+    const rock = ctx.createLinearGradient(0, t, 0, H);
+    rock.addColorStop(0,    '#5a463c');
+    rock.addColorStop(0.35, '#3a2c26');
+    rock.addColorStop(1,    '#140e0c');
+    ctx.fillStyle = rock;
+    ctx.fill();
+    ctx.strokeStyle = '#0a0605';
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    // Vertical fracture lines down the rock face
+    ctx.save();
+    ctx.strokeStyle = 'rgba(10, 6, 5, 0.55)';
+    ctx.lineWidth   = Math.max(1, W * 0.002);
+    for (let i = 1; i < 6; i++) {
+      const x = l + span * (i / 6);
+      ctx.beginPath();
+      ctx.moveTo(x, t + H * 0.02);
+      ctx.lineTo(x - span * 0.02 * notch(i + 20), H);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // Warm rim light from the eye above. It has to follow the notched edge —
+    // a straight line here paints over the chips and flattens the silhouette.
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = 'rgba(190, 90, 34, 0.4)';
+    ctx.lineWidth   = Math.max(1, H * 0.006);
+    ctx.beginPath();
+    ctx.moveTo(l, t);
+    for (let i = 1; i <= steps; i++) {
+      const x = l + (span * i) / steps;
+      ctx.lineTo(x, t + Math.abs(notch(i)) * H * 0.018);
+    }
+    ctx.lineTo(r, t);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBackdrop() {
+    ctx.fillStyle = '#08060a';
+    ctx.fillRect(0, 0, W, H);
+
+    const cx = W / 2, cy = H * 0.42;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, W * 0.55);
+    glow.addColorStop(0,   'rgba(120, 34, 12, 0.85)');
+    glow.addColorStop(0.5, 'rgba(60, 16, 8, 0.45)');
+    glow.addColorStop(1,   'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, W, H);
+
+    drawEye(cx, cy);
+    drawPlatform();
+  }
+
+  // ---- FLAME ----
+  function drawFlame(x, yBase, h, t) {
+    const w    = h * 0.45;
+    const sway = Math.abs(Math.sin(t * 6)) * h * 0.08;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    ctx.beginPath();
+    ctx.moveTo(x, yBase - h - sway);
+    ctx.bezierCurveTo(x + w, yBase - h * 0.55, x + w * 0.85, yBase, x, yBase);
+    ctx.bezierCurveTo(x - w * 0.85, yBase, x - w, yBase - h * 0.55, x, yBase - h - sway);
+    ctx.closePath();
+    const body = ctx.createLinearGradient(0, yBase - h, 0, yBase);
+    body.addColorStop(0,   '#7fe8ff');
+    body.addColorStop(0.6, '#2f9bdc');
+    body.addColorStop(1,   '#0b3f7a');
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(x, yBase - h * 0.30, w * 0.34, h * 0.24, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(220, 248, 255, 0.9)';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // ---- METEORS ----
+  function spawnMeteor() {
+    const spd = fallSpeedFrac(stage) * H;
+    const r   = H * METEOR_R_FRAC;
+    meteors.push({
+      x:  Math.random() * W,
+      y:  -r * 3,
+      vx: (Math.random() * 2 - 1) * driftFrac() * spd,
+      vy: spd,
+      r:  r,
+    });
+  }
+
+  function updateMeteors(dt) {
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const m = meteors[i];
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+
+      if (m.y >= platformTop()) {
+        if (m.x >= platformLeft() && m.x <= platformRight()) {
+          bursts.push({ x: m.x, y: platformTop(), t: 0 });
+        }
+        meteors.splice(i, 1);
+      } else if (m.x < -m.r * 4 || m.x > W + m.r * 4) {
+        meteors.splice(i, 1);
+      }
+    }
+  }
+
+  function updateBursts(dt) {
+    for (let i = bursts.length - 1; i >= 0; i--) {
+      bursts[i].t += dt;
+      if (bursts[i].t >= BURST_SECS) bursts.splice(i, 1);
+    }
+  }
+
+  function drawMeteor(m) {
+    const len = m.r * 7;
+    ctx.save();
+    ctx.translate(m.x, m.y);
+    ctx.rotate(Math.atan2(m.vy, m.vx) - Math.PI / 2);
+
+    // A dark disc behind the head only. Backing the full trail turns each meteor
+    // into a black dagger; the head alone is enough to keep it readable against
+    // the bright iris it falls across.
+    ctx.beginPath();
+    ctx.arc(0, 0, m.r * 1.15, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(26, 7, 2, 0.7)';
+    ctx.fill();
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    const tail = ctx.createLinearGradient(0, 0, 0, -len);
+    tail.addColorStop(0,   'rgba(255, 190, 80, 0.85)');
+    tail.addColorStop(0.5, 'rgba(255, 110, 20, 0.35)');
+    tail.addColorStop(1,   'rgba(255, 60, 0, 0)');
+    ctx.beginPath();
+    ctx.moveTo(-m.r * 0.7, 0);
+    ctx.quadraticCurveTo(-m.r * 0.6, -len * 0.55, 0, -len);
+    ctx.quadraticCurveTo(m.r * 0.6, -len * 0.55, m.r * 0.7, 0);
+    ctx.closePath();
+    ctx.fillStyle = tail;
+    ctx.fill();
+
+    const head = ctx.createRadialGradient(0, 0, 0, 0, 0, m.r * 1.9);
+    head.addColorStop(0,    '#fffbe8');
+    head.addColorStop(0.25, '#ffd166');
+    head.addColorStop(0.55, '#ff7a18');
+    head.addColorStop(1,    'rgba(190, 30, 0, 0)');
+    ctx.beginPath();
+    ctx.arc(0, 0, m.r * 1.9, 0, Math.PI * 2);
+    ctx.fillStyle = head;
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawBursts() {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const b of bursts) {
+      const p = b.t / BURST_SECS;
+      ctx.beginPath();
+      // Kept small — a wide ring reads as a floating hoop rather than an impact.
+      ctx.arc(b.x, b.y, H * METEOR_R_FRAC * (0.5 + p * 1.1), Math.PI, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 150, 50, ' + ((1 - p) * 0.8).toFixed(3) + ')';
+      ctx.lineWidth   = Math.max(1, H * 0.007 * (1 - p));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---- COLLISION ----
+  // The hit circle is deliberately smaller than the drawn flame so near-misses
+  // read as fair.
+  function playerHitCircle() {
+    const h = H * PLAYER_H_FRAC;
+    const w = h * 0.45;
+    return { x: playerX, y: platformTop() - h * 0.45, r: w * PLAYER_HIT_FRAC };
+  }
+
+  function checkCollision() {
+    const p = playerHitCircle();
+    for (const m of meteors) {
+      if (Math.hypot(m.x - p.x, m.y - p.y) <= m.r + p.r) return true;
+    }
+    return false;
+  }
+
+  function draw() {
+    drawBackdrop();
+    for (const m of meteors) drawMeteor(m);
+    drawBursts();
+    drawFlame(playerX, platformTop(), H * PLAYER_H_FRAC, flickerT);
+  }
+
+  // ---- RUN LIFECYCLE ----
+  function onStageCleared() {
+    score = stage;
+    updateHs(score);
+    stage++;
+    meteors         = [];
+    spawnAccum      = 0;
+    transitioning   = true;
+    transitionTimer = TRANSITION_SECS;
+    setStatus('Stage ' + stage, '#ffb070');
+    if (stageEl) stageEl.textContent = 'Stage ' + stage;
+  }
+
+  function onHit() {
+    running     = false;
+    gameStarted = false;
+    stopLoop();
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
+    updateHs(score);
+    setStatus('Hit! Cleared ' + score + (score === 1 ? ' stage' : ' stages'), '#e05555');
+    draw();
+    if (startBtn)  { startBtn.style.display  = ''; startBtn.textContent = 'Start'; }
+    if (resumeBtn) resumeBtn.style.display = 'none';
+  }
+
+  // ---- LOOP ----
+  function loop(now) {
+    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    lastTime = now;
+    flickerT += dt;
+
+    const onPage = document.getElementById('page-qte');
+    if (!(onPage && onPage.classList.contains('active')) &&
+        !(window._qteMatch && window._qteMatch.active)) {
+      if (running) abandonRun(); else stopLoop();
+      return;
+    }
+
+    if (running) {
+      if (transitioning) {
+        transitionTimer -= dt;
+        if (transitionTimer <= 0) {
+          transitioning = false;
+          stageTimer    = stageDuration(stage);
+          setStatus('Avoid the meteors', '#ff8844');
+        }
+      } else {
+        spawnAccum += dt * 1000;
+        const iv = spawnIntervalMs(stage);
+        while (spawnAccum >= iv) { spawnMeteor(); spawnAccum -= iv; }
+      }
+    }
+
+    const dir = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
+    playerX += dir * PLAYER_SPEED_FRAC * W * dt;
+    clampPlayer();
+
+    updateMeteors(dt);
+    updateBursts(dt);
+
+    if (running && !transitioning) {
+      if (checkCollision()) { onHit(); return; }
+      stageTimer -= dt;
+      if (stageTimer <= 0) onStageCleared();
+    }
+
+    draw();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  function startLoop() {
+    if (animFrame) return;
+    lastTime  = performance.now();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  function stopLoop() {
+    if (animFrame) cancelAnimationFrame(animFrame);
+    animFrame = null;
+    moveLeft = moveRight = false;
+  }
+
+  function startGame() {
+    stage           = 1;
+    score           = 0;
+    stageTimer      = stageDuration(1);
+    meteors         = [];
+    bursts          = [];
+    spawnAccum      = 0;
+    transitioning   = false;
+    transitionTimer = 0;
+    playerX         = W / 2;
+    moveLeft = moveRight = false;
+    running     = true;
+    gameStarted = true;
+    paused      = false;
+    setStatus('Avoid the meteors', '#ff8844');
+    if (stageEl)   stageEl.textContent = 'Stage 1';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    startLoop();
+  }
+
+  function resumeGame() {
+    paused  = false;
+    running = true;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus('Avoid the meteors', '#ff8844');
+    startLoop();
+  }
+
+  function resetToStart() {
+    running     = false;
+    gameStarted = false;
+    paused      = false;
+    stopLoop();
+    meteors = [];
+    bursts  = [];
+    stage   = 1;
+    score   = 0;
+    setStatus('Press Start', '#888');
+    if (stageEl)   stageEl.textContent = '';
+    if (startBtn)  { startBtn.style.display  = ''; startBtn.textContent = 'Start'; }
+    if (resumeBtn) resumeBtn.style.display = 'none';
+  }
+
+  // Navigating away mid-run abandons it. Banking a run across a page change
+  // would be exploitable on the leaderboard, and leaving the loop stopped while
+  // running stayed true soft-locked the panel with no Start button to press.
+  function abandonRun() {
+    resetToStart();
+    if (W && H) draw();
+  }
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  // ---- INPUT ----
+  function panelActive() {
+    const panel = document.getElementById('qte-panel-yarthul-new');
+    return !!(panel && panel.style.display !== 'none');
+  }
+
+  document.addEventListener('keydown', e => {
+    if (!panelActive()) return;
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    if (e.key === 'a' || e.key === 'A') { moveLeft  = true; e.preventDefault(); }
+    if (e.key === 'd' || e.key === 'D') { moveRight = true; e.preventDefault(); }
+  });
+
+  document.addEventListener('keyup', e => {
+    if (e.key === 'a' || e.key === 'A') moveLeft  = false;
+    if (e.key === 'd' || e.key === 'D') moveRight = false;
+  });
+
+  // ---- MOBILE ARROWS ----
+  // Two directions only, so no cross-shaped d-pad. Held movement, not discrete
+  // taps: touchstart sets the flag, touchend and touchcancel both clear it.
+  // touchcancel matters -- if the browser steals the touch, the flag must not stick.
+  if (IS_MOBILE) {
+    const arrows = document.createElement('div');
+    arrows.className = 'yarthul-arrows';
+    arrows.innerHTML =
+      '<button class="yarthul-arrow-btn" data-dir="left">&#9664;</button>' +
+      '<button class="yarthul-arrow-btn" data-dir="right">&#9654;</button>';
+
+    arrows.querySelectorAll('.yarthul-arrow-btn').forEach(btn => {
+      const dir = btn.dataset.dir;
+      const set = v => { if (dir === 'left') moveLeft = v; else moveRight = v; };
+      btn.addEventListener('touchstart', e => { e.preventDefault(); set(true);  }, { passive: false });
+      btn.addEventListener('touchend',   e => { e.preventDefault(); set(false); }, { passive: false });
+      btn.addEventListener('touchcancel', () => set(false));
+    });
+
+    canvas.parentNode.insertBefore(arrows, canvas.nextSibling);
+  }
+
+  // ---- SHOW / HIDE ----
+  window._onYarthulNewQteShow = function () {
+    resizeCanvas();
+    if (!gameStarted) { resetToStart(); draw(); }
+    else if (paused)  { draw(); }
+    else              { startLoop(); }
+  };
+
+  window._onYarthulNewQteHide = function () {
+    if (running) abandonRun(); else stopLoop();
+  };
+
+  window.addEventListener('resize', () => {
+    if (!panelActive()) return;
+    resizeCanvas();
+    draw();
+  });
+
+  setStatus('Press Start', '#888');
+})();

@@ -1,16 +1,16 @@
-# Yarthul QTE Trainer — Design
+# Yar'Thul QTE Trainer — Design
 
 **Date:** 2026-08-09
 **Status:** Approved for planning
 
 ## Summary
 
-A new QTE trainer replicating the Yarthul "Avoid the meteors" encounter: a blue
-flame stands on a rock platform under a dragon's eye while meteors rain down in a
+A new QTE trainer replicating the Yar'Thul "Avoid the meteors" encounter: a blue
+flame stands on a rock platform under Yar'Thul's eye while meteors rain down in a
 constant stream. The player slides the flame left and right with A/D. One hit ends
 the run.
 
-It joins the trainer page as **Yarthul** in the **New** group, alongside the
+It joins the trainer page as **Yar'Thul** in the **New** group, alongside the
 existing Thorian and Dagger entries, and follows the same structure as every other
 trainer on the page — one IIFE in `js/qte.js`, one canvas panel in `index.html`,
 styles in `css/qte.css`, procedurally drawn with no image assets.
@@ -39,6 +39,12 @@ New trainer already uses.
 Contact with any meteor ends the run immediately. There are no lives and no other
 fail condition — the flame is clamped inside the platform, so walking off the edge
 is impossible.
+
+Navigating away mid-run — to another QTE tab or off the trainer page entirely —
+abandons the run and returns the panel to `Press Start`. Banking a run across a
+page change would be exploitable on the leaderboard. It also has to reset the
+buttons: stopping the loop while `running` stayed true left the panel frozen with
+neither Start nor Resume showing, and no way back without a reload.
 
 ### Scoring
 
@@ -71,9 +77,14 @@ table below `n` is the current stage number and `H` the canvas height in pixels.
 
 | Value | Casual | Competitive |
 |---|---|---|
-| Spawn interval | `max(260, 700 - 28·(n-1))` ms | `max(170, 500 - 22·(n-1))` ms |
+| Spawn interval | `max(105, 210 - 7·(n-1))` ms | `max(70, 150 - 5·(n-1))` ms |
 | Fall speed | `min(0.90 + 0.05·(n-1), 1.55) · H` px/s | `min(1.10 + 0.06·(n-1), 1.90) · H` px/s |
 | Horizontal drift | ±18% of fall speed | ±22% of fall speed |
+
+The spawn interval is far shorter than it first appears it should be. A meteor
+crosses the canvas in roughly 1.1s, so an interval of 700ms puts barely one and a
+half on screen at a time — a trickle, not the constant curtain the encounter
+actually throws. 210ms holds about five in flight at stage 1.
 
 Speeds are expressed as a fraction of canvas height and player speed as a fraction
 of canvas width, so difficulty is identical at every viewport size.
@@ -130,7 +141,7 @@ Everything is drawn procedurally on a 2D canvas, consistent with the rest of the
 page. Draw order, back to front:
 
 1. **Cave backdrop** — near-black base with a warm radial glow behind the eye.
-2. **Dragon eye** — an almond outer shape in dark reds, an amber iris with a
+2. **Yar'Thul's eye** — an almond outer shape in dark reds, an amber iris with a
    radial-gradient glow, and a vertical black slit pupil. Static; it does not track
    the player.
 3. **Platform** — an angular rock silhouette across the lower canvas, top edge at
@@ -142,12 +153,12 @@ page. Draw order, back to front:
 6. **Impact bursts** — brief expanding orange rings where meteors hit the platform.
 
 Collision uses a circle for the meteor head against a circle for the flame. The
-flame's hit radius is 60% of its drawn width, deliberately smaller than the sprite,
-so near-misses read as fair.
+flame's hit radius is 60% of its drawn half-width, deliberately smaller than the
+sprite, so near-misses read as fair.
 
 ## Integration
 
-Five files change. Each addition mirrors the `thorian-new` / `dagger-new` entries
+Six files change. Each addition mirrors the `thorian-new` / `dagger-new` entries
 already present.
 
 | File | Change |
@@ -156,12 +167,12 @@ already present.
 | `js/qte.js` | New `// === YARTHUL NEW QTE ===` IIFE at the end of the file |
 | `css/qte.css` | `.yarthul-new-qte-wrap`, `-header`, `-status`, `-streak`, `-highscore`, `-canvas` |
 | `css/mobile.css` | `.yarthul-arrows` and `.yarthul-arrow-btn`, beside the existing fist and thorian d-pads |
-| `js/sb.js` | Add `'yarthul-new'` to `QTE_TYPES` and `_ALL_QTE_TYPES`; label `'Yarthul (New)'` in `QTE_LABELS` |
-| `js/matchmaking.js` | `{ id: 'yarthul-new', label: 'Yarthul', group: 'new', hook: 'YarthulNew' }` in `QTES` |
+| `js/sb.js` | Add `'yarthul-new'` to `QTE_TYPES` and `_ALL_QTE_TYPES`; label `"Yar'Thul (New)"` in `QTE_LABELS` |
+| `js/matchmaking.js` | `{ id: 'yarthul-new', label: "Yar'Thul", group: 'new', hook: 'YarthulNew' }` in `QTES` |
 
 ### Identifiers
 
-- Panel: `qte-panel-yarthul-new`, tab `data-qte="yarthul-new"`, label `Yarthul`
+- Panel: `qte-panel-yarthul-new`, tab `data-qte="yarthul-new"`, visible label `Yar'Thul`
 - Elements: `yarthul-new-qte-canvas`, `-status`, `-streak` (displays current stage),
   `-highscore`, `-start-btn`, `-resume-btn`
 - localStorage: `alb:yarthul-new-hs`, `alb:yarthul-new-hs-comp`
