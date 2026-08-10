@@ -38,6 +38,7 @@
     { id: 'thorian',     label: 'Thorian', group: 'old', hook: 'Thorian'    },
     { id: 'thorian-new', label: 'Thorian', group: 'new', hook: 'ThorianNew' },
     { id: 'dagger-new',  label: 'Dagger',  group: 'new', hook: 'DaggerNew'  },
+    { id: 'yarthul-new', label: "Yar'Thul", group: 'new', hook: 'YarthulNew' },
   ];
   const qteById = id => QTES.find(q => q.id === id);
   const qteLabel = id => { const q = qteById(id); return q ? (q.label + (q.group === 'new' ? ' (New)' : '')) : id; };

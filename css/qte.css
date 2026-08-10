@@ -877,3 +877,60 @@
 }
 
 
+
+/* ----- Yar'Thul (New) QTE ----- */
+.yarthul-new-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.yarthul-new-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.yarthul-new-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #ff8844;
+  min-width: 260px;
+  text-align: center;
+}
+
+.yarthul-new-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #7fe8ff;
+  min-width: 80px;
+}
+
+.yarthul-new-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.yarthul-new-qte-canvas {
+  border-radius: 10px;
+  display: block;
+  width: 100%;
+  max-width: 900px;
+}
+
+#yarthul-new-qte-start-btn,
+#yarthul-new-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}

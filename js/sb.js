@@ -1310,8 +1310,8 @@
   }
 
   // ---- all leaderboards view ----
-  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new'];
-  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)' };
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new'];
+  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)', 'yarthul-new': "Yar'Thul (New)" };
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
   async function loadAllLeaderboards(mode, platform) {
@@ -1774,7 +1774,7 @@
     adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
   }
 
-  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp'];
+  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','yarthul-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','yarthul-new-comp'];
 
   function adminClearOneScore() {
     if (!isAdmin() || !_adminCurrentUser) return;
