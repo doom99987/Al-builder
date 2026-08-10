@@ -95,12 +95,15 @@ Neither needs changes.
 
 ### Mobile controls
 
-On touch devices (`IS_MOBILE` from `core.js`) a two-button d-pad is injected below
-the canvas — ◀ and ▶ — built the same way the fist trainer builds its d-pad:
-created in JS, inserted after the canvas, and only when `IS_MOBILE` is true.
+On touch devices (`IS_MOBILE` from `core.js`) two arrow buttons — ◀ and ▶ — appear
+below the canvas. Not a cross-shaped d-pad: just the two directions this trainer
+uses, one at each side, since there is no vertical movement to represent.
+
+They are created in JS and inserted after the canvas only when `IS_MOBILE` is true,
+the same injection approach the fist trainer uses for its d-pad.
 
 The fist d-pad fires discrete taps on `touchstart`. This trainer needs *held*
-movement instead, so each button binds three events:
+movement instead, so each arrow binds three events:
 
 | Event | Effect |
 |---|---|
@@ -113,12 +116,13 @@ suppress scrolling and long-press selection. Clearing on `touchcancel` as well a
 `touchend` prevents the flame sticking in one direction if the browser steals the
 touch (notification, gesture, incoming call).
 
-The buttons write to the same two held-direction flags the keyboard handler sets, so
+The arrows write to the same two held-direction flags the keyboard handler sets, so
 movement has one code path regardless of input device. Pressing both directions at
 once cancels out to no movement, matching A+D on keyboard.
 
-Buttons are sized for thumbs (minimum 56px touch targets) and laid out at the
-canvas's lower corners, styled to match the existing `.fist-dpad-btn` treatment.
+They are sized for thumbs at 68×68px — matching `.fist-dpad-btn` — and sit in a
+single row split to the left and right of the canvas's lower area, far enough apart
+to be reachable two-thumbed without either hand covering the play field.
 
 ## Rendering
 
@@ -150,7 +154,8 @@ already present.
 |---|---|
 | `index.html` | Tab button in `#qte-group-new`; `#qte-panel-yarthul-new` panel; show/hide hook lines in `switchQteTab` |
 | `js/qte.js` | New `// === YARTHUL NEW QTE ===` IIFE at the end of the file |
-| `css/qte.css` | `.yarthul-new-qte-wrap`, `-header`, `-canvas`, and mobile move-button styles |
+| `css/qte.css` | `.yarthul-new-qte-wrap`, `-header`, `-status`, `-streak`, `-highscore`, `-canvas` |
+| `css/mobile.css` | `.yarthul-arrows` and `.yarthul-arrow-btn`, beside the existing fist and thorian d-pads |
 | `js/sb.js` | Add `'yarthul-new'` to `QTE_TYPES` and `_ALL_QTE_TYPES`; label `'Yarthul (New)'` in `QTE_LABELS` |
 | `js/matchmaking.js` | `{ id: 'yarthul-new', label: 'Yarthul', group: 'new', hook: 'YarthulNew' }` in `QTES` |
 
