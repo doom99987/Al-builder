@@ -338,3 +338,31 @@
   margin-top: 2px;
   line-height: 1.4;
 }
+
+/* Sync notice — shown when a first-login merge had to drop builds over the cap */
+.saved-builds-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #e9c560;
+  background: #14100a;
+  border: 1px solid #4a3d1a;
+  border-radius: 8px;
+}
+.saved-builds-notice button {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: #8c7a44;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.saved-builds-notice button:hover { color: #e9c560; }
