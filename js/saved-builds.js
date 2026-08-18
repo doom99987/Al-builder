@@ -75,7 +75,9 @@ function renderSavedBuilds() {
     const date = new Date(b.ts).toLocaleDateString();
     const race = _escHtml((b.state && b.state.race) || '');
     const cls  = _escHtml([b.state&&b.state.cls, b.state&&b.state.sup, b.state&&b.state.sub].filter(Boolean).join(' / '));
-    const lvl  = (b.state && b.state.lvl) || 1;
+    // Escaped like race/cls. A build state can now arrive from the account row
+    // rather than only from this browser, so nothing out of `state` is trusted.
+    const lvl  = _escHtml((b.state && b.state.lvl) || 1);
     const starClass = b.fav ? 'saved-build-star fav' : 'saved-build-star';
     const starTitle = b.fav ? 'Unfavourite' : 'Favourite';
     return `<div class="saved-build-card${b.fav ? ' is-fav' : ''}">
@@ -186,6 +188,9 @@ function toggleFavBuild(index) {
 //                  build deleted on one device does not come back from another.
 var _SAVED_BUILDS_META_KEY  = 'alb:saved-builds-meta';
 var _SAVED_BUILDS_DIRTY_KEY = 'alb:saved-builds-dirty';
+// Ceiling on the uploaded blob. 50 builds of normal size land well under this;
+// anything larger means corruption or abuse, not real use.
+var _MAX_SYNC_BYTES         = 512 * 1024;
 
 var _buildsSyncTimer  = null;
 var _buildsLastSynced = null; // JSON of the last successfully-uploaded array
@@ -312,6 +317,18 @@ async function _buildsSync() {
     const builds  = _getSavedBuilds().filter(_isValidBuild).slice(0, _MAX_SAVED_BUILDS);
     const payload = JSON.stringify(builds);
     if (payload === _buildsLastSynced) { localStorage.removeItem(_SAVED_BUILDS_DIRTY_KEY); return; }
+
+    // The server caps the number of builds but not their size, so a corrupt or
+    // hostile client could otherwise push an arbitrarily large blob into the
+    // account row. Refuse rather than upload; the local copy is untouched.
+    if (payload.length > _MAX_SYNC_BYTES) {
+      console.warn('Saved builds sync skipped: payload', payload.length, 'bytes exceeds', _MAX_SYNC_BYTES);
+      _showBuildsNotice('Your saved builds are too large to sync to your account (' +
+        Math.round(payload.length / 1024) + ' KB). They are still saved on this device. ' +
+        'Delete a few builds to re-enable syncing.');
+      localStorage.removeItem(_SAVED_BUILDS_DIRTY_KEY);
+      return;
+    }
 
     const ts = new Date().toISOString();
     const { error } = await client.from('player_builds')

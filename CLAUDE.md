@@ -102,6 +102,44 @@ Shared trainer contract: separate casual/competitive bests (`alb:<id>-hs` / `-hs
 
 Both work on any trainer that listens for real `keydown`/`keyup` on `document`. A consequence worth knowing: **synthetic `KeyboardEvent`s are blocked by design**, so trainer input cannot be tested programmatically — it needs a human at a keyboard.
 
+## Game data — where content lives
+
+Arcane Lineage updates mean bulk content edits. The expensive part is not editing, it is finding every place one item ripples to. **Game data is not in one place**, and some of it is not even in a `js/` file:
+
+| Data | Location |
+|---|---|
+| `races` (name → stat block) | `js/builder.js` |
+| `armourItems`, `gearItems`, `markItems`, `enchantItems`, `artifactItems`, `shardItems` | `js/builder.js` |
+| `gearSeries`, `gearPctBonuses`, `markMoves`, `artifactMoves` | `js/builder.js` |
+| `classMoves` (30 classes, per-move records) | `js/data-class-moves.js` |
+| `raceMoves` | `js/data-race-moves.js` |
+| `ENC_ITEMS` (495 entries: `[name, type, description]`) | `js/encyclopedia.js` |
+| `GEAR_NAME_MAP`, `WEAPON_NAME_MAP` (encyclopedia name → moves key) | `js/encyclopedia.js` |
+| `VL_ITEMS` (value list: `[name, category, value, demand]`) | **inline `<script>` in `index.html`** |
+
+The same item is therefore named in up to four places, and **nothing enforces that the spellings agree**. Real drift already in the tree includes `Crystallized Star` vs `Crystalized Star` and `Focussed Mind` vs `Focused Mind` — the item silently loses its moves or its encyclopedia link.
+
+### Before and after any content update
+
+```bash
+node tools/check-data.js
+```
+
+Cross-references every list and reports items present in one source but missing from another, duplicate entries, races with no move set, and alias-map keys resolving to nothing. Exits non-zero on drift. Run it before starting (to see pre-existing noise) and after (to confirm you added no new drift).
+
+It reads sources by extracting each data literal and evaluating it in isolation — the files touch the DOM at load, so they cannot be `require`d. If a rename breaks extraction the script reports `unreadable` rather than silently passing, so treat that as a failure, not a skip.
+
+### Adding a new item
+
+1. `js/builder.js` — the right `*Items` object, with its stat block
+2. `js/encyclopedia.js` — an `ENC_ITEMS` row; add a `GEAR_NAME_MAP` entry **only** if the encyclopedia spelling must differ from the builder's
+3. `index.html` — `VL_ITEMS`, if it is tradeable
+4. `js/data-class-moves.js` / `data-race-moves.js` — if it grants moves
+5. Bump `?v=` on every file touched
+6. `node tools/check-data.js`
+
+New class or race additionally needs a `classMoves`/`raceMoves` key and an `ENC_ITEMS` entry; the checker catches both if missed.
+
 ## Storage conventions
 
 - `alb:*` — builder and QTE state (`alb:autosave`, `alb:<qte>-hs`, `alb:saved-builds`)
