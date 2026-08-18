@@ -4438,6 +4438,12 @@ if (flashMiss  > 0) flashMiss  -= dt;
   }
 
   function startGame() {
+    // Arm the server session first. submitScore() drops any score that has no
+    // matching session, so without this the leaderboard never updates. The type
+    // string must match the one updateHs() submits, comp suffix included.
+    if (window._sbStartQteSession) {
+      window._sbStartQteSession('yarthul-new' + (window._qteCompMode ? '-comp' : ''));
+    }
     stage           = 1;
     score           = 0;
     stageTimer      = stageDuration(1);
