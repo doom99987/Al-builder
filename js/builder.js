@@ -508,6 +508,9 @@ const GEAR_TIER_SHAPES = [
   [[9], [5, 3], [2, 2, 2, 2]], // T6
 ];
 const MAX_GEAR_TIER    = GEAR_TIER_SHAPES.length - 1;
+// Weapons share the shape table but only reach T4 — so no weapon ever offers
+// the T5 {6}/{3,2} or T6 {9}/{5,3}/{2,2,2,2} rolls.
+const MAX_WEAPON_TIER  = 4;
 const GEAR_ALLOC_STATS = ["str", "arc", "end", "spd", "lck"];
 // Widest shape anywhere, which sets how many stat picks an instance carries.
 const MAX_SHAPE_LEN    = Math.max(...GEAR_TIER_SHAPES.flat().map(s => s.length));
@@ -592,8 +595,20 @@ function traitValue(id, tier) {
 // Artifacts carry 2 slots, both usable — the changelog's "four gear slots plus
 // one artifact. So ten copies is the absolute ceiling" is 4x2 + 1x2 = 10.
 // `gearOnly` traits cannot roll onto an artifact.
+//
+// Weapons use the same tier/shape model but stop at T4 and roll no traits at
+// all, so SPEC_WEAPON carries zero slots and its own tier ceiling.
 const SPEC_GEAR     = { slots: TRAIT_SLOTS, unlocked: TRAIT_SLOTS_UNLOCKED, allowGearOnly: true };
 const SPEC_ARTIFACT = { slots: 2,           unlocked: 2,                    allowGearOnly: false };
+const SPEC_WEAPON   = { slots: 0,           unlocked: 0,                    allowGearOnly: false,
+                        maxTier: MAX_WEAPON_TIER };
+
+// The tier ceiling for a kind of item. Only weapons override it today; gear and
+// artifacts run the full T0-T6 range.
+function specMaxTier(cfg) {
+  const c = cfg || SPEC_GEAR;
+  return c.maxTier == null ? MAX_GEAR_TIER : c.maxTier;
+}
 
 function makeGearInstance(cfg) {
   const c = cfg || SPEC_GEAR;
@@ -614,6 +629,46 @@ function traitIdsFor(cfg) {
 // single artifact slot.
 const gearInstances = _gearSlotIds.map(() => makeGearInstance(SPEC_GEAR));
 let artifactInstance = makeGearInstance(SPEC_ARTIFACT);
+
+// § WEAPON TIERS
+// Only some weapon families roll tiers. The rest are fixed items and show no
+// tier box at all.
+const _weaponSlotIds       = ["weapon-main", "weapon-offhand"];
+const TIERED_WEAPON_SERIES = new Set(["Dragon", "Blight", "Sun", "Sandstone", "Primordial"]);
+// offhandSeries groups everything under a flat "Shields" key, so the shields
+// belonging to the tiered families have to be named individually.
+const TIERED_OFFHAND_NAMES = ["Dragonflame Shield", "Sandstone Shield", "Primordial Shield"];
+
+const weaponInstances = _weaponSlotIds.map(() => makeGearInstance(SPEC_WEAPON));
+
+// Built on first use rather than at declaration: mainWeaponSeries is defined
+// much further down the file and is still in its temporal dead zone when
+// updatePecents() makes its first pass at load. Nothing is equipped that early,
+// so returning an empty set until the data exists is correct — and the result
+// is only cached once it is real.
+let _tieredWeaponNames = null;
+function tieredWeaponNames() {
+  if (_tieredWeaponNames) return _tieredWeaponNames;
+  const s = new Set();
+  try {
+    Object.entries(mainWeaponSeries).forEach(([series, items]) => {
+      if (TIERED_WEAPON_SERIES.has(series)) Object.keys(items).forEach(n => s.add(n));
+    });
+  } catch (e) {
+    return s;   // still in TDZ — don't cache
+  }
+  TIERED_OFFHAND_NAMES.forEach(n => s.add(n));
+  _tieredWeaponNames = s;
+  return s;
+}
+
+function weaponHasTiers(name) {
+  return !!name && tieredWeaponNames().has(name);
+}
+
+function resetWeaponInstance(i) {
+  weaponInstances[i] = makeGearInstance(SPEC_WEAPON);
+}
 
 // The stat block a gear instance actually grants: each shape value applied to
 // the stat chosen for that position. Unassigned positions simply contribute
@@ -663,7 +718,7 @@ function clampGearInstance(raw, cfg) {
   const inst = makeGearInstance(c);
   if (!raw || typeof raw !== "object") return inst;
 
-  inst.tier  = _int(raw.tier, 0, MAX_GEAR_TIER);
+  inst.tier  = _int(raw.tier, 0, specMaxTier(c));
   inst.shape = _int(raw.shape, 0, gearShapesFor(inst.tier).length - 1);
 
   // Stat picks: only the five real stats, only as many as the shape has
@@ -757,6 +812,29 @@ function gearStatContributions() {
       tierPts,
     });
   }
+
+  // Tiered weapons contribute through the same path. A weapon has no base stat
+  // block here — weaponBonuses is percentage-only and is applied separately in
+  // updatePecents() — so everything a weapon adds comes from its tier roll.
+  _weaponSlotIds.forEach((id, slot) => {
+    const name = document.getElementById(id)?.value || "";
+    if (!name || !weaponHasTiers(name)) return;
+    const alloc = gearInstanceAlloc(weaponInstances[slot]);
+    const stats = {};
+    let tierPts = 0;
+    GEAR_ALLOC_STATS.forEach(s => {
+      const v = alloc[s] || 0;
+      if (v) { stats[s] = (stats[s] || 0) + v; tierPts += v; }
+    });
+    out.push({
+      name, slot: -2 - slot, weapon: true,
+      tier: weaponInstances[slot].tier,
+      stats,
+      baseFor: () => 0,
+      tierFor: k => alloc[k] || 0,
+      tierPts,
+    });
+  });
   return out;
 }
 
@@ -2056,12 +2134,12 @@ function renderGearSpec(box, inst, onChange, cfg) {
   // Tier stepper
   const tierRow = document.createElement("div");
   tierRow.className = "gt-tier-row";
-  tierRow.appendChild(_gtBtn("−", "gt-step", "Lower tier", () => { specSetTier(inst, inst.tier - 1); redraw(); }, inst.tier <= 0));
+  tierRow.appendChild(_gtBtn("−", "gt-step", "Lower tier", () => { specSetTier(inst, inst.tier - 1, c); redraw(); }, inst.tier <= 0));
   const tierLbl = document.createElement("span");
   tierLbl.className = "gt-tier-lbl";
   tierLbl.textContent = "T" + inst.tier;
   tierRow.appendChild(tierLbl);
-  tierRow.appendChild(_gtBtn("+", "gt-step", "Raise tier", () => { specSetTier(inst, inst.tier + 1); redraw(); }, inst.tier >= MAX_GEAR_TIER));
+  tierRow.appendChild(_gtBtn("+", "gt-step", "Raise tier", () => { specSetTier(inst, inst.tier + 1, c); redraw(); }, inst.tier >= specMaxTier(c)));
 
   // Shape picker — only shown when the tier actually offers a choice.
   if (shapes.length > 1) {
@@ -2128,6 +2206,9 @@ function renderGearSpec(box, inst, onChange, cfg) {
   }
 
   // Trait slots — all TRAIT_SLOTS rendered, only the unlocked ones interactive.
+  // Weapons roll no traits at all, so they skip the row entirely rather than
+  // leaving an empty one behind.
+  if (!c.slots) return;
   const traitIds = traitIdsFor(c);
   const traitRow = document.createElement("div");
   traitRow.className = "gt-trait-row";
@@ -2197,8 +2278,8 @@ function renderGearSpec(box, inst, onChange, cfg) {
 // Changing tier keeps the stat picks the player already made where the new
 // shape still has room for them, so nudging T4 -> T5 doesn't wipe their work.
 // The shape index resets, since shape lists differ per tier.
-function specSetTier(inst, tier) {
-  inst.tier  = _int(tier, 0, MAX_GEAR_TIER);
+function specSetTier(inst, tier, cfg) {
+  inst.tier  = _int(tier, 0, specMaxTier(cfg));
   inst.shape = 0;
   specTrimStats(inst);
 }
@@ -2264,6 +2345,50 @@ function renderGearTierBox(slot) {
 function renderAllGearTierBoxes() {
   gearInstances.forEach((_, i) => renderGearTierBox(i));
   renderArtifactTierBox();
+  weaponInstances.forEach((_, i) => renderWeaponTierBox(i));
+}
+
+// --- the two weapon slots ---
+// Same editor as gear, minus traits and capped at T4. Untiered weapon families
+// get no box at all, so the slot looks exactly as it did before this existed.
+const _weaponTierBoxIds = ["weapon-tier-main", "weapon-tier-off"];
+
+function renderWeaponTierBox(slot) {
+  const picker = document.getElementById(_weaponSlotIds[slot]);
+  const box    = document.getElementById(_weaponTierBoxIds[slot]);
+  if (!picker || !box) return;
+  const tiered = weaponHasTiers(picker.value);
+  box.classList.toggle("gt-empty", !tiered);
+  box.classList.toggle("gt-hidden", !tiered);
+  if (!tiered) { box.innerHTML = ""; return; }
+  renderGearSpec(box, weaponInstances[slot], () => {
+    updatePecents();
+    if (typeof autoSave === "function") autoSave();
+  }, SPEC_WEAPON);
+}
+
+// A different weapon is a different physical copy, so its tier and allocation
+// reset — same rule as swapping a gear or artifact.
+const _weaponLastNames = _weaponSlotIds.map(() => "");
+
+function onWeaponSwapped(picker) {
+  const slot = _weaponSlotIds.indexOf(picker.id);
+  if (slot < 0) return;
+  const name = picker.value || "";
+  if (name !== _weaponLastNames[slot]) {
+    resetWeaponInstance(slot);
+    _weaponLastNames[slot] = name;
+  }
+  renderWeaponTierBox(slot);
+}
+
+// Adopt weapon instances from a loaded build (share link, saved build, autosave).
+function setWeaponInstances(list) {
+  weaponInstances.forEach((_, i) => {
+    weaponInstances[i] = clampGearInstance(Array.isArray(list) ? list[i] : null, SPEC_WEAPON);
+    _weaponLastNames[i] = document.getElementById(_weaponSlotIds[i])?.value || "";
+    renderWeaponTierBox(i);
+  });
 }
 
 // --- the single artifact slot ---
@@ -2961,6 +3086,7 @@ function buildWeaponDropdown(picker, seriesData) {
       picker.value = "";
       display.textContent = "— None —";
       close();
+      onWeaponSwapped(picker);
       renderMoves();
       updatePecents();
     });
@@ -2989,6 +3115,7 @@ function buildWeaponDropdown(picker, seriesData) {
           picker.value = name;
           display.textContent = `${name} (${type})`;
           close();
+          onWeaponSwapped(picker);
           renderMoves();
           updatePecents();
         });
@@ -7694,6 +7821,14 @@ function getBuildState() {
           })),
     wm:   mainWeaponPicker.value,
     wo:   offhandWeaponPicker.value,
+    // Weapon tier / stat picks, index-aligned with [wm, wo]. No traits — weapons
+    // don't roll them. Named `wti` rather than `wi` because _packState uses a
+    // local helper of that name.
+    wti:  weaponInstances.map(inst => ({
+            tier:  inst.tier,
+            shape: inst.shape,
+            stats: inst.stats.slice(),
+          })),
     arm:  armourPicker.value,
     ls:   lostScrollPicker.value,
     sc1:  scroll1Picker.value,
@@ -7903,6 +8038,22 @@ function _packState(state) {
       bw.write(idx < 0 ? 0 : Math.min(MAX_TRAIT_TIER, Math.max(1, t.tier | 0)), GEAR_TRAIT_TIER_BITS);
     }
   }
+  // Weapon instances last — 17 bits each, no trait fields. Appended rather than
+  // slotted in beside wm/wo so every link written before weapons had tiers still
+  // decodes: the reader yields zeros past the end, i.e. T0 with nothing picked.
+  (state.wti || []).slice(0, _weaponSlotIds.length).forEach(inst => {
+    bw.write(Math.min(MAX_WEAPON_TIER, Math.max(0, inst?.tier | 0)), GEAR_TIER_BITS);
+    bw.write(Math.min(3, Math.max(0, inst?.shape | 0)), GEAR_SHAPE_BITS);
+    for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+      const idx = GEAR_ALLOC_STATS.indexOf(inst?.stats?.[i]);
+      bw.write(idx < 0 ? 0 : idx + 1, GEAR_STATPICK_BITS);
+    }
+  });
+  // Permuth's chosen stat (Venia mark, +40%). getBuildState/loadBuildState have
+  // always carried it, but it was never packed — so a shared Venia build silently
+  // lost a 40% stat buff. Appended last; old links read 0 = none, which is what
+  // they meant anyway.
+  bw.write(GEAR_ALLOC_STATS.indexOf(state.pStat) + 1, GEAR_STATPICK_BITS);
   return bw.toB64url();
 }
 
@@ -7971,8 +8122,20 @@ function _unpackState(blob, name) {
     }
     return { tier, shape, stats, traits };
   })();
+  const wti = _weaponSlotIds.map(() => {
+    const tier  = br.read(GEAR_TIER_BITS);
+    const shape = br.read(GEAR_SHAPE_BITS);
+    const stats = [];
+    for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+      const idx = br.read(GEAR_STATPICK_BITS);
+      stats.push(idx > 0 ? (GEAR_ALLOC_STATS[idx - 1] || '') : '');
+    }
+    return { tier, shape, stats };
+  });
+  const _pIdx = br.read(GEAR_STATPICK_BITS);
+  const pStat = _pIdx > 0 ? (GEAR_ALLOC_STATS[_pIdx - 1] || '') : '';
   return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
-           mark, cov, covR, ench, art, sh, g, gi, ai, wm, wo, arm, ls, sc1, sc2, corr, msty, soul, name };
+           mark, cov, covR, ench, art, sh, g, gi, ai, wm, wo, wti, arm, ls, sc1, sc2, corr, msty, soul, pStat, name };
 }
 
 const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
@@ -8129,9 +8292,11 @@ function loadBuildState(state) {
   document.querySelectorAll('.gear-picker').forEach((p, i) => setPickerDisplay(p, gears[i] || ''));
   setGearInstances(state.gi);
 
-  // Weapons
+  // Weapons — pickers first, then the tier instances, for the same reason as
+  // gear: a tier roll only counts once a weapon is actually equipped.
   setPickerDisplay(mainWeaponPicker, state.wm || '');
   setPickerDisplay(offhandWeaponPicker, state.wo || '');
+  setWeaponInstances(state.wti);
 
   // Armour
   setPickerDisplay(armourPicker, state.arm || '');

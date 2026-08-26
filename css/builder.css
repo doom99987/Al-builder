@@ -1727,6 +1727,11 @@ h2 {
   min-height: 0;
   margin: 0;
 }
+/* Weapons differ: most families roll no tiers at all, so an untiered weapon
+   hides its box outright rather than reserving space the way a gear slot does. */
+#page-builder .gear-tier-box.gt-hidden {
+  display: none;
+}
 
 #page-builder .gt-tier-row {
   display: flex;
