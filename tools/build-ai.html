@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<!--
+  Build AI — standalone page.
+
+  Deliberately NOT linked from index.html. It is a separate tool that happens to
+  live in the same repo so it can read the same game data.
+
+  Open it directly (double-click works — the data loads as a plain script, not a
+  fetch). Re-run tools/ai/extract-data.js after a game update.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>AL Build AI</title>
+<style>
+  :root {
+    --bg: #14161c; --panel: #1c1f28; --panel2: #232733; --line: #333949;
+    --ink: #e6e8ef; --dim: #98a0b3; --accent: #d8a657; --good: #7fbf6a; --warn: #d98c5f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 64px; background: var(--bg); color: var(--ink);
+    font: 15px/1.55 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: .2px; }
+  .sub { color: var(--dim); font-size: 13px; margin-bottom: 20px; }
+  .askbar { display: flex; gap: 8px; margin-bottom: 10px; }
+  #q {
+    flex: 1; padding: 12px 14px; font-size: 15px; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  }
+  #q:focus { outline: none; border-color: var(--accent); }
+  button {
+    padding: 12px 20px; font-size: 15px; font-weight: 600; cursor: pointer;
+    color: #1a1c22; background: var(--accent); border: 0; border-radius: 8px;
+  }
+  button:hover { filter: brightness(1.08); }
+  .examples { font-size: 13px; color: var(--dim); margin-bottom: 22px; }
+  .examples b { color: var(--dim); font-weight: 600; }
+  .ex {
+    cursor: pointer; color: var(--accent); border-bottom: 1px dotted currentColor;
+    margin-right: 12px; display: inline-block; margin-top: 4px;
+  }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 12px; }
+  section h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .09em;
+               color: var(--dim); margin: 0 0 10px; font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 4px 0; vertical-align: top; }
+  td:first-child { color: var(--dim); width: 190px; padding-right: 12px; }
+  ul { margin: 0; padding-left: 18px; }
+  li { margin-bottom: 7px; }
+  li:last-child { margin-bottom: 0; }
+  strong { color: var(--accent); font-weight: 600; }
+  em { color: var(--dim); font-style: normal; }
+  .warn { border-color: var(--warn); }
+  .warn h2 { color: var(--warn); }
+  .meta { color: var(--dim); font-size: 12px; text-align: right; margin-top: 14px; }
+  .err { color: var(--warn); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AL Build AI</h1>
+  <div class="sub">
+    Ask for a build. It computes one with the same maths the builder uses — no guessing, no
+    network, no cost. Every request returns something; it will tell you what it had to assume.
+  </div>
+
+  <div class="askbar">
+    <input id="q" placeholder="max damage crit lancer" autocomplete="off" autofocus>
+    <button id="go">Build</button>
+  </div>
+  <div class="examples">
+    <b>Try:</b>
+    <span class="ex">max damage crit lancer</span>
+    <span class="ex">tanky build</span>
+    <span class="ex">healer</span>
+    <span class="ex">necro summon build vastayan</span>
+    <span class="ex">fast dagger guy</span>
+    <span class="ex">something cool</span>
+  </div>
+
+  <div id="out"></div>
+</div>
+
+<script src="ai/ai-data.js"></script>
+<script src="ai/model.js"></script>
+<script src="ai/knowledge.js"></script>
+<script src="ai/intent.js"></script>
+<script src="ai/optimize.js"></script>
+<script src="ai/explain.js"></script>
+<script src="ai/share.js"></script>
+<script src="ai/engine.js"></script>
+<script>
+(function () {
+  var out = document.getElementById('out');
+  var q   = document.getElementById('q');
+
+  if (!window.ALB_DATA) {
+    out.innerHTML = '<section class="warn"><h2>No data</h2>' +
+      'Run <code>node tools/ai/extract-data.js</code> to generate <code>ai/ai-data.js</code>.</section>';
+    return;
+  }
+  var engine = ALB_Engine.Engine(window.ALB_DATA);
+
+  // Minimal inline markup: **bold** and *dim*. Escape first — item and move text
+  // comes from the game data and is not ours to trust as HTML.
+  function esc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function md(s) {
+    return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                 .replace(/\*(.+?)\*/g, '<em>$1</em>');
+  }
+
+  function render(sections, ms) {
+    var html = '';
+    sections.forEach(function (s) {
+      var cls = s.h === 'Watch out' ? ' class="warn"' : '';
+      html += '<section' + cls + '><h2>' + esc(s.h) + '</h2>';
+      if (s.body) html += '<div>' + md(s.body) + '</div>';
+      if (s.table) {
+        html += '<table>';
+        s.table.forEach(function (row) {
+          html += '<tr><td>' + esc(row[0]) + '</td><td>' + md(row[1]) + '</td></tr>';
+        });
+        html += '</table>';
+      }
+      if (s.list) {
+        html += '<ul>';
+        s.list.forEach(function (i) { html += '<li>' + md(i) + '</li>'; });
+        html += '</ul>';
+      }
+      html += '</section>';
+    });
+    html += '<div class="meta">computed in ' + ms + 'ms</div>';
+    out.innerHTML = html;
+  }
+
+  function ask() {
+    out.innerHTML = '<section><h2>Working</h2>searching…</section>';
+    // Yield a frame so the "working" state paints before the search blocks.
+    setTimeout(function () {
+      var t0 = Date.now();
+      try {
+        var res = engine.ask(q.value);
+        render(res.explanation, Date.now() - t0);
+        // The link is async (the bz_ container is deflate-compressed), so it is
+        // appended once ready rather than holding up the build.
+        engine.link(res.build, { name: q.value || 'Build AI' }).then(function (url) {
+          if (!url) return;
+          var s = document.createElement('section');
+          s.innerHTML = '<h2>Open in AL Builder</h2>' +
+            '<a href="' + esc(url) + '" target="_blank" rel="noopener" ' +
+            'style="color:var(--accent);word-break:break-all">' + esc(url) + '</a>';
+          out.insertBefore(s, out.querySelector('.meta'));
+        });
+      } catch (e) {
+        out.innerHTML = '<section class="warn"><h2>Something broke</h2>' +
+                        '<div class="err">' + esc(e && e.message || e) + '</div></section>';
+      }
+    }, 16);
+  }
+
+  document.getElementById('go').addEventListener('click', ask);
+  q.addEventListener('keydown', function (e) { if (e.key === 'Enter') ask(); });
+  Array.prototype.forEach.call(document.querySelectorAll('.ex'), function (el) {
+    el.addEventListener('click', function () { q.value = el.textContent; ask(); });
+  });
+}());
+</script>
+</body>
+</html>
