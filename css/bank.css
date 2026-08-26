@@ -303,3 +303,19 @@
   transition: 0.15s;
 }
 .report-bank-btn:hover { background: #232338; border-color: #4a4a6e; }
+
+/* ── per-instance gear rows ─────────────────────────────────────────────────
+   Gear entries have no quantity (one row = one physical item); they carry an
+   Edit toggle that drops the shared gear-spec editor into the row. */
+.bank-gear-row { flex-wrap: wrap; }
+.bank-gear-edit {
+  flex: 1 1 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: #0f0f14;
+  border: 1px solid #26262f;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #8a8a99;
+}
+.bank-gear-edit-btn { min-width: 44px; }

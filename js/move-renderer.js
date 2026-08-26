@@ -212,14 +212,14 @@ function renderMoves() {
   html += `<div class="moves-columns">`;
 
   if (raceName) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="race">`;
     html += `<h2 class="moves-race-title">${raceName}</h2>`;
     if (raceData) { html += entityMovesHtml(raceData, lvl); html += entityPassivesHtml(raceData, lvl); }
     html += `</div>`;
   }
 
   if (baseClass) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="base">`;
     html += `<div class="moves-entity-label">Base Class</div>`;
     html += `<h2 class="moves-race-title">${baseClass}</h2>`;
     if (baseData) { html += entityMovesHtml(baseData, lvl); html += entityPassivesHtml(baseData, lvl); }
@@ -227,7 +227,7 @@ function renderMoves() {
   }
 
   if (superClass) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="super">`;
     html += `<div class="moves-entity-label">Super Class</div>`;
     html += `<h2 class="moves-race-title">${superClass}</h2>`;
     if (superData) { html += entityMovesHtml(superData, lvl); html += entityPassivesHtml(superData, lvl); }
@@ -235,7 +235,7 @@ function renderMoves() {
   }
 
   if (subClass) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="sub">`;
     html += `<div class="moves-entity-label">Sub Class</div>`;
     html += `<h2 class="moves-race-title">${subClass}</h2>`;
     if (subData) { html += entityMovesHtml(subData, lvl); html += entityPassivesHtml(subData, lvl); }
@@ -243,7 +243,7 @@ function renderMoves() {
   }
 
   if (artifactName) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="artifact">`;
     html += `<div class="moves-entity-label">Artifact</div>`;
     html += `<h2 class="moves-race-title">${artifactName}</h2>`;
     if (artifactData) { html += entityMovesHtml(artifactData, lvl); html += entityPassivesHtml(artifactData, lvl); }
@@ -251,7 +251,7 @@ function renderMoves() {
   }
 
   if (markName) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="mark">`;
     html += `<div class="moves-entity-label">Mark</div>`;
     html += `<h2 class="moves-race-title">${markName}</h2>`;
     if (markData) { html += entityMovesHtml(markData, lvl); html += entityPassivesHtml(markData, lvl); }
@@ -259,7 +259,7 @@ function renderMoves() {
   }
 
   if (weaponMain || weaponOff) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="weapon">`;
     if (weaponMain) {
       html += `<div class="moves-entity-label">Weapon</div>`;
       html += `<h2 class="moves-race-title">${weaponMain}</h2>`;
@@ -280,7 +280,7 @@ function renderMoves() {
   }
 
   if (covenantName) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="covenant">`;
     html += `<div class="moves-entity-label">Covenant</div>`;
     html += `<h2 class="moves-race-title">${covenantName} <span class="moves-entity-label">Rank ${covenantRank}</span></h2>`;
     if (covenantData) { html += covenantMovesHtml(covenantData, covenantRank); html += covenantPassivesHtml(covenantData, covenantRank); }
@@ -288,7 +288,7 @@ function renderMoves() {
   }
 
   if (scroll1Name || scroll2Name) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="scroll">`;
     if (scroll1Name) {
       html += `<div class="moves-entity-label">Scroll 1</div>`;
       html += `<h2 class="moves-race-title">${scroll1Name}</h2>`;
@@ -303,7 +303,7 @@ function renderMoves() {
   }
 
   if (lostScrollName) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="lostscroll">`;
     html += `<div class="moves-entity-label">Lost Scroll</div>`;
     html += `<h2 class="moves-race-title">${lostScrollName}</h2>`;
     if (lostScrollData) { html += entityMovesHtml(lostScrollData, lvl); html += entityPassivesHtml(lostScrollData, lvl); }
@@ -313,7 +313,7 @@ function renderMoves() {
   const equippedShards = [...document.querySelectorAll('.shard-picker')]
     .map(p => p.value).filter(Boolean);
   if (equippedShards.length) {
-    html += `<div class="moves-col">`;
+    html += `<div class="moves-col" data-info="shard">`;
     html += `<div class="moves-entity-label">Shards</div>`;
     equippedShards.forEach((name, i) => {
       const shard = shardItems[name];

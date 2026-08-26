@@ -869,5 +869,108 @@ const raceMoves = {
         effect: "Enemy-wide melee attack (blockable and dodgeable). Applies 3 turns of Weakened alongside 2 turns of Taunt to all hit enemies."
       }
     ]
+  },
+
+  // ── WITHERED GROVE RACES ──────────────────────────────────────────────────
+  // Added in the last week of the update and, per the changelog, untested
+  // beyond appearance and actives "generally working" — expect drift.
+  "Arborivia (3%)": {
+    innatePassives: [
+      {
+        level: 5,
+        name: "Vine Guard",
+        description: "Landing an attack grants 2.5% DR and +0.75 Flat Regen, stacking cumulatively up to 5 times. The stacks dissipate if you do not attack for a turn.\n\nThe regen scales with stats such as Outgoing healing. Can only trigger once per turn."
+      },
+      {
+        level: 5,
+        name: "Foliage",
+        description: "Vine Guard also grants a 10% chance to gain a bonus NRG at the start of your turn. This increases by 10% per Vine Guard stack you are holding, capping at 50%."
+      },
+      {
+        level: 30,
+        name: "Overgrowth",
+        description: "Casting a move while at max HP raises your CRIT% and DR by 10% and your SPD by 20 until the start of your next turn.\n\nThe buff is granted at the point of casting, not when the move deals damage."
+      }
+    ],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 10,
+        type: "Active",
+        name: "Leaf Thrust",
+        quote: "Blow a barrage of leaves at the opponent, this move has a high chance to land a critical hit.",
+        cost: 1,
+        cooldown: 6,
+        moveType: "Nature",
+        category: "Damage",
+        scaling: "STR/80 + ARC/80",
+        damage: "2*3",
+        effect: "Enemy-wide ranged attack. Unblockable and dodgeable.\n\nThis move has 50 extra CRIT%."
+      },
+      {
+        slot: "2nd Learn",
+        level: 40,
+        type: "Active",
+        name: "Maple Vindication",
+        quote: "Cast a large tree behind yourself, dealing light damage to all opponents while active.",
+        cost: 3,
+        cooldown: 10,
+        moveType: "Nature",
+        category: "Damage",
+        duration: 3,
+        scaling: "STR/80 + ARC/80",
+        damage: "2",
+        effect: "Enemy-wide and party-wide, ranged, unblockable and undodgeable. Cannot stack.\n\nGrants +1 FlatRGN and 10% DR. Every 1 BaseDMG you deal raises the strength of both by 5%, stacking additively — dealing 20 BaseDMG over the duration means +2 FlatRGN and 20% DR to you and your allies. The FlatRGN granted can scale with Outgoing healing.\n\nLike Ranger's Perennial Canopy this damages all opponents at the start of your turn while active, but unlike it this also deals damage on the turn it is cast. The most recently cast Maple Vindication takes precedence.\n\nThe tree colour follows your race variant's colour and the leaves your soul colour."
+      }
+    ]
+  },
+
+  "Calvariae (3%)": {
+    innatePassives: [
+      {
+        level: 1,
+        name: "Broken Bones",
+        description: "Upon losing HP equal to 5% or more of your max HP, recover 4 HP on your next turn. This can trigger up to 3 times in a turn and stacks up to 3 times in total.\n\nThe healing amount scales with Incoming healing, NOT Outgoing."
+      },
+      {
+        level: 20,
+        name: "Frail Body",
+        description: "If an instance of damage would deal 15% or more of your max HP, halve it and take the other half on your next turn.\n\nThe calculation runs after DR and other factors, reducing the incoming hit by 50%. The delayed half is TrueDMG and ignores all DR. Moves dealing TrueDMG (e.g. Rage Empower) cannot trigger this, and it cannot trigger while damage is already stored."
+      },
+      {
+        level: 30,
+        name: "Frugality",
+        description: "Broken Bones now also raises your Incoming Healing by 20% when it triggers, until the end of your next turn."
+      }
+    ],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 5,
+        type: "Active",
+        name: "Bone Throw",
+        quote: "Rip two bones out of your body, causing you to deal light damage to yourself, then throw them at the opponent.",
+        cost: 0,
+        cooldown: 3,
+        moveType: "Physical",
+        category: "Damage",
+        scaling: "STR/75",
+        damage: "3.5*2",
+        effect: "Single-target ranged attack. Blockable and dodgeable.\n\nThe second hit applies 2 turns of Bleeding. Costs you 5% of your max HP as True SelfDMG."
+      },
+      {
+        slot: "2nd Learn",
+        level: 35,
+        type: "Active",
+        name: "Brittle Cure",
+        quote: "Deal heavy self damage based on your current HP, then grant yourself DR.",
+        cost: 1,
+        cooldown: 8,
+        moveType: "Physical",
+        category: "Buff",
+        duration: 4,
+        effect: "Self-target utility.\n\nDeals 2 x 10% of your current HP as True SelfDMG and grants a 25% DR buff. Taking damage while active gives 1 NRG, once per turn.\n\nThe buff is granted before the self damage is dealt."
+      }
+    ]
   }
 };

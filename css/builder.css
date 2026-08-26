@@ -1712,3 +1712,290 @@ h2 {
   border-color: #6a2e2e;
   color: #d88a8a;
 }
+
+/* ── gear tier / stat allocation / traits ───────────────────────────────────
+   One box per gear slot, built by renderGearTierBox() in builder.js. Kept in
+   the layout while a slot is empty (.gt-empty) so picking and clearing gear
+   doesn't make the four rows jump. */
+#page-builder .gear-tier-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 2px 0;
+}
+#page-builder .gear-tier-box.gt-empty {
+  min-height: 0;
+  margin: 0;
+}
+
+#page-builder .gt-tier-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#page-builder .gt-tier-lbl {
+  font-size: 12px;
+  font-weight: 600;
+  color: #c9b8f0;
+  min-width: 22px;
+  text-align: center;
+  letter-spacing: 0.5px;
+}
+#page-builder .gt-left {
+  font-size: 11px;
+  color: #7a7a7a;
+  margin-left: 2px;
+  letter-spacing: 0.3px;
+}
+#page-builder .gt-left-done { color: #5f9f6f; }
+
+#page-builder .gt-step,
+#page-builder .gt-mini {
+  background: #16161c;
+  border: 1px solid #383844;
+  color: #b9b9c8;
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  font-size: 12px;
+}
+#page-builder .gt-step { width: 20px; height: 20px; }
+#page-builder .gt-mini { width: 16px; height: 16px; font-size: 11px; }
+#page-builder .gt-step:hover:not(:disabled),
+#page-builder .gt-mini:hover:not(:disabled) {
+  background: #23232e;
+  border-color: #5a4f88;
+  color: #d8d0f0;
+}
+#page-builder .gt-step:disabled,
+#page-builder .gt-mini:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+#page-builder .gt-alloc-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+#page-builder .gt-alloc {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: #131318;
+  border: 1px solid #2a2a34;
+  border-radius: 3px;
+  padding: 1px 3px;
+}
+#page-builder .gt-alloc-lbl {
+  font-size: 10px;
+  color: #8a8a99;
+  letter-spacing: 0.5px;
+  margin-right: 1px;
+}
+#page-builder .gt-alloc-n {
+  font-size: 11px;
+  color: #6a6a78;
+  min-width: 10px;
+  text-align: center;
+}
+#page-builder .gt-alloc-n.gt-alloc-on {
+  color: #b9a4f0;
+  font-weight: 600;
+}
+
+#page-builder .gt-trait-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+#page-builder .gt-trait {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: #131318;
+  border: 1px solid #2a2a34;
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+#page-builder .gt-trait-pick {
+  background: #1a1a1a;
+  border: 1px solid #383844;
+  color: #c8c8d4;
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 2px 4px;
+  min-width: 92px;
+  cursor: pointer;
+}
+#page-builder .gt-trait-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#page-builder .gt-trait-tier {
+  font-size: 11px;
+  color: #c9b8f0;
+  min-width: 18px;
+  text-align: center;
+}
+/* The third slot exists in the game but isn't unlockable yet — shown so the
+   build reads correctly, dimmed and inert so it can't be filled. */
+#page-builder .gt-trait-locked {
+  border-style: dashed;
+  border-color: #33333d;
+  opacity: 0.55;
+}
+#page-builder .gt-trait-lock {
+  font-size: 10px;
+  color: #6a6a78;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+}
+
+/* Tier shape (Mono / Duo / Quad) and the per-position stat pickers. A tier
+   grants fixed values; you choose which stat receives each one. */
+#page-builder .gt-shape-pick {
+  background: #1a1a1a;
+  border: 1px solid #383844;
+  color: #c8c8d4;
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 1px 3px;
+  cursor: pointer;
+  max-width: 84px;
+}
+#page-builder .gt-shape-fixed {
+  font-size: 11px;
+  color: #8a8a99;
+  letter-spacing: 0.3px;
+}
+#page-builder .gt-stat-pick {
+  background: #1a1a1a;
+  border: 1px solid #383844;
+  color: #c8c8d4;
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 1px 2px;
+  cursor: pointer;
+}
+/* With traits populated each slot needs a full row — a select plus a tier
+   stepper does not fit beside another one in a 180px column. */
+#page-builder .gt-trait { flex: 1 1 100%; }
+#page-builder .gt-trait-pick { flex: 1 1 auto; min-width: 0; }
+#page-builder .gt-trait-locked { flex: 0 0 auto; }
+
+/* ⓘ next to a picker label — jumps to that item's panel on the Info tab.
+   Sized to sit on the label baseline without changing the row's height. */
+#page-builder .info-jump {
+  background: none;
+  border: 0;
+  padding: 0 0 0 4px;
+  margin: 0;
+  color: #7c66c8;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+#page-builder .info-jump:hover { color: #b9a4f0; }
+#page-builder .info-jump:focus-visible {
+  outline: 1px solid #7c66c8;
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Per-gear rows inside a stat's Details panel — indented so the item names read
+   as a group under the flat sources above them. */
+#page-builder .stat-detail-sub .stat-detail-label {
+  padding-left: 10px;
+  position: relative;
+}
+#page-builder .stat-detail-sub .stat-detail-label::before {
+  content: "└";
+  position: absolute;
+  left: 0;
+  opacity: 0.45;
+}
+
+/* ── corruption form info panel ─────────────────────────────────────────── */
+#page-builder .corr-subtitle { color: #9a8ad0; margin-bottom: 6px; }
+#page-builder .corr-phase-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1d1d24;
+}
+#page-builder .corr-phase-lbl {
+  font-size: 11px;
+  color: #8a8a99;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+#page-builder .corr-phase-pick {
+  background: #1a1a1a;
+  border: 1px solid #383844;
+  color: #c8c8d4;
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+#page-builder .corr-phase-cap { font-size: 11px; color: #c9b8f0; }
+#page-builder .corr-mech { margin-top: 7px; }
+#page-builder .corr-mech-name {
+  display: block;
+  color: #c9b8f0;
+  font-size: 12px;
+  margin-bottom: 1px;
+}
+#page-builder .corr-general {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #1d1d24;
+}
+#page-builder .corr-general > .corr-mech-name { color: #8a8a99; }
+
+/* ── stat milestones (25 / 60 / 110) inside a stat's Details panel ──────── */
+#page-builder .stat-detail-ms {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid #202020;
+}
+#page-builder .stat-ms-row .stat-detail-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #4a4a52;
+}
+#page-builder .stat-ms-n {
+  display: inline-block;
+  min-width: 24px;
+  text-align: right;
+  color: #6a6a78;
+  font-weight: 700;
+}
+#page-builder .stat-ms-row .stat-detail-val { color: #5a5a66; font-weight: 400; }
+/* Reached — the whole row lifts so it reads at a glance. */
+#page-builder .stat-ms-hit .stat-detail-label { color: #9a8ad0; }
+#page-builder .stat-ms-hit .stat-ms-n        { color: #c9b8f0; }
+#page-builder .stat-ms-hit .stat-detail-val  { color: #5f9f6f; font-weight: 700; }
+
+/* Brief highlight on the section an ⓘ jump lands on — the Info tab can be
+   crowded, so without it the jump is easy to miss. */
+@keyframes info-jump-flash {
+  0%   { background: rgba(124, 102, 200, 0.22); }
+  100% { background: transparent; }
+}
+#page-builder .info-jump-flash {
+  animation: info-jump-flash 1.1s ease-out 1;
+  border-radius: 4px;
+}
+/* Also style the ⓘ when it sits on a section header rather than a label. */
+#page-builder .gear-sub-header .info-jump { font-size: 11px; vertical-align: middle; }
+@media (prefers-reduced-motion: reduce) {
+  #page-builder .info-jump-flash { animation: none; }
+}

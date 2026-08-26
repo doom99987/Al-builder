@@ -275,6 +275,19 @@
   /* Compact pickers */
   #page-builder .gear-slot            { gap: 2px; margin-bottom: 5px; }
   #page-builder .gear-label           { font-size: 11px; }
+
+  /* Gear tier / allocation / traits — steppers need real touch targets, and
+     the five stat cells wrap instead of overflowing the narrow gear column. */
+  #page-builder .gt-step              { width: 26px; height: 26px; font-size: 14px; }
+  #page-builder .gt-mini              { width: 22px; height: 22px; font-size: 13px; }
+  #page-builder .gt-alloc             { padding: 2px 4px; }
+  #page-builder .gt-alloc-row         { gap: 5px; }
+  #page-builder .gt-alloc-n           { min-width: 14px; font-size: 12px; }
+  #page-builder .gt-trait             { flex: 1 1 100%; }
+  #page-builder .gt-trait-pick        { flex: 1 1 auto; font-size: 12px; padding: 4px 6px; }
+
+  /* ⓘ jump-to-Info affordance — 16x12 on desktop is too small to tap. */
+  #page-builder .info-jump            { font-size: 16px; padding: 2px 6px; }
   #page-builder .race-label           { font-size: 11px; }
   #page-builder .race-row             { margin-bottom: 5px; gap: 6px; }
 
