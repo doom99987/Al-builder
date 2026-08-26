@@ -275,6 +275,16 @@ throws a TDZ `ReferenceError` and silently aborts the whole render. The identity
 stats therefore reuse values cached in `_statVals` during the same pass (relying
 on DOM order: str/arc/end/spd render before the items that read them).
 
+Crit Chance is the same story: it cannot call `getTotalStat('lck')`, so
+`updatePecents()` hand-rolls `totalLck` from the same parts. **Keep the two sums
+identical** — invested + race + mastery + gear + armour + level + Crystal Stars
++ Coag. Nail, then Permuth. The gear and armour terms were missing once, and
+because nothing throws, the only symptom was crit builds quietly reading tens of
+points low (45 Luck of tier points through Permuth is 63 crit chance — a whole
+overcrit tier). The Luck stat row and `_buildStatDetail('lck')` both already
+include gear, so any disagreement between them and the Crit Chance readout is
+this bug coming back.
+
 ### Share-link bit widths — the silent killer
 
 `_packState` writes each item index at a width derived from its list's length

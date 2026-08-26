@@ -960,7 +960,13 @@ function updatePecents() {
   const coagNailActive = hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"];
   const coagNailBonus = coagNailActive ? coagNailStacks * 1.5 : 0;
   const lckRow = _pctCache.lckInput;
-  let totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
+  // Crit Chance reads Luck 1:1 (§9), so this has to be the SAME total the Luck
+  // stat row shows — gear base stats, gear/artifact/weapon tier points and the
+  // armour's flat Luck included. Leaving them out silently capped crit builds:
+  // 45 tier points of Luck through Permuth is 63 crit chance, the difference
+  // between a guaranteed orange crit and a guaranteed red one.
+  let totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0)
+               + (gearStatBonuses.lck ?? 0) + (armour.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
   if (coagNailActive) totalLck += coagNailBonus;
   if (permuthStat === 'lck' && markPicker?.value === 'Venia') totalLck = Math.round(totalLck * 1.4);
 
