@@ -45,7 +45,7 @@
   -->
   <link rel="stylesheet" href="css/base.css?v=12">
   <link rel="stylesheet" href="css/nav.css?v=17">
-  <link rel="stylesheet" href="css/builder.css?v=27">
+  <link rel="stylesheet" href="css/builder.css?v=28">
   <link rel="stylesheet" href="css/qte.css?v=12">
   <link rel="stylesheet" href="css/mobile.css?v=16">
   <link rel="stylesheet" href="css/auth.css?v=21">
@@ -1049,6 +1049,10 @@
               <select class="weapon-picker" id="weapon-main">
                 <option value="">— None —</option>
               </select>
+              <!-- Only the tiered weapon families (Dragon, Blight, Sun,
+                   Sandstone, Primordial) render anything here. T0-T4, no
+                   traits. Filled by renderWeaponTierBox(). -->
+              <div class="gear-tier-box gt-empty gt-hidden" id="weapon-tier-main"></div>
             </div>
             <div class="gear-slot">
               <label class="gear-label">Off Hand
@@ -1057,6 +1061,7 @@
               <select class="weapon-picker" id="weapon-offhand">
                 <option value="">— None —</option>
               </select>
+              <div class="gear-tier-box gt-empty gt-hidden" id="weapon-tier-off"></div>
             </div>
 
             <h2 class="gear-sub-header">Lost Scrolls</h2>
@@ -1540,7 +1545,7 @@
 <script src="js/data-class-moves.js?v=22"></script>
 <script src="js/data-race-moves.js?v=15"></script>
 <script src="js/move-renderer.js?v=13"></script>
-<script src="js/builder.js?v=71"></script>
+<script src="js/builder.js?v=73"></script>
 <script src="js/qte-guard.js?v=1"></script>
 <script src="js/qte.js?v=24"></script>
 <script src="js/saved-builds.js?v=16"></script>

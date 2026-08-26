@@ -130,12 +130,33 @@ cannot be `{Strength, Strength}` — so no stat receives more than one value. In
 game the stats are rolled at random; here the user picks them, because this is a
 planner. `inst.stats[i]` names the stat receiving `shape[i]`.
 
-**Artifacts use the same model.** `SPEC_GEAR` and `SPEC_ARTIFACT` are the only
-place the two kinds differ: gear renders 3 trait slots with the third locked,
-artifacts render 2 with both usable, and artifacts filter out `gearOnly` traits.
-Pass the config to `makeGearInstance` / `clampGearInstance` / `renderGearSpec` /
-`specSetTrait`; omitting it defaults to gear. The changelog's "ten copies is the
-absolute ceiling" is 4 gears x 2 + 1 artifact x 2.
+**Artifacts and weapons use the same model.** `SPEC_GEAR`, `SPEC_ARTIFACT` and
+`SPEC_WEAPON` are the only place the kinds differ: gear renders 3 trait slots
+with the third locked, artifacts render 2 with both usable and filter out
+`gearOnly` traits, and weapons render **none** and stop at **T4**. Pass the
+config to `makeGearInstance` / `clampGearInstance` / `renderGearSpec` /
+`specSetTier` / `specSetTrait`; omitting it defaults to gear. The changelog's
+"ten copies is the absolute ceiling" is 4 gears x 2 + 1 artifact x 2 — weapons
+add none, having no traits.
+
+### Weapon tiers
+
+Only five weapon families roll tiers: **Dragon, Blight, Sun, Sandstone,
+Primordial** (`TIERED_WEAPON_SERIES`), plus the three shields from those same
+families (`TIERED_OFFHAND_NAMES`, listed by name because `offhandSeries` groups
+everything under a flat `"Shields"` key). Every other weapon shows no tier box
+at all — `.gt-hidden` removes it from the layout, unlike a gear slot, which keeps
+its empty box so the four rows don't jump.
+
+- `MAX_WEAPON_TIER` is **4**, so no weapon ever offers the T5 or T6 shapes.
+  `specMaxTier(cfg)` is the ceiling lookup; only weapons override it.
+- Weapons have **no base stat block** — `weaponBonuses` is percentage-only and is
+  applied separately in `updatePecents()`. Everything a weapon adds to the stat
+  rows comes from its tier roll, so `baseFor` on a weapon entry returns 0.
+- `tieredWeaponNames()` builds its set **lazily**, because `mainWeaponSeries` is
+  declared far below `updatePecents()` and is still in its temporal dead zone on
+  the first pass at load. It catches the TDZ throw and returns an uncached empty
+  set until the data exists — correct, since nothing is equipped that early.
 
 - `TRAIT_SLOTS` / `TRAIT_SLOTS_UNLOCKED` (3 / 2) — the third gear slot renders
   locked. Unlocking it is a one-number change; the encoding already reserves it.
@@ -149,18 +170,21 @@ absolute ceiling" is 4 gears x 2 + 1 artifact x 2.
   optional and formats its own row labels.
 - `gearStatContributions()` is the **only** place gear stats are summed. It
   returns per-item contributions (base stats and tier values separately, plus the
-  artifact) and has three consumers: `updatePecents()` for the total,
-  `_buildStatDetail()` for the Details breakdown, and `getTotalStat()`. All three
-  once summed gear independently and silently disagreed the moment tier values
-  existed — do not reintroduce a fourth accumulator.
+  artifact and any tiered weapons) and has three consumers: `updatePecents()` for
+  the total, `_buildStatDetail()` for the Details breakdown, and `getTotalStat()`.
+  All three once summed gear independently and silently disagreed the moment tier
+  values existed — do not reintroduce a fourth accumulator. Adding a new kind of
+  tiered item here makes it reach all three at once; that is the point.
+  Entries are tagged `artifact: true` / `weapon: true`, with `slot` `-1` for the
+  artifact and `-2 - i` for weapons.
 - Bank gear entries are **per-instance**: one row per physical copy, `qty` always
   1, addressed by a `uid`. Entries without a `uid` keep the old name+shard
   identity, so existing banks are untouched.
 ### What the changelog content does and does not compute
 
 Reference data and stat maths are two different things here. Gear base stats,
-gear/artifact tier values and the crit rework **do** feed the damage calculator
-through the stat rows. The following are recorded and displayed but compute
+gear/artifact/weapon tier values and the crit rework **do** feed the damage
+calculator through the stat rows. The following are recorded and displayed but compute
 nothing: the 25 gear traits, the stat milestones, `block-dr`/`nrg-chance`/
 `initiative`, Corruption Forms, the Corrupt Power gears' spend effects, and the
 new races' and enchants' passives. Wiring any of them up depends on the §12
@@ -244,9 +268,24 @@ index is unchanged), which is how `Crystallized Star` → `Crystalized Star` was
 fixed without breaking links.
 
 New appended fields must go at the **end** of the bit stream (the scrolls, gear
-instances, and corruption form all do) so short old blobs read back as zeros.
-Trait ids deliberately use a **fixed 8-bit width**, not a derived one, because
-that list is expected to keep growing.
+instances, corruption form, artifact instance and weapon instances all do, in
+that order) so short old blobs read back as zeros. Trait ids deliberately use a
+**fixed 8-bit width**, not a derived one, because that list is expected to keep
+growing.
+
+The weapon block is next-to-last: 17 bits per slot (tier 3 + shape 2 + four stat
+picks x 3), two slots, no trait fields — about 7 base64 chars. Links written
+before weapons had tiers run out of bytes there and decode to T0 with nothing
+picked, which is exactly what those builds meant. Verified: an old-format blob
+decodes byte-identical for every field ahead of the weapon block. Note
+`getBuildState()` calls the field **`wti`**, not `wi` — `_packState` already has
+a local helper named `wi`.
+
+**`pStat` (Permuth / Venia +40%) is packed last**, 3 bits. It had been produced by
+`getBuildState()` and consumed by `loadBuildState()` since Venia was added but was
+never written to the blob, so every shared Venia build silently arrived without
+its +40% stat buff — a large, invisible discrepancy between the builder and the
+link. Old links read 0 = none, which matches what they actually carried.
 
 | Data | Location |
 |---|---|
