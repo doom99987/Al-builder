@@ -106,6 +106,148 @@ Both work on any trainer that listens for real `keydown`/`keyup` on `document`. 
 
 Arcane Lineage updates mean bulk content edits. The expensive part is not editing, it is finding every place one item ripples to. **Game data is not in one place**, and some of it is not even in a `js/` file:
 
+### Gear instances (tier / stat points / traits)
+
+A gear's tier, allocated stat points, and traits describe **a player's copy** of
+an item, not the item — so none of it lives in `gearItems`, which stays the base
+stat table. A new gear needs no tier data at all.
+
+The shape is `{ tier, shape, stats:[…], traits:[…] }`, defined once in
+`js/builder.js` under `§ GEAR TIERS & TRAITS` and consumed in three places: the
+builder's four slots, the share-link encoder, and `bank.js` gear rows.
+
+**A tier does not grant loose points.** It grants one of a fixed set of shapes,
+and you choose which stats receive the shape's fixed values (`GEAR_TIER_SHAPES`):
+
+```
+T0 {0}   T1 {2}   T2 {3}|{1,1}   T3 {4}|{2,1}
+T4 {5}|{2,2}      T5 {6}|{3,2}   T6 {9}|{5,3}|{2,2,2,2}
+```
+
+Mono puts everything on one stat, Duo splits across two, T6 alone offers a Quad.
+The stats in a shape must be **distinct** — the changelog is explicit that a Duo
+cannot be `{Strength, Strength}` — so no stat receives more than one value. In
+game the stats are rolled at random; here the user picks them, because this is a
+planner. `inst.stats[i]` names the stat receiving `shape[i]`.
+
+**Artifacts use the same model.** `SPEC_GEAR` and `SPEC_ARTIFACT` are the only
+place the two kinds differ: gear renders 3 trait slots with the third locked,
+artifacts render 2 with both usable, and artifacts filter out `gearOnly` traits.
+Pass the config to `makeGearInstance` / `clampGearInstance` / `renderGearSpec` /
+`specSetTrait`; omitting it defaults to gear. The changelog's "ten copies is the
+absolute ceiling" is 4 gears x 2 + 1 artifact x 2.
+
+- `TRAIT_SLOTS` / `TRAIT_SLOTS_UNLOCKED` (3 / 2) — the third gear slot renders
+  locked. Unlocking it is a one-number change; the encoding already reserves it.
+- `gearTraits` holds all 25 traits, five per family (Strength/Endurance/Arcane/
+  Speed/Luck). **Trait tiers are 1–2 only** — the changelog says T1 and T2 "are
+  the final values". `gearOnly` traits cannot roll onto an artifact.
+- The table is **append only** — reordering or removing a trait repoints every
+  existing share link, because `_L.trait` is positional.
+- `window._gearSpecRender/_gearSpecNew/_gearSpecClamp` are how `bank.js` reuses
+  the editor. The bank popout runs without `builder.js`, so it treats them as
+  optional and formats its own row labels.
+- `gearStatContributions()` is the **only** place gear stats are summed. It
+  returns per-item contributions (base stats and tier values separately, plus the
+  artifact) and has three consumers: `updatePecents()` for the total,
+  `_buildStatDetail()` for the Details breakdown, and `getTotalStat()`. All three
+  once summed gear independently and silently disagreed the moment tier values
+  existed — do not reintroduce a fourth accumulator.
+- Bank gear entries are **per-instance**: one row per physical copy, `qty` always
+  1, addressed by a `uid`. Entries without a `uid` keep the old name+shard
+  identity, so existing banks are untouched.
+### What the changelog content does and does not compute
+
+Reference data and stat maths are two different things here. Gear base stats,
+gear/artifact tier values and the crit rework **do** feed the damage calculator
+through the stat rows. The following are recorded and displayed but compute
+nothing: the 25 gear traits, the stat milestones, `block-dr`/`nrg-chance`/
+`initiative`, Corruption Forms, the Corrupt Power gears' spend effects, and the
+new races' and enchants' passives. Wiring any of them up depends on the §12
+damage-formula rewrite, which is not implemented — the calculator still uses the
+old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat` with
+`DRMultiplier = 100 / (100 + Reduc)`.
+
+`races` entries for **Arborivia and Calvariae carry placeholder zero stat
+blocks** — the changelog documents their passives and actives in full but never
+publishes base stats. Builds using them under-count until the real numbers land.
+
+### Corruption Forms
+
+`corruptionForms` (Tyranny / Heresy / Blasphemy) plus `CORRUPTION_GENERAL` hold
+the mechanics as **reference text only**. The forms are turn-by-turn combat state
+— Notch, Mandate, Dark/Light Force, Recoil, Corrupt Power — that this planner
+does not simulate, so none of it feeds the stat maths. It renders in the Info tab
+beside Gear/Enchant/Artifact, reached by the ⓘ next to the Form picker.
+
+`corruptionPhase` is a display-only what-if: it drives `corruptionStackCap()`
+(2 at Phase 0-2, 3 at 3-4, 4 at 5) and nothing else, so it is deliberately kept
+out of the build state. In game there is currently no way to raise it — Corrupt
+Essence Shards were cut from the update.
+
+### Levelling (changelog §9)
+
+`Max_Lvl` 50, `POINTS_PER_LEVEL` 3 — `getEffectiveTotal()` is `lvl * 3`, counting
+from level 1, because the changelog states a level-50 character has exactly 150
+allocatable points. Dullahan's extra `floor(lvl/10)*3` still layers on top.
+
+`LEVEL_STAT_BONUS_EVERY` is **10**, via the `levelStatBonus()` helper. This file
+previously hardcoded `Math.floor(lvl / 5)` in six places. The changelog puts the
++1-to-all at every 10 levels ("~7 in every stat" at level 50 = racial base plus
+5), so the interval changed as well as the cap. One constant now, so going back
+is a one-line edit rather than six.
+
+Note the stat inputs listen for **`change`, not `input`** — the running `spent`
+total only updates on `change`, so scripted tests that dispatch `input` will
+silently leave "Points Remaining" stale.
+
+### Stat rework (changelog §9)
+
+`statMilestones` + `STAT_MILESTONE_TIERS` (25 / 60 / 110) render at the bottom of
+each stat's Details panel, measured against the total that panel just derived.
+The developer notes the **Strength and Arcane final milestones are swapped in
+game** relative to intent; they are listed as they behave.
+
+Each stat also gained an identity, all at `STAT_IDENTITY_RATIO` (10%) of their
+source stat and shown as new items in the derived panel: `block-dr` from STR,
+`nrg-chance` from ARC, `initiative` from SPD. Endurance additionally grants
+`END / END_HEAL_DIVISOR` (4) to both healing stats. Luck now grants Crit Chance
+1:1 and **no longer scales Crit Damage**, which is a flat `CRIT_DMG_BASE` (2x)
+plus 1 per higher crit tier; Crit Fatigue is gone.
+
+**Load-order hazard, learned the hard way:** `updatePecents()` runs at file load,
+long before `dmgBonusActive` and friends are declared. Anything it calls must not
+touch them — `getTotalStat()` does, so calling it from inside the percent loop
+throws a TDZ `ReferenceError` and silently aborts the whole render. The identity
+stats therefore reuse values cached in `_statVals` during the same pass (relying
+on DOM order: str/arc/end/spd render before the items that read them).
+
+### Share-link bit widths — the silent killer
+
+`_packState` writes each item index at a width derived from its list's length
+(`_wb(list.length)`). Growing a list past a power of two widens the field, shifts
+every field after it, and **invalidates every share link ever generated.** Nothing
+fails loudly; users just find old links decode to the wrong build.
+
+`node tools/check-data.js` now reports headroom. As of 2026-08-25 the tight ones
+are **marks (1 entry of room)** and **enchants (1)** — Polaris/Octantis/Skyblaze
+took enchants from 12 to 15, so a 16th widens the field. Shards have 2,
+artifacts 4. Gears sit at 80 with room to 128; races at 19 with room to 32. Adding a single new Mark breaks every existing
+link — check before any content update that adds to those lists.
+
+**`gearSeries` is append-only for the same reason.** `_L.gear` is
+`Object.values(gearSeries).flat()`, so a gear's position in that structure *is*
+its share-link id. Inserting into an existing series shifts every gear after it.
+New gears go at the end of the last series, or in a new series appended last —
+that is why Withered Grove is at the bottom. Renaming in place is safe (the
+index is unchanged), which is how `Crystallized Star` → `Crystalized Star` was
+fixed without breaking links.
+
+New appended fields must go at the **end** of the bit stream (the scrolls, gear
+instances, and corruption form all do) so short old blobs read back as zeros.
+Trait ids deliberately use a **fixed 8-bit width**, not a derived one, because
+that list is expected to keep growing.
+
 | Data | Location |
 |---|---|
 | `races` (name → stat block) | `js/builder.js` |
@@ -162,3 +304,4 @@ The `owner` field matters: a *different* account logging in must **replace** loc
 - `images/Logo.png` is white-on-transparent and disappears on light backgrounds; the `favicon-*.png` set has black baked in. Use those for anything that renders on an unknown background.
 - The load-order comment blocks in `index.html` carry counts ("all 12 QTE trainer IIFEs") that drift as trainers are added. Update them alongside the code.
 - Sending user text into `innerHTML` needs `_escHtml` (`saved-builds.js`) or `_sanitizeSummHtml` (`core.js`).
+- `index.html` declares `<meta charset="utf-8">` and it must stay first in `<head>`. Without it browsers fall back to windows-1252 and every em-dash in the UI renders as mojibake. GitHub Pages sends the charset in its header, which masks the problem in production while breaking `python -m http.server` locally.

@@ -4,6 +4,11 @@
   AL Builder
 </title>
 <head>
+  <!-- Must stay first in <head>: without it the browser falls back to
+       windows-1252 and every em-dash in the UI renders as mojibake. GitHub
+       Pages happens to send charset=utf-8 in the header, which masked this
+       in production while local dev showed the broken text. -->
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Google AdSense -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9640905025021267"
@@ -40,9 +45,9 @@
   -->
   <link rel="stylesheet" href="css/base.css?v=12">
   <link rel="stylesheet" href="css/nav.css?v=17">
-  <link rel="stylesheet" href="css/builder.css?v=20">
+  <link rel="stylesheet" href="css/builder.css?v=27">
   <link rel="stylesheet" href="css/qte.css?v=12">
-  <link rel="stylesheet" href="css/mobile.css?v=14">
+  <link rel="stylesheet" href="css/mobile.css?v=16">
   <link rel="stylesheet" href="css/auth.css?v=21">
   <link rel="stylesheet" href="css/overlay.css?v=1">
   <link rel="stylesheet" href="css/saved-builds.css?v=14">
@@ -53,7 +58,7 @@
   <link rel="stylesheet" href="css/encyclopedia.css?v=6">
   <link rel="stylesheet" href="css/matchmaking.css?v=7">
   <link rel="stylesheet" href="css/reports.css?v=3">
-  <link rel="stylesheet" href="css/bank.css?v=2">
+  <link rel="stylesheet" href="css/bank.css?v=3">
 </head>
 
 <body>
@@ -744,15 +749,34 @@
         <div class="marks-section">
           <h2>Marks</h2>
           <div class="gear-slot">
-            <label class="gear-label">Mark</label>
+            <label class="gear-label">Mark
+                <button type="button" class="info-jump" data-info-target="[data-info='mark']" title="Show Mark details on the Info tab" aria-label="Show Mark details on the Info tab">&#9432;</button>
+              </label>
             <select class="mark-picker" id="mark-1">
+              <option value="">— None —</option>
+            </select>
+          </div>
+
+          <h2 class="gear-sub-header">Corruption Forms</h2>
+          <div class="gear-slot">
+            <label class="gear-label">
+              Form
+              <!-- Effects render in their own panel on the Info tab, next to
+                   Gear / Enchant / Artifact. This jumps there. -->
+              <button type="button" class="info-jump" data-info-target="#corruption-desc-section"
+                      title="Show this form's effects on the Info tab"
+                      aria-label="Show this form's effects on the Info tab">&#9432;</button>
+            </label>
+            <select id="corruption-picker">
               <option value="">— None —</option>
             </select>
           </div>
 
           <h2 class="gear-sub-header">Covenant</h2>
           <div class="gear-slot">
-            <label class="gear-label">Covenant</label>
+            <label class="gear-label">Covenant
+                <button type="button" class="info-jump" data-info-target="[data-info='covenant']" title="Show Covenant details on the Info tab" aria-label="Show Covenant details on the Info tab">&#9432;</button>
+              </label>
             <div class="covenant-row">
               <select class="covenant-picker" id="covenant-picker" disabled>
                 <option value="">— None —</option>
@@ -764,7 +788,9 @@
 
           <h2 class="gear-sub-header">Enchants</h2>
           <div class="gear-slot">
-            <label class="gear-label">Enchant</label>
+            <label class="gear-label">Enchant
+                <button type="button" class="info-jump" data-info-target="#enchant-desc-section" title="Show Enchant details on the Info tab" aria-label="Show Enchant details on the Info tab">&#9432;</button>
+              </label>
             <select id="enchant-picker">
               <option value="">— None —</option>
             </select>
@@ -772,22 +798,18 @@
 
           <h2 class="gear-sub-header">Artifacts</h2>
           <div class="gear-slot">
-            <label class="gear-label">Artifact</label>
+            <label class="gear-label">Artifact
+                <button type="button" class="info-jump" data-info-target="#artifact-desc-section" title="Show Artifact details on the Info tab" aria-label="Show Artifact details on the Info tab">&#9432;</button>
+              </label>
             <select id="artifact-picker">
               <option value="">— None —</option>
             </select>
+            <!-- Artifacts carry the same tier/stat model as gear, plus 2 trait
+                 slots (both usable). Filled by renderArtifactTierBox(). -->
+            <div class="gear-tier-box gt-empty" id="artifact-tier-box"></div>
           </div>
 
-          <h2 class="gear-sub-header">Shards</h2>
-          <div class="shards-grid">
-            <div class="shard-slot"><label class="shard-label">S1</label><select class="shard-picker" id="shard-1"><option value="">—</option></select></div>
-            <div class="shard-slot"><label class="shard-label">S2</label><select class="shard-picker" id="shard-2"><option value="">—</option></select></div>
-            <div class="shard-slot"><label class="shard-label">S3</label><select class="shard-picker" id="shard-3"><option value="">—</option></select></div>
-            <div class="shard-slot"><label class="shard-label">S4</label><select class="shard-picker" id="shard-4"><option value="">—</option></select></div>
-            <div class="shard-slot"><label class="shard-label">S5</label><select class="shard-picker" id="shard-5"><option value="">—</option></select></div>
-            <div class="shard-slot"><label class="shard-label">S6</label><select class="shard-picker" id="shard-6"><option value="">—</option></select></div>
-            <div class="shard-slot"><label class="shard-label">S7</label><select class="shard-picker" id="shard-7"><option value="">—</option></select></div>
-          </div>
+
         </div>
 
         <div class="stats-left">
@@ -799,7 +821,7 @@
 
           <div class="box-row">
             <div class="box">
-              Lvl: <input id="Lvl" type="number" value="1" min="1" max="40">
+              Lvl: <input id="Lvl" type="number" value="1" min="1" max="50">
             </div>
             <div class="box">
               Gold: <span id="Gold">0</span>
@@ -936,35 +958,65 @@
               <span class="percent-val" id="energy-pct">—</span>
               <span class="percent-label">energy%</span>
             </div>
+            <!-- Reworked stat identities: each derives from another stat's total
+                 at 10%, so they have no stat row of their own. -->
+            <div class="percent-item" data-stat="block-dr" title="Blocking reduces damage by an extra 10% of your Strength">
+              <span class="percent-val" id="block-dr-pct">—</span>
+              <span class="percent-label">block dr%</span>
+            </div>
+            <div class="percent-item" data-stat="nrg-chance" title="Chance at the start of your turn to gain an extra energy — 10% of your Arcane">
+              <span class="percent-val" id="nrg-chance-pct">—</span>
+              <span class="percent-label">nrg chance%</span>
+            </div>
+            <div class="percent-item" data-stat="initiative" title="Turn order runs highest Initiative first — 10% of your Speed">
+              <span class="percent-val" id="initiative-pct">—</span>
+              <span class="percent-label">initiative</span>
+            </div>
           </div>
         </div>
 
         <div class="gear-section">
           <div class="gear-section-col">
             <h2>Gears</h2>
+            <!-- Each gear slot carries a tier / stat-allocation / trait box, filled
+                 by renderGearTierBox() in builder.js. Left empty here so the four
+                 slots cannot drift apart and so TRAIT_SLOTS stays the one source
+                 of truth for how many trait slots exist. -->
             <div class="gear-slot">
-              <label class="gear-label">Gear 1</label>
+              <label class="gear-label">Gear 1
+                <button type="button" class="info-jump" data-info-target="#gear-desc-section" title="Show Gear details on the Info tab" aria-label="Show Gear details on the Info tab">&#9432;</button>
+              </label>
               <select class="gear-picker" id="gear-1">
                 <option value="">— None —</option>
               </select>
+              <div class="gear-tier-box gt-empty" id="gear-tier-1"></div>
             </div>
             <div class="gear-slot">
-              <label class="gear-label">Gear 2</label>
+              <label class="gear-label">Gear 2
+                <button type="button" class="info-jump" data-info-target="#gear-desc-section" title="Show Gear details on the Info tab" aria-label="Show Gear details on the Info tab">&#9432;</button>
+              </label>
               <select class="gear-picker" id="gear-2">
                 <option value="">— None —</option>
               </select>
+              <div class="gear-tier-box gt-empty" id="gear-tier-2"></div>
             </div>
             <div class="gear-slot">
-              <label class="gear-label">Gear 3</label>
+              <label class="gear-label">Gear 3
+                <button type="button" class="info-jump" data-info-target="#gear-desc-section" title="Show Gear details on the Info tab" aria-label="Show Gear details on the Info tab">&#9432;</button>
+              </label>
               <select class="gear-picker" id="gear-3">
                 <option value="">— None —</option>
               </select>
+              <div class="gear-tier-box gt-empty" id="gear-tier-3"></div>
             </div>
             <div class="gear-slot">
-              <label class="gear-label">Gear 4</label>
+              <label class="gear-label">Gear 4
+                <button type="button" class="info-jump" data-info-target="#gear-desc-section" title="Show Gear details on the Info tab" aria-label="Show Gear details on the Info tab">&#9432;</button>
+              </label>
               <select class="gear-picker" id="gear-4">
                 <option value="">— None —</option>
               </select>
+              <div class="gear-tier-box gt-empty" id="gear-tier-4"></div>
             </div>
 
             <h2 class="gear-sub-header">Armour</h2>
@@ -974,18 +1026,34 @@
                 <option value="">— None —</option>
               </select>
             </div>
+
+            <h2 class="gear-sub-header">Shards<button type="button" class="info-jump" data-info-target="[data-info='shard']" title="Show Shard details on the Info tab" aria-label="Show Shard details on the Info tab">&#9432;</button></h2>
+            <div class="shards-grid">
+              <div class="shard-slot"><label class="shard-label">S1</label><select class="shard-picker" id="shard-1"><option value="">—</option></select></div>
+              <div class="shard-slot"><label class="shard-label">S2</label><select class="shard-picker" id="shard-2"><option value="">—</option></select></div>
+              <div class="shard-slot"><label class="shard-label">S3</label><select class="shard-picker" id="shard-3"><option value="">—</option></select></div>
+              <div class="shard-slot"><label class="shard-label">S4</label><select class="shard-picker" id="shard-4"><option value="">—</option></select></div>
+              <div class="shard-slot"><label class="shard-label">S5</label><select class="shard-picker" id="shard-5"><option value="">—</option></select></div>
+              <div class="shard-slot"><label class="shard-label">S6</label><select class="shard-picker" id="shard-6"><option value="">—</option></select></div>
+              <div class="shard-slot"><label class="shard-label">S7</label><select class="shard-picker" id="shard-7"><option value="">—</option></select></div>
+            </div>
+
           </div>
 
           <div class="gear-section-col">
             <h2>Weapons</h2>
             <div class="gear-slot">
-              <label class="gear-label">Weapon</label>
+              <label class="gear-label">Weapon
+                <button type="button" class="info-jump" data-info-target="[data-info='weapon']" title="Show Weapon details on the Info tab" aria-label="Show Weapon details on the Info tab">&#9432;</button>
+              </label>
               <select class="weapon-picker" id="weapon-main">
                 <option value="">— None —</option>
               </select>
             </div>
             <div class="gear-slot">
-              <label class="gear-label">Off Hand</label>
+              <label class="gear-label">Off Hand
+                <button type="button" class="info-jump" data-info-target="[data-info='weapon']" title="Show Off Hand details on the Info tab" aria-label="Show Off Hand details on the Info tab">&#9432;</button>
+              </label>
               <select class="weapon-picker" id="weapon-offhand">
                 <option value="">— None —</option>
               </select>
@@ -993,7 +1061,9 @@
 
             <h2 class="gear-sub-header">Lost Scrolls</h2>
             <div class="gear-slot">
-              <label class="gear-label">Lost Scroll</label>
+              <label class="gear-label">Lost Scroll
+                <button type="button" class="info-jump" data-info-target="[data-info='lostscroll']" title="Show Lost Scroll details on the Info tab" aria-label="Show Lost Scroll details on the Info tab">&#9432;</button>
+              </label>
               <select class="scroll-picker" id="scroll-lost">
                 <option value="">— None —</option>
               </select>
@@ -1001,13 +1071,17 @@
 
             <h2 class="gear-sub-header">Scrolls</h2>
             <div class="gear-slot">
-              <label class="gear-label">Scroll 1</label>
+              <label class="gear-label">Scroll 1
+                <button type="button" class="info-jump" data-info-target="[data-info='scroll']" title="Show Scroll details on the Info tab" aria-label="Show Scroll details on the Info tab">&#9432;</button>
+              </label>
               <select class="scroll-picker" id="scroll-1">
                 <option value="">— None —</option>
               </select>
             </div>
             <div class="gear-slot">
-              <label class="gear-label">Scroll 2</label>
+              <label class="gear-label">Scroll 2
+                <button type="button" class="info-jump" data-info-target="[data-info='scroll']" title="Show Scroll details on the Info tab" aria-label="Show Scroll details on the Info tab">&#9432;</button>
+              </label>
               <select class="scroll-picker" id="scroll-2">
                 <option value="">— None —</option>
               </select>
@@ -1032,6 +1106,10 @@
         <div id="artifact-desc-section" class="enchant-info-section" style="display:none">
           <h3 class="moves-section-title">Artifact</h3>
           <div id="artifact-desc"></div>
+        </div>
+        <div id="corruption-desc-section" class="enchant-info-section" style="display:none">
+          <h3 class="moves-section-title">Corruption Form</h3>
+          <div id="corruption-desc"></div>
         </div>
         <div id="mastery-info-section" class="enchant-info-section" style="display:none">
           <h3 class="moves-section-title">Mastery Passives</h3>
@@ -1460,17 +1538,17 @@
 -->
 <script src="js/core.js?v=14"></script>
 <script src="js/data-class-moves.js?v=22"></script>
-<script src="js/data-race-moves.js?v=14"></script>
-<script src="js/move-renderer.js?v=12"></script>
-<script src="js/builder.js?v=59"></script>
+<script src="js/data-race-moves.js?v=15"></script>
+<script src="js/move-renderer.js?v=13"></script>
+<script src="js/builder.js?v=71"></script>
 <script src="js/qte-guard.js?v=1"></script>
 <script src="js/qte.js?v=24"></script>
 <script src="js/saved-builds.js?v=16"></script>
-<script src="js/trades.js?v=48"></script>
+<script src="js/trades.js?v=50"></script>
 <script src="js/party.js?v=31"></script>
 <script src="js/builds.js?v=6"></script>
-<script src="js/encyclopedia.js?v=7"></script>
-<script src="js/bank.js?v=2"></script>
+<script src="js/encyclopedia.js?v=12"></script>
+<script src="js/bank.js?v=6"></script>
 <script src="js/overlay.js?v=3"></script>
 <script src="js/donation.js?v=4"></script>
 <script src="js/matchmaking.js?v=9"></script>

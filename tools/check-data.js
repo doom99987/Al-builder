@@ -209,6 +209,49 @@ for (const c of keys(cls.classMoves)) {
   if (!encSet.has(norm(c))) note('class-no-encyclopedia', { class: norm(c) });
 }
 
+// 6. Share-link bit-width headroom.
+//
+// _packState writes each item index at a width derived from its list's length
+// (`_wb(list.length)`). Growing a list past a power of two therefore widens the
+// field and shifts every field after it — silently invalidating every share
+// link ever generated. Nothing else in the codebase notices; users just find
+// their saved links decode to the wrong build.
+//
+// So: fail while there is still room to plan, not after the boundary is crossed.
+function wb(n) { let b = 1; while ((1 << b) <= n) b++; return b; }
+
+const ENCODED_LISTS = {
+  races:      keys(builder.races).length,
+  marks:      keys(builder.markItems).length,
+  enchants:   keys(builder.enchantItems).length,
+  artifacts:  keys(builder.artifactItems).length,
+  shards:     keys(builder.shardItems).length,
+  armour:     keys(builder.armourItems).length,
+  gears:      (() => {
+    const gs = extractLiteral(read('js/builder.js'), 'gearSeries');
+    return (gs && !gs.__error && !gs.__missing)
+      ? Object.values(gs).flat().length : 0;
+  })(),
+};
+// Warn once a list is within this many entries of widening its field.
+const WIDTH_MARGIN = 8;
+
+for (const [label, count] of Object.entries(ENCODED_LISTS)) {
+  if (!count) continue;
+  // wi() writes idx+1, so the largest value written is `count`.
+  const bits = wb(count);
+  const nextBoundary = 1 << bits;          // count must stay below this
+  const room = nextBoundary - count;
+  if (room <= WIDTH_MARGIN) {
+    note('bit-width-headroom', {
+      item: label,
+      source: count + ' entries, ' + bits + ' bits',
+      why: 'only ' + room + ' more before the field widens to ' + (bits + 1) +
+           ' bits and every existing share link breaks',
+    });
+  }
+}
+
 // ── report ──────────────────────────────────────────────────────────────────
 const counts = {
   races: keys(builder.races).length,
@@ -243,6 +286,7 @@ const titles = {
   'class-no-encyclopedia':'Class has moves but no encyclopedia entry',
   'same-text-two-types': 'Same name filed under two types with identical text (likely one entity duplicated)',
   'dead-alias':          'Alias map key matches no encyclopedia entry',
+  'bit-width-headroom':  'Share-link field is close to widening — adding more will break every existing link',
 };
 
 console.log('\n' + problems.length + ' issue(s):');

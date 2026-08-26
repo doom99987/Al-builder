@@ -107,6 +107,23 @@
     ['Wicked Crown',          'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Venom Shroom">Venom Shroom</button>.'],
     ["Yarthul's Wrath",       'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Yar\'Thul, The Blazing Dragon">Yar\'Thul</button>.'],
 
+    /* Withered Grove — the "Corrupt Power" gears. Each grants a small
+       unconditional bonus on every attack. Once per turn, while in a Corruption
+       Form with enough Corrupt Power banked, that bonus can be spent up to a
+       much larger one. Dropped by the Withered Grove enemies. */
+    ['Ages Pages',            'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Crit Chance. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45 Crit Chance for that attack.'],
+    ['Blooming Eye',          'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 True Flat Damage. Once per turn while in a Corruption Form, spending 100 Corrupt Power raises this to +35 True Flat Damage for that attack.'],
+    ['Crystalline Spike',     'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +40 Flat Damage for that attack.'],
+    ['Shadow Gauntlets',      'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5% Lifesteal. Once per turn while in a Corruption Form, spending 45 Corrupt Power raises this to +25% Lifesteal for that attack.'],
+    ['Infected Skin',         'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +15 DR. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +165 DR for that attack.'],
+    ['Lucky Horns',           'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5% Damage. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45% Damage for that attack.'],
+    /* Withered Grove gears. The changelog's stat table lists these without a
+       source; the game dev confirmed the area. Effects are still undocumented. */
+    ['Dread Fang',            'Gear',            'Drops from Withered Grove enemies.'],
+    ['Empty Blade',           'Gear',            'Drops from Withered Grove enemies.'],
+    ['Faded Heirloom',        'Gear',            'Drops from Withered Grove enemies.'],
+    ['Ring of Heroism',       'Gear',            'Drops from Withered Grove enemies.'],
+
     /* ── WEAPONS ──────────────────────────────────────────────────────── */
     ['Blacksteel Axe',        'Weapon',          ''],
     ['Blacksteel Cestus',     'Weapon',          ''],
@@ -216,6 +233,25 @@
     ['Skyward Totem',         'Lesser Artifact', ''],
     ['Soul Dust',             'Lesser Artifact', ''],
     ['Void Key',              'Lesser Artifact', ''],
+    ['Ancestral Lineage Shard', 'Lesser Artifact', 'Forcefully guarantees a 1% race — you cannot roll a non-1% race from it. Extremely rare drop from bosses.'],
+    ['Darkened Totem',        'Lesser Artifact', 'Summons Shadow and Corrupt Shadow bosses: stronger versions with more HP, more damage and better loot.\n\nCrafted by Aderyn in the meditation area from 3 Skyward Totems.'],
+    ['Starpoint Charm',       'Lesser Artifact', 'Drops from shadow bosses. Turn in to the Lieutenant after Quest 4 for the <button class="enc-desc-link" data-enc-nav="Polaris">Polaris</button> enchant.\n\nTurning it in alongside a Moonlit Charm grants <button class="enc-desc-link" data-enc-nav="Skyblaze">Skyblaze</button> instead.'],
+    ['Moonlit Charm',         'Lesser Artifact', 'Drops from shadow bosses. Turn in to the Lieutenant after Quest 4 for the <button class="enc-desc-link" data-enc-nav="Octantis">Octantis</button> enchant.\n\nTurning it in alongside a Starpoint Charm grants <button class="enc-desc-link" data-enc-nav="Skyblaze">Skyblaze</button> instead.'],
+
+    /* ── GEAR TRAIT ORBS ──────────────────────────────────────────────────
+       An orb rolls one trait at random out of the five in its family, so you
+       cannot pick which you get. Two tiers, T1 and T2, and those are final. */
+    ['Strength Orb 1',        'Misc', 'Rolls one random Strength (Force) trait at T1: Heavy Hand, Riposte, Cleave, Momentum or Sunder.'],
+    ['Strength Orb 2',        'Misc', 'Rolls one random Strength (Force) trait at T2: Heavy Hand, Riposte, Cleave, Momentum or Sunder.'],
+    ['Endurance Orb 1',       'Misc', 'Rolls one random Endurance (Attrition) trait at T1: Vital, Convalescent, Lifebound, Unyielding or Stalwart.'],
+    ['Endurance Orb 2',       'Misc', 'Rolls one random Endurance (Attrition) trait at T2: Vital, Convalescent, Lifebound, Unyielding or Stalwart.'],
+    ['Arcane Orb 1',          'Misc', 'Rolls one random Arcane (Tempo) trait at T1: Conduit, Attuned, Channeling, Resonant or Overflow.'],
+    ['Arcane Orb 2',          'Misc', 'Rolls one random Arcane (Tempo) trait at T2: Conduit, Attuned, Channeling, Resonant or Overflow.'],
+    ['Speed Orb 1',           'Misc', 'Rolls one random Speed (Initiative) trait at T1: Preemptive, Fleet, Opportunist, Fleeting or Evasive.'],
+    ['Speed Orb 2',           'Misc', 'Rolls one random Speed (Initiative) trait at T2: Preemptive, Fleet, Opportunist, Fleeting or Evasive.'],
+    ['Luck Orb 1',            'Misc', 'Rolls one random Luck (Crits and Spoils) trait at T1: Fortunate, Devastating, Scavenger, Windfall or Uncanny.'],
+    ['Luck Orb 2',            'Misc', 'Rolls one random Luck (Crits and Spoils) trait at T2: Fortunate, Devastating, Scavenger, Windfall or Uncanny.'],
+    ["Dominant's Fealty",     'Misc', 'A crown intended as a reward for holding T4 or T5 marks before the wipe. Per the changelog this was never awarded properly and is on the buglist — the item exists but is not granted correctly.'],
 
     /* ── WEAPON MODIFIERS ─────────────────────────────────────────────── */
     ['Arcanium Crystal',      'Weapon Modifier', 'Currently obtainable from: <button class="enc-desc-link" data-enc-nav="Seraphon">Seraphon</button>, <button class="enc-desc-link" data-enc-nav="Arkhaia">Arkhaia</button> &amp; <button class="enc-desc-link" data-enc-nav="Metrom\'s Vessel">Metrom\'s Vessel</button>.\n\nAllows you to add 1 shard slot to a weapon at the Shard NPC. Weapons can have a maximum of 7 shard slots.'],
@@ -234,6 +270,9 @@
     ['Reaper',                'Enchant',         'Requires Level 35. Obtained from the Reaper room in the Desert — requires full lives, or 1 life in Legendary mode + a Lineage Shard.'],
     ['Spectral',              'Enchant',         "Obtained from Arkhaia's Curse (Arkhaia)."],
     ['Storm (mod)',            'Enchant',         ''],
+    ['Polaris',               'Enchant',         'Of Sun — Burst.\n\nCorrupt Energy Burn: +20%\nRecoil Self Damage: -20%\nCorrupt Power Gain: +15%\n\nReach your Corruption Form faster, at the cost of it ending sooner.\n\nObtained by turning a Starpoint Charm in to the Lieutenant after Quest 4.'],
+    ['Octantis',              'Enchant',         'Of Moon — Uptime.\n\nCorrupt Energy Burn: -20%\nRecoil Self Damage: -30%\n\nThe opposite of Polaris: hold your form longer. Particularly useful for Heresy and Tyranny, which want uptime.\n\nObtained by turning a Moonlit Charm in to the Lieutenant after Quest 4.'],
+    ['Skyblaze',              'Enchant',         'Of Other Planes — Both.\n\nCorrupt Energy Burn: -20%\nRecoil Self Damage: -30%\nCorrupt Power Gain: +15%\nCorrupt Energy Gain: +30%\n\nPassive health drain: 2% max health at the end of your turn, ramping 0.5% per turn to a 6% cap. Stops while above 75% max health, never takes you below 10 HP, and resets and switches off while in a Corrupt Form.\n\nObtained by turning in both the Starpoint and Moonlit Charms at the same time.'],
 
     /* ── BASE CLASSES ─────────────────────────────────────────────────── */
     ['Thief',          'Base Class',  'A nimble fighter specializing in quick strikes, bleeding, and gold acquisition. Cost: 200g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Ranger (Or)">Ranger (Or)</button>, <button class="enc-desc-link" data-enc-nav="Rogue (N)">Rogue (N)</button>, <button class="enc-desc-link" data-enc-nav="Assassin (Ch)">Assassin (Ch)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Boots, The Thief">Boots, The Thief</button>'],
@@ -289,6 +328,8 @@
     ['Sheea (Obtainable)',       'Race', 'How to obtain:\n\n1. Speak with Sky Man, give him Mushroom Cap, Sand Core and Rot Core, then speak with him again and teleport.\n2. Join the Church of Raphion and progress it to Rank 20.\n3. Return to the Church and speak with Mael to start the Seraphon fight.\n4. Win the fight and speak with Mael to obtain Sheea.'],
     ['Inferion (Obtainable)',    'Race', 'How to obtain:\n\n1. Come to <button class="enc-desc-link" data-enc-nav="Deeproot Depths">Deeproot Depths</button> and find the mirror, speak with it and choose the middle dialogue to get "Prayer" in your inventory.\n2. Use "Prayer" to start a fight with the Sheea Elementalist.\n3. Fight the Sheea Elementalist (you can fight in a party, just get the final blow) and speak with the mirror again to teleport.\n4. Join the Cult of Thanasius and progress it to Rank 20.\n5. Come back to the Cult and speak with Mephisto to start the Arkhaia fight.\n6. Win the fight and speak with Mephisto again to obtain Inferion.'],
     ['Gynx (Obtainable)',        'Race', 'How to obtain:\n\n1. Defeat Handaconda on the character slot where you want the race. (Normal or Corrupted both work)\n2. Have a Forgotten Relic in your inventory while having 3 gear drops from Handaconda equipped. These include: Open Hand, Dust Devil\'s Eye, Eroded Blade, and The Smallest Boulder.\n3. Talk to the Handaconda fight NPC Thuriaz to obtain Gynx.'],
+    ['Arborivia (3%)',   'Race', 'Rare race (3% chance). A tree race built around sustain: landing attacks stacks Vine Guard for DR and flat regen, which also feeds a growing chance at bonus energy each turn.\n\nVisuals: different horns based on your soul colour. Variants give different wood types.\n\nAdded in the last week of the update and untested beyond appearance and actives — expect changes to its stats and design.'],
+    ['Calvariae (3%)',   'Race', 'Rare race (3% chance). A bone race that trades health for value: Broken Bones returns HP after taking a heavy hit, Frail Body splits big hits across two turns, and both of its actives cost you your own health.\n\nVisuals: different skulls based on your soul colour, which is also your eye colour. Variants give different skin tones.\n\nAdded in the last week of the update and untested beyond appearance and actives — expect changes to its stats and design.'],
 
     /* ── BOSSES (ordered by progression) ─────────────────────────────── */
     ["Yar'Thul, The Blazing Dragon", 'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Mount Thul">Mount Thul</button>. This enemy can block attacks.'],
@@ -449,6 +490,13 @@
     ['Frosted Slime',     'Mob', 'Winter Solstice Events mob. This enemy can dodge attacks.'],
     ['Joyous Spirit',     'Mob', 'Winter Solstice Events mob. Currently disabled from encounters due to bugs. This enemy can dodge attacks.'],
     ['Thief',             'Mob', '<button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button> mob. This enemy can block and dodge attacks.'],
+    /* Withered Grove, level 35-50 band. */
+    ['Reanimant',         'Mob', 'Withered Grove mob (level 35-50). 145 HP, 15% Block, never dodges, 2.6 Essence multiplier.\n\nResists Physical (0.85), Poison (0.4), Dark (0.7). Weak to Ice (1.1), Fire (1.25), Holy (1.4). Drops nothing.\n\nShriek (1 NRG, 4T): +20% damage to itself for 3 turns, then 6 Poisoned to your whole team.\nDouble Slam (2 NRG, 3T): two hits of 11, each undodged hit adding a Weakened stack.\nRotten Swipe (0 NRG): flat 12, its energy-less filler.'],
+    ['Infused Mushroom',  'Mob', 'Withered Grove mob (level 35-50). 110 HP, 10% Block, 12% Dodge, regenerates 2 HP per tick, 2.5 Essence multiplier.\n\nResists Poison (0.2), Nature (0.7), Physical (0.9). Weak to Ice (1.1), Holy (1.1), Fire (1.35).\n\nIts whole kit stacks and spreads Poison, with no zero-cost filler move.\n\nSpore Rupture (2 NRG, 3T): 20 base — dodging it increases the damage instead of avoiding it, and 2 Poisoned land regardless of block or dodge.\nPoison Perforation (2 NRG, 6T): doubles Poison on every poisoned enemy on its team, costing itself 15% max HP.\nCaustic Rupture (1 NRG, 4T): unblockable and undodgeable, 4 damage per Poison stack you carry, splashing 90% to anyone adjacent.\nInfested Slam (2 NRG, 8T): 22 base; if undodged and you already have Poison, adds a stack and copies your full stack count onto a nearby enemy.'],
+    ['Tunechudd',         'Mob', 'Withered Grove mob (level 35-50). 155 HP, no Block, 20% Dodge, 2.8 Essence multiplier.\n\nResists Dark (0.6). Weak to Magic (1.1), Holy (1.3).\n\nPlays for a 3-stack Sharpen into a fully buffed Cleave, using Acid Thorns to punish you for stalling it out.\n\nSharpen (0 NRG, 2T): a Sharpened stack, up to 3, each +15% damage to its next attacks.\nAcid Thorns (2 NRG, 4T): while active, anyone landing a non-DOT hit on it takes 2 Poisoned back.\nVigorous Cleave (2 NRG, 3T): hits your whole team for 14 base each, scaled by its Sharpened stacks, then clears them.'],
+    ['Zealot',            'Mob', 'Withered Grove mob (level 35-50). 120 HP, no Block, no Dodge, 2.8 Essence multiplier.\n\nResists Dark (0.6), Poison (0.7). Weak to Holy (1.35).\n\nCorrupted Blood (3 NRG, 12T): 50% lifesteal for 6 turns.\nFrenzied Rush (0 NRG): three hits, dodge-only, 19 base, rising 1.1x for every consecutive turn it repeats and resetting if it uses anything else.\nConsumption (2 NRG, 5T): steals 15% of your max HP as damage (8% if blocked) and heals itself 1.2x what it stole.\nEnraged Strike (0 NRG): flat 13 filler.'],
+    ['Magical Zealot',    'Mob', 'Withered Grove mob (level 35-50). 130 HP, 10% Block, 10% Dodge, 2.7 Essence multiplier.\n\nResists Fire (0.6), Magic (0.8), Nature (0.9), Dark (0.9). Weak to Physical (1.2), Holy (1.15). Drops nothing.\n\nFlame Packer (2 NRG, 1T): 14 with 2x adjacent splash, applying 2 turns of Burning on a clean hit.\nSealed Empowerment (3 NRG, 15T): casts a Domain giving both sides 1 energy per turn until 10 total energy has been spent in the fight.\nThorny Heal Scroll (3 NRG, 12T): heals its lowest-HP ally for 10% of that ally\'s max HP, costing itself 5% of its own.\nStrike (0 NRG): flat 5 filler.'],
+    ['Arboreal Animant',  'Mob', 'Withered Grove mob (level 35-50). 175 HP, 15% Block, never dodges, regenerates 3 HP per turn, 3.0 Essence multiplier.\n\nResists Nature (0.4), Poison (0.6), Dark (0.75), Physical (0.85). Weak to Ice (1.15), Holy (1.1), Fire (1.5).\n\nOlden Growth (6 NRG, 15T): raises a Domain giving both sides 10% lifesteal and Seeding everyone with a 2-turn counter. A Seed reaching 0 unhealed applies Vulnerable for 2 turns; healing a Seeded character clears it and lashes a random enemy for 5% max HP true damage. The Domain ends once 15 cumulative Nature damage has been dealt.\nDark Seeded Soil (2 NRG, 3T): unblockable and undodgeable, 6 damage per Seeded target, consuming the Seed.\nEssence Tunement (2 NRG, 5T): three dodge-only volleys at your whole team, 7 each, every landed volley adding Weakened.\nGrown Ashes (0 NRG): team-wide filler, 12 base, halved if you dodge but unchanged if you block — so dodging is worse than blocking here. Seeds everyone it hits and heals itself for 50% of total damage dealt.'],
     ['Slime',             'Mob', 'Forest mob. This enemy can dodge attacks.'],
     ['Grass Spirit',      'Mob', 'Forest mob. This enemy can dodge attacks.'],
     ['Zombie Mushroom',   'Mob', 'Forest mob. This enemy can block and dodge attacks.'],
@@ -654,6 +702,7 @@
     { label: 'Night',                  names: new Set(['Goblin', 'Star Slime', 'Gon', 'Thanasludd', 'Night Raider', 'Duneguard', 'Sentient Darkness', 'Ptoruco']) },
     { label: 'Easter Enemies',         names: new Set(['White Bunny', 'Sand Bunny', 'Magmatic Bunny', 'Malevolent Bunny', 'Gigapascha']) },
     { label: 'Winter Solstice Enemies', names: new Set(['Frosted Slime', 'Joyous Spirit']) },
+    { label: 'Withered Grove', desc: 'Withered Grove enemies, level 35-50 band.', names: new Set(['Reanimant', 'Infused Mushroom', 'Tunechudd', 'Zealot', 'Magical Zealot', 'Arboreal Animant']) },
   ];
 
   const TRAINER_GROUPS = [
@@ -689,6 +738,7 @@
     { label: 'Deeproot Gears',        names: new Set(['Cursed Brand', "Narthana's Leaf", 'Wicked Crown', 'Sanguine Fang', 'Coagulated Finger Nail', 'Shard of Blight', "Traveler's Lamp", 'Expedite Anklet', 'Phantom Ooze']) },
     { label: 'Volcano Gears',         names: new Set(['Imperial Headband', 'Magma Charm', 'Vulcan Knuckle', 'Dragon Memior', 'Blazing Brand', 'Molten Carapace']) },
     { label: 'Bosses/Minibosses Gears', names: new Set(['Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'Deathbeak Dagger', 'Blazing Perforator', "Yarthul's Wrath", 'Frostburned Rune', 'Vow of Ruin', 'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focused Mind', 'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket', 'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand']) },
+    { label: 'Withered Grove', desc: 'Drops from Withered Grove enemies.', names: new Set(['Ages Pages', 'Blooming Eye', 'Crystalline Spike', 'Dread Fang', 'Empty Blade', 'Faded Heirloom', 'Infected Skin', 'Lucky Horns', 'Ring of Heroism', 'Shadow Gauntlets']) },
     { label: 'N/A',                   names: new Set(['Lethal Blackajck', 'Everbeating Drum']) },
   ];
 

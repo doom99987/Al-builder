@@ -65,6 +65,21 @@
     ['Resplendent Essence', 'Lesser Artifacts', 1],
     ['Void Key', 'Lesser Artifacts', 1],
     ['Echo Shard', 'Lesser Artifacts', 1],
+    ['Ancestral Lineage Shard', 'Lesser Artifacts', 1],
+    ['Darkened Totem', 'Lesser Artifacts', 1],
+    ['Starpoint Charm', 'Lesser Artifacts', 1],
+    ['Moonlit Charm', 'Lesser Artifacts', 1],
+    // ── Gear Trait Orbs ──
+    ['Strength Orb 1', 'Trait Orbs', 1],
+    ['Strength Orb 2', 'Trait Orbs', 1],
+    ['Endurance Orb 1', 'Trait Orbs', 1],
+    ['Endurance Orb 2', 'Trait Orbs', 1],
+    ['Arcane Orb 1', 'Trait Orbs', 1],
+    ['Arcane Orb 2', 'Trait Orbs', 1],
+    ['Speed Orb 1', 'Trait Orbs', 1],
+    ['Speed Orb 2', 'Trait Orbs', 1],
+    ['Luck Orb 1', 'Trait Orbs', 1],
+    ['Luck Orb 2', 'Trait Orbs', 1],
     // ── Artifacts ──
     ['Reality Watch', 'Artifacts', 1],
     ["Narthana's Sigil", 'Artifacts', 1],
@@ -218,7 +233,7 @@
     ['Spore Root', 'Gear', 1],
     ['Forest Charm', 'Gear', 1],
     ['Elemental Infuser', 'Gear', 1],
-    ['Crystallized Star', 'Gear', 1],
+    ['Crystalized Star', 'Gear', 1],
     ['Pathfinder Mark', 'Gear', 1],
     ['Gilded Pouch', 'Gear', 1],
     ['Crystal Sphere', 'Gear', 1],
@@ -261,6 +276,17 @@
     ['Frosty Topper', 'Gear', 1],
     ['Lethal Blackjack', 'Gear', 1],
     ['Everbeating Drums', 'Gear', 1],
+    ['Dread Fang', 'Gear', 1],
+    ['Empty Blade', 'Gear', 1],
+    ['Faded Heirloom', 'Gear', 1],
+    ['Ring of Heroism', 'Gear', 1],
+    // Withered Grove — Corrupt Power gears
+    ['Ages Pages', 'Gear', 1],
+    ['Blooming Eye', 'Gear', 1],
+    ['Crystalline Spike', 'Gear', 1],
+    ['Shadow Gauntlets', 'Gear', 1],
+    ['Infected Skin', 'Gear', 1],
+    ['Lucky Horns', 'Gear', 1],
     // ── Armour ──
     ['Paladin Cuirass', 'Armour', 0],
     ['Adept Warrior', 'Armour', 0],
@@ -722,16 +748,68 @@
     return parts.length ? ` (${parts.join(', ')})` : ' (Sharded)';
   }
 
+  /* ── gear instances ─────────────────────────────────────────────────────────
+     Gear now carries a tier, a stat allocation and traits, so two copies of the
+     same gear are different items. Gear entries are therefore per-instance:
+     each Add makes its own row, quantity is always 1, and rows are addressed by
+     a `uid` rather than by deep-comparing their fields — the shard approach
+     would fold two genuinely separate but identically-specced gears into one
+     row, which is exactly what per-instance tracking exists to prevent.
+
+     Label formatting is deliberately self-contained: the standalone bank popout
+     renders without builder.js, and a stored gear must still read correctly
+     there even when the shared spec editor is unavailable. */
+  const BK_GEAR_STATS = ['str', 'arc', 'end', 'spd', 'lck'];
+
+  function bkIsGear(info)   { return info && info.category === 'Gear'; }
+  function bkIsGearEntry(e) { return !!(e && e.uid); }
+  function bkNewUid() {
+    return 'g' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  // Tier shapes, mirrored from builder.js. Duplicated deliberately: the
+  // standalone bank popout renders without builder.js, and a stored gear must
+  // still read correctly there. Keep in step with GEAR_TIER_SHAPES.
+  const BK_TIER_SHAPES = [
+    [[]], [[2]], [[3], [1, 1]], [[4], [2, 1]],
+    [[5], [2, 2]], [[6], [3, 2]], [[9], [5, 3], [2, 2, 2, 2]],
+  ];
+
+  function bkGearLabel(entry) {
+    const spec = entry.spec;
+    if (!spec) return '';
+    const bits = ['T' + (spec.tier || 0)];
+    const shapes = BK_TIER_SHAPES[spec.tier | 0] || [[]];
+    const vals   = shapes[spec.shape | 0] || shapes[0] || [];
+    const picks  = Array.isArray(spec.stats) ? spec.stats : [];
+    const seen   = new Set();
+    const pts    = [];
+    vals.forEach((v, i) => {
+      const s = picks[i];
+      if (!s || seen.has(s) || BK_GEAR_STATS.indexOf(s) < 0) return;
+      seen.add(s);
+      pts.push('+' + v + ' ' + s.toUpperCase());
+    });
+    if (pts.length) bits.push(pts.join(' '));
+    const traits = (spec.traits || []).filter(Boolean)
+      .map(t => (t.name || t.id) + ' T' + (t.tier || 1));
+    if (traits.length) bits.push(traits.join(', '));
+    return ' · ' + bits.join(' · ');
+  }
+
   function bkMakeRow(entry, info) {
-    // Sharded copies with different shard stats are separate entries.
-    const sameEntry = i => i.name === entry.name && !!i.sharded === !!entry.sharded
-      && JSON.stringify(i.shards || {}) === JSON.stringify(entry.shards || {});
+    // Gear rows are identified by uid; everything else keeps the original
+    // name+shard identity so existing banks are untouched.
+    const sameEntry = bkIsGearEntry(entry)
+      ? i => i.uid === entry.uid
+      : i => i.name === entry.name && !i.uid && !!i.sharded === !!entry.sharded
+        && JSON.stringify(i.shards || {}) === JSON.stringify(entry.shards || {});
     const row = _bkDoc.createElement('div');
     row.className = 'bank-item-row';
 
     const name = _bkDoc.createElement('span');
     name.className = 'bank-item-name';
-    name.textContent = entry.name + bkShardLabel(entry);
+    name.textContent = entry.name + bkShardLabel(entry) + bkGearLabel(entry);
     row.appendChild(name);
 
     if (!info.tradable) {
@@ -739,6 +817,58 @@
       badge.className = 'bank-untradable-badge';
       badge.textContent = 'untradable';
       row.appendChild(badge);
+    }
+
+    // A gear entry is one physical item, so it has no quantity to step. It gets
+    // an Edit toggle instead, opening the same spec editor the builder uses.
+    if (bkIsGearEntry(entry)) {
+      // The editor panel occupies its own line below the row's controls, which
+      // needs the row to wrap — it doesn't by default.
+      row.classList.add('bank-gear-row');
+      const editWrap = _bkDoc.createElement('div');
+      editWrap.className = 'bank-gear-edit';
+      editWrap.style.display = 'none';
+
+      const edit = _bkDoc.createElement('button');
+      edit.className = 'bank-step-btn bank-gear-edit-btn';
+      edit.textContent = 'Edit';
+      edit.title = 'Tier, stat points and traits';
+      edit.addEventListener('click', () => {
+        const open = editWrap.style.display !== 'none';
+        editWrap.style.display = open ? 'none' : 'block';
+        if (open) return;
+        if (typeof window._gearSpecRender !== 'function') {
+          // The standalone popout has no builder.js. The row still reads
+          // correctly; it just cannot be edited from here.
+          editWrap.textContent = 'Open the bank from the main site to edit gear.';
+          return;
+        }
+        const spec = window._gearSpecClamp(entry.spec);
+        window._gearSpecRender(editWrap, spec, () => {
+          const meta = bkGetMeta(); const d = bkGetData(meta);
+          const it = d.items.find(sameEntry);
+          if (!it) return;
+          it.spec = spec;
+          bkSetData(meta, d); bkSaveMeta(meta);
+          name.textContent = entry.name + bkGearLabel(it);
+          entry.spec = spec;
+        });
+      });
+      row.appendChild(edit);
+
+      const del = _bkDoc.createElement('button');
+      del.className = 'bank-row-del';
+      del.textContent = '×';
+      del.title = 'Remove';
+      del.addEventListener('click', () => {
+        const meta = bkGetMeta(); const d = bkGetData(meta);
+        const idx = d.items.findIndex(sameEntry);
+        if (idx !== -1) d.items.splice(idx, 1);
+        bkSetData(meta, d); bkSaveMeta(meta); bkRender();
+      });
+      row.appendChild(del);
+      row.appendChild(editWrap);
+      return row;
     }
 
     // Qty updates mutate the row in place (no full re-render) so the list
@@ -928,11 +1058,23 @@
       if (!Object.keys(shards).length) shards = null;
     }
     const meta = bkGetMeta(); const d = bkGetData(meta);
-    const existing = d.items.find(i => i.name === name && !!i.sharded === sharded
-      && JSON.stringify(i.shards || {}) === JSON.stringify(shards || {}));
-    if (existing) existing.qty += qty;
-    else if (sharded) d.items.push(shards ? { name, qty, sharded: true, shards } : { name, qty, sharded: true });
-    else d.items.push({ name, qty });
+    const info = bkPoolLookup().get(name);
+    if (bkIsGear(info)) {
+      // Each gear is its own physical item: never stack, one row per copy, so
+      // adding 3 makes three independently tierable entries.
+      const blank = (typeof window._gearSpecNew === 'function')
+        ? window._gearSpecNew()
+        : { tier: 0, alloc: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 }, traits: [null, null, null] };
+      for (let n = 0; n < qty; n++) {
+        d.items.push({ name, qty: 1, uid: bkNewUid(), spec: JSON.parse(JSON.stringify(blank)) });
+      }
+    } else {
+      const existing = d.items.find(i => i.name === name && !i.uid && !!i.sharded === sharded
+        && JSON.stringify(i.shards || {}) === JSON.stringify(shards || {}));
+      if (existing) existing.qty += qty;
+      else if (sharded) d.items.push(shards ? { name, qty, sharded: true, shards } : { name, qty, sharded: true });
+      else d.items.push({ name, qty });
+    }
     bkSetData(meta, d); bkSaveMeta(meta);
     hidden.value = '';
     const display = _bkDoc.getElementById('bank-pick-display');
@@ -961,7 +1103,10 @@
       lines.push(`${cat}:`);
       groups.get(cat).forEach(({ entry, info }) => {
         const mark = (bkFilter === 'all' && !info.tradable) ? ' (untradable)' : '';
-        lines.push(`- ${entry.name}${bkShardLabel(entry)} x${entry.qty}${mark}`);
+        // Gear is per-instance, so "x1" on every line is noise — the spec is
+        // what distinguishes one copy from another.
+        const count = bkIsGearEntry(entry) ? '' : ` x${entry.qty}`;
+        lines.push(`- ${entry.name}${bkShardLabel(entry)}${bkGearLabel(entry)}${count}${mark}`);
       });
       lines.push('');
     });

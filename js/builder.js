@@ -21,7 +21,17 @@ const races = {
   "Amorus (Ob)": {str: 4, arc: 4, end: 4, lck: 4, spd: 4},
   "Sheea (Ob)": {str: 3, arc: 3, end: 1, lck: 1, spd: 2},
   "Inferion (Ob)": {str: 3, arc: 1, end: 4, lck: 1, spd: 1},
-  "Gynx (Ob)": {str: 4, arc: 1, end: 8, lck: 1, spd: 1}
+  "Gynx (Ob)": {str: 4, arc: 1, end: 8, lck: 1, spd: 1},
+  // Withered Grove races. APPEND ONLY — _L.race is positional in the share
+  // encoding, so inserting above would repoint every existing link.
+  //
+  // STAT BLOCKS ARE PLACEHOLDERS. The changelog documents both races' passives
+  // and actives in full but never publishes their base stats ("do expect that
+  // some things change from the general design and stat makeup that you see
+  // here"). Zeros mean a build using these races under-counts its base stats
+  // until the real numbers arrive — they are the one missing piece.
+  "Arborivia (3%)": {str: 0, arc: 0, end: 0, lck: 0, spd: 0},
+  "Calvariae (3%)": {str: 0, arc: 0, end: 0, lck: 0, spd: 0}
 };
 
 let raceBase = { str: 0, arc: 0, end: 0, lck: 0, spd: 0 };
@@ -61,8 +71,28 @@ racePicker.addEventListener("change", e => {
 // Manages the level input and the six stat counters (STR, ARC, END, SPD, LCK).
 // Total allocatable points = (level − 1) × 5, plus a racial bonus for Dullahan.
 // When level decreases or race changes, excess spent points are trimmed automatically.
-const Max_Lvl = 40;
+const Max_Lvl = 50;
 const Min_Lvl = 1;
+
+// Allocatable points per level. The changelog states a level-50 character has
+// 150 allocatable points, which is 50 x 3 — so the count runs from level 1, not
+// from (level - 1).
+const POINTS_PER_LEVEL = 3;
+
+// Every N levels, all five stats gain +1.
+//
+// The changelog puts this at every 10 levels: a level-50 character "sits at ~7
+// in every stat before spending any of them (racial base plus the +1-to-all
+// every 10 levels)" — racial base 1-4 plus 5 lands on ~7. This file previously
+// used every 5 levels, which at level 50 would give +10 and put the baseline
+// around 12. Change this one number to go back.
+const LEVEL_STAT_BONUS_EVERY = 10;
+
+// The +1-to-all-stats bonus at a given level. Six call sites computed this
+// inline and would have drifted apart the moment the interval changed.
+function levelStatBonus(lvl) {
+  return Math.floor(Math.min(Max_Lvl, Math.max(Min_Lvl, lvl || Min_Lvl)) / LEVEL_STAT_BONUS_EVERY);
+}
 let spent = 0; // total stat points currently allocated across all stat rows
 
 const lvlInput = document.getElementById("Lvl");
@@ -71,7 +101,7 @@ const lvlInput = document.getElementById("Lvl");
 // Dullahan gets an extra +3 points every 10 levels on top of the base formula.
 function getEffectiveTotal() {
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-  const base = (lvl - Min_Lvl) * 5;
+  const base = lvl * POINTS_PER_LEVEL;
   const isDullahan = racePicker.value === "Dullahan (1%)";
   const bonus = isDullahan ? Math.floor(lvl / 10) * 3 : 0;
   return base + bonus;
@@ -130,8 +160,7 @@ function updateClassPickerLock() {
 }
 
 function updateLvlBonusDisplay() {
-  const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-  const bonus = Math.floor(lvl / 5);
+  const bonus = levelStatBonus(+lvlInput.value);
   document.querySelectorAll(".stat-lvl-bonus").forEach(el => {
     el.textContent = bonus > 0 ? `+${bonus}` : "";
   });
@@ -360,6 +389,49 @@ const covenantBonuses = {
   ]
 };
 
+// § STAT MILESTONES
+// Changelog §9. Every stat has three milestones at the same thresholds.
+//
+// A level-50 character has 150 allocatable points and sits at ~7 in every stat
+// before spending any (racial base plus the +1-to-all every 10 levels), which is
+// what these thresholds are balanced against.
+//
+// Note from the developer: the Strength and Arcane *final* milestones are
+// swapped in game relative to design intent — 110 STR reduces Magic cooldowns
+// and 110 ARC reduces Physical, rather than the other way round. Listed here as
+// they actually behave, not as they were meant to.
+const STAT_MILESTONE_TIERS = [25, 60, 110];
+const statMilestones = {
+  str: ["Strike's base damage becomes 6.5.",
+        "Take 10% less damage when blocking.",
+        "Magic Element attacks cost 1 less cooldown."],
+  arc: ["Use one extra potion.",
+        "15% chance to gain an extra energy at the start of your turn.",
+        "Physical Element attacks cost 1 less cooldown."],
+  spd: ["Enemies are less likely to dodge your attacks.",
+        "The dodge bar gets bigger.",
+        "5% chance to auto-dodge attacks."],
+  end: ["Take 20% less damage from status effects.",
+        "Gain 35% Incoming healing.",
+        "Passive regen increased by 2."],
+  lck: ["Crit Damage increased by 10%.",
+        "Gain 35% Outgoing healing.",
+        "Gain gold after battles end."],
+};
+
+// § STAT IDENTITIES
+// The redesign gives each stat a job beyond scaling move damage. "Dexterity" in
+// the changelog is this game's Speed stat.
+//   Strength  — blocking reduces damage by an extra 10% of STR
+//   Arcane    — 10% of ARC as a chance for a bonus energy each turn
+//   Speed     — 10% of SPD as Initiative (turn order, highest first)
+//   Endurance — +1 MaxHP per END, and END/4 to both healing stats
+//   Luck      — Crit Chance 1:1, and no longer touches Crit Damage
+const STAT_IDENTITY_RATIO = 0.10;   // STR block DR, ARC energy chance, SPD initiative
+const END_HEAL_DIVISOR    = 4;
+// Crit Damage is now a flat base multiplier; a higher crit tier adds +1 to it.
+const CRIT_DMG_BASE       = 2;
+
 // § STAT FORMULAS
 // Converts a raw stat total into its displayed percentage value.
 // Each stat uses a distinct formula derived from in-game data:
@@ -376,11 +448,18 @@ function calcPercentage(stat, val){
     arc:           v => v * 1.65,
     end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
-    "crit-chance": v => 19.8 + v * 0.25,
-    "crit-dmg":    v => 1.75 + v * 0.0065,
+    // Reworked (§9): Luck grants Crit Chance 1:1, and Crit Damage is a flat 2x
+    // base that Luck no longer scales — each higher crit tier adds +1 instead.
+    // Crit Fatigue no longer exists.
+    "crit-chance": v => v,
+    "crit-dmg":    () => CRIT_DMG_BASE,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
     "energy":      () => 0,
+    // Stat identities (§9), each derived from its own stat total.
+    "block-dr":    v => v * STAT_IDENTITY_RATIO,
+    "nrg-chance":  v => v * STAT_IDENTITY_RATIO,
+    "initiative":  v => v * STAT_IDENTITY_RATIO,
   };
   return formulas[stat] ? formulas[stat](val).toFixed(stat === "crit-dmg" ? 2 : 1) : "—";
 }
@@ -390,6 +469,295 @@ const _gearSlotIds = ["gear-1","gear-2","gear-3","gear-4"];
 // Returns true if the named gear item is equipped in any of the four gear slots.
 function hasGearEquipped(name) {
   return _gearSlotIds.some(id => document.getElementById(id)?.value === name);
+}
+
+// § GEAR TIERS & TRAITS
+// Tier, stat allocation and traits describe a *player's copy* of a gear, not the
+// item itself — so none of this lives in gearItems, which stays the base stat
+// table. A new gear from a new area therefore needs no tier data at all.
+//
+// Declared here rather than beside the gear data further down because
+// updatePecents() reads it and runs long before that point in the file.
+
+// A tier does not grant loose points to spend freely. It grants one of a fixed
+// set of SHAPES, and you choose which stats receive the shape's fixed values.
+// Straight from the changelog's "Gear Stats > Tiers" table:
+//
+//     T0: {0}
+//     T1: {2}
+//     T2: {3} or {1,1}
+//     T3: {4} or {2,1}
+//     T4: {5} or {2,2}
+//     T5: {6} or {3,2}
+//     T6: {9} or {5,3} or {2,2,2,2}
+//
+// Mono puts everything on one stat, Duo splits across two, and T6 alone offers
+// a Quad. The stats in a shape must all be DIFFERENT — the changelog is
+// explicit that a Duo cannot be {Strength, Strength} — so no stat ever receives
+// more than one of a shape's values.
+//
+// In game the stats are rolled at random; here you pick them, because this is a
+// planner and the point is to describe the copy you have (or want).
+const GEAR_TIER_SHAPES = [
+  [[]],                    // T0 — no stats at all
+  [[2]],                   // T1
+  [[3], [1, 1]],           // T2
+  [[4], [2, 1]],           // T3
+  [[5], [2, 2]],           // T4
+  [[6], [3, 2]],           // T5
+  [[9], [5, 3], [2, 2, 2, 2]], // T6
+];
+const MAX_GEAR_TIER    = GEAR_TIER_SHAPES.length - 1;
+const GEAR_ALLOC_STATS = ["str", "arc", "end", "spd", "lck"];
+// Widest shape anywhere, which sets how many stat picks an instance carries.
+const MAX_SHAPE_LEN    = Math.max(...GEAR_TIER_SHAPES.flat().map(s => s.length));
+
+function gearShapesFor(tier) { return GEAR_TIER_SHAPES[tier] || [[]]; }
+function gearShapeValues(inst) {
+  const shapes = gearShapesFor(inst.tier);
+  return shapes[inst.shape] || shapes[0] || [];
+}
+function gearShapeLabel(vals) {
+  if (!vals.length) return "—";
+  return vals.length === 1 ? "Mono " + vals[0] : (vals.length === 2 ? "Duo " : "Quad ") + vals.join("/");
+}
+
+// Gears show three trait slots but only two accept a trait today. Two constants
+// rather than a bare 2 so unlocking the third is a one-number change.
+const TRAIT_SLOTS          = 3;
+const TRAIT_SLOTS_UNLOCKED = 2;
+// Traits come from orbs, and the changelog is explicit that T1 and T2 "are the
+// final values" — there is no T3 or T4.
+const MAX_TRAIT_TIER       = 2;
+
+// The 25 gear traits, five per family. Traits come from orbs; an orb rolls one
+// trait at random out of the five in its family, so a trait's family is also
+// the orb that grants it.
+//
+// `gearOnly` cannot roll onto an artifact. `cap` is the ceiling on the stacked
+// total (duplicates do stack); absent means uncapped. `noStack` means extra
+// copies do nothing at all.
+//
+// APPEND ONLY, and never reorder: _L.trait is positional in the share encoding,
+// so moving an entry repoints every link that referenced it.
+const gearTraits = {
+  // Strength — Force
+  heavyHand:    { name: "Heavy Hand",   family: "Strength",  t1: 5,  t2: 9,  unit: "%",    desc: "Skills costing 2 or more energy deal increased damage." },
+  riposte:      { name: "Riposte",      family: "Strength",  t1: 8,  t2: 14, unit: "%",    cap: 50, desc: "A successful block returns a portion of the blocked damage." },
+  cleave:       { name: "Cleave",       family: "Strength",  t1: 7,  t2: 11, unit: "%",    desc: "Deal increased damage to targets below half health." },
+  momentum:     { name: "Momentum",     family: "Strength",  t1: 2,  t2: 4,  unit: "%",    gearOnly: true, desc: "Each consecutive turn you attack, your damage rises. Caps at three turns." },
+  sunder:       { name: "Sunder",       family: "Strength",  t1: 3,  t2: 5,  unit: "flat", gearOnly: true, desc: "Your hits reduce the target's damage reduction for one turn." },
+
+  // Endurance — Attrition
+  vital:        { name: "Vital",        family: "Endurance", t1: 3,  t2: 6,  unit: "%",    desc: "Increases your maximum health." },
+  convalescent: { name: "Convalescent", family: "Endurance", t1: 2,  t2: 4,  unit: "%",    cap: 20, gearOnly: true, desc: "Heal a share of max health at the start of a turn in which you took no damage." },
+  lifebound:    { name: "Lifebound",    family: "Endurance", t1: 4,  t2: 7,  unit: "%",    cap: 35, gearOnly: true, desc: "Recover a portion of the damage you take." },
+  unyielding:   { name: "Unyielding",   family: "Endurance", t1: 20, t2: 30, unit: "%",    cap: 60, desc: "The first hit you take each fight is heavily reduced." },
+  stalwart:     { name: "Stalwart",     family: "Endurance", t1: 5,  t2: 8,  unit: "flat", gearOnly: true, desc: "Gain damage reduction while above half health." },
+
+  // Arcane — Tempo
+  conduit:      { name: "Conduit",      family: "Arcane",    t1: 6,  t2: 10, unit: "%",    cap: 40, desc: "Chance to gain an extra energy at the start of your turn." },
+  attuned:      { name: "Attuned",      family: "Arcane",    t1: 5,  t2: 8,  unit: "%",    cap: 35, desc: "Chance to refund energy when you land an attack." },
+  channeling:   { name: "Channeling",   family: "Arcane",    t1: 15, t2: 25, unit: "%",    cap: 60, gearOnly: true, desc: "A successful block has a chance to grant energy." },
+  resonant:     { name: "Resonant",     family: "Arcane",    t1: 1,  t2: 1,  unit: "flat", gearOnly: true, noStack: true, desc: "Your first skill each fight costs one less energy. Extra copies do nothing." },
+  overflow:     { name: "Overflow",     family: "Arcane",    t1: 1,  t2: 2,  unit: "flat", gearOnly: true, noStack: true, desc: "Increases your maximum energy." },
+
+  // Speed — Initiative
+  preemptive:   { name: "Preemptive",   family: "Speed",     t1: 2,  t2: 3,  unit: "flat", desc: "Increases your Initiative." },
+  fleet:        { name: "Fleet",        family: "Speed",     t1: 10, t2: 16, unit: "%",    gearOnly: true, desc: "Deal increased damage on the opening turn of a fight." },
+  opportunist:  { name: "Opportunist",  family: "Speed",     t1: 5,  t2: 8,  unit: "%",    desc: "Deal increased damage to targets that act after you." },
+  fleeting:     { name: "Fleeting",     family: "Speed",     t1: 8,  t2: 14, unit: "%",    gearOnly: true, desc: "A successful dodge makes your next attack deal increased damage." },
+  evasive:      { name: "Evasive",      family: "Speed",     t1: 12, t2: 20, unit: "%",    cap: 40, gearOnly: true, desc: "Widens your dodge window." },
+
+  // Luck — Crits and Spoils
+  fortunate:    { name: "Fortunate",    family: "Luck",      t1: 2,  t2: 4,  unit: "flat", cap: 25, desc: "Increases your critical hit chance." },
+  devastating:  { name: "Devastating",  family: "Luck",      t1: 10, t2: 16, unit: "%",    desc: "Critical hits deal additional damage." },
+  scavenger:    { name: "Scavenger",    family: "Luck",      t1: 8,  t2: 13, unit: "%",    gearOnly: true, desc: "Increases gold and drop chance from kills." },
+  windfall:     { name: "Windfall",     family: "Luck",      t1: 12, t2: 20, unit: "%",    cap: 50, gearOnly: true, desc: "A kill has a chance to refund the energy you spent that turn." },
+  uncanny:      { name: "Uncanny",      family: "Luck",      t1: 8,  t2: 13, unit: "%",    cap: 40, gearOnly: true, desc: "Chance to ignore a hit entirely. Once per fight." },
+};
+
+// A trait's value at a given tier, formatted for display.
+function traitValue(id, tier) {
+  const t = gearTraits[id];
+  if (!t) return "";
+  const v = (tier >= 2) ? t.t2 : t.t1;
+  return t.unit === "%" ? v + "%" : "+" + v;
+}
+
+// Gear and artifacts share the tier/shape/trait model but differ in how many
+// trait slots they carry and which traits may fill them. One config object per
+// kind keeps every difference in a single place.
+//
+// Artifacts carry 2 slots, both usable — the changelog's "four gear slots plus
+// one artifact. So ten copies is the absolute ceiling" is 4x2 + 1x2 = 10.
+// `gearOnly` traits cannot roll onto an artifact.
+const SPEC_GEAR     = { slots: TRAIT_SLOTS, unlocked: TRAIT_SLOTS_UNLOCKED, allowGearOnly: true };
+const SPEC_ARTIFACT = { slots: 2,           unlocked: 2,                    allowGearOnly: false };
+
+function makeGearInstance(cfg) {
+  const c = cfg || SPEC_GEAR;
+  return {
+    tier:  0,
+    shape: 0,                                   // index into GEAR_TIER_SHAPES[tier]
+    stats: new Array(MAX_SHAPE_LEN).fill(""),   // which stat takes each shape value
+    traits: new Array(c.slots).fill(null),
+  };
+}
+
+// Traits a given kind of item can actually hold.
+function traitIdsFor(cfg) {
+  return Object.keys(gearTraits).filter(id => (cfg || SPEC_GEAR).allowGearOnly || !gearTraits[id].gearOnly);
+}
+
+// One instance per gear slot, index-aligned with _gearSlotIds, plus one for the
+// single artifact slot.
+const gearInstances = _gearSlotIds.map(() => makeGearInstance(SPEC_GEAR));
+let artifactInstance = makeGearInstance(SPEC_ARTIFACT);
+
+// The stat block a gear instance actually grants: each shape value applied to
+// the stat chosen for that position. Unassigned positions simply contribute
+// nothing, so a half-configured gear is still a valid build.
+function gearInstanceAlloc(inst) {
+  const alloc = {};
+  GEAR_ALLOC_STATS.forEach(s => { alloc[s] = 0; });
+  if (!inst) return alloc;
+  const vals = gearShapeValues(inst);
+  const seen = new Set();
+  vals.forEach((v, i) => {
+    const s = inst.stats[i];
+    // Duplicate picks are ignored rather than summed — the game forbids two
+    // positions landing on the same stat.
+    if (!s || seen.has(s) || !(s in alloc)) return;
+    seen.add(s);
+    alloc[s] += v;
+  });
+  return alloc;
+}
+function gearAllocSpent(inst) {
+  const a = gearInstanceAlloc(inst);
+  return GEAR_ALLOC_STATS.reduce((n, s) => n + a[s], 0);
+}
+// How many of the shape's positions still need a stat picked.
+function gearUnassigned(inst) {
+  const vals = gearShapeValues(inst);
+  const seen = new Set();
+  let n = 0;
+  vals.forEach((v, i) => {
+    const s = inst.stats[i];
+    if (!s || seen.has(s)) n++; else seen.add(s);
+  });
+  return n;
+}
+
+const _int = (v, lo, hi) => {
+  const n = Math.floor(Number(v));
+  return isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo;
+};
+
+// Instances arrive from share links (any stranger's URL) and from the account
+// sync row, so every field is clamped rather than trusted. Anything invalid
+// degrades to "not chosen" rather than rejecting the whole build.
+function clampGearInstance(raw, cfg) {
+  const c    = cfg || SPEC_GEAR;
+  const inst = makeGearInstance(c);
+  if (!raw || typeof raw !== "object") return inst;
+
+  inst.tier  = _int(raw.tier, 0, MAX_GEAR_TIER);
+  inst.shape = _int(raw.shape, 0, gearShapesFor(inst.tier).length - 1);
+
+  // Stat picks: only the five real stats, only as many as the shape has
+  // positions, and never the same stat twice — a crafted payload cannot use
+  // duplicate picks to double a value.
+  const picks = Array.isArray(raw.stats) ? raw.stats : [];
+  const used  = new Set();
+  const width = gearShapeValues(inst).length;
+  for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+    const s = picks[i];
+    if (i >= width) { inst.stats[i] = ""; continue; }
+    if (typeof s !== "string" || !GEAR_ALLOC_STATS.includes(s) || used.has(s)) {
+      inst.stats[i] = "";
+      continue;
+    }
+    used.add(s);
+    inst.stats[i] = s;
+  }
+
+  const traits  = Array.isArray(raw.traits) ? raw.traits : [];
+  const allowed = new Set(traitIdsFor(c));
+  for (let i = 0; i < c.slots; i++) {
+    const t = traits[i];
+    // A locked slot cannot hold a trait no matter what the payload claims.
+    if (i >= c.unlocked) continue;
+    if (!t || typeof t !== "object" || typeof t.id !== "string") continue;
+    // Unknown ids are dropped, as are gear-only traits on an artifact — a
+    // crafted payload cannot smuggle a trait onto an item that cannot roll it.
+    if (!allowed.has(t.id)) continue;
+    inst.traits[i] = { id: t.id, tier: _int(t.tier, 1, MAX_TRAIT_TIER) };
+  }
+  return inst;
+}
+
+function resetGearInstance(i) {
+  gearInstances[i] = makeGearInstance();
+}
+
+// What each equipped gear contributes to the stats: the item's own stat block
+// plus the tier points allocated to that particular copy.
+//
+// Shared by updatePecents() (which wants the total) and _buildStatDetail()
+// (which wants the per-item breakdown). They used to sum gear independently and
+// silently disagreed the moment tier points were added — one source now.
+function gearStatContributions() {
+  const out = [];
+  _gearSlotIds.forEach((id, slot) => {
+    const name = document.getElementById(id)?.value || "";
+    if (!name) return;
+    const base  = gearItems[name] || {};
+    const inst  = gearInstances[slot];
+    const alloc = gearInstanceAlloc(inst);
+    const stats = {};
+    Object.entries(base).forEach(([k, v]) => { if (v) stats[k] = (stats[k] || 0) + v; });
+    let tierPts = 0;
+    GEAR_ALLOC_STATS.forEach(s => {
+      const v = alloc[s] || 0;
+      if (v) { stats[s] = (stats[s] || 0) + v; tierPts += v; }
+    });
+    out.push({
+      name, slot,
+      tier:  inst ? inst.tier : 0,
+      stats,                                  // base + tier values, merged
+      baseFor:  k => base[k] || 0,
+      tierFor:  k => alloc[k] || 0,
+      tierPts,
+    });
+  });
+
+  // The artifact contributes through the same path. artifactItems carries no
+  // stat block of its own today, so everything it grants comes from its tier.
+  const artName = document.getElementById("artifact-picker")?.value || "";
+  if (artName) {
+    const base  = artifactItems[artName] || {};
+    const alloc = gearInstanceAlloc(artifactInstance);
+    const stats = {};
+    Object.entries(base).forEach(([k, v]) => {
+      if (v && GEAR_ALLOC_STATS.includes(k)) stats[k] = (stats[k] || 0) + v;
+    });
+    let tierPts = 0;
+    GEAR_ALLOC_STATS.forEach(s => {
+      const v = alloc[s] || 0;
+      if (v) { stats[s] = (stats[s] || 0) + v; tierPts += v; }
+    });
+    out.push({
+      name: artName, slot: -1, artifact: true,
+      tier: artifactInstance.tier,
+      stats,
+      baseFor: k => (GEAR_ALLOC_STATS.includes(k) ? (base[k] || 0) : 0),
+      tierFor: k => alloc[k] || 0,
+      tierPts,
+    });
+  }
+  return out;
 }
 
 // Updates the "points remaining" counter displayed below the stat rows.
@@ -466,14 +834,14 @@ function updatePecents() {
   // Collect flat stat bonuses and pct bonuses from equipped gear
   const gearStatBonuses = {};
   const gearPct = {};
+  // Base stats + tier points, from the shared breakdown the Details panel uses.
+  gearStatContributions().forEach(c => {
+    Object.entries(c.stats).forEach(([k, v]) => {
+      if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v;
+    });
+  });
   _gearSlotIds.forEach(id => {
     const name = document.getElementById(id)?.value;
-    const g = name ? gearItems[name] : null;
-    if (g) {
-      Object.entries(g).forEach(([k, v]) => {
-        if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v;
-      });
-    }
     if (name && gearPctBonuses[name]) {
       Object.entries(gearPctBonuses[name]).forEach(([k, v]) => {
         gearPct[k] = (gearPct[k] || 0) + v;
@@ -482,7 +850,7 @@ function updatePecents() {
   });
 
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-  const lvlStatBonus = Math.floor(lvl / 5);
+  const lvlStatBonus = levelStatBonus(lvl);
 
   const masteryStats = getMasteryStatBonuses();
   const coagNailActive = hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"];
@@ -504,11 +872,26 @@ function updatePecents() {
     stultusBonus = getTotalStat("spd") / 10;
   }
 
+  // Stat totals as this pass derives them, so later items (END -> healing, and
+  // the identity stats) can reuse them. Relies on DOM order: str/arc/end/spd
+  // are all rendered before the items that read them.
+  const _statVals = {};
+
   _pctCache.items.forEach(({ el, stat, valEl, statInput }) => {
     const allocated = statInput ? +statInput.value : 0;
     const otherFlat = (armour[stat] ?? 0) + (masteryStats[stat] ?? 0) + (gearStatBonuses[stat] ?? 0);
     const levelBonus = statInput ? lvlStatBonus : 0;
     const isCritStat = stat === "crit-chance" || stat === "crit-dmg";
+    // The reworked identity stats read off another stat's total rather than
+    // having a stat row of their own. They reuse the value this same loop
+    // already derived — calling getTotalStat() here would touch dmgBonusActive,
+    // which is declared far below and still in its temporal dead zone when
+    // updatePecents() runs at load.
+    const IDENTITY_SOURCE = { "block-dr": "str", "nrg-chance": "arc", "initiative": "spd" };
+    if (IDENTITY_SOURCE[stat]) {
+      valEl.textContent = calcPercentage(stat, _statVals[IDENTITY_SOURCE[stat]] ?? 0);
+      return;
+    }
     // Combined pct for this stat: innate + armour. Applied only to (invested + race base + level bonus).
     const totalStatPct = (INNATE_STAT_PCT[stat] ?? 0) + (STAT_PCT_KEYS.has(stat) ? (armourPct[stat] ?? 0) : 0);
     const isStatMult = !isCritStat && totalStatPct > 0;
@@ -525,10 +908,16 @@ function updatePecents() {
       if (coagNailActive) val += coagNailBonus;
       if (permuthStat === stat && markPicker?.value === 'Venia') val = val * 1.4;
     }
+    _statVals[stat] = val;
     const base = calcPercentage(stat, val);
     const armourStatPct = isStatMult ? 0 : (armourPct[stat] ?? 0); // pct already in val for stat-mult stats
     const _masteryHealPct = (stat === "inc-heal" && document.getElementById("super-picker")?.value === "Saint (Or)" && masteryState["cm1"]) ? 40 : 0;
-    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct;
+    // Endurance now grants END/4 to both healing stats (§9), on top of the
+    // existing percentage sources. `end` is computed earlier in this same pass
+    // (DOM order), so its value is already cached by the time we get here.
+    const _endHealPct = (stat === "out-heal" || stat === "inc-heal")
+      ? (_statVals.end ?? 0) / END_HEAL_DIVISOR : 0;
+    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct + _endHealPct;
     let display;
     if (base === "—") {
       display = "—";
@@ -603,16 +992,17 @@ function _buildStatDetail(statKey) {
   const row = document.querySelector(`.stat-row[data-stat="${statKey}"] .stat-val`);
   const allocated = row ? +row.value : 0;
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-  const lvlBonus = Math.floor(lvl / 5);
+  const lvlBonus = levelStatBonus(lvl);
   const masteryStats = getMasteryStatBonuses();
   const armourEl = document.getElementById("armour-main");
   const armourData = armourItems?.[armourEl?.value] || {};
   const armourPct = armourData.pct || {};
+  // Same source updatePecents() uses, so the breakdown always sums to the total.
+  const gearParts = gearStatContributions();
   const gearStatBonuses = {};
-  ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
-    const g = gearItems?.[document.getElementById(id)?.value];
-    if (g) Object.entries(g).forEach(([k, v]) => { if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v; });
-  });
+  gearParts.forEach(c => Object.entries(c.stats).forEach(([k, v]) => {
+    if (v) gearStatBonuses[k] = (gearStatBonuses[k] || 0) + v;
+  }));
   const crystalBonus = statKey === "lck" ? crystalStarStacks * 10 : 0;
   const STAT_PCT_SET = new Set(["str", "arc", "spd"]);
   const INNATE = { str: 15, arc: 15 };
@@ -631,8 +1021,15 @@ function _buildStatDetail(statKey) {
   if (mastery)     sources.push({ label: "Mastery",      val: mastery });
   const armFlat = armourData[statKey] ?? 0;
   if (armFlat)     sources.push({ label: "Armour",       val: armFlat });
-  const gear = gearStatBonuses[statKey] ?? 0;
-  if (gear)        sources.push({ label: "Gear",         val: gear });
+  // One row per contributing gear rather than a single lumped "Gear" line, so
+  // it's clear which item a bonus came from. Base stats and tier points are
+  // split when a gear grants both, since they come from different places.
+  gearParts.forEach(c => {
+    const base = c.baseFor(statKey);
+    const tier = c.tierFor(statKey);
+    if (base) sources.push({ label: c.name, val: base, sub: true });
+    if (tier) sources.push({ label: c.name + " · T" + c.tier, val: tier, sub: true });
+  });
   if (crystalBonus) sources.push({ label: "Crystal Stars", val: crystalBonus });
   const coagNailBonus = (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"])
     ? Math.round(coagNailStacks * 1.5 * 10) / 10 : 0;
@@ -650,11 +1047,33 @@ function _buildStatDetail(statKey) {
     displayTotal = Math.round(displayTotal * 1.4);
   }
 
+  // Labels are interpolated into innerHTML below. Item names are our own data
+  // rather than user input, but escaping costs nothing and keeps it that way if
+  // a name ever becomes dynamic.
+  const esc = s => String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
   const rows = sources.length
-    ? sources.map(s => `<div class="stat-detail-row"><span class="stat-detail-label">${s.label}</span><span class="stat-detail-val">+${s.val}</span></div>`).join('')
+    ? sources.map(s => `<div class="stat-detail-row${s.sub ? ' stat-detail-sub' : ''}"><span class="stat-detail-label">${esc(s.label)}</span><span class="stat-detail-val">+${s.val}</span></div>`).join('')
     : '<div class="stat-detail-empty">No active bonuses</div>';
 
-  return rows + `<div class="stat-detail-row stat-detail-total"><span class="stat-detail-label">Total</span><span class="stat-detail-val stat-detail-total-val">${displayTotal}</span></div>`;
+  const totalRow = `<div class="stat-detail-row stat-detail-total"><span class="stat-detail-label">Total</span><span class="stat-detail-val stat-detail-total-val">${displayTotal}</span></div>`;
+
+  // Milestones (§9). Shown against the same total the panel just derived, so
+  // "24 more" is always measured from the number directly above it.
+  const tiers = statMilestones[statKey];
+  let milestones = "";
+  if (tiers) {
+    milestones = '<div class="stat-detail-ms">' +
+      STAT_MILESTONE_TIERS.map((need, i) => {
+        const hit  = displayTotal >= need;
+        const away = need - displayTotal;
+        return `<div class="stat-detail-row stat-ms-row${hit ? ' stat-ms-hit' : ''}">` +
+               `<span class="stat-detail-label"><span class="stat-ms-n">${need}</span>${esc(tiers[i])}</span>` +
+               `<span class="stat-detail-val">${hit ? '✓' : away + ' more'}</span></div>`;
+      }).join('') + '</div>';
+  }
+  return rows + totalRow + milestones;
 }
 
 // Details button click handler (event delegation on stat-list)
@@ -870,6 +1289,24 @@ const enchantItems = {
   "Frost Burn (mod)": {
     level: null,
     effect: "Attacks have a ?% chance to inflict Stun.\n\nAttacks have a ?% chance to increase damage dealt by 50%.\n\nOnly one effect can trigger per attack — Stun and the damage increase cannot proc simultaneously."
+  },
+  // Withered Grove enchants. APPEND ONLY — _L.ench is positional.
+  //
+  // All three serve the Corruption Forms. The changelog notes the percentages
+  // were tuned against an earlier version of the forms (10 turns to charge,
+  // 9-10 turns in) and were NOT re-tuned when the forms changed, so treat the
+  // numbers as the shipped values rather than balanced ones.
+  "Polaris": {
+    level: null,
+    effect: "Of Sun — Burst.\n\nCorrupt Energy Burn: +20%\nRecoil Self Damage: -20%\nCorrupt Power Gain: +15%\n\nDesigned so you reach your form faster, at the cost of it ending sooner.\n\nObtained by turning a Starpoint Charm in to the Lieutenant after Quest 4. Charms drop from shadow bosses."
+  },
+  "Octantis": {
+    level: null,
+    effect: "Of Moon — Uptime.\n\nCorrupt Energy Burn: -20%\nRecoil Self Damage: -30%\n\nThe opposite of Polaris: hold your form for longer. Particularly useful for forms that want uptime, so Heresy and Tyranny.\n\nObtained by turning a Moonlit Charm in to the Lieutenant after Quest 4. Charms drop from shadow bosses."
+  },
+  "Skyblaze": {
+    level: null,
+    effect: "Of Other Planes — Both.\n\nCorrupt Energy Burn: -20%\nRecoil Self Damage: -30%\nCorrupt Power Gain: +15%\nCorrupt Energy Gain: +30%\n\nPassive health drain: 2% max health damage at the end of your turn, ramping by 0.5% per turn to a cap of 6%. It stops while your health is above 75% max, never takes you below 10 HP, and resets and switches off while you are in a Corrupt Form.\n\nObtained by turning in both the Starpoint and Moonlit Charms at the same time."
   }
 };
 
@@ -1166,7 +1603,7 @@ buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), () => {
   ivoryNrgStacks = 0;
   renderDmgBonusSection(); recalcOpenDetails();
 });
-buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { renderArtifactDesc(); renderMoves(); updatePecents(); renderDmgBonusSection(); recalcOpenDetails(); });
+buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { onArtifactSwapped(); renderArtifactDesc(); renderMoves(); updatePecents(); renderDmgBonusSection(); recalcOpenDetails(); });
 
 function renderArtifactDesc() {
   const section = artifactDescSection;
@@ -1276,6 +1713,190 @@ function renderGearInfo() {
   section.style.display = "";
 }
 
+// § CORRUPTION FORMS
+// Three forms; one may be active at a time. Everything here is reference text —
+// the forms are turn-by-turn combat state (Notch, Mandate, Force, Recoil) that
+// this planner does not simulate, so none of it feeds the stat maths. It is
+// documentation the builder can show beside a build.
+//
+// Phase raises stack caps and ratios. It exists in game but there is currently
+// no way to increase it (Corrupt Essence Shards were cut), so it is presented
+// as a what-if selector.
+const CORRUPTION_MAX_PHASE = 5;
+
+// Caps that scale with phase: 2 at Phase 0-2, 3 at Phase 3-4, 4 at Phase 5.
+function corruptionStackCap(phase) {
+  const p = Math.min(CORRUPTION_MAX_PHASE, Math.max(0, phase | 0));
+  return p >= 5 ? 4 : (p >= 3 ? 3 : 2);
+}
+
+// Systems shared by all three forms.
+const CORRUPTION_GENERAL = [
+  { name: "Corrupt Energy", text: "Runs 0-100. You gain some each turn, plus 2 per energy you are actively holding. While in your Corruption Form it drains each turn instead." },
+  { name: "Soul Ignition",  text: "At 100 Corrupt Energy you can spend it to enter your Corruption Form in its default stance." },
+  { name: "Recoil",         text: "Certain actions build Recoil while you are in form. When the form ends — however it ends — Recoil triggers a backlash dealing Max Health damage scaled to how much you had." },
+  { name: "Corrupt Power",  text: "Builds over the course of a battle and does not fade easily; it only resets when you leave combat. Corrupt gear spends it for a powerup, while Cards grow stronger the more of it you bank." },
+];
+
+const corruptionForms = {
+  "Tyranny": {
+    subtitle: "Two stances — Tyrant and Regent. You start in Tyrant.",
+    variants: ["Base", "Flower"],
+    mechanics: [
+      { name: "Subject",   text: "Strike or Magic Missile marks your target as your Subject. Only one at a time; marking a new one releases the old." },
+      { name: "Mandate",   text: "Builds on your Subject as you trade damage with it. The first 2 stacks are guaranteed; beyond that it is a chance roll that improves with Corrupt Power." },
+      { name: "Meditate",  text: "Swaps your stance and harvests all Mandate on your Subject into your own pool — the only pool your abilities spend from." },
+      { name: "Tyrant",    text: "Entering converts harvested Mandate into a Shield. A move costing 2+ NRG spends 1 Mandate to apply or refresh Condemned, making the target take more damage from everyone, not just you. Attacking builds Recoil; a non-attack action reduces it." },
+      { name: "Regent",    text: "Guarding redirects part of the damage your Subjects deal to allies onto you, and grants a shared party Damage Reduction pool. A move costing 2+ NRG spends 1 Mandate to cast King's Rally, giving the party a Rally stack. Spending Rally on an attack against your Subject grants a shield; otherwise it is a small passive heal each turn. Guarding costs 1 Mandate and cuts Recoil; a successful block cuts it further." },
+      { name: "Corrupt Power", text: "Gained from spending Mandate in either stance, and passively each turn split across your Subjects." },
+    ],
+  },
+  "Heresy": {
+    subtitle: "Two stances — Dark Wing and White Wing. You always start in Dark Wing.",
+    variants: ["Base", "Flower and Decay", "Bone and Blood", "Fire and Ice", "Sun and Moon", "Sword"],
+    mechanics: [
+      { name: "Dark / Light Force", text: "Two separate resources; neither carries over if you leave the form. Gaining Corrupt Power also grants Force 1:1 into your current stance. Attacking grants Force to whichever your stance builds — a flat amount per hit, plus a bonus on a crit, once per turn, scaling with crit tier." },
+      { name: "Dark Wing",  text: "Inflicting Bleeding, Burning or Poisoned also creates a Shadow copy of that status on yourself for White Wing to spend. Failing to apply a status grants Corrupt Power. As a bonus action, spend 25/50/75/100% of your Light Force for Crit Rate 1:1 on your next attack, expiring after 3 turns." },
+      { name: "White Wing", text: "Daybreak rerolls any status about to hit you, with odds scaling off Light Force, and deflecting one grants Light Force. Successfully applying a status grants Corrupt Power. As a bonus action, spend 50 Dark Force to trigger a Conversion." },
+      { name: "Conversion — Burning",  text: "Detonate + Shadowflamed. Instantly procs all Burning and Ghostflamed on the target (Burning 0.5% + 0.2% of max HP per stack, capped at 20 stacks; Ghostflamed a flat 3.5% of max HP), then applies Shadowflamed for 3 turns: +30% damage to both on that target." },
+      { name: "Conversion — Bleeding", text: "Creates a healing pool worth 0.5% of the target's max health per stack, capped at 5%, split across the party weighted by missing health." },
+      { name: "Conversion — Poisoned", text: "Contagion. Reshapes existing poison rather than adding damage: against one enemy stacks x1.10; against several the target's stacks x0.90 and every other living enemy is seeded with 20% of the original count." },
+      { name: "Recoil",     text: "Generated by gaining Corrupt Power, by holding Shadow statuses, and in White Wing by each Daybreak deflection. Reduced by removing a Shadow status, landing crits, or applying statuses." },
+    ],
+  },
+  "Blasphemy": {
+    subtitle: "Builds and spends a resource called Notch.",
+    variants: ["Base", "Flower", "Lightbane", "Sun and Moon"],
+    mechanics: [
+      { name: "Notch",      text: "Any move costing 0-2 NRG generates 1 Notch up to your cap. Any move costing 3+ NRG consumes the entire stack instead." },
+      { name: "On damage",  text: "Consuming Notches on a damaging move deals bonus damage — 10% at 1 Notch, scaling to 30% at your cap — and converts part of it into a temporary Shield (5% to 25%, same scaling)." },
+      { name: "On utility", text: "Consuming Notches on a non-damaging move grants lifesteal on your next hit (2% to 8%, same scaling), expiring after 3 turns if unused." },
+      { name: "Refunds",    text: "Consuming Notches also cuts Recoil by 10-30%, refunds 1 NRG per Notch, and grants 15 Corrupt Power per Notch." },
+      { name: "Holding cost", text: "Holding Notches costs Recoil every turn, scaling with how full the stack is relative to your cap and ramping up to +50% over 3 turns. You also gain 15 Corrupt Power per Notch held, each turn." },
+    ],
+  },
+};
+
+// Phase is a display-only what-if: it changes the caps shown in the Info panel
+// and nothing else, so it deliberately stays out of the build state.
+let corruptionPhase = 0;
+
+const corruptionPicker     = document.getElementById("corruption-picker");
+const corruptionDescSect   = document.getElementById("corruption-desc-section");
+const corruptionDescBody   = document.getElementById("corruption-desc");
+
+function renderCorruptionDesc() {
+  if (!corruptionDescSect || !corruptionDescBody) return;
+  const name = corruptionPicker?.value;
+  const data = name ? corruptionForms[name] : null;
+  corruptionDescBody.innerHTML = "";
+  if (!name || !data) { corruptionDescSect.style.display = "none"; return; }
+  corruptionDescSect.style.display = "";
+
+  const line = (cls, text, el) => {
+    const d = document.createElement(el || "div");
+    d.className = cls;
+    d.textContent = text;
+    return d;
+  };
+
+  // The panel already carries a "Corruption Form" heading, so this names which
+  // form is equipped rather than repeating the category.
+  corruptionDescBody.appendChild(line("enchant-name", name));
+  if (data.subtitle) {
+    const sub = line("enchant-desc corr-subtitle", data.subtitle);
+    corruptionDescBody.appendChild(sub);
+  }
+
+  // Phase raises stack caps. There is no way to raise it in game yet, so this
+  // is a what-if control rather than part of the build.
+  const phaseRow = document.createElement("div");
+  phaseRow.className = "corr-phase-row";
+  phaseRow.appendChild(line("corr-phase-lbl", "Phase", "span"));
+  const sel = document.createElement("select");
+  sel.className = "corr-phase-pick";
+  for (let p = 0; p <= CORRUPTION_MAX_PHASE; p++) {
+    const o = document.createElement("option");
+    o.value = String(p);
+    o.textContent = String(p);
+    sel.appendChild(o);
+  }
+  sel.value = String(corruptionPhase);
+  sel.addEventListener("change", () => {
+    corruptionPhase = Math.min(CORRUPTION_MAX_PHASE, Math.max(0, +sel.value || 0));
+    renderCorruptionDesc();
+  });
+  phaseRow.appendChild(sel);
+  const capName = name === "Tyranny" ? "Mandate cap" : (name === "Blasphemy" ? "Notch cap" : "Stack cap");
+  phaseRow.appendChild(line("corr-phase-cap", capName + " " + corruptionStackCap(corruptionPhase), "span"));
+  corruptionDescBody.appendChild(phaseRow);
+
+  (data.mechanics || []).forEach(m => {
+    const wrap = document.createElement("div");
+    wrap.className = "corr-mech";
+    wrap.appendChild(line("corr-mech-name", m.name, "strong"));
+    wrap.appendChild(line("enchant-desc", m.text));
+    corruptionDescBody.appendChild(wrap);
+  });
+
+  if (data.variants && data.variants.length) {
+    const v = document.createElement("div");
+    v.className = "corr-mech";
+    v.appendChild(line("corr-mech-name", "Visual variants", "strong"));
+    v.appendChild(line("enchant-desc", data.variants.join(" · ") + " — cosmetic only, no stat effect."));
+    corruptionDescBody.appendChild(v);
+  }
+
+  // Shared systems, last, since they read the same for every form.
+  const gen = document.createElement("div");
+  gen.className = "corr-general";
+  gen.appendChild(line("corr-mech-name", "How Corruption works", "strong"));
+  CORRUPTION_GENERAL.forEach(m => {
+    const w = document.createElement("div");
+    w.className = "corr-mech";
+    w.appendChild(line("corr-mech-name", m.name, "strong"));
+    w.appendChild(line("enchant-desc", m.text));
+    gen.appendChild(w);
+  });
+  corruptionDescBody.appendChild(gen);
+}
+
+if (corruptionPicker) {
+  buildSimpleDropdown(corruptionPicker, Object.keys(corruptionForms), () => {
+    renderCorruptionDesc();
+    updatePecents();
+    if (typeof autoSave === "function") autoSave();
+  });
+  renderCorruptionDesc();
+}
+
+// § INFO JUMP BUTTONS
+// Every equipment picker carries a ⓘ that switches to the Info tab and scrolls
+// to that item's section. One delegated listener rather than a handler each, so
+// adding a button anywhere is a markup-only change: give it .info-jump and a
+// data-info-target selector.
+//
+// Targets are either a fixed panel (#enchant-desc-section) or a column that
+// renderMoves() rebuilds on every change ([data-info='mark']) — hence resolving
+// the selector at click time rather than caching an element.
+document.addEventListener("click", e => {
+  const btn = e.target.closest(".info-jump");
+  if (!btn) return;
+  if (typeof _switchBuilderTab === "function") _switchBuilderTab("Moves");
+  const sel = btn.dataset.infoTarget;
+  if (!sel) return;
+  const target = document.querySelector(sel);
+  // Nothing equipped in that slot yet: the Info tab already explains itself
+  // with "Make a selection to view moves", so just land there.
+  if (!target || target.offsetParent === null) return;
+  target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  // Brief highlight, otherwise on a crowded Info tab it isn't obvious which
+  // section the jump landed on.
+  target.classList.remove("info-jump-flash");
+  void target.offsetWidth;                 // restart the animation
+  target.classList.add("info-jump-flash");
+});
+
 // --- Gear ---
 // Percentage bonuses granted by gear items (e.g. crit-chance, energy)
 const gearPctBonuses = {
@@ -1285,98 +1906,429 @@ const gearPctBonuses = {
 
 // To add gear: "Item Name": { str, arc, end, spd, lck }
 const gearItems = {
-  "Lethal Blackjack":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Everbeating Drums":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Lethal Blackjack":    { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
+  "Everbeating Drums":   { str: 4, arc: 0, end: 0, spd: 0, lck: 0 },
   // Easter Gears
-  "Rabbit Pelt":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Egg Shelmet":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Chocolate Egg":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Party Egg":           { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Gleaming Carrot":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Rabbit's Foot":       { str: 0, arc: 0, end: 0, spd: 5, lck: 5 },
+  "Rabbit Pelt":         { str: 0, arc: 0, end: 2, spd: 0, lck: 0 },
+  "Egg Shelmet":         { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  "Chocolate Egg":       { str: 0, arc: 0, end: 0, spd: 0, lck: 1 },
+  "Party Egg":           { str: 1, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Gleaming Carrot":     { str: 0, arc: 0, end: 1, spd: 0, lck: 0 },
+  "Rabbit's Foot":       { str: 0, arc: 0, end: 0, spd: 0, lck: 2 },
   // Winter Solstice Gears
-  "Snorb":               { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Elementary Resonance":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Frosty Topper":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Snorb":               { str: 0, arc: 0, end: 2, spd: 0, lck: 0 },
+  "Elementary Resonance":{ str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Frosty Topper":       { str: 0, arc: 2, end: 0, spd: 0, lck: 0 },
   // Forest Gears
-  "7 Leafed Everthistle":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Shattered Clock Hand":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "The Biggest Pebble":  { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Arbusta Tear":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Parasitic Leech":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Spore Root":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Forest Charm":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Elemental Infuser":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Crystallized Star":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Pathfinder Mark":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Gilded Pouch":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "7 Leafed Everthistle":{ str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
+  "Shattered Clock Hand":{ str: 0, arc: 0, end: 0, spd: 3, lck: 0 },
+  "The Biggest Pebble":  { str: 0, arc: 0, end: 0, spd: 1, lck: 0 },
+  "Arbusta Tear":        { str: 0, arc: 0, end: 1, spd: 0, lck: 0 },
+  "Parasitic Leech":     { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Spore Root":          { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  "Forest Charm":        { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Elemental Infuser":   { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Crystalized Star":   { str: 0, arc: 0, end: 0, spd: 0, lck: 4 },
+  "Pathfinder Mark":     { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  "Gilded Pouch":        { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
   // Desert Gears
-  "Crystal Sphere":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Dust Storm":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Golem Rune Core":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Spiked Steel Ball":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Stone Brand":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Ramizcan Idol":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Band of Crushing Force":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Grain Of Balance":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Madseer's Codex":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Impure Crown":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "The Last Straw":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Imbued Chains":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Delicate Purse":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Desert Escutcheon":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Crystal Sphere":      { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
+  "Dust Storm":          { str: 0, arc: 0, end: 0, spd: 3, lck: 0 },
+  "Golem Rune Core":     { str: 0, arc: 2, end: 0, spd: 0, lck: 0 },
+  "Spiked Steel Ball":   { str: 3, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Stone Brand":         { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  "Ramizcan Idol":       { str: 3, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Band of Crushing Force":{ str: 2, arc: 0, end: 1, spd: 0, lck: 0 },
+  "Grain Of Balance":    { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
+  "Madseer's Codex":     { str: 0, arc: 5, end: 0, spd: 0, lck: 0 },
+  "Impure Crown":        { str: 0, arc: 4, end: 0, spd: 0, lck: 0 },
+  "The Last Straw":      { str: 0, arc: 0, end: 0, spd: 4, lck: 0 },
+  "Imbued Chains":       { str: 0, arc: 0, end: 0, spd: 4, lck: 0 },
+  "Delicate Purse":      { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
+  "Desert Escutcheon":   { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
   // Deeproot Gears
-  "Cursed Brand":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Narthana's Leaf":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Wicked Crown":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Sanguine Fang":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Coagulated Finger Nail":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Shard of Blight":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Traveler's Lamp":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Expedite Anklet":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Phantom Ooze":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Cursed Brand":          { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Narthana's Leaf":       { str: 0, arc: 2, end: 2, spd: 0, lck: 0 },
+  "Wicked Crown":          { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  "Sanguine Fang":         { str: 1, arc: 0, end: 0, spd: 0, lck: 2 },
+  "Coagulated Finger Nail":{ str: 2, arc: 2, end: 0, spd: 0, lck: 0 },
+  "Shard of Blight":       { str: 0, arc: 2, end: 2, spd: 0, lck: 0 },
+  "Traveler's Lamp":       { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Expedite Anklet":       { str: 0, arc: 0, end: 0, spd: 3, lck: 0 },
+  "Phantom Ooze":          { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
   // Volcano Gears
-  "Imperial Headband":     { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Magma Charm":           { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Vulcan Knuckle":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Dragon Memoir":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Blazing Brand":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Molten Carapace":       { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Imperial Headband":     { str: 1, arc: 2, end: 0, spd: 0, lck: 0 },
+  "Magma Charm":           { str: 0, arc: 0, end: 1, spd: 2, lck: 0 },
+  "Vulcan Knuckle":        { str: 2, arc: 0, end: 1, spd: 0, lck: 0 },
+  "Dragon Memoir":         { str: 4, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Blazing Brand":         { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Molten Carapace":       { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
   // Bosses/Minibosses Gears
-  "Gelat Band":            { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Tear Blood Crystal":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Ptera's Heart":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "DeathBeak Dagger":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Blazing Perforator":    { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Yar'thul's Wrath":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Frostburned Rune":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Vow of Ruin":           { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Frozen Diadem":         { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Imbuement Reliquary":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Divine Promise":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Focused Mind":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Aspect of Maladaptation":{ str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Tainted Quiver":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Vainglorious Locket":   { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "The Smallest Boulder":  { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Eroded Blade":          { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Dust Devil's Eye":      { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
-  "Open Hand":             { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Gelat Band":            { str: 0, arc: 2, end: 0, spd: 0, lck: 0 },
+  "Tear Blood Crystal":    { str: 0, arc: 0, end: 1, spd: 0, lck: 2 },
+  "Ptera's Heart":         { str: 0, arc: 2, end: 2, spd: 0, lck: 0 },
+  "DeathBeak Dagger":      { str: 2, arc: 0, end: 0, spd: 0, lck: 2 },
+  "Blazing Perforator":    { str: 0, arc: 4, end: 0, spd: 0, lck: 0 },
+  "Yar'thul's Wrath":      { str: 2, arc: 0, end: 0, spd: 2, lck: 0 },
+  "Frostburned Rune":      { str: 0, arc: 4, end: 0, spd: 0, lck: 0 },
+  "Vow of Ruin":           { str: 0, arc: 0, end: 4, spd: 0, lck: 0 },
+  "Frozen Diadem":         { str: 0, arc: 0, end: 0, spd: 0, lck: 4 },
+  "Imbuement Reliquary":   { str: 0, arc: 5, end: 0, spd: 0, lck: 0 },
+  "Divine Promise":        { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Focused Mind":          { str: 0, arc: 3, end: 0, spd: 0, lck: 0 },
+  "Aspect of Maladaptation":{ str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  "Tainted Quiver":        { str: 0, arc: 2, end: 0, spd: 1, lck: 0 },
+  "Vainglorious Locket":   { str: 0, arc: 0, end: 0, spd: 5, lck: 0 },
+  "The Smallest Boulder":  { str: 2, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Eroded Blade":          { str: 0, arc: 0, end: 0, spd: 3, lck: 0 },
+  "Dust Devil's Eye":      { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
+  "Open Hand":             { str: 0, arc: 0, end: 3, spd: 0, lck: 0 },
+  // Withered Grove — source given by the game dev, not the changelog table
+  "Dread Fang":            { str: 2, arc: 0, end: 0, spd: 0, lck: 2 },
+  "Empty Blade":           { str: 4, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Faded Heirloom":        { str: 0, arc: 0, end: 0, spd: 0, lck: 1 },
+  "Ring of Heroism":       { str: 3, arc: 0, end: 0, spd: 0, lck: 0 },
+  // Withered Grove — the "Corrupt Power" gears. Each grants a small
+  // unconditional bonus on every attack, and once per turn, while in a
+  // Corruption Form with enough Corrupt Power banked, can spend it for a much
+  // larger version. Only the unconditional half is modelled so far.
+  "Ages Pages":            { str: 0, arc: 0, end: 0, spd: 0, lck: 4 },
+  "Blooming Eye":          { str: 0, arc: 4, end: 0, spd: 0, lck: 0 },
+  "Crystalline Spike":     { str: 4, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Shadow Gauntlets":      { str: 0, arc: 0, end: 4, spd: 0, lck: 0 },
+  "Infected Skin":         { str: 2, arc: 0, end: 2, spd: 0, lck: 0 },
+  "Lucky Horns":           { str: 0, arc: 0, end: 0, spd: 4, lck: 0 },
 };
 
 const gearSeries = {
   "Easter Gears":         ["Rabbit Pelt", "Egg Shelmet", "Chocolate Egg", "Party Egg", "Gleaming Carrot", "Rabbit's Foot"],
   "Winter Solstice Gears":["Snorb", "Elementary Resonance", "Frosty Topper"],
-  "Forest":               ["7 Leafed Everthistle", "Shattered Clock Hand", "The Biggest Pebble", "Arbusta Tear", "Parasitic Leech", "Spore Root", "Forest Charm", "Elemental Infuser", "Crystallized Star", "Pathfinder Mark", "Gilded Pouch"],
+  "Forest":               ["7 Leafed Everthistle", "Shattered Clock Hand", "The Biggest Pebble", "Arbusta Tear", "Parasitic Leech", "Spore Root", "Forest Charm", "Elemental Infuser", "Crystalized Star", "Pathfinder Mark", "Gilded Pouch"],
   "Desert":               ["Crystal Sphere", "Dust Storm", "Golem Rune Core", "Spiked Steel Ball", "Stone Brand", "Ramizcan Idol", "Band of Crushing Force", "Grain Of Balance", "Madseer's Codex", "Impure Crown", "The Last Straw", "Imbued Chains", "Delicate Purse", "Desert Escutcheon"],
   "Deeproot":             ["Cursed Brand", "Narthana's Leaf", "Wicked Crown", "Sanguine Fang", "Coagulated Finger Nail", "Shard of Blight", "Traveler's Lamp", "Expedite Anklet", "Phantom Ooze"],
   "Volcano":              ["Imperial Headband", "Magma Charm", "Vulcan Knuckle", "Dragon Memoir", "Blazing Brand", "Molten Carapace"],
   "Bosses/Minibosses":    ["Gelat Band", "Tear Blood Crystal", "Ptera's Heart", "DeathBeak Dagger", "Blazing Perforator", "Yar'thul's Wrath", "Frostburned Rune", "Vow of Ruin", "Frozen Diadem", "Imbuement Reliquary", "Divine Promise", "Focused Mind", "Aspect of Maladaptation", "Tainted Quiver", "Vainglorious Locket", "The Smallest Boulder", "Eroded Blade", "Dust Devil's Eye", "Open Hand"],
+  // APPEND ONLY. _L.gear is Object.values(gearSeries).flat(), so an item's
+  // position in this structure IS its share-link id. Inserting into an existing
+  // series shifts every gear after it and repoints every link ever generated.
+  // New gears go at the end of the last series, or in a new series appended here.
   "Other":                ["Lethal Blackjack", "Everbeating Drums"],
+  "Withered Grove":       ["Ages Pages", "Blooming Eye", "Crystalline Spike", "Dread Fang", "Empty Blade", "Faded Heirloom", "Infected Skin", "Lucky Horns", "Ring of Heroism", "Shadow Gauntlets"],
 };
 
 const gearPickers = document.querySelectorAll(".gear-picker");
 gearPickers.forEach(picker => buildGearDropdown(picker, gearSeries));
+
+// --- Gear tier / allocation / trait controls ---
+// Built in JS rather than markup so the four slots cannot drift apart, and so
+// TRAIT_SLOTS / TRAIT_SLOTS_UNLOCKED stay the single source of truth for how
+// many slots exist and how many accept input.
+//
+// Each slot's box is rebuilt wholesale on change. There is no focused text
+// input to lose, and rebuilding keeps the render a pure function of state.
+const GEAR_STAT_LABELS = { str: "STR", arc: "ARC", end: "END", spd: "SPD", lck: "LCK" };
+
+function _gtBtn(label, cls, title, onClick, disabled) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = cls;
+  b.textContent = label;
+  if (title) b.title = title;
+  if (disabled) b.disabled = true;
+  else b.addEventListener("click", onClick);
+  return b;
+}
+
+// Generic gear-spec editor. Renders tier / allocation / trait controls for one
+// instance into `box` and calls onChange() after every mutation. The builder
+// drives its four gear slots through it; bank.js reuses it for a bank entry via
+// window._gearSpecRender, so neither the controls nor the rules are duplicated.
+function renderGearSpec(box, inst, onChange, cfg) {
+  if (!box || !inst) return;
+  const c = cfg || SPEC_GEAR;
+  const redraw = () => { renderGearSpec(box, inst, onChange, c); onChange && onChange(); };
+  box.innerHTML = "";
+
+  const shapes    = gearShapesFor(inst.tier);
+  const vals      = gearShapeValues(inst);
+  const unset     = gearUnassigned(inst);
+
+  // Tier stepper
+  const tierRow = document.createElement("div");
+  tierRow.className = "gt-tier-row";
+  tierRow.appendChild(_gtBtn("−", "gt-step", "Lower tier", () => { specSetTier(inst, inst.tier - 1); redraw(); }, inst.tier <= 0));
+  const tierLbl = document.createElement("span");
+  tierLbl.className = "gt-tier-lbl";
+  tierLbl.textContent = "T" + inst.tier;
+  tierRow.appendChild(tierLbl);
+  tierRow.appendChild(_gtBtn("+", "gt-step", "Raise tier", () => { specSetTier(inst, inst.tier + 1); redraw(); }, inst.tier >= MAX_GEAR_TIER));
+
+  // Shape picker — only shown when the tier actually offers a choice.
+  if (shapes.length > 1) {
+    const sel = document.createElement("select");
+    sel.className = "gt-shape-pick";
+    sel.title = "How this tier's stats are split";
+    shapes.forEach((sh, i) => {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = gearShapeLabel(sh);
+      sel.appendChild(o);
+    });
+    sel.value = String(inst.shape);
+    sel.addEventListener("change", () => { specSetShape(inst, +sel.value); redraw(); });
+    tierRow.appendChild(sel);
+  } else if (vals.length) {
+    const only = document.createElement("span");
+    only.className = "gt-shape-fixed";
+    only.textContent = gearShapeLabel(vals);
+    tierRow.appendChild(only);
+  }
+
+  const leftLbl = document.createElement("span");
+  leftLbl.className = "gt-left" + (vals.length && !unset ? " gt-left-done" : "");
+  leftLbl.textContent = !vals.length ? "no stats"
+    : unset ? "pick " + unset + " stat" + (unset > 1 ? "s" : "")
+            : "+" + gearAllocSpent(inst) + " total";
+  tierRow.appendChild(leftLbl);
+  box.appendChild(tierRow);
+
+  // One picker per shape position. Each holds a fixed value from the shape; you
+  // choose which stat receives it. A stat already used by another position is
+  // omitted, because the game forbids the same stat appearing twice.
+  if (vals.length) {
+    const allocRow = document.createElement("div");
+    allocRow.className = "gt-alloc-row";
+    vals.forEach((v, i) => {
+      const cell = document.createElement("div");
+      cell.className = "gt-alloc";
+      const amt = document.createElement("span");
+      amt.className = "gt-alloc-n" + (inst.stats[i] ? " gt-alloc-on" : "");
+      amt.textContent = "+" + v;
+      cell.appendChild(amt);
+      const sel = document.createElement("select");
+      sel.className = "gt-stat-pick";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "—";
+      sel.appendChild(none);
+      GEAR_ALLOC_STATS.forEach(stat => {
+        const takenElsewhere = inst.stats.some((s, j) => j !== i && s === stat);
+        if (takenElsewhere) return;
+        const o = document.createElement("option");
+        o.value = stat;
+        o.textContent = GEAR_STAT_LABELS[stat];
+        sel.appendChild(o);
+      });
+      sel.value = inst.stats[i] || "";
+      sel.addEventListener("change", () => { specSetStatAt(inst, i, sel.value); redraw(); });
+      cell.appendChild(sel);
+      allocRow.appendChild(cell);
+    });
+    box.appendChild(allocRow);
+  }
+
+  // Trait slots — all TRAIT_SLOTS rendered, only the unlocked ones interactive.
+  const traitIds = traitIdsFor(c);
+  const traitRow = document.createElement("div");
+  traitRow.className = "gt-trait-row";
+
+  for (let i = 0; i < c.slots; i++) {
+    const cell = document.createElement("div");
+    cell.className = "gt-trait";
+    if (i >= c.unlocked) {
+      cell.classList.add("gt-trait-locked");
+      cell.title = "This trait slot is locked";
+      const lock = document.createElement("span");
+      lock.className = "gt-trait-lock";
+      lock.textContent = "Locked";
+      cell.appendChild(lock);
+      traitRow.appendChild(cell);
+      continue;
+    }
+    const sel = document.createElement("select");
+    sel.className = "gt-trait-pick";
+    const none = document.createElement("option");
+    none.value = "";
+    none.textContent = "— Trait —";
+    sel.appendChild(none);
+    // Grouped by family, which is also the orb that rolls the trait.
+    const byFamily = {};
+    traitIds.forEach(id => {
+      const f = gearTraits[id].family || "Other";
+      (byFamily[f] = byFamily[f] || []).push(id);
+    });
+    Object.entries(byFamily).forEach(([fam, ids]) => {
+      const grp = document.createElement("optgroup");
+      grp.label = fam;
+      ids.forEach(id => {
+        const o = document.createElement("option");
+        o.value = id;
+        o.textContent = gearTraits[id].name || id;
+        grp.appendChild(o);
+      });
+      sel.appendChild(grp);
+    });
+    sel.value = inst.traits[i] ? inst.traits[i].id : "";
+    if (inst.traits[i]) {
+      const d = gearTraits[inst.traits[i].id];
+      if (d) sel.title = d.name + " — " + d.desc + (d.cap ? "  (cap " + d.cap + "%)" : "");
+    }
+    sel.addEventListener("change", () => { specSetTrait(inst, i, sel.value, c); redraw(); });
+    cell.appendChild(sel);
+
+    if (inst.traits[i]) {
+      const t = inst.traits[i];
+      cell.appendChild(_gtBtn("−", "gt-mini", "Lower trait tier", () => { specSetTraitTier(inst, i, t.tier - 1); redraw(); }, t.tier <= 1));
+      const tn = document.createElement("span");
+      tn.className = "gt-trait-tier";
+      // Tier plus what it actually grants, so the number means something
+      // without opening the Info tab.
+      tn.textContent = "T" + t.tier + " " + traitValue(t.id, t.tier);
+      cell.appendChild(tn);
+      cell.appendChild(_gtBtn("+", "gt-mini", "Raise trait tier", () => { specSetTraitTier(inst, i, t.tier + 1); redraw(); }, t.tier >= MAX_TRAIT_TIER));
+    }
+    traitRow.appendChild(cell);
+  }
+  box.appendChild(traitRow);
+}
+
+// --- spec mutators (operate on an instance, no slot/DOM knowledge) ---
+
+// Changing tier keeps the stat picks the player already made where the new
+// shape still has room for them, so nudging T4 -> T5 doesn't wipe their work.
+// The shape index resets, since shape lists differ per tier.
+function specSetTier(inst, tier) {
+  inst.tier  = _int(tier, 0, MAX_GEAR_TIER);
+  inst.shape = 0;
+  specTrimStats(inst);
+}
+
+function specSetShape(inst, shape) {
+  inst.shape = _int(shape, 0, gearShapesFor(inst.tier).length - 1);
+  specTrimStats(inst);
+}
+
+// Drop stat picks beyond the current shape's width, and any duplicate that
+// slipped in — a shape's positions must land on distinct stats.
+function specTrimStats(inst) {
+  const width = gearShapeValues(inst).length;
+  const seen  = new Set();
+  for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+    const s = inst.stats[i];
+    if (i >= width || !s || seen.has(s)) { inst.stats[i] = ""; continue; }
+    seen.add(s);
+  }
+}
+
+// Picking a stat another position already holds moves it rather than
+// duplicating it, which is friendlier than silently refusing the click.
+function specSetStatAt(inst, i, stat) {
+  if (i < 0 || i >= MAX_SHAPE_LEN) return;
+  if (stat && !GEAR_ALLOC_STATS.includes(stat)) return;
+  if (stat) {
+    for (let j = 0; j < MAX_SHAPE_LEN; j++) if (j !== i && inst.stats[j] === stat) inst.stats[j] = "";
+  }
+  inst.stats[i] = stat || "";
+}
+
+function specSetTrait(inst, i, id, cfg) {
+  const c = cfg || SPEC_GEAR;
+  if (i >= c.unlocked) return;
+  const ok = id && gearTraits[id] && (c.allowGearOnly || !gearTraits[id].gearOnly);
+  inst.traits[i] = ok ? { id, tier: 1 } : null;
+}
+
+function specSetTraitTier(inst, i, tier) {
+  const t = inst.traits[i];
+  if (!t) return;
+  t.tier = _int(tier, 1, MAX_TRAIT_TIER);
+}
+
+// --- builder's four gear slots ---
+
+function renderGearTierBox(slot) {
+  const picker = document.getElementById(_gearSlotIds[slot]);
+  const box    = document.getElementById("gear-tier-" + (slot + 1));
+  if (!picker || !box) return;
+  const hasGear = !!picker.value;
+  box.classList.toggle("gt-empty", !hasGear);
+  // An empty slot keeps its box in the layout but takes no input — otherwise
+  // the four gear rows would jump around as items are picked and cleared.
+  if (!hasGear) { box.innerHTML = ""; return; }
+  renderGearSpec(box, gearInstances[slot], () => {
+    updatePecents();
+    if (typeof autoSave === "function") autoSave();
+  });
+}
+
+function renderAllGearTierBoxes() {
+  gearInstances.forEach((_, i) => renderGearTierBox(i));
+  renderArtifactTierBox();
+}
+
+// --- the single artifact slot ---
+// Same editor, different config: 2 trait slots, both usable, and gear-only
+// traits are filtered out of the picker.
+function renderArtifactTierBox() {
+  const picker = document.getElementById("artifact-picker");
+  const box    = document.getElementById("artifact-tier-box");
+  if (!picker || !box) return;
+  const has = !!picker.value;
+  box.classList.toggle("gt-empty", !has);
+  if (!has) { box.innerHTML = ""; return; }
+  renderGearSpec(box, artifactInstance, () => {
+    updatePecents();
+    if (typeof autoSave === "function") autoSave();
+  }, SPEC_ARTIFACT);
+}
+
+// A different artifact is a different physical copy, so its tier and traits
+// reset — same rule as swapping a gear.
+let _artifactLastName = "";
+function onArtifactSwapped() {
+  const name = document.getElementById("artifact-picker")?.value || "";
+  if (name !== _artifactLastName) {
+    artifactInstance = makeGearInstance(SPEC_ARTIFACT);
+    _artifactLastName = name;
+  }
+  renderArtifactTierBox();
+}
+
+// Last name seen in each slot, so a swap can be told from a re-pick of the same
+// item. The picker stays the single source of truth for what is equipped; this
+// only exists to answer "did it change?".
+const _gearLastNames = _gearSlotIds.map(() => "");
+
+// A different item in the slot is a different physical copy, so its tier,
+// allocation and traits reset. Re-picking the same gear leaves them alone.
+function onGearSlotSwapped(picker) {
+  const slot = _gearSlotIds.indexOf(picker.id);
+  if (slot < 0) return;
+  const name = picker.value || "";
+  if (name !== _gearLastNames[slot]) {
+    resetGearInstance(slot);
+    _gearLastNames[slot] = name;
+  }
+  renderGearTierBox(slot);
+}
+
+// Adopt instances from a loaded build (share link, saved build, autosave).
+function setGearInstances(list) {
+  gearInstances.forEach((_, i) => {
+    gearInstances[i] = clampGearInstance(Array.isArray(list) ? list[i] : null);
+    _gearLastNames[i] = document.getElementById(_gearSlotIds[i])?.value || "";
+  });
+  renderAllGearTierBoxes();
+}
+
+renderAllGearTierBoxes();
+
+// Shared with bank.js so a bank gear entry is edited by the same controls and
+// the same rules as a builder slot. The bank popout renders without builder.js,
+// so bank.js treats these as optional and formats its own row labels.
+window._gearSpecRender = renderGearSpec;
+window._gearSpecNew    = makeGearInstance;
+window._gearSpecClamp  = clampGearInstance;
 
 // --- Weapons ---
 // mainWeaponSeries: weapons for the main hand slot
@@ -1671,8 +2623,8 @@ const gearMoves = {
   "Elemental Infuser": { learns: [
     { slot: "", level: 1, type: "Active", name: "From Sky to Soul", quote: "", cost: 3, cooldown: 10, moveType: "Physical", effect: "Suffuse your soul with elemental essence. Applies 3 Vulnerable to yourself for 3 turns. Magic, Fire, Ice, and Hex abilities deal increasing damage over the next 3 turns (10% / 20% / 30%).\n\nNote: The buff is currently bugged and does not scale.", image: "https://trello.com/1/cards/696ab334c45d0880564f11ad/attachments/697eca8f8218c2bff4726102/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203726.png" },
   ]},
-  "Crystallized Star": { learns: [
-    mkPassive("Crystallized Star", "You gain a flat +10 Luck buff every successful crit for 2 effective turns. (5 stacks max)"),
+  "Crystalized Star": { learns: [
+    mkPassive("Crystalized Star", "You gain a flat +10 Luck buff every successful crit for 2 effective turns. (5 stacks max)"),
   ]},
   "Pathfinder Mark": { learns: [
     mkPassive("Pathfinder Mark", "Your Strike now scales with END at a rate of END/75."),
@@ -1899,6 +2851,7 @@ function buildGearDropdown(picker, seriesData) {
       picker.value = "";
       display.textContent = "— None —";
       close();
+      onGearSlotSwapped(picker);
       renderMoves(); renderGearInfo(); updatePecents();
     });
     list.appendChild(none);
@@ -1927,6 +2880,7 @@ function buildGearDropdown(picker, seriesData) {
           picker.value = name;
           display.textContent = name;
           close();
+          onGearSlotSwapped(picker);
           renderMoves(); renderGearInfo(); updatePecents();
         });
         list.appendChild(item);
@@ -2739,7 +3693,22 @@ const BOSS_DATA = {
   "Magmatic Bunny": { hp: 600, hpVariants: {}, res: {} },
   "Malevolent Bunny": { hp: 215, hpVariants: {}, res: {} },
   "Gigapascha":     { hp: 250, hpVariants: {}, res: {} },
+  // Withered Grove, level 35-50 band. HP and resistances straight from the
+  // changelog. No Corrupted variants are documented for these, hence the empty
+  // hpVariants — the Corrupted toggle simply has nothing to switch to.
+  "Reanimant":        { hp: 145, hpVariants: {}, res: { Physical: 0.85, Poison: 0.40, Dark: 0.70, Ice: 1.10, Fire: 1.25, Holy: 1.40 } },
+  "Infused Mushroom": { hp: 110, hpVariants: {}, res: { Poison: 0.20, Nature: 0.70, Physical: 0.90, Ice: 1.10, Holy: 1.10, Fire: 1.35 } },
+  "Tunechudd":        { hp: 155, hpVariants: {}, res: { Dark: 0.60, Magic: 1.10, Holy: 1.30 } },
+  "Zealot":           { hp: 120, hpVariants: {}, res: { Dark: 0.60, Poison: 0.70, Holy: 1.35 } },
+  "Magical Zealot":   { hp: 130, hpVariants: {}, res: { Fire: 0.60, Magic: 0.80, Nature: 0.90, Dark: 0.90, Holy: 1.15, Physical: 1.20 } },
+  "Arboreal Animant": { hp: 175, hpVariants: {}, res: { Nature: 0.40, Poison: 0.60, Dark: 0.75, Physical: 0.85, Holy: 1.10, Ice: 1.15, Fire: 1.50 } },
 };
+
+// Withered Grove enemies get their own collapsible group in the damage-calc
+// target list rather than being lost in the general Mobs bucket.
+const DC_WITHERED_GROVE = new Set([
+  "Reanimant", "Infused Mushroom", "Tunechudd", "Zealot", "Magical Zealot", "Arboreal Animant",
+]);
 
 const STAT_LABEL_MAP = { STR: "str", ARC: "arc", END: "end", SPD: "spd", LCK: "lck" };
 
@@ -2767,15 +3736,17 @@ function getTotalStat(statKey) {
   const row = document.querySelector(`.stat-row[data-stat="${statKey}"] .stat-val`);
   const allocated = row ? +row.value : 0;
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-  const lvlBonus = Math.floor(lvl / 5);
+  const lvlBonus = levelStatBonus(lvl);
   const masteryStats = getMasteryStatBonuses();
   const armourEl = document.getElementById("armour-main");
   const armourData = armourItems?.[armourEl?.value] || {};
+  // Third consumer of the shared gear breakdown. It used to sum gear on its own
+  // and, like _buildStatDetail, silently omitted tier points — so getTotalStat
+  // disagreed with the stat row it was supposed to describe.
   const gearBonuses = {};
-  ["gear-1","gear-2","gear-3","gear-4"].forEach(id => {
-    const g = gearItems?.[document.getElementById(id)?.value];
-    if (g) Object.entries(g).forEach(([k, v]) => { if (v) gearBonuses[k] = (gearBonuses[k] || 0) + v; });
-  });
+  gearStatContributions().forEach(c => Object.entries(c.stats).forEach(([k, v]) => {
+    if (v) gearBonuses[k] = (gearBonuses[k] || 0) + v;
+  }));
   const crystalBonus = statKey === "lck" ? crystalStarStacks * 10 : 0;
   // Combined pct: innate (str/arc +15%) + armour stat pct. Applied only to (invested + race base + level bonus).
   const INNATE_PCT = { str: 15, arc: 15 };
@@ -3460,8 +4431,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   if (document.getElementById("weapon-main")?.value === "Vastic Glaive") {
     const _fvStr = getTotalStat("str"), _fvArc = getTotalStat("arc");
     const _fvEnd = getTotalStat("end"), _fvSpd = getTotalStat("spd"), _fvLck = getTotalStat("lck");
-    const _vasticLvl2 = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-    const _vasticLvlBonus2 = Math.floor(_vasticLvl2 / 5);
+    const _vasticLvlBonus2 = levelStatBonus(+lvlInput.value);
     const _getVB2 = stat => +(document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`)?.value || 0) + (raceBase[stat] ?? 0) + _vasticLvlBonus2;
     const _fiStr = _getVB2("str"), _fiArc = _getVB2("arc"), _fiEnd = _getVB2("end"), _fiSpd = _getVB2("spd"), _fiLck = _getVB2("lck");
     const _fvMax = Math.max(_fiStr, _fiArc, _fiEnd, _fiSpd, _fiLck);
@@ -4210,7 +5180,7 @@ function renderDmgBonusSection() {
   const raceName = racePicker.value;
   dmgBonusPassives = collectDmgBonusPassives();
 
-  const hasCrystalStar = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Crystallized Star");
+  const hasCrystalStar = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Crystalized Star");
 
   // Energy counter — always shown
   let html = `<div class="dc-energy-section">
@@ -4758,7 +5728,7 @@ function renderDmgBonusSection() {
     const _vLck = getTotalStat("lck");
     // Which buff activates is determined by: invested points + race base + level bonus only
     const _vasticLvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));
-    const _vasticLvlBonus = Math.floor(_vasticLvl / 5);
+    const _vasticLvlBonus = levelStatBonus(_vasticLvl);
     const _getVasticBase = stat => {
       const inv = +(document.querySelector(`.stat-row[data-stat="${stat}"] .stat-val`)?.value || 0);
       return inv + (raceBase[stat] ?? 0) + _vasticLvlBonus;
@@ -5022,7 +5992,8 @@ function renderDmgBonusSection() {
     const allEntries = Object.entries(BOSS_DATA);
     const groups = [
       { key: 'bosses', label: 'Bosses', entries: allEntries.filter(([n]) => DC_BOSS_NAMES.has(n)) },
-      { key: 'mobs',   label: 'Mobs',   entries: allEntries.filter(([n]) => !DC_BOSS_NAMES.has(n)) },
+      { key: 'mobs',   label: 'Mobs',   entries: allEntries.filter(([n]) => !DC_BOSS_NAMES.has(n) && !DC_WITHERED_GROVE.has(n)) },
+      { key: 'wgrove', label: 'Withered Grove', entries: allEntries.filter(([n]) => DC_WITHERED_GROVE.has(n)) },
     ];
     let bossHtml = `<h3 class="dc-bonus-title">Boss Target</h3>`;
     groups.forEach(g => {
@@ -6661,8 +7632,21 @@ function _buildLists() {
     arm:   flatList(armourItems),
     ls:    flatList(lostScrollItems),
     sc:    flatList(scrollItems),
+    // Trait ids are packed at a FIXED width (see GEAR_TRAIT_ID_BITS), not one
+    // derived from this list's length, because the list is expected to keep
+    // growing. Append new traits to gearTraits — never reorder or remove, or
+    // every share link already in the wild resolves to the wrong trait.
+    trait: flatList(gearTraits),
+    corr:  flatList(corruptionForms),
   };
 }
+
+// Fixed-width fields for the gear-instance block appended to every packed build.
+const GEAR_TRAIT_ID_BITS   = 8;   // 255 traits of headroom
+const GEAR_TRAIT_TIER_BITS = 3;   // tiers 1-4
+const GEAR_TIER_BITS       = 3;   // tiers 0-6
+const GEAR_SHAPE_BITS      = 2;   // up to 4 shapes per tier (T6 has 3)
+const GEAR_STATPICK_BITS   = 3;   // 0 = unset, 1-5 = the five stats
 const _L = _buildLists();
 
 function _i(list, val) { return val ? list.indexOf(val) : -1; }
@@ -6694,12 +7678,27 @@ function getBuildState() {
     art:  artifactPicker.value,
     sh:   shards,
     g:    gears,
+    // Per-slot tier / stat allocation / traits, index-aligned with `g`.
+    // Artifact tier / stat picks / traits, same shape as a gear instance.
+    ai:   {
+            tier:   artifactInstance.tier,
+            shape:  artifactInstance.shape,
+            stats:  artifactInstance.stats.slice(),
+            traits: artifactInstance.traits.map(t => (t ? { id: t.id, tier: t.tier } : null)),
+          },
+    gi:   gearInstances.map(inst => ({
+            tier:   inst.tier,
+            shape:  inst.shape,
+            stats:  inst.stats.slice(),
+            traits: inst.traits.map(t => (t ? { id: t.id, tier: t.tier } : null))
+          })),
     wm:   mainWeaponPicker.value,
     wo:   offhandWeaponPicker.value,
     arm:  armourPicker.value,
     ls:   lostScrollPicker.value,
     sc1:  scroll1Picker.value,
     sc2:  scroll2Picker.value,
+    corr: (corruptionPicker?.value || ''),
     msty: mastery,
     soul,
     summ:  (document.getElementById('summary-textarea')?.innerHTML || ''),
@@ -6864,6 +7863,46 @@ function _packState(state) {
   wi(_L.ls,  state.ls  || '');
   wi(_L.sc,  state.sc1 || '');
   wi(_L.sc,  state.sc2 || '');
+  // Gear tiers / allocations / traits, likewise appended so pre-tier links keep
+  // decoding: their missing trailing bits read back as zeros, i.e. tier 0 and no
+  // traits, which is exactly what those builds meant.
+  // All TRAIT_SLOTS are written, the locked one included — reserving it now
+  // costs ~5 bytes and means unlocking it later invalidates no existing link.
+  (state.gi || []).slice(0, _gearSlotIds.length).forEach(inst => {
+    const tier = Math.min(MAX_GEAR_TIER, Math.max(0, inst?.tier | 0));
+    bw.write(tier, GEAR_TIER_BITS);
+    bw.write(Math.min(3, Math.max(0, inst?.shape | 0)), GEAR_SHAPE_BITS);
+    // Stat picks as 1-based indices into GEAR_ALLOC_STATS; 0 means unset.
+    for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+      const idx = GEAR_ALLOC_STATS.indexOf(inst?.stats?.[i]);
+      bw.write(idx < 0 ? 0 : idx + 1, GEAR_STATPICK_BITS);
+    }
+    for (let i = 0; i < TRAIT_SLOTS; i++) {
+      const t   = inst?.traits?.[i];
+      const idx = t ? _L.trait.indexOf(t.id) : -1;
+      bw.write(idx < 0 ? 0 : idx + 1, GEAR_TRAIT_ID_BITS);
+      bw.write(idx < 0 ? 0 : Math.min(MAX_TRAIT_TIER, Math.max(1, t.tier | 0)), GEAR_TRAIT_TIER_BITS);
+    }
+  });
+  // Corruption form, appended after the gear block for the same reason.
+  wi(_L.corr, state.corr || '');
+  // Artifact instance last. Same field layout as a gear instance but only
+  // SPEC_ARTIFACT.slots trait slots.
+  {
+    const a = state.ai || {};
+    bw.write(Math.min(MAX_GEAR_TIER, Math.max(0, a.tier | 0)), GEAR_TIER_BITS);
+    bw.write(Math.min(3, Math.max(0, a.shape | 0)), GEAR_SHAPE_BITS);
+    for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+      const idx = GEAR_ALLOC_STATS.indexOf(a.stats && a.stats[i]);
+      bw.write(idx < 0 ? 0 : idx + 1, GEAR_STATPICK_BITS);
+    }
+    for (let i = 0; i < SPEC_ARTIFACT.slots; i++) {
+      const t   = a.traits && a.traits[i];
+      const idx = t ? _L.trait.indexOf(t.id) : -1;
+      bw.write(idx < 0 ? 0 : idx + 1, GEAR_TRAIT_ID_BITS);
+      bw.write(idx < 0 ? 0 : Math.min(MAX_TRAIT_TIER, Math.max(1, t.tier | 0)), GEAR_TRAIT_TIER_BITS);
+    }
+  }
   return bw.toB64url();
 }
 
@@ -6895,8 +7934,45 @@ function _unpackState(blob, name) {
   const ls  = ri(_L.ls);
   const sc1 = ri(_L.sc);
   const sc2 = ri(_L.sc);
+  // Pre-tier links simply run out of bytes here; _BitReader yields zeros past
+  // the end, which decode to tier 0 with no traits.
+  const gi = _gearSlotIds.map(() => {
+    const tier  = br.read(GEAR_TIER_BITS);
+    const shape = br.read(GEAR_SHAPE_BITS);
+    const stats = [];
+    for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+      const idx = br.read(GEAR_STATPICK_BITS);
+      stats.push(idx > 0 ? (GEAR_ALLOC_STATS[idx - 1] || '') : '');
+    }
+    const traits = [];
+    for (let i = 0; i < TRAIT_SLOTS; i++) {
+      const idx  = br.read(GEAR_TRAIT_ID_BITS);
+      const tTier = br.read(GEAR_TRAIT_TIER_BITS);
+      const id   = idx > 0 ? (_L.trait[idx - 1] || '') : '';
+      traits.push(id ? { id, tier: tTier } : null);
+    }
+    return { tier, shape, stats, traits };
+  });
+  const corr = ri(_L.corr);
+  const ai = (() => {
+    const tier  = br.read(GEAR_TIER_BITS);
+    const shape = br.read(GEAR_SHAPE_BITS);
+    const stats = [];
+    for (let i = 0; i < MAX_SHAPE_LEN; i++) {
+      const idx = br.read(GEAR_STATPICK_BITS);
+      stats.push(idx > 0 ? (GEAR_ALLOC_STATS[idx - 1] || '') : '');
+    }
+    const traits = [];
+    for (let i = 0; i < SPEC_ARTIFACT.slots; i++) {
+      const idx   = br.read(GEAR_TRAIT_ID_BITS);
+      const tTier = br.read(GEAR_TRAIT_TIER_BITS);
+      const id    = idx > 0 ? (_L.trait[idx - 1] || '') : '';
+      traits.push(id ? { id, tier: tTier } : null);
+    }
+    return { tier, shape, stats, traits };
+  })();
   return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
-           mark, cov, covR, ench, art, sh, g, wm, wo, arm, ls, sc1, sc2, msty, soul, name };
+           mark, cov, covR, ench, art, sh, g, gi, ai, wm, wo, arm, ls, sc1, sc2, corr, msty, soul, name };
 }
 
 const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
@@ -7034,15 +8110,24 @@ function loadBuildState(state) {
 
   // Artifact
   setPickerDisplay(artifactPicker, state.art || '');
+  // Clamped with the artifact config, so a crafted payload cannot put a
+  // gear-only trait onto an artifact or use a third slot it does not have.
+  artifactInstance  = clampGearInstance(state.ai, SPEC_ARTIFACT);
+  _artifactLastName = artifactPicker.value || '';
+  renderArtifactTierBox();
   renderArtifactDesc();
 
   // Shards
   const shards = state.sh || [];
   document.querySelectorAll('.shard-picker').forEach((p, i) => setPickerDisplay(p, shards[i] || ''));
 
-  // Gears
+  // Gears — pickers first, then the tier/trait instances, since a slot's
+  // allocation only counts once something is actually equipped in it.
+  // clampGearInstance() runs inside setGearInstances(): this data can come from
+  // a stranger's share link or the account-sync row, so none of it is trusted.
   const gears = state.g || [];
   document.querySelectorAll('.gear-picker').forEach((p, i) => setPickerDisplay(p, gears[i] || ''));
+  setGearInstances(state.gi);
 
   // Weapons
   setPickerDisplay(mainWeaponPicker, state.wm || '');
@@ -7057,6 +8142,14 @@ function loadBuildState(state) {
   setPickerDisplay(lostScrollPicker, state.ls  || '');
   setPickerDisplay(scroll1Picker,    state.sc1 || '');
   setPickerDisplay(scroll2Picker,    state.sc2 || '');
+
+  // Corruption form — unknown names fall back to none rather than being shown
+  // as a form that doesn't exist.
+  if (corruptionPicker) {
+    const corr = corruptionForms[state.corr] ? state.corr : '';
+    setPickerDisplay(corruptionPicker, corr);
+    renderCorruptionDesc();
+  }
 
   // Mastery (set after class/super dispatch so resets don't clobber)
   masteryNodes.forEach(n => { masteryState[n.id] = false; });

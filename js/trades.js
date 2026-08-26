@@ -320,7 +320,7 @@
     { group: 'Gear — Forest', items: [
       '7 Leafed Everthistle', 'Shattered Clock Hand', 'The Biggest Pebble',
       'Arbusta Tear', 'Parasitic Leech', 'Spore Root', 'Forest Charm',
-      'Elemental Infuser', 'Crystallized Star', 'Pathfinder Mark', 'Gilded Pouch',
+      'Elemental Infuser', 'Crystalized Star', 'Pathfinder Mark', 'Gilded Pouch',
     ]},
     { group: 'Gear — Desert', items: [
       'Crystal Sphere', 'Dust Storm', 'Golem Rune Core', 'Spiked Steel Ball',
@@ -343,6 +343,10 @@
     ]},
     { group: 'Gear — Winter Solstice', items: [
       'Snorb', 'Elementary Resonance', 'Frosty Topper',
+    ]},
+    { group: 'Gear — Withered Grove', items: [
+      'Ages Pages', 'Blooming Eye', 'Crystalline Spike', 'Dread Fang', 'Empty Blade',
+      'Faded Heirloom', 'Infected Skin', 'Lucky Horns', 'Ring of Heroism', 'Shadow Gauntlets',
     ]},
     { group: 'Gear — Other', items: [
       'Lethal Blackjack', 'Everbeating Drums',
