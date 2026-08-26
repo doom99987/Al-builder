@@ -139,6 +139,35 @@ config to `makeGearInstance` / `clampGearInstance` / `renderGearSpec` /
 "ten copies is the absolute ceiling" is 4 gears x 2 + 1 artifact x 2 — weapons
 add none, having no traits.
 
+### Fixed gear (no tier, no traits)
+
+Some gears are exactly what they are: they grant their **base stat block** from
+`gearItems` and nothing else — no tier roll, no traits. `FIXED_GEAR` lists them
+by name; currently just **Narthana's Leaf**, so adding another is a one-line
+change.
+
+`SPEC_GEAR_FIXED` is `slots: 0` plus `maxTier: 0, hideTier: true`, which leaves
+the editor with nothing to draw at all. `renderGearTierBox()` therefore prefixes
+the box with a "Fixed item — no tier or traits" note, so an empty box reads as
+intentional rather than as controls that failed to render.
+
+Stale values are cleared in **two** places, because either alone leaves a hole:
+`setGearInstances()` clamps against `specForGearName()` on load, and
+`renderGearTierBox()` re-normalises tier, shape, stats and traits when the slot
+is drawn — that second one catches switching an already-rolled gear into a fixed
+one, which would otherwise keep its values alive and pack them into a share link.
+`gearStatContributions()` independently zeroes the allocation rather than
+trusting the instance. Verified: a payload claiming T6 **and** two traits on
+Narthana's Leaf is stripped to base `arc 2 / end 2`.
+
+Its Details row is labelled by name alone, with no `· T0`.
+
+`bank.js` mirrors the list as `BK_FIXED_GEAR` for the same reason it mirrors
+`BK_TIER_SHAPES` — the standalone popout runs without `builder.js`. A fixed gear
+keeps its per-instance row and delete button but gets no Edit toggle; note the
+guard sits on the *button*, not the `bkIsGearEntry` branch, or the row would fall
+through to the quantity stepper that gear must never have.
+
 ### Weapon tiers
 
 Only five weapon families roll tiers: **Dragon, Blight, Sun, Sandstone,

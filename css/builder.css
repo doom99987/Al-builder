@@ -1732,6 +1732,15 @@ h2 {
 #page-builder .gear-tier-box.gt-hidden {
   display: none;
 }
+/* Fixed gears keep their trait slots but never roll a tier. Labelled rather than
+   blank so the missing stepper reads as intentional. */
+#page-builder .gt-untiered {
+  font-size: 10px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #7a6f5c;
+  padding: 1px 0;
+}
 
 #page-builder .gt-tier-row {
   display: flex;
