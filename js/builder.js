@@ -602,6 +602,11 @@ const SPEC_GEAR     = { slots: TRAIT_SLOTS, unlocked: TRAIT_SLOTS_UNLOCKED, allo
 const SPEC_ARTIFACT = { slots: 2,           unlocked: 2,                    allowGearOnly: false };
 const SPEC_WEAPON   = { slots: 0,           unlocked: 0,                    allowGearOnly: false,
                         maxTier: MAX_WEAPON_TIER };
+// Fixed gears (see § FIXED GEAR) grant their base stats and nothing else: no
+// tier roll and no trait slots. Zero slots plus hideTier leaves the editor with
+// nothing to draw, which is the point.
+const SPEC_GEAR_FIXED = { slots: 0, unlocked: 0, allowGearOnly: false,
+                          maxTier: 0, hideTier: true };
 
 // The tier ceiling for a kind of item. Only weapons override it today; gear and
 // artifacts run the full T0-T6 range.
@@ -668,6 +673,22 @@ function weaponHasTiers(name) {
 
 function resetWeaponInstance(i) {
   weaponInstances[i] = makeGearInstance(SPEC_WEAPON);
+}
+
+// § FIXED GEAR
+// A few gears are exactly what they are: they grant their base stat block from
+// gearItems and nothing else — no tier roll, no traits. Listed by name because
+// there is no flag on the item itself; gearItems stays the plain base stat table.
+const FIXED_GEAR = new Set([
+  "Narthana's Leaf",
+]);
+
+function gearHasTiers(name) { return !!name && !FIXED_GEAR.has(name); }
+
+// The editor config for a named gear: the standard tier model, or the same thing
+// pinned to T0 with the stepper suppressed.
+function specForGearName(name) {
+  return gearHasTiers(name) ? SPEC_GEAR : SPEC_GEAR_FIXED;
 }
 
 // The stat block a gear instance actually grants: each shape value applied to
@@ -770,7 +791,11 @@ function gearStatContributions() {
     if (!name) return;
     const base  = gearItems[name] || {};
     const inst  = gearInstances[slot];
-    const alloc = gearInstanceAlloc(inst);
+    const tiered = gearHasTiers(name);
+    // A fixed gear keeps its full base stat block and simply adds no tier points.
+    // Zeroing here rather than trusting the instance means a share link claiming
+    // a roll on a fixed gear still cannot smuggle the points in.
+    const alloc = tiered ? gearInstanceAlloc(inst) : {};
     const stats = {};
     Object.entries(base).forEach(([k, v]) => { if (v) stats[k] = (stats[k] || 0) + v; });
     let tierPts = 0;
@@ -781,6 +806,7 @@ function gearStatContributions() {
     out.push({
       name, slot,
       tier:  inst ? inst.tier : 0,
+      fixed: !tiered,                         // no tier — label accordingly
       stats,                                  // base + tier values, merged
       baseFor:  k => base[k] || 0,
       tierFor:  k => alloc[k] || 0,
@@ -1106,7 +1132,8 @@ function _buildStatDetail(statKey) {
     const base = c.baseFor(statKey);
     const tier = c.tierFor(statKey);
     if (base) sources.push({ label: c.name, val: base, sub: true });
-    if (tier) sources.push({ label: c.name + " · T" + c.tier, val: tier, sub: true });
+    // A fixed gear has no tier to cite, so its chosen value is labelled plainly.
+    if (tier) sources.push({ label: c.fixed ? c.name : c.name + " · T" + c.tier, val: tier, sub: true });
   });
   if (crystalBonus) sources.push({ label: "Crystal Stars", val: crystalBonus });
   const coagNailBonus = (hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"])
@@ -2131,7 +2158,10 @@ function renderGearSpec(box, inst, onChange, cfg) {
   const vals      = gearShapeValues(inst);
   const unset     = gearUnassigned(inst);
 
-  // Tier stepper
+  // Tier stepper — suppressed entirely for items that never roll a tier, which
+  // would otherwise render a stepper frozen at T0 and read as a bug. Such an
+  // item has no allocation either, so only its traits remain.
+  if (c.hideTier) { _gtRenderTraitRow(box, inst, c, redraw); return; }
   const tierRow = document.createElement("div");
   tierRow.className = "gt-tier-row";
   tierRow.appendChild(_gtBtn("−", "gt-step", "Lower tier", () => { specSetTier(inst, inst.tier - 1, c); redraw(); }, inst.tier <= 0));
@@ -2205,7 +2235,13 @@ function renderGearSpec(box, inst, onChange, cfg) {
     box.appendChild(allocRow);
   }
 
-  // Trait slots — all TRAIT_SLOTS rendered, only the unlocked ones interactive.
+  _gtRenderTraitRow(box, inst, c, redraw);
+}
+
+// Trait slots — all of a kind's slots rendered, only the unlocked ones
+// interactive. Split out of renderGearSpec so a fixed gear, which skips the tier
+// stepper entirely, still gets the identical trait UI.
+function _gtRenderTraitRow(box, inst, c, redraw) {
   // Weapons roll no traits at all, so they skip the row entirely rather than
   // leaving an empty one behind.
   if (!c.slots) return;
@@ -2336,10 +2372,30 @@ function renderGearTierBox(slot) {
   // An empty slot keeps its box in the layout but takes no input — otherwise
   // the four gear rows would jump around as items are picked and cleared.
   if (!hasGear) { box.innerHTML = ""; return; }
-  renderGearSpec(box, gearInstances[slot], () => {
+  const onChange = () => {
     updatePecents();
     if (typeof autoSave === "function") autoSave();
-  });
+  };
+  // Fixed items grant their base stats and nothing else, so the editor has
+  // nothing to draw. Labelled rather than left blank, so an empty box reads as
+  // "this item has no rolls" instead of looking like the controls failed.
+  // Tier, allocation and traits are normalised here as well as on load, so
+  // switching an already-rolled gear into a fixed one cannot leave stale values
+  // behind to be packed into a share link.
+  if (!gearHasTiers(picker.value)) {
+    const inst = gearInstances[slot];
+    inst.tier = 0;
+    inst.shape = 0;
+    inst.stats.fill("");
+    inst.traits.fill(null);
+    renderGearSpec(box, inst, onChange, SPEC_GEAR_FIXED);
+    const note = document.createElement("div");
+    note.className = "gt-untiered";
+    note.textContent = "Fixed item — no tier or traits";
+    box.insertBefore(note, box.firstChild);
+    return;
+  }
+  renderGearSpec(box, gearInstances[slot], onChange);
 }
 
 function renderAllGearTierBoxes() {
@@ -2440,8 +2496,11 @@ function onGearSlotSwapped(picker) {
 // Adopt instances from a loaded build (share link, saved build, autosave).
 function setGearInstances(list) {
   gearInstances.forEach((_, i) => {
-    gearInstances[i] = clampGearInstance(Array.isArray(list) ? list[i] : null);
-    _gearLastNames[i] = document.getElementById(_gearSlotIds[i])?.value || "";
+    const name = document.getElementById(_gearSlotIds[i])?.value || "";
+    // Clamped against the config for whatever is actually in the slot, so a link
+    // claiming a T6 roll on a fixed gear loses it rather than importing it.
+    gearInstances[i] = clampGearInstance(Array.isArray(list) ? list[i] : null, specForGearName(name));
+    _gearLastNames[i] = name;
   });
   renderAllGearTierBoxes();
 }
@@ -2454,6 +2513,9 @@ renderAllGearTierBoxes();
 window._gearSpecRender = renderGearSpec;
 window._gearSpecNew    = makeGearInstance;
 window._gearSpecClamp  = clampGearInstance;
+// Per-item config lookup, so a bank row for a fixed gear gets the same tier-less
+// editor and restricted stat choice the builder slot shows.
+window._gearSpecFor    = specForGearName;
 
 // --- Weapons ---
 // mainWeaponSeries: weapons for the main hand slot

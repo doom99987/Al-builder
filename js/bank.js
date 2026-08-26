@@ -775,9 +775,17 @@
     [[5], [2, 2]], [[6], [3, 2]], [[9], [5, 3], [2, 2, 2, 2]],
   ];
 
+  // Fixed gears grant their base stats and nothing else — no tier, no traits.
+  // Mirrored from builder.js FIXED_GEAR for the same reason as BK_TIER_SHAPES:
+  // the standalone popout runs without builder.js.
+  const BK_FIXED_GEAR = ["Narthana's Leaf"];
+  function bkGearFixed(name) { return BK_FIXED_GEAR.indexOf(name) >= 0; }
+
   function bkGearLabel(entry) {
     const spec = entry.spec;
     if (!spec) return '';
+    // A fixed gear has no tier or traits to show, so its row is just the name.
+    if (bkGearFixed(entry.name)) return '';
     const bits = ['T' + (spec.tier || 0)];
     const shapes = BK_TIER_SHAPES[spec.tier | 0] || [[]];
     const vals   = shapes[spec.shape | 0] || shapes[0] || [];
@@ -794,6 +802,9 @@
     const traits = (spec.traits || []).filter(Boolean)
       .map(t => (t.name || t.id) + ' T' + (t.tier || 1));
     if (traits.length) bits.push(traits.join(', '));
+    // A fixed gear with no traits yet has nothing to say — don't leave a bare
+    // separator hanging off the name.
+    if (!bits.length) return '';
     return ' · ' + bits.join(' · ');
   }
 
@@ -820,7 +831,8 @@
     }
 
     // A gear entry is one physical item, so it has no quantity to step. It gets
-    // an Edit toggle instead, opening the same spec editor the builder uses.
+    // an Edit toggle instead, opening the same spec editor the builder uses —
+    // except a fixed gear, which has nothing to edit and so gets no button.
     if (bkIsGearEntry(entry)) {
       // The editor panel occupies its own line below the row's controls, which
       // needs the row to wrap — it doesn't by default.
@@ -828,6 +840,9 @@
       const editWrap = _bkDoc.createElement('div');
       editWrap.className = 'bank-gear-edit';
       editWrap.style.display = 'none';
+      // A fixed gear still gets a per-instance row and a delete button; it just
+      // has nothing to edit, so the toggle is left off entirely.
+      const editable = !bkGearFixed(entry.name);
 
       const edit = _bkDoc.createElement('button');
       edit.className = 'bank-step-btn bank-gear-edit-btn';
@@ -843,7 +858,9 @@
           editWrap.textContent = 'Open the bank from the main site to edit gear.';
           return;
         }
-        const spec = window._gearSpecClamp(entry.spec);
+        const fixed = (typeof window._gearSpecFor === 'function')
+          ? window._gearSpecFor(entry.name) : undefined;
+        const spec = window._gearSpecClamp(entry.spec, fixed);
         window._gearSpecRender(editWrap, spec, () => {
           const meta = bkGetMeta(); const d = bkGetData(meta);
           const it = d.items.find(sameEntry);
@@ -852,9 +869,9 @@
           bkSetData(meta, d); bkSaveMeta(meta);
           name.textContent = entry.name + bkGearLabel(it);
           entry.spec = spec;
-        });
+        }, fixed);
       });
-      row.appendChild(edit);
+      if (editable) row.appendChild(edit);
 
       const del = _bkDoc.createElement('button');
       del.className = 'bank-row-del';
@@ -867,7 +884,7 @@
         bkSetData(meta, d); bkSaveMeta(meta); bkRender();
       });
       row.appendChild(del);
-      row.appendChild(editWrap);
+      if (editable) row.appendChild(editWrap);
       return row;
     }
 
