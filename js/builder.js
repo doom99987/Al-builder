@@ -871,6 +871,26 @@ function updatePoints() {
 
 let permuthStat = ''; // chosen stat for Permuth (Venia mark) +40% buff: 'str'|'arc'|'end'|'spd'|'lck'|''
 
+// Ivory enchant: "Gaining energy increases all your stats by 4% for 3 turns."
+// No hard cap in game; realistically 12-16 stacks.
+//
+// Declared here rather than with the other damage-calculator state because the
+// initial updatePecents() render runs before that point in the file. A `let` is
+// in its temporal dead zone until its declaration executes, and reading one from
+// that first render throws — which aborts module evaluation and takes the whole
+// builder down with it.
+let ivoryNrgStacks = 0;
+
+// The multiplier, in ONE place. Three separate call sites used to decide for
+// themselves whether Ivory applied, which is how the stats panel ended up
+// showing a smaller number than the damage calculator was using for the same
+// build. Reads the picker out of the DOM for the same dead-zone reason.
+function ivoryStatMult() {
+  if (!(ivoryNrgStacks > 0)) return 1;
+  const picker = document.getElementById("enchant-picker");
+  return (picker && picker.value === "Ivory") ? 1 + ivoryNrgStacks * 0.04 : 1;
+}
+
 // DOM references built once at startup and reused on every updatePecents() call
 // to avoid repeated querySelectorAll hits during stat recalculation.
 const _pctCache = (() => {
@@ -1083,6 +1103,12 @@ function updatePecents() {
       displayTotal += coagNailStacks * 1.5;
     }
     if (permuthStat === stat && markPicker?.value === 'Venia') displayTotal = Math.round(displayTotal * 1.4);
+    // Ivory: "Gaining energy increases all your stats by 4% for 3 turns."
+    // getTotalStat() applies this after Permuth, so it has to be applied in the
+    // same place and the same way here — otherwise the stat shown to the player
+    // is smaller than the one the damage calculator is using.
+    const _ivoryMult = ivoryStatMult();
+    if (_ivoryMult > 1) displayTotal = Math.round(displayTotal * _ivoryMult);
     displayTotal = Math.round(displayTotal);
     if (totalEl) totalEl.textContent = displayTotal || "";
     if (investedEl) investedEl.textContent = allocated;
@@ -1156,6 +1182,22 @@ function _buildStatDetail(statKey) {
     const permuthBonus = Math.round(displayTotal * 1.4) - displayTotal;
     sources.push({ label: "Permuth (+40%)", val: permuthBonus });
     displayTotal = Math.round(displayTotal * 1.4);
+  }
+  // Ivory enchant, in the same position in the order as getTotalStat() applies
+  // it — after Permuth, so it multiplies the Permuth'd total. Given its own row
+  // rather than folded into the total: it is a stack count you can slide, and
+  // the point of this panel is to say where every point came from.
+  const ivoryMult = ivoryStatMult();
+  if (ivoryMult > 1) {
+    const ivoryTotal = Math.round(displayTotal * ivoryMult);
+    // Only list it when it is actually worth a point. On a stat sitting at 2,
+    // +20% rounds to nothing, and every other source here follows the same rule
+    // rather than printing a "+0" row.
+    if (ivoryTotal !== displayTotal) {
+      sources.push({ label: `Ivory NRG ×${ivoryNrgStacks} (+${ivoryNrgStacks * 4}%)`,
+                     val: ivoryTotal - displayTotal });
+    }
+    displayTotal = ivoryTotal;
   }
 
   // Labels are interpolated into innerHTML below. Item names are our own data
@@ -2780,6 +2822,15 @@ const gearMoves = {
     mkPassive("Rabbit's Foot", "+5 Luck Stat.\n+5 Speed Stat.\nEvery turn, have a 33% chance to gain a 5% luck and speed boost for that turn, a 33% chance to gain 2 cursed stacks on yourself, and a 33% chance to gain 1 cursed stack and 1 hex stack on yourself."),
   ]},
 
+  // Withered Grove — the Corrupt Power gears. Only Lucky Horns is registered
+  // here: its bonus is a straight damage percentage, which is what this panel
+  // models. The others grant flat damage, crit chance, lifesteal and DR, and
+  // listing them here would have the panel apply those numbers as if they were
+  // damage percentages — wrong in a way that looks right.
+  "Lucky Horns": { learns: [
+    mkPassive("Lucky Horns", "Always grants +5% Damage. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45% Damage for that attack."),
+  ]},
+
   // Winter Solstice Gears
   "Snorb": { learns: [
     mkPassive("Snorb", "Whenever you are attacked this gear will trigger, applying 2 Cold and dealing 10% of your total HP to all opponents. Has an internal proc cooldown of 2 turns, cannot execute, and only procs on the first hit.\n\nSnorb's damage proc can trigger Parasitic Leech and Sanguine Fang's life steal.\n\nThe orb will display yellow particles around it when it is off cooldown."),
@@ -3800,7 +3851,7 @@ let lightForceCrit = 0;   // 0..100  flat Crit Rate bought 1:1 with Light Force
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
-let ivoryNrgStacks = 0;         // 0-3: active NRG stacks from Ivory enchant (+4% all stats per stack)
+let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
 let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); on proc the hit deals +35% dmg
@@ -3978,7 +4029,8 @@ function getTotalStat(statKey) {
   }
   if (statKey === "str" && statBuffsActive.fireSutraStr) total = Math.round(total * 1.25);
   if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
-  if (enchantPicker.value === 'Ivory' && ivoryNrgStacks > 0) total = Math.round(total * (1 + ivoryNrgStacks * 0.04));
+  const _ivoryMult = ivoryStatMult();
+  if (_ivoryMult > 1) total = Math.round(total * _ivoryMult);
   if (statKey === "spd") {
     const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
     const spdFlat = (statBuffsActive.flourishSpd ? _flourishSpdAmt : 0)
@@ -4693,7 +4745,7 @@ function parseDmgBonus(text) {
     /deal[s]?\s+(\d+(?:\.\d+)?)\s*%\s+more\s+damage/i,
     /(\d+(?:\.\d+)?)\s*%\s+more\s+damage/i,
     /(\d+(?:\.\d+)?)\s*%\s+(?:extra|additional)\s+damage/i,
-    /grants?\s+(?:a\s+)?(\d+(?:\.\d+)?)\s*%\s+damage/i,
+    /grants?\s+(?:a\s+)?\+?(\d+(?:\.\d+)?)\s*%\s+damage/i,
     /give[s]?\s+(?:a\s+)?(\d+(?:\.\d+)?)\s*%\s+damage/i,
     /(\d+(?:\.\d+)?)\s*%\s+damage\s+(?:increase|boost)/i,
   ];
@@ -5051,6 +5103,7 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Spirit Awakening")     bonus = 15; // 15% to all stats → ~15% dmg; 50% summon buff handled separately
     else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
     else if (p.name === "Crusher")               { mult *= Math.pow(1.07, crusherStacks); return; }
+    else if (p.name === "Lucky Horns")           { mult *= 1 + (luckyHornsSpend ? 45 : 5) / 100; return; }
     else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
     else if (p.bonusType === 'per-debuff-target') bonus = p.perDebuffVal * shatteringDebuffCount;
     else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
@@ -5560,6 +5613,7 @@ function renderDmgBonusSection() {
     const isVaingLocket       = p.name === "Vainglorious Locket";
     const isStellianCore      = p.name === "Stellian Core";
     const isCoagNail          = p.name === "Coagulated Finger Nail";
+    const isLuckyHorns        = p.name === "Lucky Horns";
     const isSsb               = p.name === "Spiked Steel Ball";
     const isUnendingFlow      = p.name === "Unending Flow";
     const isRendingBarrage    = p.name === "Rending Barrage";
@@ -5588,6 +5642,7 @@ function renderDmgBonusSection() {
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
                          : isGoldRush        ? Math.min(20, (goldRushGold / 500) * 0.2)
+                         : isLuckyHorns      ? (luckyHornsSpend ? 45 : 5)
                          : p.bonus;
     const displayBonusStr = isLooter           ? `+${(looterStacks * 15.75).toFixed(2)}% LCK · +${looterStacks * 20}% SPD`
                          : isEnergyManipulator ? `×${(1 + Math.min(22.5, 3.75 * energyCount) / 100).toFixed(4).replace(/\.?0+$/, '')}`
@@ -5870,6 +5925,13 @@ function renderDmgBonusSection() {
         </div>
       </div>`;
     }
+    if (isLuckyHorns && on) {
+      html += `<div class="dc-bonus-row${luckyHornsSpend ? " dc-bonus-on" : ""}" data-lucky-horns style="margin:2px 0 6px 0" title="Once per turn while in a Corruption Form, spending 50 Corrupt Power raises the bonus to +45% for that attack.">
+        <div class="dc-bonus-check">${luckyHornsSpend ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Spend 50 Corrupt Power</span>
+        <span class="dc-bonus-pct">${luckyHornsSpend ? "+45%" : "+5%"}</span>
+      </div>`;
+    }
     if (p.bonusType === 'conditional-hp-above') {
       const active = shardToggleActive.striking;
       html += `<div class="dc-bonus-row${active ? " dc-bonus-on" : ""}" data-shard-toggle="striking" style="margin:2px 0 6px 0" title="Toggle: enemy above 80% HP">
@@ -5969,7 +6031,9 @@ function renderDmgBonusSection() {
 
   // --- Ivory Enchant NRG Stacks ---
   if (_enchantName === 'Ivory') {
-    const _ivoryMult = (1 + ivoryNrgStacks * 0.04).toFixed(2);
+    // Through the shared multiplier too, so the number on this row cannot drift
+    // from the one the stats panel and getTotalStat are using.
+    const _ivoryMult = ivoryStatMult().toFixed(2);
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
     html += `<div class="dc-bonus-row${ivoryNrgStacks > 0 ? ' dc-bonus-on' : ''}" title="Each NRG gained gives +4% to all stats for 3 turns. No hard cap — realistically reaches 12–16 stacks.">
       <div class="dc-bonus-check">${ivoryNrgStacks > 0 ? '✓' : ''}</div>
@@ -6433,6 +6497,13 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.corrKey) {
       row.addEventListener("click", () => toggleCorruptionBuff(row.dataset.corrKey));
+      return;
+    }
+    if ('luckyHorns' in row.dataset) {
+      row.addEventListener("click", () => {
+        luckyHornsSpend = !luckyHornsSpend;
+        renderDmgBonusSection(); recalcOpenDetails();
+      });
       return;
     }
     if (row.dataset.summonKey) {
@@ -8603,6 +8674,7 @@ function loadBuildState(state) {
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
   Object.keys(corruptionBuffsActive).forEach(k => { corruptionBuffsActive[k] = false; });
   notchSpent = 5; notchCap = 5; condemnedPct = 10; lightForceCrit = 0;
+  luckyHornsSpend = false;
   Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
