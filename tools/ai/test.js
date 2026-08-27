@@ -1494,6 +1494,31 @@ describe('Ivory stat multiplier', () => {
        'ivoryNrgStacks is declared after the initial updatePecents() call, which is a dead-zone throw');
   });
 
+  it('no watched module-level binding is read before it is declared', () => {
+    // This has now bitten twice: ivoryNrgStacks, then UNRELEASED_GEAR. Both
+    // looked right, both passed `node --check`, and both took the entire builder
+    // down the moment the page loaded — js/builder.js runs a lot of setup at
+    // module scope, and a const/let read before its declaration executes throws
+    // instead of reading undefined.
+    const watched = ['UNRELEASED_GEAR', 'ivoryNrgStacks', 'luckyHornsSpend', 'corruptionBuffsActive'];
+    for (const name of watched) {
+      const declRe = new RegExp('(?:const|let)\\s+' + name + '\\b');
+      const decl = src.search(declRe);
+      if (decl === -1) continue;                        // renamed or removed
+      // The first mention of the name anywhere that is not the declaration.
+      const all = [];
+      const useRe = new RegExp('\\b' + name + '\\b', 'g');
+      let m;
+      while ((m = useRe.exec(src)) !== null) all.push(m.index);
+      const firstUse = all.find(i => i !== decl + src.slice(decl).search(new RegExp('\\b' + name + '\\b')));
+      const earliest = all.length ? all[0] : -1;
+      ok(earliest === -1 || earliest >= decl,
+         name + ' is first mentioned at char ' + earliest + ' but declared at ' + decl +
+         ' — that is a temporal-dead-zone throw if the mention runs at module scope');
+    }
+  });
+
+
   it('does nothing at all when Ivory is not equipped', () => {
     // Applying the multiplier unconditionally also applied its Math.round to
     // builds without the enchant, quietly changing stats it should not touch.
@@ -1631,6 +1656,305 @@ describe('mastery abilities', () => {
          a.name + ' is counted at its full ' + a.value + ' despite ' +
          Math.round(a.uptime * 100) + '% uptime');
     }
+  });
+});
+
+// -- 6h. move damage: the shape of the formula --------------------------------
+// The bug that made all of this necessary. model.js computed
+//   base + floor(stat / div)   per scaling term
+// where the site computes
+//   base x (1 + SUM(stat / div))
+// Every stat total agreed the whole time, because stats are not damage. There is
+// now a move-damage check in verify.js as well; these are the offline half.
+describe('move damage', () => {
+  const M = engine.model, O = engine.optimizer;
+
+  const build = klass => {
+    const b = M.emptyBuild();
+    b.klass = klass; b.level = 50;
+    return b;
+  };
+
+  it('multiplies the base by the scaling instead of adding to it', () => {
+    const b = build('Berserker (Ch)');
+    b.invested.str = 200;
+    const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
+    ok(carnage, 'Carnage not found');
+    eq(carnage.damage, '1x20', 'Carnage is no longer 1x20; this test needs revisiting');
+    const str = M.allStats(b).str;
+    const expected = 1 * (1 + str / 100) * 20;
+    const got = M.moveDamage(b, carnage);
+    ok(Math.abs(got - expected) < 0.05,
+       'expected ' + expected.toFixed(1) + ' from base x (1 + STR/100) x 20 hits, got ' + got.toFixed(1));
+  });
+
+  it('does not floor the contribution away on a low base', () => {
+    // This is what hid the bug: Carnage's base is 1, so floor(STR/100) was 0 for
+    // any Berserker under 100 Strength and the stat did nothing at all.
+    const b = build('Berserker (Ch)');
+    const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
+    b.invested.str = 0;
+    const low = M.moveDamage(b, carnage);
+    b.invested.str = 40;
+    const higher = M.moveDamage(b, carnage);
+    ok(higher > low + 1,
+       'adding 40 Strength changed a STR-scaling move by ' + (higher - low).toFixed(2));
+  });
+
+  it('sums several scaling stats before applying them', () => {
+    // "STR/80 + SPD/80" is one multiplier off the sum, not two multipliers.
+    const b = build('Assassin (Ch)');
+    b.invested.str = 100; b.invested.arc = 100; b.invested.lck = 100;
+    const mv = O.movesFor('Assassin (Ch)').find(m => /\+/.test(String(m.scaling || '')));
+    if (!mv) return;
+    const s = M.allStats(b);
+    let contrib = 0;
+    for (const m of String(mv.scaling).matchAll(/([A-Za-z]{3})\s*\/\s*([\d.]+)/g)) {
+      contrib += s[m[1].toLowerCase()] / parseFloat(m[2]);
+    }
+    const parsed = M.parseDamage(mv.damage);
+    const expected = parsed.base * (1 + contrib) * parsed.hits;
+    ok(Math.abs(M.moveDamage(b, mv) - expected) < 0.05, 'multi-stat scaling is not summed first');
+  });
+
+  it('lets a mastery rewrite a move outright', () => {
+    // Blade Dancer rm1 turns Parry Counter from 8 / STR-40 into 12 / STR-32.
+    // No damage multiplier can express that, which is why the shape hook exists.
+    const b = build('Blade Dancer (N)');
+    b.invested.str = 100;
+    const pc = O.movesFor('Blade Dancer (N)').find(m => m.name === 'Parry Counter');
+    ok(pc, 'Parry Counter not found');
+    b.masteryNodes = [];
+    const plain = M.moveDamage(b, pc);
+    b.masteryNodes = ['rm1'];
+    const mastered = M.moveDamage(b, pc);
+    ok(mastered > plain + 1,
+       'Parry Master changed nothing: ' + plain.toFixed(1) + ' vs ' + mastered.toFixed(1));
+  });
+
+  it('scores a two-part attack instead of dropping it', () => {
+    // Stinger's damage reads "5 + 10", which parses as nothing — so the move was
+    // silently worth zero and never chosen.
+    const b = build('Ranger (Or)');
+    b.invested.arc = 100; b.invested.spd = 100;
+    const st = O.movesFor('Ranger (Or)').find(m => m.name === 'Stinger');
+    if (!st) return;
+    ok(M.moveDamage(b, st) > 10, 'Stinger still scores as nothing');
+  });
+
+  it('every override names a move that exists on its class', () => {
+    for (const [name, rules] of Object.entries(K.MOVE_OVERRIDES)) {
+      ok(Array.isArray(rules) && rules.length, name + ' has no rules');
+      for (const rule of rules) {
+        ok(typeof rule.when === 'function', name + ' has no when()');
+        ok(rule.base !== undefined || rule.scaling !== undefined || rule.second,
+           name + ' overrides nothing');
+      }
+      const found = Object.keys(data.classMoves).some(k =>
+        ((data.classMoves[k] || {}).learns || []).some(m => m.name === name));
+      ok(found, 'MOVE_OVERRIDES names "' + name + '", which no class learns');
+    }
+  });
+});
+
+// -- 6i. solo or party is asked, never inferred ------------------------------
+describe('play style', () => {
+  it('changes what a party-facing ability is worth', () => {
+    const solo = engine.ask('', { klass: 'Lionheart (N)', goal: 'tank', play: 'solo' });
+    const team = engine.ask('', { klass: 'Lionheart (N)', goal: 'tank', play: 'team' });
+    const find = r => r.ctx.masteryAbilities.active.find(a => a.name === 'Prideful Heart');
+    const s = find(solo), t = find(team);
+    ok(s && t, 'Prideful Heart was not taken by either build');
+    ok(t.effective > s.effective + 1,
+       'a party-facing ability is worth the same solo (' + s.effective + ') as in a team (' + t.effective + ')');
+    eq(s.party, null, 'a solo build was given party scaling');
+  });
+
+  it('never scales an ability that is not party-facing', () => {
+    const solo = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo' });
+    const team = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', play: 'team' });
+    // A damage build's own hit does not improve for having allies nearby.
+    for (const a of team.ctx.masteryAbilities.active) eq(a.party, null, a.name + ' was party-scaled');
+    eq(Math.round(solo.ctx.bestHit), Math.round(team.ctx.bestHit),
+       'a solo damage build and a team one should hit for the same');
+  });
+
+  it('does not infer a party from the goal', () => {
+    // The whole point: a tank is not assumed to be in a party. Plenty of people
+    // solo one to survive content they cannot out-damage.
+    const r = engine.ask('', { klass: 'Lionheart (N)', goal: 'tank' });
+    eq(r.spec.play, 'solo', 'a tank with no answer was assumed to be in a party');
+    ok(r.spec.assumptions.some(a => /solo/i.test(a)),
+       'defaulted to solo without saying so');
+  });
+
+  it('the panel makes it a required choice, not a default', () => {
+    const root = path.join(__dirname, '..', '..');
+    const js  = fs.readFileSync(path.join(root, 'js/build-ai.js'), 'utf8');
+    ok(/let playStyle = null/.test(js), 'the panel preselects a play style');
+    ok(js.indexOf('needsPlayStyle') !== -1, 'nothing stops a build without the choice');
+    ok(/function run\(\)[\s\S]{0,200}needsPlayStyle\(ov\)\) return;/.test(js),
+       'run() does not gate on the choice');
+    ok(/data-play="solo"/.test(js) && /data-play="team"/.test(js), 'both options are not offered');
+    // and it must not be counted as an optional override
+    ok(/delete o\.play/.test(js), 'the required choice is counted as an Advanced override');
+  });
+});
+
+// -- 6j. knowledge tables name things that exist -----------------------------
+// Every one of these tables is keyed by a game-data name. A typo in a key is
+// silent: the entry simply never matches, the item is scored without it, and
+// nothing anywhere says so. This is the cheapest test in the suite.
+describe('knowledge tables', () => {
+  const names = (...tables) => new Set(tables.flatMap(t => Object.keys(t || {})));
+
+  const items   = names(data.gearItems, data.artifactItems, data.armourItems, data.enchantItems,
+                        ...Object.values(data.offhandSeries || {}));
+  const series  = new Set(Object.values(data.weapons).map(w => w.series));
+  const races   = new Set(Object.keys(data.races));
+  const classes = new Set([...Object.keys(data.classes), ...Object.values(data.classes).flat(),
+                           ...(data.subClasses || [])]);
+
+  const allNamed = (table, pool, label) => {
+    const bogus = Object.keys(table || {}).filter(n => !pool.has(n));
+    eq(bogus.length, 0, label + ' names things that do not exist: ' + bogus.join(', '));
+  };
+
+  it('GEAR_PASSIVES', () => allNamed(K.GEAR_PASSIVES, items, 'GEAR_PASSIVES'));
+  it('WEAPON_PASSIVES', () => allNamed(K.WEAPON_PASSIVES, series, 'WEAPON_PASSIVES'));
+  it('RACE_ROLES', () => allNamed(K.RACE_ROLES, races, 'RACE_ROLES'));
+  it('CLASS_WEAPONS', () => allNamed(K.CLASS_WEAPONS, classes, 'CLASS_WEAPONS'));
+  it('ENCHANTS', () => allNamed(K.ENCHANTS, names(data.enchantItems), 'ENCHANTS'));
+
+  it('the site and the engine agree on what does not exist', () => {
+    // js/builder.js keeps its own UNRELEASED_GEAR so the picker can hide them.
+    // Two lists of the same fact drift; this is the thing that notices.
+    const root = path.join(__dirname, '..', '..');
+    const src  = fs.readFileSync(path.join(root, 'js/builder.js'), 'utf8');
+    const m = src.match(/const UNRELEASED_GEAR = new Set\(\[([\s\S]*?)\]\)/);
+    ok(m, 'builder.js has no UNRELEASED_GEAR set');
+    const site = new Set((m[1].match(/"([^"]+)"/g) || []).map(x => x.slice(1, -1)));
+    ok(site.size > 0, 'UNRELEASED_GEAR is empty');
+    const engineSide = (K.UNAVAILABLE || {}).items || {};
+    for (const name of site) {
+      ok(engineSide[name], 'the builder hides "' + name + '" but the AI would still pick it');
+    }
+    // And the picker must not be able to offer one.
+    const gearNames = new Set(Object.values(data.gearSeries || {}).flat());
+    for (const name of site) ok(gearNames.has(name), 'UNRELEASED_GEAR names "' + name + '", which no series lists');
+  });
+
+  it('every Withered Grove gear has its passive registered', () => {
+    // They were in the stat tables but not in gearMoves, so the builder's Info
+    // panel showed nothing at all when one was equipped.
+    const grove = (data.gearSeries || {})['Withered Grove'] || [];
+    ok(grove.length > 0, 'no Withered Grove series');
+    const unreleased = new Set(Object.keys((K.UNAVAILABLE || {}).items || {}));
+    for (const name of grove) {
+      if (unreleased.has(name)) continue;      // no effect text exists for these
+      ok(data.itemPassives[name], name + ' has no passive registered, so Info shows nothing for it');
+    }
+  });
+
+  it('UNAVAILABLE', () => {
+    // Offhands count: the Ivory Shield is listed by name because weaponSeries
+    // matches main weapons only.
+    allNamed((K.UNAVAILABLE || {}).items, items, 'UNAVAILABLE.items');
+    allNamed((K.UNAVAILABLE || {}).weaponSeries, series, 'UNAVAILABLE.weaponSeries');
+  });
+
+  it('RACE_TECH', () => {
+    for (const t of K.RACE_TECH || []) {
+      ok(races.has(t.race), 'RACE_TECH names a missing race: ' + t.race);
+      if (t.enables) ok(items.has(t.enables), 'RACE_TECH enables a missing item: ' + t.enables);
+    }
+  });
+
+  it('SHARDS is keyed by bonus type, not by shard name', () => {
+    // Documenting the shape so nobody "fixes" it into shard names, which is the
+    // mistake an audit of this file makes the first time.
+    const types = new Set(Object.values(data.shardItems || {}).map(s => s.bonusType).filter(Boolean));
+    const bogus = Object.keys(K.SHARDS || {}).filter(k => !types.has(k));
+    eq(bogus.length, 0, 'SHARDS keys that are not a bonusType: ' + bogus.join(', '));
+  });
+});
+
+// -- 6k. bias: weapons and the class pool ------------------------------------
+describe('selection bias', () => {
+  const O = engine.optimizer;
+
+  it('labels a passive by what it actually grants', () => {
+    // Crystal Sphere grants crit chance; the write-up called it "+5% damage"
+    // because the entry carried no kind for the renderer to switch on.
+    const r = engine.ask('', { klass: 'Berserker (Ch)', goal: 'crit', play: 'solo' });
+    ok(r.ctx.gearPassives.active.length > 0, 'no gear passive counted at all');
+    for (const a of r.ctx.gearPassives.active) {
+      ok(a.kind, a.name + ' is counted but carries no kind, so it cannot be labelled');
+      const bare = String(a.name).replace(/ \(weapon\)$/, '');
+      const rule = (K.GEAR_PASSIVES || {})[a.name] || (K.WEAPON_PASSIVES || {})[bare];
+      ok(rule, a.name + ' is counted but has no knowledge entry');
+      eq(a.kind, rule.kind, a.name + ' is reported as ' + a.kind + ' but is ' + rule.kind);
+    }
+  });
+
+
+  it('counts the weapon\'s own passive', () => {
+    // Weapon passives were never looked at. Five series roll tier points and are
+    // otherwise identical to the model, so the choice between them fell to
+    // whichever bestOfSlot saw first: Dragon won 81% of builds and Primordial's
+    // flat +20% — the largest unconditional weapon bonus in the game — was
+    // invisible.
+    const r = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo' });
+    ok(r.build.weapon, 'no weapon chosen');
+    const gp = r.ctx.gearPassives;
+    const listed = gp.active.concat(gp.unmodelled).map(x => x.name);
+    ok(listed.some(n => / \(weapon\)$/.test(n)),
+       'the weapon passive is neither counted nor reported: ' + listed.join(', '));
+  });
+
+  it('prefers the weapon whose passive is actually bigger', () => {
+    // Primordial is +20% unconditional; Dragon is +15% and only against Burning.
+    const picks = {};
+    for (let i = 0; i < 20; i++) {
+      const b = engine.ask('', { random: true, play: 'solo', goal: 'damage' }).build;
+      if (!b.weapon) continue;
+      const s = (data.weapons[b.weapon.name] || {}).series;
+      picks[s] = (picks[s] || 0) + 1;
+    }
+    ok((picks['Primordial'] || 0) > (picks['Dragon'] || 0),
+       'Dragon is still being chosen over Primordial: ' + JSON.stringify(picks));
+  });
+
+  it('never picks a base class once superclasses are available', () => {
+    // Measured at level 50: Warrior scores 552 against Berserker's 2279. A base
+    // class at max level is not a close call, it is a build nobody plays.
+    const bases = new Set(Object.keys(data.classes));
+    for (let i = 0; i < 25; i++) {
+      const b = engine.ask('', { random: true, play: 'solo' }).build;
+      ok(!bases.has(b.klass), 'rolled the base class ' + b.klass + ' at level ' + b.level);
+    }
+  });
+
+  it('offers only base classes below the superclass level', () => {
+    const supers = new Set(Object.values(data.classes).flat());
+    for (let i = 0; i < 10; i++) {
+      const b = engine.ask('', { random: true, play: 'solo', level: 10 }).build;
+      ok(!supers.has(b.klass), 'rolled ' + b.klass + ' at level 10, which needs 15');
+    }
+    // and the pool itself, directly
+    const low = O.classesForLevel(10);
+    ok(low.every(k => !supers.has(k)), 'classesForLevel(10) contains a superclass');
+    const high = O.classesForLevel(50);
+    ok(high.every(k => supers.has(k)), 'classesForLevel(50) still contains a base class');
+  });
+
+  it('still honours a class asked for outright, and says when it is not reachable', () => {
+    const r = engine.ask('', { klass: 'Warrior', play: 'solo' });
+    eq(r.build.klass, 'Warrior', 'an explicitly named base class was overridden');
+    const early = engine.ask('', { klass: 'Berserker (Ch)', level: 8, play: 'solo' });
+    eq(early.build.klass, 'Berserker (Ch)', 'planning ahead should still be allowed');
+    ok(early.warnings.some(w => /level 15/.test(w.text)),
+       'no warning that the class is not unlocked at level 8');
   });
 });
 

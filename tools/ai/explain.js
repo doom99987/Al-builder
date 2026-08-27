@@ -326,6 +326,30 @@
       }
     }
 
+    // ── gear and weapon passives ────────────────────────────────────────────
+    // These have always been in the numbers and never in the write-up: the
+    // explanation listed class and race passives only. The weapon's passive in
+    // particular is often the single largest modifier on the build — Primordial
+    // is a flat +20% — and it was being applied silently.
+    if (c.gearPassives && (c.gearPassives.active.length || c.gearPassives.unmodelled.length)) {
+      const gp = c.gearPassives;
+      if (gp.active.length) {
+        L.push({ h: 'Gear and weapon passives counted', table: gp.active.map(a =>
+          [a.name, '+' + a.value + (a.kind === 'critChance' ? ' crit chance'
+                                  : a.kind === 'dr' ? '% DR'
+                                  : a.kind === 'hpPct' ? '% HP' : '% damage') +
+                   (a.effective !== a.value
+                     ? '  — counted as ' + n1(a.effective) + ', it is conditional' : '  — always on') +
+                   (a.note ? '.  ' + a.note : '')]) });
+      }
+      if (gp.unmodelled.length) {
+        L.push({ h: 'Gear passives NOT counted', body:
+          'Equipped on this build, and worth something the numbers above ignore:',
+          list: gp.unmodelled.slice(0, 10).map(u =>
+            '**' + u.name + '**' + (u.note ? ' — ' + u.note : '')) });
+      }
+    }
+
     // ── mastery abilities ───────────────────────────────────────────────────
     // The stat points a mastery tree grants were always counted. The CAPSTONE
     // abilities — 5 points each, and the reason to take one branch over another
@@ -337,7 +361,16 @@
         L.push({ h: 'Mastery abilities counted', table: ma.active.map(a =>
           [a.name, '+' + a.value + unit(a) +
                    (a.uptime < 1 ? '  — counted at ' + Math.round(a.uptime * 100) + '% uptime' : '  — always on') +
+                   (a.party ? ', and ×' + a.party + ' because it lands on the party, not just you' : '') +
                    (a.note ? '.  ' + a.note : '')]) });
+        if (ma.active.some(a => a.party)) {
+          L.push({ h: 'Counted for a full party', body:
+            'This is a ' + (K.ARCHETYPES[spec.goal] || {}).label + ' build, so it is valued as one of **' +
+            (K.PARTY_SIZE || 5) + '**. Abilities that protect or heal other people are worth several times ' +
+            'what they look like on your own sheet, and a solo damage build gets none of that scaling. ' +
+            'Only about ' + Math.round((K.PARTY_SPREAD ?? 0.5) * 100) + '% of the team is assumed to be in ' +
+            'range of any one effect — you cannot guard everyone at once.' });
+        }
       }
       if (ma.unmodelled.length) {
         L.push({ h: 'Mastery abilities NOT counted', body:

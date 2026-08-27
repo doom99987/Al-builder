@@ -52,7 +52,11 @@
 
   function Model(data) {
     const D = data;
-    const hooks = { stat: [], critChance: [], damage: [], flatHP: [] };
+    // `moveShape` runs BEFORE the scaling maths, because some effects replace a
+    // move's base damage or its scaling outright rather than multiplying the
+    // result — a Blade Dancer's rm1 turns Parry Counter from 8/STR-40 into
+    // 12/STR-32, which no post-hoc damage multiplier can express.
+    const hooks = { stat: [], critChance: [], damage: [], flatHP: [], moveShape: [] };
 
     // knowledge.js calls these. Each hook gets (build, value, ctx) and returns a
     // new value; ctx carries whatever the caller already computed so a hook never
@@ -62,6 +66,7 @@
       critChance: fn => hooks.critChance.push(fn),
       damage:     fn => hooks.damage.push(fn),
       flatHP:     fn => hooks.flatHP.push(fn),
+      moveShape:  fn => hooks.moveShape.push(fn),
     };
 
     const clampLvl = lvl => Math.min(D.Max_Lvl, Math.max(D.Min_Lvl, lvl || D.Min_Lvl));
@@ -389,23 +394,77 @@
     }
 
     // Move damage. scaling is written "STR/75" style in the move data.
+    // Scaling strings are parsed the same way tens of thousands of times per
+    // request — the same fifteen moves, over and over, through the search. The
+    // strings are static game data, so the parse is memoised by string rather
+    // than by move: overrides supply their own scaling strings and get the same
+    // treatment for free.
+    const _scaleCache = new Map();
+    function scaleTerms(str) {
+      let terms = _scaleCache.get(str);
+      if (terms) return terms;
+      terms = [];
+      for (const m of String(str || '').matchAll(/([A-Za-z]{3})\s*\/\s*([\d.]+)/g)) {
+        const stat = m[1].toLowerCase();
+        const div  = parseFloat(m[2]);
+        if (STATS.includes(stat) && div) terms.push([stat, div]);
+      }
+      _scaleCache.set(str, terms);
+      return terms;
+    }
+
+    // Same for the damage string.
+    const _dmgCache = new Map();
+    function parseDamageCached(raw) {
+      const key = String(raw);
+      let v = _dmgCache.get(key);
+      if (v === undefined) { v = parseDamage(raw); _dmgCache.set(key, v); }
+      return v;
+    }
+
     function moveDamage(build, move, opts) {
       opts = opts || {};
       // Reuse the caller's stats when it has them. Recomputing all five per move
       // was the hottest path in the engine — roughly 20k recomputations per
       // request, each rebuilding the gear tables from scratch.
       const s = opts.stats || allStats(build, opts.ctx);
-      const parsed = parseDamage(move.damage);
-      let dmg = parsed.base;
-      // Scaling can name several stats — "STR/80 + SPD/80" is one term per stat,
-      // each floored separately. Matching only the first silently halved every
-      // dual-scaling move, which is most of the interesting ones.
-      const sc = String(move.scaling || '');
-      for (const m of sc.matchAll(/([A-Za-z]{3})\s*\/\s*([\d.]+)/g)) {
-        const stat = m[1].toLowerCase();
-        const div  = parseFloat(m[2]);
-        if (STATS.includes(stat) && div) dmg += Math.floor(s[stat] / div);
+      let parsed = parseDamageCached(move.damage);
+      // Class and mastery overrides get to rewrite the move first. Everything
+      // below then works on the shape the game actually uses.
+      let scalingStr = String(move.scaling || '');
+      let second = null;      // a move that is really two attacks, summed
+      for (const fn of hooks.moveShape) {
+        const sh = fn(build, { move, base: parsed.base, hits: parsed.hits, scaling: scalingStr });
+        if (!sh) continue;
+        if (sh.base    !== undefined) parsed = { base: sh.base, hits: sh.hits !== undefined ? sh.hits : parsed.hits };
+        else if (sh.hits !== undefined) parsed = { base: parsed.base, hits: sh.hits };
+        if (sh.scaling !== undefined) scalingStr = String(sh.scaling);
+        if (sh._second) second = sh._second;
       }
+
+      // builder.js:4080-4085 and the damage detail line it prints:
+      //
+      //     1(1 + STR(236)/100) = 3.4  x 20 hits = 67.2
+      //
+      // The contributions of every named stat are SUMMED, and the total
+      // MULTIPLIES the base. It is not floored and it is not added.
+      //
+      // This was previously `base + floor(stat/div)` per term, which is wrong
+      // three ways over, and wrong worst exactly where it matters: Carnage is
+      // "1x20", so floor(STR/100) on a base of 1 threw away the entire stat
+      // contribution below 100 STR and most of it above. A Berserker's damage
+      // did not move when you gave it Strength, so the optimiser learned to put
+      // nothing there and pour everything into crit instead.
+      let contrib = 0;
+      for (const [stat, div] of scaleTerms(scalingStr)) contrib += s[stat] / div;
+      let dmg = parsed.base * (1 + contrib);
+      // The second half of a two-part attack, scaled on its own terms and added.
+      if (second) {
+        let c2 = 0;
+        for (const [st, dv] of scaleTerms(second.scaling)) c2 += s[st] / dv;
+        dmg += (second.base || 0) * (1 + c2);
+      }
+
       const ctx = { move, stats: s, base: parsed.base, hits: parsed.hits };
       for (const fn of hooks.damage) dmg = fn(build, dmg, ctx);
       // Scaling applies per hit, so the multiplier comes last.

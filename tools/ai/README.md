@@ -107,6 +107,91 @@ Two layers feed it now:
 Anything neither layer can read is reported under "Mastery abilities NOT counted"
 rather than scored as zero, the same as gear passives.
 
+## Damage: the formula, and why stats looked worthless
+
+`model.js` computed, for each scaling term:
+
+```
+base + floor(stat / div)
+```
+
+The site computes (`builder.js:4080`, and its own printout says so):
+
+```
+base x (1 + SUM(stat / div))
+```
+
+Multiplicative, unfloored, summed before it is applied. Three differences, and
+the worst of them lands exactly where it matters most: **Carnage is `1x20`**, so
+`floor(STR/100)` on a base of 1 threw away the entire Strength contribution below
+100 STR and most of it above. A Berserker's damage did not move when you gave it
+Strength, so the optimiser learned to put nothing there and pour everything into
+crit instead.
+
+Every stat total agreed with the site perfectly the whole time. **Stats are not
+damage**, and nothing here had ever compared a damage number. `verify.js` now
+does, on every configuration it generates.
+
+A few moves also do not use the damage and scaling printed on them — some
+masteries replace both outright. Those live in `MOVE_OVERRIDES`, registered
+through the ordinary QUIRKS mechanism so every consumer of the model picks them
+up, `verify.js` included.
+
+## Mastery pricing, by measurement
+
+Stat nodes and capstones used to be priced in different units, which made the
+comparison between them meaningless: a stat node was scored by the goal's WEIGHT
+for that stat (0 to about 10), a capstone by its ability's PERCENTAGE. Stat nodes
+won roughly three to one regardless of what was true.
+
+What is true, measured on real builds: **five mastery stat points move a damage
+build about 2.8%, and the capstone those same five points could have bought is
+worth 7% to 24%.** It was pricing them almost exactly backwards.
+
+Both are now measured with the real scorer, in one unit — percent of this build's
+score. Eleven extra `evaluate()` calls per build, which is nothing next to the
+thousands the search already runs, and it removes a whole class of "the weights
+say X but the maths says Y" disagreement.
+
+## Solo or party — asked, never inferred
+
+Whether you are in a party decides whether an ability that protects four other
+people is worth five mastery points. It is a required choice in the panel, and
+the Build button refuses without it.
+
+It is deliberately not inferred from the goal. Guessing was wrong in both
+directions: plenty of people solo a tank to survive content they cannot
+out-damage, and plenty take a damage build into a five-stack. A request that
+reaches the engine without an answer is treated as solo **and told so**.
+
+`PARTY_SPREAD` discounts team effects to the fraction of the group actually in
+range — you cannot guard everyone at once.
+
+## Bias audits
+
+Two silent biases, both found by counting what the engine actually picks rather
+than by reading the code:
+
+**Weapon passives were never counted at all.** `gearPassiveTotals` looked at gear
+and the artifact and nothing else. Five weapon series roll tier points and are
+otherwise identical to the model, so the choice between them fell to whichever
+one `bestOfSlot` saw first — **Dragon won 81% of builds**, while Primordial's
+flat +20%, the largest unconditional weapon bonus in the game, was invisible.
+They live in `WEAPON_PASSIVES`, keyed by series because that is how the game data
+writes them (`itemPassives['Primordial']`, not `'Primordial Spear'`).
+
+**Base classes were being rolled at max level.** About one build in ten. A
+superclass needs level 15 and is roughly four times stronger — measured, Warrior
+scores 552 against Berserker's 2279 — so those were not close calls. The class
+pool now follows the level, an explicitly named class is still honoured, and
+asking for a superclass below 15 gets a warning rather than a silent yes.
+
+A third is inherent and reported rather than fixed: **33 of the 52 gears that
+carry a passive are still unmodelled**, so gear whose value is its passive is
+undervalued. `rankGear` at least scores the ones knowledge.js knows about — the
+fourteen-item shortlist was previously cut on stat blocks alone, which dropped
+Molten Carapace's +30% defence before the real scorer ever saw it.
+
 ## The WIP notice
 
 The panel opens with an amber **WIP** banner above everything else, dismissible

@@ -2062,6 +2062,24 @@ const gearPctBonuses = {
 };
 
 // To add gear: "Item Name": { str, arc, end, spd, lck }
+// Gear the changelog lists but the game does not have yet. The data entries stay
+// — a build saved with one still has to load, and the encyclopedia still lists
+// them — but they are not offered in the picker, because picking one builds
+// something you cannot equip.
+//
+// Declared HERE rather than beside buildGearDropdown: the pickers are built
+// partway down this file, and a `const` read before its declaration executes is
+// a dead-zone throw that aborts the whole script. That is not a hypothetical —
+// putting it next to the function it is used in did exactly that.
+//
+// Kept in step with the build AI's own list by a test (tools/ai/test.js).
+const UNRELEASED_GEAR = new Set([
+  "Dread Fang",
+  "Empty Blade",
+  "Faded Heirloom",
+  "Ring of Heroism",
+]);
+
 const gearItems = {
   "Lethal Blackjack":    { str: 0, arc: 0, end: 0, spd: 0, lck: 3 },
   "Everbeating Drums":   { str: 4, arc: 0, end: 0, spd: 0, lck: 0 },
@@ -2830,6 +2848,21 @@ const gearMoves = {
   "Lucky Horns": { learns: [
     mkPassive("Lucky Horns", "Always grants +5% Damage. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45% Damage for that attack."),
   ]},
+  "Ages Pages": { learns: [
+    mkPassive("Ages Pages", "Always grants +5 Crit Chance. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45 Crit Chance for that attack."),
+  ]},
+  "Blooming Eye": { learns: [
+    mkPassive("Blooming Eye", "Always grants +5 True Flat Damage. Once per turn while in a Corruption Form, spending 100 Corrupt Power raises this to +35 True Flat Damage for that attack."),
+  ]},
+  "Crystalline Spike": { learns: [
+    mkPassive("Crystalline Spike", "Always grants +5 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +40 Flat Damage for that attack."),
+  ]},
+  "Shadow Gauntlets": { learns: [
+    mkPassive("Shadow Gauntlets", "Always grants +5% Lifesteal. Once per turn while in a Corruption Form, spending 45 Corrupt Power raises this to +25% Lifesteal for that attack."),
+  ]},
+  "Infected Skin": { learns: [
+    mkPassive("Infected Skin", "Always grants +15 DR. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +165 DR for that attack."),
+  ]},
 
   // Winter Solstice Gears
   "Snorb": { learns: [
@@ -3051,7 +3084,7 @@ function buildGearDropdown(picker, seriesData) {
 
   const allItems = [];
   Object.entries(seriesData).forEach(([series, names]) => {
-    names.forEach(name => allItems.push({ name, series }));
+    names.forEach(name => { if (!UNRELEASED_GEAR.has(name)) allItems.push({ name, series }); });
   });
 
   allItems.forEach(({ name }) => {
