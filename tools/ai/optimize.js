@@ -165,11 +165,12 @@
       const cap = M.energyCap(build, K);
       const pv = passiveTotals(build);
       const gp = gearPassiveTotals(build);
+      const ma = masteryAbilityTotals(build);
       const sh = M.shardTotals(build, K);
       const en = (K.ENCHANTS || {})[build.enchant];
       const enPct = en && en.kind === 'dmgPct' ? en.value * (en.uptime ?? 1) : 0;
 
-      const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance;
+      const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance + ma.critChance;
       const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
       const mult = M.expectedMultiplier(critChance, critDmg);
 
@@ -210,7 +211,7 @@
       let bestHit = 0, bestMove = null, bestBurst = 0, burstMove = null, sustainedHit = 0;
       for (const mv of moves) {
         let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx });
-        let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + gp.dmgPct;
+        let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + gp.dmgPct + ma.dmgPct;
 
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
         // Affinity Boost — only pay on moves of that type.
@@ -255,11 +256,12 @@
       const ctx = {
         stats: d.stats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
-        blockDr: d.blockDr + tt.dr + gp.dr, outHeal: d.outHeal, incHeal: d.incHeal,
+        blockDr: d.blockDr + tt.dr + gp.dr + ma.dr, outHeal: d.outHeal, incHeal: d.incHeal,
         initiative: d.initiative + tt.initiative,
         bestHit, bestMove, moves, goal: spec.goal,
         bestBurst, burstMove, sustainedHit, rotation, setups,
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
+        masteryAbilities: ma,
         passives: pv, passiveList: passivesFor(build),
         siteHp: d.hp, siteCritChance: d.critChance,   // what the site will show
       };
@@ -581,6 +583,46 @@
       return out;
     }
 
+    // What the mastery CAPSTONES do, as opposed to the stat points every node
+    // grants. A capstone costs 5 of 35 points and its whole value is the written
+    // ability, which the engine could not read at all until now — so it was
+    // buying one on branch colour and calling that a choice.
+    //
+    // Two sources, in order: knowledge.js if it has an entry, otherwise the
+    // number extract-data.js got by running builder.js's own parseDmgBonus over
+    // the description. Anything neither can read is reported, not scored.
+    function masteryAbilityTotals(build) {
+      const table = K.MASTERY_ABILITIES || {};
+      const perClass = (D.masteryAbilities || {})[build.klass] || {};
+      const out = { dmgPct: 0, critChance: 0, dr: 0, active: [], unmodelled: [] };
+      const nodes = D.masteryNodes || [];
+      const byId = {};
+      nodes.forEach(n => { byId[n.id] = n; });
+
+      for (const id of build.masteryNodes || []) {
+        const node = byId[id];
+        if (!node || node.type !== 'mastery') continue;   // only capstones carry abilities
+        const entry = perClass[id];
+        if (!entry) continue;
+        const rule = table[entry.name];
+
+        // An explicit note-only entry, or nothing to go on at all.
+        if ((rule && rule.kind === 'note') || (!rule && entry.bonus == null)) {
+          out.unmodelled.push({ name: entry.name, note: (rule && rule.note) || null });
+          continue;
+        }
+        const kind   = rule ? rule.kind : 'dmgPct';
+        const value  = rule && rule.value != null ? rule.value : entry.bonus;
+        const uptime = rule && rule.uptime != null ? rule.uptime : K.MASTERY_ABILITY_DEFAULT_UPTIME;
+        if (value == null) { out.unmodelled.push({ name: entry.name, note: rule && rule.note }); continue; }
+        const eff = value * uptime;
+        if (out[kind] !== undefined) out[kind] += eff;
+        out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
+                          note: rule && rule.note });
+      }
+      return out;
+    }
+
     // Aggregate the scoreable passives into the same shape traits use.
     function passiveTotals(build) {
       const { known } = passivesFor(build);
@@ -628,8 +670,32 @@
       const w = weightOf(spec);
       const mults = cd.branchMultipliers || {};
 
-      // What a node is worth to THIS build: only regular nodes grant stats.
+      // What a capstone's ABILITY is worth to this build. Scaled into the same
+      // rough range as a stat node so the two can be compared at all: a stat
+      // point moves damage about a percent, so a percentage point of a buff and
+      // a point of stat weight are put on comparable footing and the cost side
+      // of the ratio does the rest.
+      const abilityValue = nodeId => {
+        const entry = ((D.masteryAbilities || {})[build.klass] || {})[nodeId];
+        if (!entry) return 0;
+        const rule = (K.MASTERY_ABILITIES || {})[entry.name];
+        if (rule && rule.kind === 'note') return 0;
+        const value = rule && rule.value != null ? rule.value : entry.bonus;
+        if (value == null) return 0;
+        const uptime = rule && rule.uptime != null ? rule.uptime : K.MASTERY_ABILITY_DEFAULT_UPTIME;
+        const kind   = rule ? rule.kind : 'dmgPct';
+        // Weighted by what the goal actually wants, so a tank does not buy a
+        // damage capstone and a damage build does not buy a defensive one.
+        const goalW = kind === 'dr'         ? (w.end || 0)
+                    : kind === 'critChance' ? (w.lck || 0)
+                    :                         Math.max(w.str || 0, w.arc || 0);
+        return value * uptime * Math.max(0.25, goalW / 10);
+      };
+
+      // What a node is worth to THIS build. Stat nodes grant stats; capstones
+      // grant an ability, and are worth whatever that ability does.
       const valueOf = n => {
+        if (n.type === 'mastery') return abilityValue(n.id);
         if (n.type !== 'node') return 0;
         const stat = (cd.branchStats || {})[n.branch];
         return stat ? (w[stat] || 0) * (mults[n.branch] ?? 1) : 0;
@@ -699,17 +765,22 @@
         spent += cheapest.c;
       }
 
-      // Anything left buys a capstone, for its ability rather than for stats —
-      // preferring the branch this build actually leans on. Its prerequisites
-      // are usually already paid for by now.
+      // Anything left buys a capstone — and now it buys the RIGHT one. Five
+      // points is five stat nodes, so this has to be decided on what the ability
+      // actually does; picking by branch colour was choosing between Overload
+      // (+100%, but only against stunned enemies) and Element Mastery (+15% to a
+      // caster's entire kit) by which side of the tree they sat on.
       const capstones = all.filter(n => n.type === 'mastery' && !taken.has(n.id))
         .map(n => {
           const path = closure(n.id);
           return { n, path, c: path.reduce((a, x) => a + _mastCost(x), 0),
+                   v: abilityValue(n.id),
                    branchW: (w[(cd.branchStats || {})[n.branch]] || 0) };
         })
         .filter(x => spent + x.c <= CAP)
-        .sort((a, b) => b.branchW - a.branchW || a.c - b.c);
+        // Ability value first; branch weight only breaks ties between abilities
+        // this engine cannot tell apart, which is what it was always doing.
+        .sort((a, b) => b.v - a.v || b.branchW - a.branchW || a.c - b.c);
       if (capstones.length) {
         capstones[0].path.forEach(x => taken.add(x.id));
         spent += capstones[0].c;
@@ -1073,7 +1144,8 @@
 
     return { run, evaluate, movesFor, baseOf, weightOf, rankGear, pickCorruption,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
-             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor };
+             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
+             masteryAbilityTotals };
   }
 
   return { Optimizer };

@@ -1027,13 +1027,22 @@ describe('random and flavour', () => {
        Math.round(r.ctx.bestHit) + ', ' + Math.round(r.ctx.bestBurst) + ']');
   });
 
-  it('prefers the buff race for burst and the passive race for sustained', () => {
-    // The whole point of modelling rotations: Nisse's permanent +15% wins over a
-    // long fight, Corvolus's castable +20% wins the opener.
+  it('prefers the buff race for burst, and knows a castable buff costs a turn', () => {
+    // Corvolus's buffs are cast; Nisse's is permanent. Which race wins on
+    // SUSTAINED damage is a margin of about a percent and moves whenever
+    // anything else in the model changes, so asserting a winner there was
+    // testing the tie-break rather than the modelling. What is not a coin flip:
+    // the castable race gains from an opener and the permanent one gains
+    // nothing, because it has nothing to set up.
     const burst = engine.ask('', { klass: 'Elementalist (Or)', goal: 'burst' });
-    const sust  = engine.ask('', { klass: 'Elementalist (Or)', goal: 'damage' });
     eq(burst.build.race, 'Corvolus (3%)', 'burst should favour the castable buff');
-    eq(sust.build.race,  'Nisse (20%)',   'sustained should favour the permanent buff');
+
+    const corv = engine.ask('', { klass: 'Elementalist (Or)', race: 'Corvolus (3%)', goal: 'burst' });
+    const niss = engine.ask('', { klass: 'Elementalist (Or)', race: 'Nisse (20%)',  goal: 'burst' });
+    ok(corv.ctx.bestBurst > corv.ctx.bestHit * 1.05,
+       'Corvolus gains nothing from its opener');
+    ok(Math.abs(niss.ctx.bestBurst - niss.ctx.bestHit) < 0.5,
+       'Nisse has no setup moves, so its opener should be its plain hit');
   });
 
   it('models Focus Step as a real Speed buff', () => {
@@ -1489,6 +1498,139 @@ describe('Ivory stat multiplier', () => {
     // Applying the multiplier unconditionally also applied its Math.round to
     // builds without the enchant, quietly changing stats it should not touch.
     ok(/_ivoryMult > 1/.test(src), 'the multiplier is applied without checking it is greater than 1');
+  });
+});
+
+// -- 6g. mastery capstone abilities -----------------------------------------
+// A capstone costs 5 of 35 points. Until these were modelled the engine could
+// only see the stat points a tree grants, so it bought one on branch colour.
+describe('mastery abilities', () => {
+  const M = engine.model, O = engine.optimizer;
+
+  it('parses a bonus out of the descriptions with the site\'s own parser', () => {
+    const A = data.masteryAbilities;
+    ok(A && Object.keys(A).length >= 15, 'no per-class mastery abilities in the snapshot');
+    let total = 0, numeric = 0;
+    for (const nodes of Object.values(A)) for (const a of Object.values(nodes)) {
+      total++;
+      if (a.bonus !== null && a.bonus !== undefined) numeric++;
+    }
+    eq(total, 108, 'expected 108 capstone abilities');
+    ok(numeric >= 20, 'only ' + numeric + ' abilities parsed a number; the parser is not being run');
+  });
+
+  it('has no knowledge entry naming an ability that does not exist', () => {
+    // A typo here is silent: the entry simply never matches and the ability is
+    // scored by the fallback, or not at all.
+    const names = new Set();
+    for (const nodes of Object.values(data.masteryAbilities)) {
+      for (const a of Object.values(nodes)) names.add(a.name);
+    }
+    const bogus = Object.keys(K.MASTERY_ABILITIES).filter(n => !names.has(n));
+    eq(bogus.length, 0, 'knowledge.js names abilities that do not exist: ' + bogus.join(', '));
+  });
+
+  it('only ever reads abilities off capstone nodes', () => {
+    // Today only capstones carry a description, so the type check looks
+    // redundant — and a test that merely re-reads the data would pass with the
+    // check deleted. This plants an ability on a plain stat node and asserts it
+    // is ignored, which is the thing the check is actually for.
+    const byId = {};
+    data.masteryNodes.forEach(n => { byId[n.id] = n; });
+    for (const nodes of Object.values(data.masteryAbilities)) {
+      for (const id of Object.keys(nodes)) {
+        eq((byId[id] || {}).type, 'mastery', 'node ' + id + ' carries an ability but is not a capstone');
+      }
+    }
+
+    const r = engine.ask('', { klass: 'Elementalist (Or)', goal: 'damage' });
+    const statNode = (r.build.masteryNodes || []).find(id => (byId[id] || {}).type === 'node');
+    ok(statNode, 'this build took no plain stat node to test with');
+    const perClass = data.masteryAbilities['Elementalist (Or)'];
+    const saved = perClass[statNode];
+    try {
+      perClass[statNode] = { name: 'Planted Not-A-Capstone', bonus: 500 };
+      const after = O.masteryAbilityTotals(r.build);
+      ok(!after.active.some(a => a.name === 'Planted Not-A-Capstone'),
+         'an ability on a plain stat node was counted');
+      ok(!after.unmodelled.some(u => u.name === 'Planted Not-A-Capstone'),
+         'an ability on a plain stat node was even reported');
+    } finally {
+      if (saved === undefined) delete perClass[statNode]; else perClass[statNode] = saved;
+    }
+  });
+
+  it('counts them in the damage number', () => {
+    // Strip the knowledge table and the parsed bonuses and the same build must
+    // come out measurably weaker; if it does not, nothing is being applied.
+    const r = engine.ask('', { klass: 'Elementalist (Or)', goal: 'damage' });
+    const before = O.evaluate(r.build, r.spec).bestHit;
+    const savedTable = K.MASTERY_ABILITIES;
+    const savedData  = data.masteryAbilities;
+    try {
+      K.MASTERY_ABILITIES = {};
+      data.masteryAbilities = {};
+      const after = O.evaluate(r.build, r.spec).bestHit;
+      ok(after < before - 0.5,
+         'mastery abilities change nothing: ' + before.toFixed(1) + ' vs ' + after.toFixed(1));
+    } finally {
+      K.MASTERY_ABILITIES = savedTable;
+      data.masteryAbilities = savedData;
+    }
+  });
+
+  it('buys the capstone that helps, not the one on the right-coloured branch', () => {
+    // The concrete case this was built for: Elementalist's cm1 grants an energy
+    // proc nobody can score, while rm1 is +15% to its entire elemental kit. The
+    // old branch-colour pick took cm1 as a gateway and left rm1 unbought.
+    const r = engine.ask('', { klass: 'Elementalist (Or)', goal: 'damage' });
+    const counted = r.ctx.masteryAbilities.active.map(a => a.name);
+    ok(counted.length > 0, 'no mastery ability counted at all for a damage Elementalist');
+    const worthless = r.ctx.masteryAbilities.unmodelled.map(u => u.name);
+    ok(counted.length >= worthless.length,
+       'took more unreadable capstones (' + worthless.join(', ') + ') than useful ones');
+  });
+
+  it('does not hand a tank a damage capstone over a defensive one', () => {
+    const r = engine.ask('', { klass: 'Citadel (Or)', goal: 'tank' });
+    const ma = r.ctx.masteryAbilities;
+    ok(ma.active.length + ma.unmodelled.length > 0, 'a tank bought no capstone at all');
+  });
+
+  it('keeps the tree legal once abilities steer the choice', () => {
+    for (const q of REQUESTS) {
+      const b = ask(q).build;
+      const legal = O.masteryLegal(b);
+      ok(legal.ok, '"' + q + '" produced an illegal tree: ' + legal.problems.slice(0, 2).join('; '));
+    }
+  });
+
+  it('discounts a conditional ability, and does not discount an unconditional one', () => {
+    // Uptime is the whole reason this table exists: a +100% that needs the
+    // target stunned first cannot be scored like a +100% that always applies.
+    const r = engine.ask('', { klass: 'Lancer (N)', goal: 'damage' });
+    const overload = K.MASTERY_ABILITIES['Overload'];
+    ok(overload && overload.uptime < 0.35,
+       'Overload needs the enemy stunned, so it cannot be near full uptime');
+
+    // Every entry with an uptime below 1 must contribute less than its face
+    // value, and every entry at 1 must contribute exactly its face value.
+    for (const [name, rule] of Object.entries(K.MASTERY_ABILITIES)) {
+      if (rule.kind === 'note' || rule.value == null) continue;
+      const eff = rule.value * (rule.uptime ?? 1);
+      if ((rule.uptime ?? 1) < 1) ok(eff < rule.value, name + ' is not discounted at all');
+      else eq(eff, rule.value, name + ' is at full uptime but not scored at full value');
+    }
+    // And the discount has to be applied by the CODE, not merely present in the
+    // table: every counted ability whose uptime is below 1 must contribute
+    // strictly less than its face value in a real build.
+    const discounted = r.ctx.masteryAbilities.active.filter(a => a.uptime < 1);
+    ok(discounted.length > 0, 'no conditional ability in this build to check the discount on');
+    for (const a of discounted) {
+      ok(a.effective < a.value - 1e-9,
+         a.name + ' is counted at its full ' + a.value + ' despite ' +
+         Math.round(a.uptime * 100) + '% uptime');
+    }
   });
 });
 

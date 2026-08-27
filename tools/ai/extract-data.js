@@ -37,6 +37,7 @@ const OUT  = path.join(__dirname, 'ai-data.json');
 //   literal — const X = { … } or [ … ]
 //   set     — const X = new Set([ … ])
 //   scalar  — const X = 42 / 0.1 / "text"
+//   fn      — function X(...) { … }, captured as SOURCE so it can be run here
 const WANTED = [
   ['js/builder.js', 'literal', [
     'races', 'armourItems', 'gearItems', 'gearPctBonuses', 'markItems',
@@ -59,6 +60,10 @@ const WANTED = [
     'CRIT_DMG_BASE', 'STAT_IDENTITY_RATIO', 'END_HEAL_DIVISOR',
     'MASTERY_TOTAL_POINTS', 'MAX_WEAPON_TIER', 'CORRUPTION_MAX_PHASE',
   ]],
+  // Captured as source and run below, not shipped. Re-implementing the site's
+  // damage-text parser would mean two copies of a dozen regexes drifting apart
+  // the first time somebody fixed one of them.
+  ['js/builder.js', 'fn', ['parseDmgBonus']],
   ['js/data-class-moves.js', 'literal', ['classMoves']],
   ['js/data-race-moves.js',  'literal', ['raceMoves']],
 ];
@@ -100,6 +105,14 @@ function evalSlice(literal) {
 }
 
 function extract(src, name, kind) {
+  if (kind === 'fn') {
+    const m = new RegExp('function\\s+' + name + '\\s*\\(').exec(src);
+    if (!m) return undefined;
+    const brace = src.indexOf('{', m.index);
+    if (brace < 0) return undefined;
+    const end = matchFrom(src, brace);
+    return end < 0 ? undefined : src.slice(m.index, end + 1);
+  }
   if (kind === 'scalar') {
     const m = new RegExp('(?:const|let|var)\\s+' + name + '\\s*=\\s*([^;\\n]+)').exec(src);
     if (!m) return undefined;
@@ -136,7 +149,10 @@ function extractAll() {
       const v = extract(src, name, kind);
       if (v === undefined) { missing.push(name + '  (' + kind + ' in ' + file + ')'); continue; }
       data[name] = v;
-      const size = Array.isArray(v) ? v.length
+      // A captured function is source text; printing it dumps the whole body
+      // into the report.
+      const size = kind === 'fn' ? '(source)'
+                 : Array.isArray(v) ? v.length
                  : (v && typeof v === 'object') ? Object.keys(v).length
                  : v;
       found.push([name, Array.isArray(v) ? 'array[' + size + ']'
@@ -146,6 +162,40 @@ function extractAll() {
   }
 
   if (data.GEAR_TIER_SHAPES) data.MAX_GEAR_TIER = data.GEAR_TIER_SHAPES.length - 1;
+
+  // Mastery capstone abilities.
+  //
+  // Each class's six capstones cost 5 points apiece out of 35, and each carries
+  // a written effect the engine had no way to read — so it was choosing between
+  // them on branch colour alone. builder.js already turns those descriptions
+  // into damage numbers for its own calculator (collectDmgBonusPassives, via
+  // parseDmgBonus); this runs THAT function over every class's abilities and
+  // stores the results, so the engine and the site agree by construction rather
+  // than by a replica that has to be kept in step.
+  if (data.parseDmgBonus && data.masteryClassData) {
+    let parse;
+    // eslint-disable-next-line no-new-func -- first-party source; see header
+    try { parse = new Function(data.parseDmgBonus + '; return ' + 'parseDmgBonus;')(); }
+    catch { parse = null; }
+    if (parse) {
+      const abilities = {};
+      let n = 0;
+      for (const [cls, cd] of Object.entries(data.masteryClassData)) {
+        for (const [nodeId, node] of Object.entries(cd.nodes || {})) {
+          if (!node || !node.desc) continue;
+          let bonus = null;
+          try { bonus = parse(node.desc); } catch { bonus = null; }
+          (abilities[cls] || (abilities[cls] = {}))[nodeId] =
+            { name: node.name || nodeId, bonus: bonus === null ? null : bonus };
+          n++;
+        }
+      }
+      data.masteryAbilities = abilities;
+      found.push(['masteryAbilities (parsed)', 'object{' + n + '}']);
+    }
+  }
+  // The source itself is a tool input, not engine data.
+  delete data.parseDmgBonus;
 
   // Gear passives are written as mkPassive("Name", "text") calls, not as a data
   // literal, so the brace matcher cannot reach them. 51 of the 80 gears have one
