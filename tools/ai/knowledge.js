@@ -646,6 +646,12 @@
                              note: '+30% defence below 40% HP' },
     'Egg Shelmet':         { kind: 'hpPct',      value: 10, uptime: 1,
                              note: 'start each fight with a shield worth 10% of max HP' },
+    // Only the unconditional half. The +45% version costs 50 Corrupt Power, works
+    // once per turn and only while in a Corruption Form, so counting it as a
+    // permanent bonus would badly overrate the gear.
+    'Lucky Horns':         { kind: 'dmgPct',     value: 5,  uptime: 1,
+                             note: '+5% damage always; 50 Corrupt Power in a Corruption Form raises ' +
+                                   'it to +45% for one attack, once per turn — that half is not counted' },
 
     // Real, but not scoreable as a number here.
     'Wicked Crown':   { kind: 'note', note: 'turns physical moves into Dark — enables Shard of Blight' },

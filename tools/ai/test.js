@@ -1453,6 +1453,45 @@ describe('WIP notice', () => {
   });
 });
 
+// -- 6f. the builder's Ivory multiplier -------------------------------------
+// The bug this guards: three places in builder.js each decided for themselves
+// whether the Ivory enchant applied, and the stats panel disagreed with the
+// damage calculator for the same build. One function owns it now.
+describe('Ivory stat multiplier', () => {
+  const root = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(root, 'js/builder.js'), 'utf8');
+
+  it('has exactly one definition of the multiplier', () => {
+    const defs = src.match(/function ivoryStatMult\(/g) || [];
+    eq(defs.length, 1, 'expected one ivoryStatMult definition');
+    // Nobody may recompute 4%-per-stack for themselves; that is the drift.
+    const inline = src.match(/ivoryNrgStacks\s*\*\s*0\.04/g) || [];
+    eq(inline.length, 1, 'the 4%-per-stack figure is written out in more than one place');
+  });
+
+  it('is used by the stat total, the breakdown and getTotalStat alike', () => {
+    const uses = src.match(/ivoryStatMult\(\)/g) || [];
+    ok(uses.length >= 3, 'only ' + uses.length + ' call sites use the shared multiplier');
+  });
+
+  it('is declared before the first render runs', () => {
+    // updatePecents() runs for the initial render partway down the file. `let`
+    // is in its temporal dead zone until its declaration executes, so reading
+    // the stack count from that render threw and aborted the whole file.
+    const decl = src.indexOf('let ivoryNrgStacks');
+    const firstRender = src.indexOf('\nupdatePecents();');
+    ok(decl !== -1 && firstRender !== -1, 'could not locate the declaration or the initial render');
+    ok(decl < firstRender,
+       'ivoryNrgStacks is declared after the initial updatePecents() call, which is a dead-zone throw');
+  });
+
+  it('does nothing at all when Ivory is not equipped', () => {
+    // Applying the multiplier unconditionally also applied its Math.round to
+    // builds without the enchant, quietly changing stats it should not touch.
+    ok(/_ivoryMult > 1/.test(src), 'the multiplier is applied without checking it is greater than 1');
+  });
+});
+
 // ── 7. cache busting ────────────────────────────────────────────────
 // This class of bug has bitten three times. The engine is loaded by three
 // different front ends, and any one of them serving a stale copy fails in a way
