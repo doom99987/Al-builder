@@ -743,6 +743,369 @@
                  note: 'the number when the crit lands — a ceiling, not an average' },
   };
 
+  // ── BOSSES ────────────────────────────────────────────────────────────────
+  // Aiming a build at one fight. The best general build is not the best build
+  // for every boss: Seraphon HEALS off the debuffs you put on it, so the status
+  // stacking that wins most fights actively extends that one.
+  //
+  // Two layers, on purpose:
+  //
+  //   derived   read out of the boss's own passive text in the snapshot, so it
+  //             updates when the encyclopedia does. Only patterns the game
+  //             states flatly ("Immune to Purified, Weakened, Blinded, and
+  //             Cursed") are read this way - no guessing at prose.
+  //   tactics   hand-written, for mechanics no parser can see. Each one names
+  //             the move it comes from so it can be checked against the game.
+  //
+  // WHAT THIS CANNOT DO: no boss in the data has an HP figure, so kill TIME in
+  // turns is not computable. What is computable is which of two builds kills
+  // faster, which is what the choice is actually for. The write-up says so
+  // rather than implying a stopwatch.
+  const STATUS_WORDS = [
+    'purified', 'weakened', 'blinded', 'cursed', 'hexed', 'vulnerable', 'sundered',
+    'bleed', 'bleeding', 'burning', 'inferno', 'stun', 'stunned', 'poison', 'poisoned',
+    'frozen', 'chilled', 'shocked', 'heal down', 'defense down', 'silenced', 'rooted',
+    'plague', 'hex',
+  ];
+
+  // How hard each mechanic is priced. THESE ARE PLACEHOLDERS, not measurements
+  // — the game states that Seraphon's heal scales with debuff stacks, never by
+  // how much. Kept in one place, and named in the write-up, so correcting them
+  // is one edit once somebody times the fight both ways.
+  //
+  // Deliberately modest. Over-penalising would throw away genuinely good damage
+  // builds over a mechanic whose size nobody has measured, and being wrong in
+  // that direction is worse than being slightly too generous.
+  const BOSS_PENALTIES = {
+    perDebuffShare: 0.35,   // multiplied by the share of the kit that applies statuses
+    debuffCap:      0.25,   // never worse than this, however debuff-heavy the kit
+    oneElement:     0.15,   // a kit that deals a single element into an adapting boss
+    immuneShare:    0.60,   // multiplied by the share of the kit leaning on an immune status
+    immuneCap:      0.35,   // a kit built entirely around an inert status is not worthless
+    noDodge:        0.30,   // at zero Speed, solo, against a boss whose moves you must dodge
+    assumed: true,
+  };
+
+  // Solo, most boss moves have to be dodged, and dodging takes Speed. Reported
+  // from play: around 40 is the point where it stops being a problem.
+  //
+  // SOLO ONLY. In a full party the incoming moves are spread across five people
+  // and nobody needs to dodge nearly as much, so applying this to a team build
+  // would tax it for a problem it does not have.
+  const BOSS_SOLO_MIN_SPEED = 40;
+
+  const BOSS_TACTICS = {
+    'Handaconda': {
+      // NOT in the encyclopedia - its entry lists only Thousand Screams. Player
+      // knowledge, recorded here so the engine can act on it, and worth adding
+      // to js/encyclopedia.js so the site says it too.
+      immuneStatuses: ['poison', 'poisoned'],
+      dodgeIrrelevant: true,
+      why: 'Fully immune to Poison, so a kit that wins by stacking it - an Assassin above all - ' +
+           'is doing nothing here beyond its direct damage.',
+    },
+    "Metrom's Vessel": {
+      dodgeIrrelevant: true,
+    },
+    'Seraphon': {
+      punishesDebuffs: true,
+      why: 'High Retribution heals Seraphon in proportion to the debuff stacks on it, ' +
+           'and its own note says the priority rises the more statuses Seraphon is carrying. ' +
+           'Stacking debuffs both heals it and makes it heal more often.',
+      alsoWatch: 'It summons a Sheea Saint, Elementalist or Paladin every 9 turns, and two at ' +
+                 'a time below 50% HP, so a long fight gets worse rather than better.',
+    },
+    'Thorian, The Rotten': {
+      punishesDebuffs: false,
+      punishesOneElement: true,
+      why: 'Elemental Adaptation adapts to the LAST damage type used against it, and a second ' +
+           'hit of that same element heals Thorian instead of hurting it. A build that only ' +
+           'deals one element feeds it; one that can alternate does not.',
+      alsoWatch: 'Immune to Plague, Cursed and Hex, and any Hex applied becomes Vulnerable instead.',
+    },
+  };
+
+  // Pulls what the game states plainly out of a boss's passives. Deliberately
+  // narrow: it reads "Immune to A, B and C" and the block/dodge line, and
+  // ignores everything else rather than inventing meaning from prose.
+  function bossProfile(name, data) {
+    const entry = ((data || {}).BOSS_MOVE_DATA || {})[name];
+    if (!entry) return null;
+    const passives = entry.passives || [];
+    const text = passives.map(p => (p.name || '') + ' ' + (p.description || '')).join(' ');
+    const statusImmune = [], otherImmune = [];
+    const re = /immune to ([^.]+)/gi;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      for (const raw of m[1].split(/,| and /i)) {
+        const w = raw.trim().replace(/^the /i, '').toLowerCase();
+        if (!w) continue;
+        if (STATUS_WORDS.indexOf(w) !== -1) { statusImmune.push(w); continue; }
+        // Anything else the game listed as an immunity. Kept rather than
+        // dropped: the first version filtered against STATUS_WORDS alone and
+        // silently lost Thorian's Plague and Hex, understating the immunity in
+        // a way nothing would ever have surfaced. Multi-word entries with
+        // punctuation are items, not statuses ("Metrom's Amulet").
+        if (/^[a-z][a-z ]{2,18}$/.test(w)) otherImmune.push(w);
+      }
+    }
+    const tac = BOSS_TACTICS[name] || {};
+    // Immunities the game text does not state but a player has. Merged in so
+    // everything downstream sees one list rather than having to know which
+    // layer a fact came from.
+    for (const st of (tac.immuneStatuses || [])) statusImmune.push(String(st).toLowerCase());
+    return {
+      name,
+      statusImmune: [...new Set(statusImmune)],
+      fromPlayers:  [...new Set((tac.immuneStatuses || []).map(x => String(x).toLowerCase()))],
+      dodgeIrrelevant: !!tac.dodgeIrrelevant,
+      otherImmune:  [...new Set(otherImmune)],
+      blocks: /can block/i.test(text),
+      dodges: /can (block & )?dodge|can dodge/i.test(text),
+      punishesDebuffs: !!tac.punishesDebuffs,
+      why: tac.why || null,
+      alsoWatch: tac.alsoWatch || null,
+      modelled: !!BOSS_TACTICS[name],
+      passives: passives.map(p => p.name).filter(Boolean),
+      moves: (entry.learns || []).map(mv => mv.name).filter(Boolean),
+    };
+  }
+
+  // How much of a build's kit is about applying statuses. Read from the move
+  // text, because that is the only place it exists.
+  function debuffLoad(moves) {
+    let applying = 0;
+    const names = [];
+    for (const mv of moves || []) {
+      const t = String(mv.effect || '') + ' ' + String(mv.quote || '');
+      if (/\bapplies\b|\binflicts\b/i.test(t) &&
+          STATUS_WORDS.some(w => new RegExp('\\b' + w + '\\b', 'i').test(t))) {
+        applying++; names.push(mv.name);
+      }
+    }
+    const total = (moves || []).length || 1;
+    return { applying, total, share: applying / total, names };
+  }
+
+  // How much of a kit leans on one specific status. Separate from debuffLoad,
+  // which counts status application in general: this asks whether the moves are
+  // about THAT status, which is what an immunity makes inert.
+  function statusLoad(moves, statuses) {
+    const want = (statuses || []).map(x => String(x).toLowerCase());
+    if (!want.length) return { applying: 0, total: (moves || []).length || 1, share: 0, names: [] };
+    let applying = 0;
+    const names = [];
+    for (const mv of moves || []) {
+      const t = (String(mv.effect || '') + ' ' + String(mv.quote || '') + ' ' +
+                 String(mv.name || '')).toLowerCase();
+      if (want.some(w => new RegExp('\\b' + w + '\\b').test(t))) { applying++; names.push(mv.name); }
+    }
+    const total = (moves || []).length || 1;
+    return { applying, total, share: applying / total, names };
+  }
+
+  // ── ARTIFACT ABILITIES ────────────────────────────────────────────────────
+  // artifactItems holds stat blocks only, so an artifact was chosen purely on
+  // the stats it hands out and what it DOES was invisible. Stellian Core grants
+  // +30% damage, +20% DR and +15% crit chance and none of that was counted
+  // anywhere.
+  //
+  // `effects` rather than a single kind, because one artifact commonly grants
+  // several different things at once. The single-kind shape the gear passives
+  // use still works; this is the multi-effect form alongside it.
+  const ARTIFACT_ABILITIES = {
+    'Stellian Core': {
+      // "Only activates when you are above 95% of your Max HP." You open a fight
+      // there and stop being there quickly, so this is worth a fraction of its
+      // printed value. The fraction is a JUDGEMENT, not a measurement.
+      uptime: 0.35, uptimeAssumed: true,
+      effects: [
+        { kind: 'dmgPct',     value: 30 },
+        { kind: 'dr',         value: 20 },
+        { kind: 'critChance', value: 15 },
+      ],
+      note: '+30% damage, +20% DR and +15% crit chance, but ONLY above 95% max HP. Counted at ' +
+            '35% uptime — an assumption, not a measurement: it is at its best on the opening ' +
+            'turn and worth nothing once anything has hit you.',
+    },
+    'Shifting Hourglass': {
+      // "Enter Heavy Stun for a turn. If Heavy Stun passes and you haven't lost
+      // 20% of your HP, grants a 20% Dmg buff and DR. Capped at 5 uses."
+      //
+      // The stated numbers are real, but so is the cost: it spends a TURN, and
+      // the payout is cancelled if you take a real hit while stunned. The engine
+      // does not model a turn as lost damage, so counting this at face value
+      // would make it look free. A third is the honest side to err on.
+      uptime: 0.33, uptimeAssumed: true,
+      effects: [
+        { kind: 'dmgPct', value: 20 },
+        { kind: 'dr',     value: 20 },
+      ],
+      note: '+20% damage and +20% DR, but Sands Of Time is an ACTIVE - 1 energy, 15 turn ' +
+            'cooldown - and you spend the turn in Heavy Stun to get it, losing the buff ' +
+            'entirely if you drop 20% HP while stunned. Capped at 5 uses a fight. Counted at ' +
+            '33%: an assumption, and it does NOT charge you for the turn it costs.',
+    },
+    // Priceable: one stance in three is a flat 15% DR, and the stances rotate at
+    // random, so the expectation is a third of it. The other two branches are
+    // Resist per debuff taken (situational) and 5 Energy (worth real damage on a
+    // pool-spending kit, but only on the turn it lands).
+    'Ancient Insignia': {
+      uptime: 1 / 3, uptimeAssumed: false,
+      effects: [{ kind: 'dr', value: 15 }],
+      note: 'Stances rotate at random every 3 turns: Rock is a flat 15% DR, so one turn in ' +
+            'three is 5% on average. Paper (1 Resist per debuff taken) and Scissors (5 Energy) ' +
+            'are real but not counted. Written in Stone can force a switch on a 12 turn cooldown.',
+    },
+    // Stated, and dismissed on the first pass because the figure is not a
+    // percentage: "damage equal to your current Level x2" is 100 at level 50.
+    'Darksigil': {
+      kind: 'note',
+      note: 'After you apply 6 DIFFERENT statuses, it fires a Dark Orb for Level x2 damage ' +
+            '(100 at level 50) and puts 2 Vulnerable and 2 Weakened on everything. Not counted: ' +
+            'it is one burst per six statuses, and the engine does not simulate a rotation long ' +
+            'enough to say how often that happens. It pairs with a status kit and with Chaos ' +
+            'Orb, and it is dead weight on a kit that applies nothing.',
+    },
+    // The biggest transformation of any artifact, and the first pass read its
+    // "10%" and moved on.
+    'Paranoxian Crux': {
+      kind: 'note',
+      note: 'Rewrites your health: max HP x1.5, then set to 10% of THAT - so you keep about ' +
+            '15% of your original HP as real health and the other ~135% becomes Shield HP. ' +
+            'Congeal Flesh restores 15xX% of the shield for X energy. Not counted, because the ' +
+            'engine models HP but has no notion of Shield HP at all, and pretending the two are ' +
+            'the same would badly misprice every tank build that wears this.',
+    },
+    'Arkhaia\'s Visage': {
+      kind: 'note',
+      note: 'Infernal Pledge links an enemy for 3 turns and SHARES the damage you take with it ' +
+            '- 1 energy, 8 turn cooldown, so a bit over a third of a fight. Effectively a large ' +
+            'defensive cooldown; not counted, because how much it saves depends on what is ' +
+            'hitting you and the engine does not model incoming damage.',
+    },
+    "Heaven's Authority": {
+      kind: 'note', party: true,
+      note: 'Summons a Sheea with 250 HP - Saint, Paladin or Elementalist at random - and it ' +
+            'gains its full Super Class kit if you carry the matching weapon type. Two of them ' +
+            'below 20% HP. Not counted: the engine scores your sheet, not an ally\'s.',
+    },
+    "Metrom's Amulet": {
+      kind: 'note',
+      note: 'On a kill, the OVERKILL damage becomes an AoE against everything else (20 damage ' +
+            'into a 15 HP enemy gives a 5 base AoE). Not counted: it does nothing against a ' +
+            'single target, which is what every number here measures, and it cannot damage ' +
+            'Seraphon or Arkhaia at all.',
+    },
+    'Reality Watch': {
+      kind: 'note',
+      note: 'Chronos saves your HP and energy and rewinds to them 3 turns later, on a 12 turn ' +
+            'cooldown. It will not save you if you die inside those 3 turns. Not counted: it is ' +
+            'a survivability cooldown with no number attached to price.',
+    },
+    // Handled as a proc rather than a flat ability - its value depends on how
+    // much the KIT applies statuses, which a fixed number cannot express. Listed
+    // here too so neither table has a hole in it.
+    'Chaos Orb': {
+      kind: 'note', seeProcs: true,
+      note: '33% chance to apply an extra random status whenever you apply one. Counted under ' +
+            'Procs, where it can be scaled by how status-heavy the kit actually is.',
+    },
+    'Celestial Emblem': {
+      kind: 'note', trap: true,
+      note: 'This one is a DOWNSIDE. Fighting a Goblin, Night Raider, Sentient Darkness, Star ' +
+            'Slime or Arkhaia while wearing it makes that enemy EMPOWERED with extra effects. ' +
+            'It does nothing good for your own sheet, and against Arkhaia specifically it makes ' +
+            'the fight harder.',
+    },
+    "Narthana's Sigil": {
+      kind: 'note', party: true,
+      note: 'When you heal 270 HP it deals damage and heals your allies for the same amount. ' +
+            'Not counted: the amount is written as "X (scales on level)" and never stated. On ' +
+            'a healer in a party it is doing real work these numbers miss.',
+    },
+  };
+
+  // ── PROCS ─────────────────────────────────────────────────────────────────
+  // Thirteen items state a percentage chance to do something. None of them were
+  // counted anywhere, and a chance with a stated number is exactly the kind of
+  // thing an engine should be turning into an expected value.
+  //
+  // The split that matters is whether the game states what HAPPENS on the proc,
+  // not just how often. Dust Devil's Eye is the clearest case: "5% chance to
+  // proc, hits the target 3 additional times - the extra 3 hits have their own
+  // base damage and scaling." The rate is stated and the payload is not, so its
+  // expected damage cannot be computed without inventing the missing half. It is
+  // reported instead, with that reason attached.
+  //
+  //   chance    stated probability, 0-1
+  //   per       what the chance is rolled against ('hit', 'turn', 'status')
+  //   kind      what it grants, when that is priceable, else 'note'
+  //   why       for an unpriced proc, what is missing - never left as a shrug
+  //   trap      the proc is a NET NEGATIVE and the item is a mistake to wear
+  const PROCS = {
+    'Chaos Orb': {
+      chance: 0.33, per: 'status', kind: 'extraStatus',
+      note: 'When you apply a status, 33% chance to apply another random one. Worth more the ' +
+            'more statuses your kit applies, and worth nothing on a kit that applies none.',
+    },
+    "Dust Devil's Eye": {
+      chance: 0.05, per: 'hit', kind: 'note',
+      why: 'the three extra hits are stated to have "their own base damage and scaling", and ' +
+           'the game never says what those are - so the rate is known and the payload is not',
+      note: '5% on hit for 3 additional hits. Likely a real damage gain; it cannot be sized here.',
+    },
+    'Everbeating Drums': {
+      chance: 0.20, per: 'hit', kind: 'note',
+      why: 'it deals "a portion" of the damage to all enemies and the portion is never stated',
+      note: '20% per attack to splash. Nothing for a single target either way.',
+    },
+    'Vastic Glaive': {
+      chance: 0.125, per: 'hit', kind: 'note',
+      why: 'the proc picks an effect from your HIGHEST stat, and three of the five branches ' +
+           '(bomb damage, the heal, the bugged SPD buff) carry no number',
+      note: '12.5% on hit, 16.6% as a Vastayan. On a Luck build the branch is +80% crit chance ' +
+            'for one attack, which is the only branch with a figure attached.',
+    },
+    'Eroded Blade': {
+      chance: 0.10, per: 'hit', kind: 'note',
+      why: 'energy is only worth damage on moves that spend the whole pool, and how often this ' +
+           'lands on one of those depends on a rotation the engine does not simulate',
+      note: '10% on hit to steal 1 NRG, at most twice a turn.',
+    },
+    "Rabbit's Foot": {
+      chance: 0.33, per: 'turn', kind: 'note', trap: true,
+      why: 'two of its three rolls hurt you',
+      note: 'Every turn: 33% for a 5% Luck and Speed boost, 33% for 2 Cursed ON YOURSELF, and ' +
+            '33% for 1 Cursed and 1 Hex on yourself. Two rolls in three are a downside, so the ' +
+            '+5 Luck and +5 Speed on the sheet is not what you are actually buying.',
+    },
+    'Spore Root':           { chance: 0.30, per: 'hit', kind: 'note',
+      note: '30% to apply 2 Weakened when blocking a melee attack, on top of 2 Poison.' },
+    'Sanguine Fang':        { chance: 0.25, per: 'hit', kind: 'note',
+      note: '25% on hit to heal 10% of the damage dealt.' },
+    'Shattered Clock Hand': { chance: 0.30, per: 'hit', kind: 'note',
+      note: '30% on Strike to reduce all your cooldowns.' },
+    'Dust Storm':           { chance: 0.10, per: 'hit', kind: 'note',
+      note: '10% to phase through an attack entirely.' },
+  };
+
+  // Expected extra statuses per turn from a proc like Chaos Orb. The chance is
+  // rolled per status applied, so a kit that applies none gets nothing - which
+  // is the whole point of measuring it against the kit rather than flat.
+  function procStatusGain(gearNames, load) {
+    const out = { extraPerTurn: 0, from: [] };
+    for (const name of gearNames || []) {
+      const p = PROCS[name];
+      if (!p || p.kind !== 'extraStatus') continue;
+      const gain = (load && load.applying ? 1 : 0) * p.chance;
+      if (!gain) continue;
+      out.extraPerTurn += gain;
+      out.from.push({ name, chance: p.chance, note: p.note });
+    }
+    return out;
+  }
+
   const MASTERY_ABILITIES = {
     // ── close to unconditional ───────────────────────────────────────────────
     'Element Mastery':      { kind: 'dmgPct', value: 15, uptime: 0.95,
@@ -988,6 +1351,13 @@
     weaponSeries: {
       'Ivory':   'an Easter 2026 event weapon, and the event has ended',
       'Icerind': 'not usable in the current version of the game',
+    },
+    // Whole GEAR series, matched against `gearSeries[series]`, which is a list
+    // of names rather than a field on each item - so this resolves differently
+    // from weaponSeries above and needs its own key.
+    gearSeries: {
+      'Easter Gears':          'Easter event gear, and the event has ended',
+      'Winter Solstice Gears': 'Winter Solstice event gear, and the event has ended',
     },
     // Individual gear / armour / artifact / enchant / offhand names.
     items: {
@@ -1385,6 +1755,9 @@
            UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
+           BOSS_TACTICS, BOSS_PENALTIES, BOSS_SOLO_MIN_SPEED, STATUS_WORDS,
+           bossProfile, debuffLoad, statusLoad, PROCS, procStatusGain,
+           ARTIFACT_ABILITIES,
            ENERGY, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,

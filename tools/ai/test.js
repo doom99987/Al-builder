@@ -1367,6 +1367,445 @@ describe('mastery reaches the move', () => {
   });
 });
 
+describe('seasonal gear', () => {
+  it('never puts event gear in a build', () => {
+    // Easter and Winter Solstice gear is in the data and cannot be equipped, the
+    // same as the Ivory and Icerind weapons. A build nobody can enter into the
+    // game is not a build.
+    const banned = new Set();
+    for (const series of Object.keys(K.UNAVAILABLE.gearSeries || {}))
+      for (const n of (data.gearSeries || {})[series] || []) banned.add(n);
+    ok(banned.size > 0, 'no seasonal gear is listed, so this test proves nothing');
+    for (const klass of Object.keys(data.masteryClassData || {})) {
+      for (const goal of ['damage', 'tank']) {
+        const r = engine.ask('', { klass, goal, play: 'solo', dmg: 'average' });
+        for (const g of r.build.gear || []) {
+          const n = g && g.name;
+          ok(!banned.has(n), klass + '/' + goal + ' was given ' + n + ', which cannot be equipped');
+        }
+      }
+    }
+  });
+
+  it('names gear series that exist in the data', () => {
+    for (const series of Object.keys(K.UNAVAILABLE.gearSeries || {})) {
+      const members = (data.gearSeries || {})[series];
+      ok(members && members.length,
+         'UNAVAILABLE.gearSeries names "' + series + '", which is not a gear series in the data');
+    }
+  });
+
+  it('resolves a gear series the opposite way round from a weapon series', () => {
+    // weaponSeries matches a FIELD on each weapon; gearSeries is a LIST of names
+    // under the series. Using one lookup for both silently excludes nothing.
+    const src = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
+    ok(/U\.gearSeries/.test(src) && /D\.gearSeries/.test(src),
+       'optimize.js does not resolve gear series membership');
+    const panel = fs.readFileSync(path.join(__dirname, '..', '..', 'js/build-ai.js'), 'utf8');
+    ok(/gearSeries/.test(panel), 'the panel still offers seasonal gear in its dropdowns');
+  });
+
+  it('keeps the seasonal gear out of the panel dropdowns too', () => {
+    // An option that the engine would refuse anyway is worse than no option.
+    const panel = fs.readFileSync(path.join(__dirname, '..', '..', 'js/build-ai.js'), 'utf8');
+    const at = panel.indexOf('const unusable =');
+    ok(at !== -1, 'the panel has no unusable() filter');
+    const fn = panel.slice(at, at + 700);
+    ok(/gearSeries/.test(fn), 'unusable() does not consider gear series');
+  });
+});
+
+describe('artifact abilities', () => {
+  it('counts what an artifact actually does, not just its stat block', () => {
+    const r = engine.ask('', { klass: 'Saint (Or)', goal: 'damage', play: 'solo', dmg: 'average' });
+    const art = r.build.artifact && r.build.artifact.name;
+    const rule = (K.ARTIFACT_ABILITIES || {})[art];
+    if (!rule || !rule.effects) return;                  // a different artifact won
+    const counted = r.ctx.gearPassives.active.filter(a => a.name === art);
+    eq(counted.length, rule.effects.length,
+       art + ' grants ' + rule.effects.length + ' things and ' + counted.length + ' were counted');
+    for (const e of rule.effects)
+      ok(counted.some(a => a.kind === e.kind), art + ' did not count its ' + e.kind);
+  });
+
+  it('has something to say about every artifact that has an ability', () => {
+    // The first pass scanned for "%" and stopped there, which quietly dismissed
+    // Darksigil (Level x2 damage), Paranoxian Crux (an entire HP rewrite) and
+    // Ancient Insignia (a flat 15% DR on one stance in three). An artifact with
+    // no entry at all is indistinguishable from one that does nothing.
+    const uncovered = Object.keys(data.artifactMoves || {})
+      .filter(n => !(K.ARTIFACT_ABILITIES || {})[n]);
+    eq(uncovered.length, 0, 'no entry for: ' + uncovered.join(', '));
+  });
+
+  it('gives every unpriced artifact a reason, not a silence', () => {
+    for (const [name, rule] of Object.entries(K.ARTIFACT_ABILITIES || {})) {
+      if (rule.effects) continue;
+      ok(rule.note && rule.note.length > 40, name + ' is unpriced and says nothing useful');
+      ok(/not counted|counted under|downside/i.test(rule.note),
+         name + ' never says whether or not it is being counted');
+    }
+  });
+
+  it('flags an artifact that is actively a downside', () => {
+    // Celestial Emblem EMPOWERS five specific enemies, including Arkhaia. It is
+    // not a weak artifact, it is a negative one, and that is worth saying.
+    const rule = (K.ARTIFACT_ABILITIES || {})['Celestial Emblem'];
+    ok(rule && rule.trap, 'Celestial Emblem is not flagged as a downside');
+  });
+
+  it('names an artifact ability that exists in the game data', () => {
+    for (const name of Object.keys(K.ARTIFACT_ABILITIES || {}))
+      ok((data.artifactMoves || {})[name],
+         'ARTIFACT_ABILITIES names "' + name + '", which has no ability in the game data');
+  });
+
+  it('flags an assumed uptime rather than presenting it as measured', () => {
+    const rule = (K.ARTIFACT_ABILITIES || {})['Stellian Core'];
+    ok(rule, 'Stellian Core has no entry');
+    ok(rule.uptime < 1, 'a conditional ability is counted at full value');
+    ok(rule.uptimeAssumed, 'the uptime is not marked as an assumption');
+    ok(/assumption|not a measurement/i.test(rule.note || ''),
+       'the note does not admit the uptime is a guess');
+  });
+
+  it('admits the artifact comparison is one-sided', () => {
+    // Only one artifact of twelve states plain numbers, so pricing it and
+    // nothing else makes it win everywhere - the same bias the weapon passives
+    // had. A silent sweep would read as a verdict.
+    const r = engine.ask('', { klass: 'Saint (Or)', goal: 'damage', play: 'solo', dmg: 'average' });
+    if (!(K.ARTIFACT_ABILITIES || {})[r.build.artifact && r.build.artifact.name]) return;
+    const sec = r.explanation.find(x => /Why this artifact/.test(x.h));
+    ok(sec, 'a priced artifact was chosen with no note about the uneven comparison');
+    ok(/unproven|compared against blanks/i.test(sec.body), 'the note does not state the problem');
+  });
+
+  it('surfaces an unpriced artifact ability instead of dropping it', () => {
+    // Artifact abilities live in artifactMoves, not itemPassives, so before this
+    // they fell through to nothing at all - not even the "not counted" list.
+    const src = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
+    ok(/artifactMoves/.test(src),
+       'gearPassiveTotals never looks at artifactMoves, so an unpriced artifact says nothing');
+  });
+});
+
+describe('procs', () => {
+  it('names every proc item it knows against the real game data', () => {
+    for (const name of Object.keys(K.PROCS)) {
+      const known = (data.itemPassives || {})[name] !== undefined ||
+                    (data.gearItems || {})[name] !== undefined ||
+                    (data.artifactItems || {})[name] !== undefined ||
+                    (data.markItems || {})[name] !== undefined;
+      ok(known, 'PROCS names "' + name + '", which is not an item in the game data');
+    }
+  });
+
+  it('states a probability for every proc, in the right range', () => {
+    for (const [name, p] of Object.entries(K.PROCS)) {
+      ok(typeof p.chance === 'number' && p.chance > 0 && p.chance <= 1,
+         name + ' has chance ' + JSON.stringify(p.chance));
+      ok(['hit', 'turn', 'status'].indexOf(p.per) !== -1, name + ' rolls per ' + p.per);
+    }
+  });
+
+  it('gives a reason whenever it declines to price a proc', () => {
+    // A stated chance with an unstated payload cannot be turned into damage.
+    // Saying so is fine; saying nothing is what the whole engine avoids.
+    for (const [name, p] of Object.entries(K.PROCS)) {
+      if (p.kind !== 'note') continue;
+      ok(p.note || p.why, name + ' is unpriced and says nothing about why');
+    }
+    // At least one has to carry the "the payload is not stated" reasoning, or
+    // this test is vacuous.
+    ok(Object.values(K.PROCS).some(p => p.why), 'no proc explains what is missing');
+  });
+
+  it('scales an extra-status proc by how much the kit applies statuses', () => {
+    const heavy = K.debuffLoad([{ name: 'a', effect: 'Applies 2 Poison.' },
+                                { name: 'b', effect: 'Applies 1 Burning.' }]);
+    const none  = K.debuffLoad([{ name: 'c', effect: 'Deals damage.' }]);
+    const withKit = K.procStatusGain(['Chaos Orb'], heavy);
+    const without = K.procStatusGain(['Chaos Orb'], none);
+    ok(withKit.extraPerTurn > 0, 'Chaos Orb was worth nothing on a status kit');
+    eq(without.extraPerTurn, 0, 'Chaos Orb was worth something on a kit that applies none');
+    eq(K.procStatusGain([], heavy).extraPerTurn, 0, 'a proc fired without the item worn');
+  });
+
+  it('reads the item names off every slot shape', () => {
+    // gear/artifact/weapon are objects like { name, tier }, mark is a bare
+    // string. The first version pushed the OBJECT, so every lookup missed and
+    // no proc was ever detected on any build.
+    let found = 0;
+    for (const klass of Object.keys(data.masteryClassData || {})) {
+      const r = engine.ask('', { klass, goal: 'damage', play: 'solo', dmg: 'average' });
+      found += r.ctx.procs.listed.length + r.ctx.procs.traps.length;
+    }
+    ok(found > 0, 'no build anywhere detected a proc item - the slot names are not being read');
+  });
+
+  it('counts an extra-status proc as a COST against a boss that heals from debuffs', () => {
+    // Chaos Orb makes a debuff kit more of a debuff kit. Against Seraphon that
+    // is worse, not better, and pricing it as neutral would be the one fight
+    // where the item actively hurts.
+    const load = K.debuffLoad([{ name: 'a', effect: 'Applies 2 Poison.' }]);
+    ok(K.procStatusGain(['Chaos Orb'], load).extraPerTurn > 0,
+       'the proc is not producing extra statuses, so the interaction cannot be tested');
+    const src = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
+    ok(/procGain[\s\S]{0,400}punishesDebuffs|punishesDebuffs[\s\S]{0,400}procGain/.test(src),
+       'the debuff penalty does not take the proc gain into account');
+  });
+});
+
+describe('boss targeting', () => {
+  it('reads immunities out of the boss text without inventing any', () => {
+    const p = K.bossProfile('Seraphon', data);
+    ok(p, 'Seraphon has no profile');
+    for (const st of ['purified', 'weakened', 'blinded', 'cursed'])
+      ok(p.statusImmune.includes(st), 'Seraphon immunity missed ' + st);
+    ok(p.blocks && p.dodges, 'Seraphon can block and dodge and the profile missed it');
+    // Not a status - it must not be filed as one.
+    ok(!p.statusImmune.includes("metrom's amulet"), 'an item was parsed as a status');
+  });
+
+  it('does not silently drop an immunity it has no word for', () => {
+    // The parser lost Thorian's Plague and Hex the first time, understating the
+    // immunity with nothing to show for it.
+    const p = K.bossProfile('Thorian, The Rotten', data);
+    const all = p.statusImmune.concat(p.otherImmune || []);
+    for (const st of ['plague', 'cursed', 'hex'])
+      ok(all.includes(st), 'Thorian immunity dropped ' + st + ' (got ' + all.join(', ') + ')');
+  });
+
+  it('keeps an immunity to something it has never heard of', () => {
+    // The test above passes even with the catch-all removed, because `plague`
+    // and `hex` were added to the word list afterwards - it proves the word
+    // list, not the safety net. This feeds a status no list could know and
+    // checks it still comes out, which is the whole point of the net.
+    const fake = { BOSS_MOVE_DATA: { Testish: { passives: [
+      { name: 'Status Immunity', description: 'Immune to Withering, Cursed, and Gloom.' },
+      { name: 'Can Block', description: 'This enemy can block attacks.' },
+    ], learns: [] } } };
+    const p = K.bossProfile('Testish', fake);
+    const all = p.statusImmune.concat(p.otherImmune || []);
+    ok(all.includes('cursed'),    'a known status was lost');
+    ok(all.includes('withering'), 'an unknown status was dropped instead of kept');
+    ok(all.includes('gloom'),     'an unknown status was dropped instead of kept');
+  });
+
+  it('does not file an item as a status', () => {
+    // Seraphon is "Immune to Metrom's Amulet" - a thing, not a status. It must
+    // not appear as one, or the write-up tells players their debuffs are useless
+    // for a reason that does not exist.
+    const p = K.bossProfile('Seraphon', data);
+    const all = p.statusImmune.concat(p.otherImmune || []);
+    ok(!all.some(x => /amulet/i.test(x)), 'an item was parsed as a status: ' + all.join(', '));
+  });
+
+  it('penalises a debuff kit against a boss that heals from debuffs', () => {
+    const spec = { klass: 'Hexer (N)', goal: 'damage', play: 'solo', dmg: 'average' };
+    const free = engine.ask('', spec);
+    const vs   = engine.ask('', Object.assign({ boss: 'Seraphon' }, spec));
+    eq(free.ctx.bossFit.mult, 1, 'a build with no boss was penalised anyway');
+    ok(vs.ctx.bossFit.mult < 1, 'Seraphon did not penalise a debuff-heavy kit');
+    ok(vs.ctx.bossFit.reasons.some(r => r.kind === 'debuffs'), 'no reason given for the penalty');
+  });
+
+  it('the boss penalty reaches the SCORE, not just the report', () => {
+    // The first version of the test above checked only that the multiplier was
+    // COMPUTED. Deleting `* fit.mult` from the score left it passing - the exact
+    // reports-versus-prices confusion this feature is careful about everywhere
+    // else. The multiplier has to change what the search prefers or it is
+    // decoration.
+    const spec = { klass: 'Hexer (N)', goal: 'damage', play: 'solo', dmg: 'average' };
+    const free = engine.ask('', spec);
+    const vs   = engine.ask('', Object.assign({ boss: 'Seraphon' }, spec));
+    ok(vs.ctx.bossFit.mult < 1, 'no penalty was computed, so this proves nothing');
+    ok(vs.ctx.score < free.ctx.score,
+       'the penalty (x' + vs.ctx.bossFit.mult.toFixed(3) + ') never reached the score: ' +
+       vs.ctx.score + ' vs ' + free.ctx.score);
+    // And it should be about the size of the multiplier, not a rounding wobble.
+    const ratio = vs.ctx.score / free.ctx.score;
+    ok(ratio < 0.999, 'the score moved by only ' + ((1 - ratio) * 100).toFixed(3) + '%');
+  });
+
+  it('leaves a kit that applies no statuses alone', () => {
+    const vs = engine.ask('', { klass: 'Monk (Or)', goal: 'damage', play: 'solo',
+                                dmg: 'average', boss: 'Seraphon' });
+    if (vs.ctx.bossFit.reasons.some(r => r.kind === 'debuffs')) return;  // kit changed
+    eq(vs.ctx.bossFit.mult, 1, 'a kit applying no statuses was penalised anyway');
+  });
+
+  it('never prices a mechanic it only reports', () => {
+    // The engine has never scored status effects in general, so a boss simply
+    // being able to block, or being immune to something this kit does not do,
+    // must change no number. Reporting it is right; pricing it would be
+    // inventing a penalty.
+    //
+    // TEAM on purpose. The solo Speed floor is a real, deliberate cost applied
+    // to every boss that does not opt out, so solo is no longer a no-op and
+    // asserting it there would be testing the wrong thing.
+    const base = { klass: 'Monk (Or)', goal: 'damage', play: 'team', dmg: 'average' };
+    const a = engine.ask('', base);
+    const b = engine.ask('', Object.assign({ boss: 'Arkhaia' }, base));  // blocks, no tactics
+    eq(a.ctx.bestHit, b.ctx.bestHit, 'an unmodelled boss changed the damage');
+    eq(b.ctx.bossFit.mult, 1, 'an unmodelled boss applied a penalty');
+  });
+
+  it('applies the solo Speed floor to bosses, and only solo', () => {
+    // Reported from play: solo, most boss moves have to be dodged and that takes
+    // about 40 Speed. In a full party the moves spread across five people, so
+    // taxing a team build for it would be charging for a problem it does not
+    // have.
+    const base = { klass: 'Berserker (Ch)', goal: 'damage', dmg: 'average', boss: 'Seraphon' };
+    const solo = engine.ask('', Object.assign({ play: 'solo' }, base));
+    const team = engine.ask('', Object.assign({ play: 'team' }, base));
+    ok(solo.ctx.stats.spd >= K.BOSS_SOLO_MIN_SPEED,
+       'a solo boss build came out on ' + Math.round(solo.ctx.stats.spd) + ' Speed, under the ' +
+       K.BOSS_SOLO_MIN_SPEED + ' floor');
+    ok(team.ctx.stats.spd < K.BOSS_SOLO_MIN_SPEED,
+       'the team build was pushed to a Speed floor it does not need');
+    ok(!team.ctx.bossFit.reasons.some(r => r.kind === 'speed'),
+       'a team build was penalised for Speed');
+  });
+
+  it('skips the Speed floor for fights that are not about dodging', () => {
+    for (const boss of ['Handaconda', "Metrom's Vessel"]) {
+      const r = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo',
+                                 dmg: 'average', boss });
+      ok(!r.ctx.bossFit.reasons.some(x => x.kind === 'speed'),
+         boss + ' applied the Speed floor despite dodging not mattering there');
+    }
+  });
+
+  it('demotes a poison kit against a poison-immune boss', () => {
+    // Handaconda is fully immune to Poison - player knowledge, not in the
+    // encyclopedia - so an Assassin built on stacking it does nothing beyond its
+    // direct damage.
+    const base = { klass: 'Assassin (Ch)', goal: 'damage', play: 'solo', dmg: 'average' };
+    const free = engine.ask('', base);
+    const vs   = engine.ask('', Object.assign({ boss: 'Handaconda' }, base));
+    eq(free.ctx.bossFit.mult, 1, 'penalised with no boss chosen');
+    ok(vs.ctx.bossFit.mult < 1, 'Handaconda did not demote a poison kit');
+    const why = vs.ctx.bossFit.reasons.find(r => r.kind === 'immune');
+    ok(why, 'no immunity reason given');
+    ok(why.moves.some(m => /poison/i.test(m)), 'the reason names no poison move: ' + why.moves);
+    ok(vs.ctx.score < free.ctx.score, 'the penalty never reached the score');
+  });
+
+  it('says which immunities are player knowledge rather than game text', () => {
+    const r = engine.ask('', { klass: 'Assassin (Ch)', goal: 'damage', play: 'solo',
+                               dmg: 'average', boss: 'Handaconda' });
+    const sec = r.explanation.find(x => /^Built for Handaconda/.test(x.h));
+    ok(sec && sec.list.some(l => /player knowledge/i.test(l)),
+       'the Poison immunity is presented as if the encyclopedia stated it');
+  });
+
+  it('says what it priced, what it only reported, and that turns are not computable', () => {
+    const r = engine.ask('', { klass: 'Hexer (N)', goal: 'damage', play: 'solo',
+                               dmg: 'average', boss: 'Seraphon' });
+    const sec = r.explanation.find(x => /^Built for Seraphon/.test(x.h));
+    ok(sec, 'nothing explains the boss targeting');
+    ok(sec.list.some(l => /Counted as /.test(l)), 'does not say what was actually priced');
+    ok(sec.list.some(l => /HP figure|not a number of/.test(l)),
+       'does not admit kill time is not computable');
+    ok(sec.list.some(l => /placeholder/i.test(l)), 'does not flag the penalties as placeholders');
+  });
+
+  it('admits when a boss has no tactics written for it', () => {
+    const r = engine.ask('', { klass: 'Hexer (N)', goal: 'damage', play: 'solo',
+                               dmg: 'average', boss: 'Arkhaia' });
+    const sec = r.explanation.find(x => /^Built for /.test(x.h));
+    ok(sec && sec.list.some(l => /No tactics are written/.test(l)),
+       'an unmodelled boss did not say so');
+  });
+
+  it('is a complete no-op when no boss is chosen', () => {
+    // Boss targeting must never leak into an ordinary request. Same build, with
+    // the boss field left alone, has to come out exactly as it would have before
+    // the feature existed - no penalty, no reasons, no extra section.
+    for (const boss of [undefined, null, '']) {
+      const r = engine.ask('', { klass: 'Hexer (N)', goal: 'damage', play: 'solo',
+                                 dmg: 'average', boss });
+      eq(r.ctx.bossFit.mult, 1, 'boss=' + JSON.stringify(boss) + ' penalised the build anyway');
+      eq(r.ctx.bossFit.reasons.length, 0, 'boss=' + JSON.stringify(boss) + ' produced reasons');
+      ok(!r.explanation.some(x => /^Built for /.test(x.h)),
+         'boss=' + JSON.stringify(boss) + ' added a boss section');
+    }
+  });
+
+  it('picks the same build with no boss as it did before the feature existed', () => {
+    // The stronger version of the above: the SCORE and the actual build must be
+    // untouched, not merely the multiplier.
+    const spec = { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo', dmg: 'average' };
+    const a = engine.ask('', spec);
+    const b = engine.ask('', Object.assign({ boss: null }, spec));
+    eq(a.ctx.score, b.ctx.score, 'an explicit null boss changed the score');
+    eq(a.build.weapon.name, b.build.weapon.name, 'an explicit null boss changed the weapon');
+    eq(JSON.stringify(a.build.invested), JSON.stringify(b.build.invested),
+       'an explicit null boss changed the stat allocation');
+  });
+
+  it('does not tell the panel to auto-pick a boss', () => {
+    // Every other field's blank option is "Auto", meaning the engine chooses.
+    // On this one there is nothing to choose, and "Auto" reads as an instruction
+    // to go and pick a fight.
+    const root = path.join(__dirname, '..', '..');
+    const js = fs.readFileSync(path.join(root, 'js/build-ai.js'), 'utf8');
+    // The field spans two lines, so read the whole field(...) call rather than
+    // one line of it.
+    const at = js.indexOf("field('bai-boss'");
+    ok(at !== -1, 'no boss field in the panel');
+    const call = js.slice(at, js.indexOf('</select>', at));
+    ok(call.indexOf('auto()') === -1, 'the boss field still offers "Auto": ' + call.trim());
+    ok(call.indexOf('None') !== -1, 'the boss field does not offer an explicit "None"');
+  });
+
+  it('offers the boss picker in the panel, driven by the data', () => {
+    const root = path.join(__dirname, '..', '..');
+    const js = fs.readFileSync(path.join(root, 'js/build-ai.js'), 'utf8');
+    ok(/bai-boss/.test(js), 'no boss picker in the panel');
+    ok(/BOSS_MOVE_DATA/.test(js), 'the picker is not driven by the extracted boss data');
+    ok(/encounterKinds/.test(js), 'the picker does not filter by the encyclopedia classification');
+    ok(/'bai-boss'/.test(js), 'the picker is not resettable with the other options');
+  });
+
+  it('classifies every encounter that has a kit', () => {
+    // 29 of the 39 kits are ordinary mobs. The classification is what keeps
+    // Slime and Goblin out of a boss picker, so a kit with no kind is a hole in
+    // the picker rather than a harmless gap.
+    const kinds = data.encounterKinds || {};
+    const unplaced = Object.keys(data.BOSS_MOVE_DATA || {}).filter(n => !kinds[n]);
+    eq(unplaced.length, 0, 'no encounter kind for: ' + unplaced.join(', '));
+  });
+
+  it('classifies the named bosses as bosses', () => {
+    // The parser lost Yar'Thul and Metrom's Vessel twice over - once to an
+    // apostrophe inside a double-quoted name, once to reading the capture group
+    // that held the quote character rather than the name. Both are real bosses
+    // and both vanished from the picker without a word.
+    const kinds = data.encounterKinds || {};
+    for (const n of ["Yar'Thul, The Blazing Dragon", "Metrom's Vessel", 'Seraphon',
+                     'Thorian, The Rotten', 'Arkhaia'])
+      eq(kinds[n], 'Boss', n + ' is classified as ' + JSON.stringify(kinds[n]));
+    eq(kinds['Goblin'], 'Mob', 'Goblin is not classified as a mob');
+    eq(kinds['Slime King'], 'Mini Boss', 'Slime King is not a mini boss');
+  });
+
+  it('does not classify a quote character as an encounter', () => {
+    // What the group-index slip actually produced: two entries keyed by ' and ".
+    const kinds = data.encounterKinds || {};
+    for (const junk of ["'", '"', ''])
+      ok(!(junk in kinds), 'a quote character was parsed as an encounter name');
+  });
+
+  it('every boss named in the tactics table exists in the data', () => {
+    for (const name of Object.keys(K.BOSS_TACTICS)) {
+      ok((data.BOSS_MOVE_DATA || {})[name],
+         'BOSS_TACTICS names "' + name + '", which is not in the extracted boss data');
+    }
+  });
+});
+
 describe('damage model', () => {
   it('average and potential build genuinely different characters', () => {
     // The reason this is asked rather than assumed. On average, crit chance
@@ -2256,9 +2695,17 @@ describe('selection bias', () => {
     for (const a of r.ctx.gearPassives.active) {
       ok(a.kind, a.name + ' is counted but carries no kind, so it cannot be labelled');
       const bare = String(a.name).replace(/ \(weapon\)$/, '');
-      const rule = (K.GEAR_PASSIVES || {})[a.name] || (K.WEAPON_PASSIVES || {})[bare];
+      // Three legitimate sources now: gear, weapon series, and artifact
+      // abilities (which grant several kinds at once from one entry).
+      const rule = (K.GEAR_PASSIVES || {})[a.name] || (K.WEAPON_PASSIVES || {})[bare] ||
+                   (K.ARTIFACT_ABILITIES || {})[a.name];
       ok(rule, a.name + ' is counted but has no knowledge entry');
-      eq(a.kind, rule.kind, a.name + ' is reported as ' + a.kind + ' but is ' + rule.kind);
+      if (rule.effects) {
+        ok(rule.effects.some(e => e.kind === a.kind),
+           a.name + ' is reported as ' + a.kind + ', which is not among its effects');
+      } else {
+        eq(a.kind, rule.kind, a.name + ' is reported as ' + a.kind + ' but is ' + rule.kind);
+      }
     }
   });
 
