@@ -29,6 +29,51 @@
   ]);
   function isAdmin() { return !!currentUser && ADMIN_IDS.has(currentUser.id); }
 
+  // ---- tester ----
+  // Same mechanism as admin, deliberately: an ID list in this file, no database
+  // column, nothing to migrate, no RLS policy to get wrong.
+  //
+  // A tester gets exactly ONE thing an ordinary account does not — the AI panel.
+  // No admin panel, no reports, no moderation, no elevated read or write
+  // anywhere. Every other feature keeps asking isAdmin(), so listing someone
+  // here cannot widen anything but the AI.
+  //
+  // Granted from the admin panel and stored in the `testers` table, not in a
+  // list here: a list in this file can only be changed by editing and
+  // redeploying the site. See supabase/testers.sql — RLS is what makes the
+  // toggle safe, since only an admin can insert or delete a row.
+  //
+  // This flag is a CONVENIENCE, not the boundary. It decides whether to draw a
+  // menu item; the database decides who may grant the role.
+  let _isTester = false;
+  function isTester() { return !!currentUser && _isTester; }
+
+  // One indexed lookup per sign-in. RLS lets a user read only their own row, so
+  // this cannot be used to probe anyone else's status.
+  async function loadTesterFlag() {
+    const uid = currentUser?.id;
+    if (!uid) { _isTester = false; return; }
+    const { data, error } = await sb.from('testers')
+      .select('user_id').eq('user_id', uid).maybeSingle();
+    // A missing table means supabase/testers.sql has not been run yet. Degrade
+    // to "nobody is a tester" rather than throwing: admins keep the AI either
+    // way, so the site stays usable while the migration is pending.
+    if (error) {
+      // Quiet for ordinary users — they are not testers either way and a console
+      // error helps nobody. Loud enough that an admin debugging this can see it.
+      _isTester = false;
+      if (isAdmin()) console.warn('[testers] own-status lookup failed:', error);
+      return;
+    }
+    // The account can change while this is in flight — sign out, or a fast
+    // switch — and a late reply must not grant the new one anything.
+    if (currentUser && currentUser.id === uid) _isTester = !!data;
+  }
+
+  // The single question the AI panel asks. Admins keep access without needing to
+  // appear in both lists.
+  function canUseAI() { return isAdmin() || isTester(); }
+
   // Permanently banned — hidden from ban list, cannot be unbanned through the panel
   // Seeded with hardcoded values; DB-loaded entries are added in loadBannedCache()
   const PERMA_BANNED = new Set(['NIGGER']);
@@ -219,6 +264,8 @@
       const username = currentUser.user_metadata?.username
         || currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
+      _isTester = false;          // never carry the last account's role over
+      loadTesterFlag();
       renderAuthBar();
       reconcileServerScores();
       // Load full profile from DB to get avatar_url and saved username
@@ -230,6 +277,7 @@
       });
     } else {
       currentProfile = null;
+      _isTester = false;
       renderAuthBar();
     }
     // Let other modules (bank sync, etc.) react to login/logout/session restore.
@@ -646,7 +694,7 @@
         <button class="sb-menu-item sb-menu-item-amorus" onclick="window._closeProfileMenu();window._amorusTrackerOpen?.()">&#9670;&nbsp; Amorus Tracker</button>
       </div>
       <button class="sb-menu-item sb-menu-item-bank" onclick="window._closeProfileMenu();window._bankOpen?.()">Bank</button>
-      ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-ai" onclick="window._closeProfileMenu();window._openBuildAI?.()">&#10022;&nbsp; AI</button><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel <span id="sb-menu-report-badge" class="sb-report-badge" style="display:none"></span></button>` : ''}
+      ${canUseAI() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-ai" onclick="window._closeProfileMenu();window._openBuildAI?.()">&#10022;&nbsp; AI</button>` : ''}${isAdmin() ? `<button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel <span id="sb-menu-report-badge" class="sb-report-badge" style="display:none"></span></button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
     document.body.appendChild(menu);
@@ -1511,6 +1559,7 @@
             <div>
               <div id="sb-admin-uname-display" class="sb-admin-uname-display"></div>
               <div id="sb-admin-user-meta" class="sb-admin-user-meta"></div>
+              <button type="button" id="sb-admin-uuid" class="sb-admin-uuid" title="Copy user ID" onclick="window._adminCopyUuid()"></button>
             </div>
           </div>
           <div class="sb-admin-actions">
@@ -1518,6 +1567,7 @@
             <button class="sb-admin-action-btn sb-admin-btn-perma" onclick="window._adminPermaBanUser()">🔒 Perma Ban</button>
             <button class="sb-admin-action-btn sb-admin-btn-scores" onclick="window._adminClearScores()">📊 Clear All Scores</button>
             <button class="sb-admin-action-btn sb-admin-btn-scores-one" onclick="window._adminClearOneScore()">🎯 Clear Specific Score</button>
+            <button class="sb-admin-action-btn sb-admin-btn-tester" onclick="window._adminToggleTester()">&#10022; Make Tester</button>
             <button class="sb-admin-action-btn sb-admin-btn-listings" onclick="window._adminDeleteListings()">🗑 Delete Listings</button>
             <button class="sb-admin-action-btn sb-admin-btn-wipe" onclick="window._adminBanAndWipe()">☠ Ban + Wipe All</button>
           </div>
@@ -1632,6 +1682,11 @@
     document.getElementById('sb-admin-uname-display').textContent = profile.username;
     document.getElementById('sb-admin-user-meta').innerHTML =
       `Joined: ${joined} &nbsp;·&nbsp; Scores: ${scoreCount ?? 0} &nbsp;·&nbsp; Listings: ${listingCount ?? 0}`;
+    // The ID, one click from the clipboard. Adding a tester or an admin means
+    // pasting a UUID into a Set in this file, and the only ways to get one were
+    // a SQL query or asking the person to run something in their own console.
+    const uuidEl = document.getElementById('sb-admin-uuid');
+    if (uuidEl) { uuidEl.textContent = profile.id; uuidEl.classList.remove('copied'); }
     card.style.display = 'block';
     const isBanned = isBannedCached(profile.username);
     const isPerma  = PERMA_BANNED.has(profile.username);
@@ -1646,7 +1701,112 @@
       permaBtn.disabled    = isPerma;
       permaBtn.textContent = isPerma ? '🔒 Perma Banned' : '🔒 Perma Ban';
     }
+    // Tester status for the selected user. Admins can read every row.
+    const testerBtn = card.querySelector('.sb-admin-btn-tester');
+    if (testerBtn) {
+      testerBtn.disabled = true;                     // until the answer arrives
+      const { data: t, error: tErr } = await sb.from('testers')
+        .select('user_id').eq('user_id', profile.id).maybeSingle();
+      // Guard the same race as the card itself: the admin can select someone
+      // else while this is in flight, and a late reply must not relabel the
+      // button for the wrong person.
+      if (_adminCurrentUser && _adminCurrentUser.id === profile.id) {
+        setTesterBtn(testerBtn, !!t, tErr || null);
+      }
+    }
     adminSetStatus('');
+  }
+
+  // One place that decides how the button reads, so the load path and the
+  // toggle path can never disagree about it.
+  //
+  // `err` is the Supabase error, not a boolean. The first version of this took a
+  // boolean and rendered every failure as "Testers table missing" — which is one
+  // possible cause out of several, stated with total confidence, and it sends
+  // whoever reads it to look in the wrong place. A missing GRANT and a stale
+  // PostgREST schema cache both look identical from here.
+  function setTesterBtn(btn, isTesterNow, err) {
+    if (!btn) return;
+    btn.dataset.tester = isTesterNow ? '1' : '0';
+    btn.disabled       = !!err;
+    if (err) {
+      const code = err.code || '?';
+      btn.textContent = '\u2726 Tester lookup failed (' + code + ')';
+      btn.title = (err.message || 'unknown error') + '\n\n' + testerErrorHint(code);
+      console.warn('[testers] lookup failed:', err);
+    } else {
+      btn.textContent = isTesterNow ? '\u2726 Remove Tester' : '\u2726 Make Tester';
+      btn.title = '';
+    }
+  }
+
+  // The three failures that actually happen after running supabase/testers.sql,
+  // and what each one means. Shown in the button's tooltip.
+  function testerErrorHint(code) {
+    if (code === '42P01') return 'The table does not exist. Run supabase/testers.sql.';
+    if (code === '42501') return 'Permission denied. The table exists but anon/authenticated ' +
+                                 'have no GRANT on it — re-run the GRANT lines in supabase/testers.sql.';
+    if (code === 'PGRST205' || code === 'PGRST202')
+      return 'PostgREST has not picked the table up yet. Run:  notify pgrst, \'reload schema\';  ' +
+             'or restart the API from the Supabase dashboard.';
+    return 'See the browser console for the full error.';
+  }
+
+  async function adminToggleTester() {
+    if (!isAdmin() || !_adminCurrentUser) return;
+    const btn = document.querySelector('.sb-admin-btn-tester');
+    const on  = btn?.dataset.tester === '1';
+    const { id, username } = _adminCurrentUser;
+    adminSetStatus(on ? `Removing tester from ${username}…` : `Making ${username} a tester…`);
+    const { error } = on
+      ? await sb.from('testers').delete().eq('user_id', id)
+      : await sb.from('testers').insert({ user_id: id, granted_by: currentUser?.id ?? null });
+    if (error) {
+      // RLS refuses a non-admin here, so this is a real failure worth showing
+      // rather than swallowing — the button must not claim a change that the
+      // database rejected.
+      adminSetStatus(`Could not change tester status: ${error.message}`);
+      return;
+    }
+    // Only relabel if this is still the user on screen.
+    if (_adminCurrentUser && _adminCurrentUser.id === id) setTesterBtn(btn, !on, null);
+    adminSetStatus(on ? `${username} is no longer a tester.` : `${username} is now a tester.`, true);
+    // An admin can toggle their OWN account; keep the in-memory flag honest so
+    // the profile menu does not disagree with the database until a reload.
+    if (id === currentUser?.id) _isTester = !on;
+  }
+
+  async function adminCopyUuid() {
+    if (!isAdmin() || !_adminCurrentUser) return;
+    const el = document.getElementById('sb-admin-uuid');
+    if (!el) return;
+    const id = _adminCurrentUser.id;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(id);
+      copied = true;
+    } catch (e) {
+      // The clipboard API needs a secure context and can be refused outright.
+      // Selecting the text leaves Ctrl+C one keystroke away rather than leaving
+      // the admin with a chip that silently does nothing.
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (e2) { /* nothing further to try */ }
+    }
+    el.textContent = copied ? 'Copied \u2713' : 'Press Ctrl+C to copy';
+    el.classList.toggle('copied', copied);
+    // Restore from _adminCurrentUser rather than from a saved string: the admin
+    // can select a different user while this timer is pending, and putting the
+    // previous user's ID back would be worse than showing nothing.
+    setTimeout(() => {
+      const cur = _adminCurrentUser && _adminCurrentUser.id;
+      if (cur) el.textContent = cur;
+      el.classList.remove('copied');
+    }, copied ? 1200 : 2600);
   }
 
   async function adminBanUser() {
@@ -1933,12 +2093,16 @@
   window._adminClearScores       = adminClearScores;
   window._adminClearOneScore     = adminClearOneScore;
   window._adminDoDeleteOneScore  = adminDoDeleteOneScore;
+  window._adminCopyUuid          = adminCopyUuid;
+  window._adminToggleTester      = adminToggleTester;
   window._adminDeleteListings    = adminDeleteListings;
   window._adminBanAndWipe        = adminBanAndWipe;
   window._unbanUser              = unbanUser;
   window._banAllProfanityUsers   = banAllProfanityUsers;
   window._adminPurgeExpired      = adminPurgeExpired;
   window._sbIsAdmin              = isAdmin;
+  window._sbIsTester             = isTester;
+  window._sbCanUseAI             = canUseAI;
   window._sbAdminIds             = [...ADMIN_IDS];
   // Ping every admin via the existing notification bell (used by the report system).
   window._sbNotifyAdmins         = async function (title, body, meta) {

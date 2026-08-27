@@ -155,7 +155,7 @@
       statWeights: { end: 5, str: 2, arc: 0, spd: 1, lck: 0 },
       kitWords: ['block','guard','shield','defen','armou','taunt','protect','fortif','resist','damage reduction'],
       // Effective HP: raw HP scaled by block damage reduction and incoming heals.
-      score: c => c.hp * (1 + c.blockDr / 100) * (1 + (c.incHeal - 100) / 400),
+      score: c => (c.effectiveHp ?? c.hp) * (1 + c.blockDr / 100) * (1 + (c.incHeal - 100) / 400),
       blurb: 'Endurance drives HP, and Strength converts to block damage reduction.',
     },
     heal: {
@@ -209,7 +209,7 @@
       // Block damage reduction belongs here. Scoring only damage and HP made the
       // optimiser dump Strength, which quietly cost a player 53 points of block
       // DR and still called the result an upgrade.
-      score: c => (c.bestHit * 0.6 + c.hp * 0.8) * (1 + c.blockDr / 200),
+      score: c => (c.bestHit * 0.6 + (c.effectiveHp ?? c.hp) * 0.8) * (1 + c.blockDr / 200),
       blurb: 'A build that does not fall apart when the fight goes badly.',
     },
   };
@@ -565,6 +565,13 @@
       kind: 'summonDmgPct', value: 50,
       note: '+15% to all stats and +50% summon damage for 4 turns, then 27.5% self-damage and a heavy stun',
     },
+    // A Ranger's own stance rather than a race move. setupsFor scans class moves
+    // with the class as the owner, so this needs no new machinery.
+    'Flourish': {
+      owner: 'Ranger (Or)', cost: 2, cd: 6, duration: 4, reliability: 1,
+      kind: 'statBuff', statBuff: 'flourishSpd',
+      note: 'a flat +25 Speed and +25% defence in stance — +48 Speed with Flourish Proficiency',
+    },
     'Focus Step': {
       owner: 'Stultus (20%)', cost: 1, cd: 7, duration: 4, reliability: 1,
       kind: 'statBuff', statBuff: 'focusStepSpd',
@@ -807,8 +814,16 @@
     'One For All':          { kind: 'note', party: true,
                               note: '-30% damage for +50% outgoing healing — a deliberate trade in a party ' +
                                     'and a straight loss alone' },
-    'Lightspeed':           { kind: 'note',
-                              note: 'stacking 10% autododge with no cap; survivability, not damage' },
+    'Lightspeed':           { kind: 'dodge', value: 100, uptime: 0.5,
+                              note: '+10% autododge per dodge or Verdant Archer crit, with NO stack cap — ' +
+                                    'it ramps to total avoidance over a long fight. Counted at half, ' +
+                                    'because it starts at zero and has to build' },
+    'Flourish Proficiency': { kind: 'statFlat', stat: 'spd', value: 23, uptime: 0.65,
+                              note: 'Flourish gives a flat 48 Speed instead of 25 — the extra 23 is what ' +
+                                    'this mastery is worth, and only while you are in the stance' },
+    "Enrichment Proficiency": { kind: 'note', party: true,
+                              note: 'the heal also scales on Speed and adds 15% of the target\'s max HP ' +
+                                    'per turn — a party heal, worth nothing to your own sheet' },
     'Deep Focus':           { kind: 'note',
                               note: '+25% enchant proc chance — worth real damage on a proc enchant, ' +
                                     'but only as much as that enchant is worth' },

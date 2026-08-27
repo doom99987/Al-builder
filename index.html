@@ -44,11 +44,11 @@
       saved-builds.css: saved builds panel + Discord button
   -->
   <link rel="stylesheet" href="css/base.css?v=12">
-  <link rel="stylesheet" href="css/nav.css?v=17">
+  <link rel="stylesheet" href="css/nav.css?v=18">
   <link rel="stylesheet" href="css/builder.css?v=29">
   <link rel="stylesheet" href="css/qte.css?v=12">
   <link rel="stylesheet" href="css/mobile.css?v=16">
-  <link rel="stylesheet" href="css/auth.css?v=21">
+  <link rel="stylesheet" href="css/auth.css?v=23">
   <link rel="stylesheet" href="css/overlay.css?v=1">
   <link rel="stylesheet" href="css/saved-builds.css?v=14">
   <link rel="stylesheet" href="css/trades.css?v=19">
@@ -351,7 +351,11 @@
 
   </div><!-- /home-content -->
 
-  <div class="home-unofficial-note">Unofficial fan site &mdash; not affiliated with or endorsed by the creators of Arcane Lineage.</div>
+  <div class="home-unofficial-note">Unofficial fan site &mdash; not affiliated with or endorsed by the creators of Arcane Lineage.
+    <span class="home-legal-links">
+      <a href="html/privacy.html">Privacy Policy</a><span class="home-legal-sep">&middot;</span><a href="html/terms.html">Terms and Conditions</a>
+    </span>
+  </div>
 
 </div>
 
@@ -1530,7 +1534,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=106"></script>
+<script src="js/sb.js?v=109"></script>
 <script src="js/reports.js?v=4"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
@@ -1558,7 +1562,7 @@
 <script src="js/overlay.js?v=3"></script>
 <script src="js/donation.js?v=4"></script>
 <script src="js/matchmaking.js?v=9"></script>
-<script src="js/build-ai.js?v=21"></script>
+<script src="js/build-ai.js?v=24"></script>
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
   (function () {

@@ -357,7 +357,14 @@
     if (c.masteryAbilities && (c.masteryAbilities.active.length || c.masteryAbilities.unmodelled.length)) {
       const ma = c.masteryAbilities;
       if (ma.active.length) {
-        const unit = a => a.kind === 'critChance' ? ' crit chance' : a.kind === 'dr' ? '% DR' : '% damage';
+        // Every kind needs its own unit. Labelling a flat +23 Speed as "+23%
+        // damage" is the same mistake the gear passives had, and it is the kind
+        // of wrong that reads as perfectly plausible.
+        const unit = a => a.kind === 'critChance' ? ' crit chance'
+                        : a.kind === 'dr'        ? '% DR'
+                        : a.kind === 'dodge'     ? '% autododge'
+                        : a.kind === 'statFlat'  ? ' flat ' + String(a.stat || 'spd').toUpperCase()
+                        :                          '% damage';
         L.push({ h: 'Mastery abilities counted', table: ma.active.map(a =>
           [a.name, '+' + a.value + unit(a) +
                    (a.uptime < 1 ? '  — counted at ' + Math.round(a.uptime * 100) + '% uptime' : '  — always on') +
@@ -376,6 +383,80 @@
         L.push({ h: 'Mastery abilities NOT counted', body:
           'Capstones this build paid 5 points each for, whose effect the numbers above ignore:',
           list: ma.unmodelled.map(u => '**' + u.name + '**' + (u.note ? ' — ' + u.note : '')) });
+      }
+    }
+
+    // ── what it did NOT take, and why ─────────────────────────────────────
+    // "Why didn't it take the autododge one" had no answer anywhere in the
+    // output. It does now, and the four possible answers are kept apart on
+    // purpose, because they are not the same admission:
+    //
+    //   not priced   — this engine has no numbers for the ability. It was never
+    //                  compared to anything. That is a gap here, not a verdict.
+    //   nothing here — priced, measured, and worth zero to THIS goal. A real
+    //                  trade, and one you might want to make differently.
+    //   outscored    — it fit the budget and a different capstone measured more.
+    //   per point    — genuinely worth something, and still not bought, because
+    //                  35 points is a real budget and everything else paid better.
+    //
+    // Deliberately outside the "did it take any capstone" guard above: a build
+    // that took NONE is exactly the build this question gets asked about.
+    if (c.masteryPassedOver && c.masteryPassedOver.length) {
+      const goalLabel = (K.ARCHETYPES[spec.goal] || {}).label || spec.goal;
+      const noteFor = name => {
+        const r = (K.MASTERY_ABILITIES || {})[name];
+        if (!r || !r.note) return '';
+        // The notes are written as sentence fragments, so they need a capital
+        // when they follow a full stop rather than a dash.
+        return '  ' + r.note.charAt(0).toUpperCase() + r.note.slice(1) + '.';
+      };
+      const lead = {
+        value:      '**Worth less per point** — ',
+        lost:       '**Outscored** — ',
+        zero:       '**Nothing towards ' + goalLabel + '** — ',
+        unmodelled: '**Not priced here** — ',
+      };
+      // Real trade-offs first; the ones this engine simply cannot read last,
+      // since "no numbers for it" is the least useful thing to lead with.
+      const rank = { value: 0, lost: 1, zero: 2, unmodelled: 3 };
+      const rows = c.masteryPassedOver.slice()
+        .sort((a, b) => (rank[a.reason] ?? 9) - (rank[b.reason] ?? 9) || b.value - a.value)
+        // The unpriced ones say only that, because the paragraph underneath
+        // explains it once. Repeating the full sentence on every row buried the
+        // rows that carry a real reason.
+        .map(x => [x.name, x.reason === 'unmodelled'
+          ? '**Not priced here.**' + (noteFor(x.name) || '  No numbers for it in this engine.')
+          : (lead[x.reason] || '') + x.detail + '.' + noteFor(x.name)]);
+
+      const b = c.masteryBudget;
+      const budgetLine = b
+        ? 'It had **' + b.cap + '** mastery points and spent **' + b.spent + '** — ' +
+          b.statNodes + ' on stat nodes and ' + (b.capstonesTaken * 5) + ' on ' +
+          (b.capstonesTaken === 1 ? 'one capstone' : b.capstonesTaken + ' capstones') + '. '
+        : '';
+      L.push({ h: 'Masteries it did not take', body: budgetLine +
+        'Every capstone this class has that did not make the build, and the reason it did not:',
+        table: rows });
+
+      const unpriced = c.masteryPassedOver.filter(x => x.reason === 'unmodelled');
+      if (unpriced.length) {
+        // Counted from the data every time rather than written into the copy,
+        // so the number cannot quietly go stale as abilities get priced.
+        let total = 0, priced = 0;
+        for (const perClass of Object.values((data && data.masteryAbilities) || {})) {
+          for (const e of Object.values(perClass)) {
+            total++;
+            const r = (K.MASTERY_ABILITIES || {})[e.name];
+            if ((r && r.kind !== 'note' && r.value != null) || (!r && e.bonus != null)) priced++;
+          }
+        }
+        L.push({ h: 'What "not priced here" means', body:
+          '**' + unpriced.length + '** of the capstones above ' +
+          (unpriced.length === 1 ? 'is' : 'are') + ' marked *not priced here*. That is a ' +
+          'gap in this engine, **not** a judgement that they are weak — it has no numbers for what ' +
+          'they do, so they could not compete for the points at all. Game-wide, only **' + priced +
+          ' of ' + total + '** capstone abilities are modelled. If one of them is a pick you know is ' +
+          'right, tell me what it actually does and it gets priced and competed for like the rest.' });
       }
     }
 

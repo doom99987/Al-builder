@@ -194,6 +194,17 @@
       const en = (K.ENCHANTS || {})[build.enchant];
       const enPct = en && en.kind === 'dmgPct' ? en.value * (en.uptime ?? 1) : 0;
 
+      // A flat stat from a mastery has to reach the stats everything else reads,
+      // or the ability probes as worth nothing and is never bought. Overlaid on
+      // a COPY: d.stats is what the build reports, and it has to keep matching
+      // what the site will show.
+      const maFlat = ma.statFlat;
+      const hasFlat = STATS.some(k => maFlat[k] > 0);
+      if (hasFlat) {
+        d.stats = Object.assign({}, d.stats);
+        for (const k of STATS) if (maFlat[k]) d.stats[k] += maFlat[k];
+      }
+
       const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance + ma.critChance;
       const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
       const mult = M.expectedMultiplier(critChance, critDmg);
@@ -281,11 +292,16 @@
         stats: d.stats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
         blockDr: d.blockDr + tt.dr + gp.dr + ma.dr, outHeal: d.outHeal, incHeal: d.incHeal,
+        // Avoidance is not damage reduction and must not be added to it: an
+        // attack that misses does nothing at all, so it multiplies how long you
+        // last rather than shaving a percentage off each hit.
+        dodge: Math.min(95, ma.dodge),
         initiative: d.initiative + tt.initiative,
         bestHit, bestMove, moves, goal: spec.goal,
         bestBurst, burstMove, sustainedHit, rotation, setups,
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
-        masteryAbilities: ma,
+        masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
+        masteryBudget: build.masteryBudget || null,
         passives: pv, passiveList: passivesFor(build),
         siteHp: d.hp, siteCritChance: d.critChance,   // what the site will show
       };
@@ -295,6 +311,12 @@
       // left all seven shard slots empty — a strictly worse build in practice.
       // The weight is far too small to outrank the archetype itself; it only
       // decides between options the archetype scores identically.
+      // Autododge makes every point of health go further: at 50% avoidance you
+      // last twice as long. Applied to a separate effective-health figure that
+      // the survival archetypes score on, so the HP this build REPORTS stays the
+      // HP the site will show.
+      ctx.effectiveHp = ctx.hp / Math.max(0.05, 1 - ctx.dodge / 100);
+
       ctx.score = arch.score(ctx) + 1e-6 * ctx.bestHit;
       return ctx;
     }
@@ -673,7 +695,12 @@
     function masteryAbilityTotals(build, spec) {
       const table = K.MASTERY_ABILITIES || {};
       const perClass = (D.masteryAbilities || {})[build.klass] || {};
-      const out = { dmgPct: 0, critChance: 0, dr: 0, active: [], unmodelled: [] };
+      // `dodge` is avoidance rather than reduction, and `statFlat` is a flat
+      // stat rather than a percentage, so neither could be expressed before and
+      // both were silently scored as nothing.
+      const out = { dmgPct: 0, critChance: 0, dr: 0, dodge: 0,
+                    statFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+                    active: [], unmodelled: [] };
       const nodes = D.masteryNodes || [];
       const byId = {};
       nodes.forEach(n => { byId[n.id] = n; });
@@ -699,9 +726,15 @@
         // quietly inflate a solo build.
         const scale = (rule && rule.party) ? partyScale(spec) : 1;
         const eff = value * uptime * scale;
-        if (out[kind] !== undefined) out[kind] += eff;
+        if (kind === 'statFlat') {
+          const st = (rule && rule.stat) || 'spd';
+          if (out.statFlat[st] !== undefined) out.statFlat[st] += eff;
+        } else if (typeof out[kind] === 'number') {
+          out[kind] += eff;
+        }
         out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
-                          party: scale > 1 ? scale : null, note: rule && rule.note });
+                          stat: rule && rule.stat, party: scale > 1 ? scale : null,
+                          note: rule && rule.note });
       }
       return out;
     }
@@ -745,7 +778,13 @@
     function pickMastery(build, spec) {
       const all = D.masteryNodes || [];
       const cd = M.masteryData(build);
-      if (!all.length || !cd) { build.masteryNodes = []; build.masteryPoints = 0; return; }
+      // masteryPassedOver is cleared here as well: a class with no tree in the
+      // site's data (Paladin (Or) today) must report an empty list rather than
+      // whatever the last build left on the object.
+      if (!all.length || !cd) {
+        build.masteryNodes = []; build.masteryPoints = 0; build.masteryPassedOver = [];
+        build.masteryBudget = null; return;
+      }
 
       const byId = {};
       all.forEach(n => { byId[n.id] = n; });
@@ -819,6 +858,7 @@
       build.masteryNodes = [];
       const taken = new Set();
       let spent = 0;
+      let marginalRatio = null;
 
       // A node's parent may be an ARRAY, and builder.js requires ALL of them
       // (parentOk uses .every, builder.js:7326). That is the shape in the tree
@@ -860,6 +900,58 @@
         if (!best) break;
         best.path.forEach(x => taken.add(x.id));
         spent += best.c;
+        // The value-per-point of the WORST thing this build still chose to buy.
+        // It is the honest answer to "why not this capstone": everything bought
+        // was worth more per point than it was.
+        marginalRatio = best.ratio;
+      }
+
+      // ── the capstone pass, which used to run too late to do anything ─────
+      // This block sat AFTER the "spend whatever is left" filler, so by the time
+      // it ran there was never anything left. Measured across every class and
+      // goal: it had exactly 0 points to work with every single time and bought
+      // nothing, ever. All of its careful "buy the RIGHT one" reasoning was dead
+      // code, and the spare points went to stat nodes this build had already
+      // been measured not to care about — which is precisely the "why does it
+      // skip masteries for stat points" complaint.
+      //
+      // Five points is five stat nodes, so the choice has to be made on what the
+      // ability actually does; picking by branch colour was choosing between
+      // Overload (+100%, but only against stunned enemies) and Element Mastery
+      // (+15% to a caster's entire kit) by which side of the tree they sat on.
+      const considered = all.filter(n => n.type === 'mastery' && !taken.has(n.id))
+        .map(n => {
+          const path = closure(n.id);
+          return { n, path, c: path.reduce((a, x) => a + _mastCost(x), 0),
+                   v: abilityValue(n.id),
+                   branchW: (w[(cd.branchStats || {})[n.branch]] || 0) };
+        });
+      // Remembered rather than discarded. "It costs 7 to reach and 4 were left"
+      // is an answer; "it was not chosen" is not, and that is all the output
+      // could say while the losers were being filtered away here.
+      const pointsLeft = CAP - spent;
+      const capstones = considered.filter(x => x.c <= pointsLeft)
+        // Ability value first; branch weight only breaks ties between abilities
+        // this engine cannot tell apart, which is what it was always doing.
+        .sort((a, b) => b.v - a.v || b.branchW - a.branchW || a.c - b.c);
+      // Buy on measured value when there is any. When every remaining capstone
+      // measures zero, WHY it measures zero decides what happens next: a priced
+      // ability that scores nothing has genuinely been weighed and turned down
+      // for this goal, and those points are better spent as stats — but an
+      // ability this engine cannot price scores zero for want of a number, not
+      // for want of value, and a real in-game ability beats stat nodes the build
+      // has already been measured not to want.
+      const unpriced = x => {
+        const e = ((D.masteryAbilities || {})[build.klass] || {})[x.n.id];
+        if (!e) return false;
+        const r = (K.MASTERY_ABILITIES || {})[e.name];
+        return (r && r.kind === 'note') || (!r && e.bonus == null) ||
+               (r && r.kind !== 'note' && r.value == null);
+      };
+      const bought = capstones.find(x => x.v > 0.01) || capstones.find(unpriced) || null;
+      if (bought) {
+        bought.path.forEach(x => taken.add(x.id));
+        spent += bought.c;
       }
 
       // Then spend whatever is left on any node still reachable, even one whose
@@ -881,27 +973,6 @@
         spent += cheapest.c;
       }
 
-      // Anything left buys a capstone — and now it buys the RIGHT one. Five
-      // points is five stat nodes, so this has to be decided on what the ability
-      // actually does; picking by branch colour was choosing between Overload
-      // (+100%, but only against stunned enemies) and Element Mastery (+15% to a
-      // caster's entire kit) by which side of the tree they sat on.
-      const capstones = all.filter(n => n.type === 'mastery' && !taken.has(n.id))
-        .map(n => {
-          const path = closure(n.id);
-          return { n, path, c: path.reduce((a, x) => a + _mastCost(x), 0),
-                   v: abilityValue(n.id),
-                   branchW: (w[(cd.branchStats || {})[n.branch]] || 0) };
-        })
-        .filter(x => spent + x.c <= CAP)
-        // Ability value first; branch weight only breaks ties between abilities
-        // this engine cannot tell apart, which is what it was always doing.
-        .sort((a, b) => b.v - a.v || b.branchW - a.branchW || a.c - b.c);
-      if (capstones.length) {
-        capstones[0].path.forEach(x => taken.add(x.id));
-        spent += capstones[0].c;
-      }
-
       // Free breakthroughs whose prerequisites are already met: they cost no
       // points, so there is never a reason to leave one behind.
       let added = true;
@@ -916,6 +987,64 @@
 
       build.masteryNodes = all.filter(n => taken.has(n.id)).map(n => n.id);
       build.masteryPoints = spent;
+
+      // What it looked at and did not buy, and WHY — recorded here, where the
+      // decision is actually made, rather than guessed at from the outside.
+      //
+      // There are four different answers and they are not interchangeable. "The
+      // engine cannot price it" is an admission; "your goal scores it at zero"
+      // is a trade you might want to make differently; "it cost more than was
+      // left" is arithmetic; "something else measured higher" is a comparison
+      // you can check. Reporting all four as the same shrug was the problem.
+      const perClass = (D.masteryAbilities || {})[build.klass] || {};
+      const abilityRules = K.MASTERY_ABILITIES || {};
+      const pct1 = v => (Math.round(v * 10) / 10);
+      build.masteryBudget = { cap: CAP, spent, leftAtCapstone: pointsLeft,
+                              bought: bought ? (perClass[bought.n.id] || {}).name || null : null,
+                              capstonesTaken: build.masteryNodes.filter(id => byId[id].type === 'mastery').length,
+                              statNodes:      build.masteryNodes.filter(id => byId[id].type === 'node').length };
+      build.masteryPassedOver = considered
+        .filter(x => !taken.has(x.n.id) && perClass[x.n.id])
+        .map(x => {
+          const name  = perClass[x.n.id].name;
+          const rule  = abilityRules[name];
+          const known = (rule && rule.kind !== 'note' && rule.value != null) ||
+                        (!rule && perClass[x.n.id].bonus != null);
+          // Order matters. A capstone worth nothing to this goal was not
+          // skipped for want of points — it would have been skipped with the
+          // whole tree free — so "it measured nothing" has to be checked before
+          // "there was no room", or every answer collapses into the budget.
+          let reason, detail;
+          if (!known) {
+            // Checked FIRST of all. An unpriced ability always measures zero, so
+            // without this it gets reported as "your goal does not value it",
+            // which blames the goal for a gap in the engine.
+            reason = 'unmodelled';
+            detail = 'this engine has no numbers for it, so it was never compared against anything ' +
+                     '— a gap here, not a verdict on the ability';
+          } else if (x.v <= 0.01) {
+            reason = 'zero';
+            detail = 'this goal does not read what it does, so the points went where they paid';
+          } else if (bought && x.c <= pointsLeft) {
+            reason = 'lost';
+            detail = 'it measured +' + pct1(x.v) + '%, against +' + pct1(bought.v) + '% for ' +
+                     build.masteryBudget.bought + ', and there were points for one of them';
+          } else {
+            // The interesting one, and the one that had no answer at all before:
+            // genuinely worth something, and still not bought, because 35 points
+            // is a real budget and everything else paid better per point.
+            reason = 'value';
+            const per = x.v / Math.max(x.c, 1);
+            detail = 'it measured +' + pct1(x.v) + '% for the ' + x.c + ' points it costs to reach, ' +
+                     'or ' + pct1(per) + '% a point' +
+                     (marginalRatio != null
+                       ? ', and every point this build did spend went to something worth more, down to ' +
+                         pct1(marginalRatio) + '% a point'
+                       : ', and the 35 points ran out before it');
+          }
+          return { id: x.n.id, name, value: x.v, cost: x.c, pointsLeft, reason, detail };
+        })
+        .sort((a, b) => b.value - a.value);
       build.masteryShards = build.masteryNodes.filter(id => byId[id].type === 'breakthrough').length;
     }
 

@@ -406,6 +406,32 @@
   color: #666;
   margin-top: 2px;
 }
+/* The selected user's ID, click to copy. Deliberately quiet: it is a lookup
+   tool for adding an admin or a tester, not information anyone needs to read. */
+.sb-admin-uuid {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 7px;
+  background: #0d0d18;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  color: #667;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.sb-admin-uuid:hover,
+.sb-admin-uuid:focus-visible {
+  color: #99a;
+  border-color: #3a3a5a;
+  background: #16162a;
+}
+.sb-admin-uuid.copied {
+  color: #7fd18f;
+  border-color: #2f5f3a;
+}
 .sb-admin-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -445,6 +471,9 @@
 .sb-admin-btn-scores:hover { background: #101a2a; border-color: #4466aa; color: #bbddff; }
 .sb-admin-btn-scores-one { border-color: #2a5a5a; color: #88dddd; }
 .sb-admin-btn-scores-one:hover { background: #0a1e1e; border-color: #3a8888; color: #aaffff; }
+.sb-admin-btn-tester { border-color: #2a4a3a; color: #88ddaa; }
+.sb-admin-btn-tester:hover { background: #0a1a12; border-color: #3a8860; color: #aaffcc; }
+.sb-admin-btn-tester:disabled { border-color: #444; color: #555; background: none; cursor: default; }
 .sb-admin-btn-listings { border-color: #4a4a20; color: #dddd88; }
 .sb-admin-btn-listings:hover { background: #1a1a08; border-color: #777730; color: #eeeeaa; }
 .sb-admin-btn-wipe {

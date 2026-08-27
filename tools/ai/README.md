@@ -192,6 +192,86 @@ undervalued. `rankGear` at least scores the ones knowledge.js knows about — th
 fourteen-item shortlist was previously cut on stat blocks alone, which dropped
 Molten Carapace's +30% defence before the real scorer ever saw it.
 
+## Kinds an ability can have
+
+`MASTERY_ABILITIES` and `GEAR_PASSIVES` entries carry a `kind`, and every kind
+needs somewhere to land or the ability probes as worthless and is never bought:
+
+| kind | feeds | example |
+|---|---|---|
+| `dmgPct` | the damage multiplier | Element Mastery, Primordial |
+| `critChance` | crit chance, and so the overcrit tier | Dark Smite Proficiency |
+| `dr` | damage reduction | Holy Shield, Strategist |
+| `dodge` | **avoidance**, which is not reduction | Lightspeed |
+| `statFlat` | a flat stat, `stat: 'spd'` | Flourish Proficiency |
+| `note` | nothing — reported, not scored | Overcore |
+
+Two of those exist because a Ranger's actual build needed them. **Lightspeed**
+grants 10% autododge per dodge with no stack cap, which ramps toward total
+avoidance — it was `kind: 'note'` and therefore worth exactly zero, so the engine
+never took the capstone every Ranger takes. Avoidance is deliberately NOT added
+to `blockDr`: an attack that misses does nothing at all, so it multiplies how
+long you last (`effectiveHp`) rather than shaving a percentage off each hit. That
+figure is for scoring only — the HP a build *reports* stays the HP the site will
+show.
+
+**Flourish Proficiency** turns Flourish's flat +25 Speed into +48, which no
+percentage could express. Flourish itself is now a setup move, so it shows up in
+the opening rotation.
+
+The unit matters as much as the number: a flat +23 Speed rendered as "+23%
+damage" is the kind of wrong that reads as completely plausible. Both renderers
+switch on `kind`, and tests check the labels.
+
+### Why it did not take a mastery
+
+"Why didn't it take the autododge one" used to have no answer anywhere in the
+output. The **Masteries it did not take** section now lists every capstone the
+class has that did not make the build, with the reason recorded by `pickMastery`
+at the moment it decided — not reconstructed afterwards by the explainer.
+
+There are four reasons and they are deliberately kept apart, because they are
+not the same admission:
+
+| Reason | What it means |
+|---|---|
+| **Not priced here** | `knowledge.js` has no numbers for the ability, so it never competed for the points at all. A gap in this engine, *not* a verdict on the ability. |
+| **Nothing towards `<goal>`** | Priced, measured, and worth zero to *this* goal. A real trade — a damage goal scores survivability at exactly zero, so a damage Ranger declines Lightspeed. |
+| **Outscored** | It fit the budget and a different capstone measured higher. |
+| **Worth less per point** | Genuinely worth something and still not bought: 35 points is a real budget, and everything else paid better per point. The line shows both rates. |
+
+The order of those checks is load-bearing. An unpriced ability always measures
+zero, so testing "did it measure zero" before "is it even priced" reports every
+gap in `knowledge.js` as *your goal does not value it* — a confident, plausible
+lie that blames the goal for a hole in the engine. Unpriced is checked first.
+
+Only **38 of 108** capstone abilities are priced today, so *not priced here* is
+by far the most common answer. That number is counted from the data at render
+time rather than written into the copy, and the section says plainly that it is
+a limitation here rather than a judgement, with an invitation to describe the
+ability so it can be priced.
+
+### The capstone pass that never ran
+
+`pickMastery` spends its 35 points in passes: value-greedy first, then a
+capstone, then a filler that mops up whatever is left on any reachable node.
+
+The capstone pass used to run **after** the filler. Measured across every class
+and goal, it therefore had exactly **0** points to work with every single time
+and bought nothing, ever — all of its careful "buy the RIGHT one" reasoning was
+dead code, and the spare points went to stat nodes the build had already been
+measured not to care about. That is the whole of the "why does it skip masteries
+for stat points" complaint.
+
+Reordered, the capstone pass has points in most builds and buys one in roughly
+40% of them. When every remaining capstone measures zero, *why* it measures zero
+decides what happens: a priced ability that scores nothing has genuinely been
+weighed and turned down, and the points are better as stats — but an ability
+this engine cannot price scores zero for want of a number, not for want of
+value, and a real in-game ability beats stat nodes the build does not want.
+`test.js` guards the ordering directly, by asserting the pass is left something
+to spend.
+
 ## The WIP notice
 
 The panel opens with an amber **WIP** banner above everything else, dismissible
