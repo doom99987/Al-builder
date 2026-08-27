@@ -1541,6 +1541,7 @@
       <div class="sb-admin-tabs">
         <button class="sb-admin-tab active" data-tab="actions" onclick="window._adminSwitchTab('actions')">User Actions</button>
         <button class="sb-admin-tab" data-tab="banned" onclick="window._adminSwitchTab('banned')">Banned (${(bans||[]).length})</button>
+        <button class="sb-admin-tab" data-tab="testers" onclick="window._adminSwitchTab('testers');window._adminLoadTesters()">Testers</button>
         <button class="sb-admin-tab" data-tab="listings" onclick="window._adminSwitchTab('listings');window._adminLoadListings()">Listings</button>
         <button class="sb-admin-tab" data-tab="tools" onclick="window._adminSwitchTab('tools')">Tools</button>
         <button class="sb-admin-tab" data-tab="reports" onclick="window._adminSwitchTab('reports');window._reportsLoadAdmin&&window._reportsLoadAdmin()">Reports <span id="sb-admin-reports-badge" class="sb-report-badge" style="display:none"></span></button>
@@ -1576,6 +1577,12 @@
 
       <div class="sb-admin-panel" data-panel="banned" style="display:none">
         <div id="sb-admin-ban-rows" class="sb-admin-ban-list">${banRows}</div>
+      </div>
+
+      <div class="sb-admin-panel" data-panel="testers" style="display:none">
+        <div id="sb-admin-tester-rows" class="sb-admin-ban-list">
+          <div class="sb-admin-empty">Switch to this tab to load testers.</div>
+        </div>
       </div>
 
       <div class="sb-admin-panel" data-panel="listings" style="display:none">
@@ -1717,6 +1724,93 @@
     adminSetStatus('');
   }
 
+  // Everyone who currently has the tester role.
+  //
+  // Two queries rather than one embedded select: testers.user_id references
+  // auth.users, not profiles, so PostgREST has no foreign key to embed across.
+  // This is the same shape the leaderboard already uses for the same reason.
+  async function adminLoadTesters() {
+    if (!isAdmin()) return;
+    const box = document.getElementById('sb-admin-tester-rows');
+    if (!box) return;
+    box.innerHTML = '<div class="sb-admin-empty">Loading…</div>';
+
+    const { data: rows, error } = await sb.from('testers')
+      .select('user_id, granted_by, granted_at')
+      .order('granted_at', { ascending: false });
+    if (error) {
+      box.innerHTML = `<div class="sb-admin-empty">Could not load testers: ${esc(error.message)}` +
+                      ` (${esc(error.code || '?')}). ${esc(testerErrorHint(error.code))}</div>`;
+      return;
+    }
+    if (!rows || !rows.length) {
+      box.innerHTML = '<div class="sb-admin-empty">Nobody has the tester role yet.</div>';
+      return;
+    }
+
+    // Resolve names for the testers AND for whoever granted each one, in a
+    // single lookup.
+    const ids = [...new Set(rows.flatMap(r => [r.user_id, r.granted_by]).filter(Boolean))];
+    const { data: profs } = await sb.from('profiles').select('id, username').in('id', ids);
+    const nameOf = {};
+    for (const pr of profs || []) nameOf[pr.id] = pr.username;
+
+    box.innerHTML = rows.map(r => {
+      // An account can be deleted while the row survives, and a username we
+      // cannot resolve must not silently render as blank.
+      const who     = nameOf[r.user_id] || '(deleted account)';
+      const by      = r.granted_by ? (nameOf[r.granted_by] || '(unknown)') : '—';
+      const when    = r.granted_at ? new Date(r.granted_at).toLocaleDateString() : '—';
+      return `<div class="sb-admin-ban-row" data-tester="${esc(r.user_id)}">
+        <div>
+          <div>${esc(who)}</div>
+          <div class="sb-admin-tester-meta">${esc(when)} &nbsp;·&nbsp; by ${esc(by)}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="sb-admin-uuid" title="Copy user ID"
+            onclick="window._adminCopyRowUuid(this, '${escAttrJs(r.user_id)}')">${esc(r.user_id)}</button>
+          <button class="sb-admin-unban-btn" onclick="window._adminRevokeTester('${escAttrJs(r.user_id)}', this)">Revoke</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Revoke from the list, without needing to look the person up first.
+  async function adminRevokeTester(userId, btn) {
+    if (!isAdmin() || !userId) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Revoking…'; }
+    const { error } = await sb.from('testers').delete().eq('user_id', userId);
+    if (error) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Revoke'; }
+      adminSetStatus(`Could not revoke: ${error.message}`);
+      return;
+    }
+    document.querySelector(`.sb-admin-ban-row[data-tester="${userId}"]`)?.remove();
+    // The list may now be empty, and an empty box with no message reads as a
+    // loading failure.
+    const box = document.getElementById('sb-admin-tester-rows');
+    if (box && !box.querySelector('.sb-admin-ban-row')) {
+      box.innerHTML = '<div class="sb-admin-empty">Nobody has the tester role yet.</div>';
+    }
+    // Revoking your own role from this list must not leave the menu disagreeing.
+    if (userId === currentUser?.id) _isTester = false;
+    // The user card may be showing this same person.
+    if (_adminCurrentUser && _adminCurrentUser.id === userId) {
+      setTesterBtn(document.querySelector('.sb-admin-btn-tester'), false, null);
+    }
+  }
+
+  // Copy straight off a list row. Same job as the card's chip, different button.
+  async function adminCopyRowUuid(btn, userId) {
+    if (!isAdmin() || !btn) return;
+    try { await navigator.clipboard.writeText(userId); }
+    catch (e) { return; }                 // no clipboard: leave the ID readable
+    const prev = btn.textContent;
+    btn.textContent = 'Copied \u2713';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = prev; btn.classList.remove('copied'); }, 1200);
+  }
+
   // One place that decides how the button reads, so the load path and the
   // toggle path can never disagree about it.
   //
@@ -1771,6 +1865,9 @@
     // Only relabel if this is still the user on screen.
     if (_adminCurrentUser && _adminCurrentUser.id === id) setTesterBtn(btn, !on, null);
     adminSetStatus(on ? `${username} is no longer a tester.` : `${username} is now a tester.`, true);
+    // Keep the Testers tab honest if it has already been loaded behind this one.
+    if (document.querySelector('#sb-admin-tester-rows .sb-admin-ban-row') ||
+        document.querySelector('#sb-admin-tester-rows .sb-admin-empty')) adminLoadTesters();
     // An admin can toggle their OWN account; keep the in-memory flag honest so
     // the profile menu does not disagree with the database until a reload.
     if (id === currentUser?.id) _isTester = !on;
@@ -2095,6 +2192,9 @@
   window._adminDoDeleteOneScore  = adminDoDeleteOneScore;
   window._adminCopyUuid          = adminCopyUuid;
   window._adminToggleTester      = adminToggleTester;
+  window._adminLoadTesters       = adminLoadTesters;
+  window._adminRevokeTester      = adminRevokeTester;
+  window._adminCopyRowUuid       = adminCopyRowUuid;
   window._adminDeleteListings    = adminDeleteListings;
   window._adminBanAndWipe        = adminBanAndWipe;
   window._unbanUser              = unbanUser;
