@@ -33,6 +33,26 @@
   function Optimizer(M, K) {
     const D = M.data;
 
+    // -- availability ---------------------------------------------------------
+    // knowledge.js lists what exists in the data but cannot be used in game
+    // right now. Resolved ONCE into a flat name -> reason lookup, because this
+    // gets asked about every item of every candidate build.
+    const _unavailable = (() => {
+      const U = K.UNAVAILABLE || {};
+      const out = Object.assign({}, U.items || {});
+      for (const [series, why] of Object.entries(U.weaponSeries || {}))
+        for (const [name, def] of Object.entries(D.weapons || {}))
+          if (def.series === series && !out[name]) out[name] = why;
+      return out;
+    })();
+    const unavailableReason = name => _unavailable[name] || null;
+    const usable = name => !_unavailable[name];
+
+    // Filtering must never empty a list. Every downstream step assumes a build
+    // has a weapon and four gears, and handing back nothing is a worse answer
+    // than handing back something the player cannot equip.
+    const keepUsable = names => { const ok = names.filter(usable); return ok.length ? ok : names; };
+
     // ── move handling ────────────────────────────────────────────────────────
     // A class's kit is its own moves plus its base class's, since a superclass
     // keeps what it learned on the way up.
@@ -120,8 +140,10 @@
     }
 
     function weaponsFor(spec, klass) {
-      const all = Object.keys(D.weapons || {});
-      if (spec.weaponName) return [spec.weaponName];
+      const all = Object.keys(D.weapons || {}).filter(usable);
+      // A weapon named in the request is only honoured if it is usable. run()
+      // strips it and records why if not, so one that reaches here is fine.
+      if (spec.weaponName && usable(spec.weaponName)) return [spec.weaponName];
 
       const wanted = spec.weaponType ? [spec.weaponType] : weaponTypesForClass(klass);
       if (wanted) {
@@ -142,15 +164,53 @@
       const tt = M.traitTotals(build, K);
       const cap = M.energyCap(build, K);
       const pv = passiveTotals(build);
+      const gp = gearPassiveTotals(build);
+      const sh = M.shardTotals(build, K);
+      const en = (K.ENCHANTS || {})[build.enchant];
+      const enPct = en && en.kind === 'dmgPct' ? en.value * (en.uptime ?? 1) : 0;
 
-      const critChance = d.critChance + tt.critChance + pv.critChance;
+      const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance;
       const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
       const mult = M.expectedMultiplier(critChance, critDmg);
 
-      let bestHit = 0, bestMove = null;
+      // ── setup rotation ────────────────────────────────────────────────────
+      // A buff cast before the hit is part of the build, not a footnote. Two
+      // numbers come out of this: the opener (everything up), and the sustained
+      // figure (each buff weighted by its uptime, duration / cooldown).
+      const setups = setupsFor(build);
+      let setupDmgPct = 0, setupSustainedPct = 0;
+      const statBuffs = {};
+      const rotation = [];
+      for (const su of setups) {
+        const uptime = Math.min(1, (su.duration || 1) / Math.max(1, su.cd || 1)) * (su.reliability ?? 1);
+        if (su.kind === 'dmgPct') {
+          const full = su.value * (su.reliability ?? 1);
+          setupDmgPct += full;
+          setupSustainedPct += su.value * uptime;
+          rotation.push({ move: su.move, gain: full, elements: su.elements || null, note: su.note, uptime });
+        } else if (su.kind === 'statBuff' && su.statBuff) {
+          statBuffs[su.statBuff] = true;
+          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+        } else if (su.kind === 'summonDmgPct') {
+          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+        }
+      }
+
+      // Stat buffs run through model.js's own verified buff path rather than a
+      // second implementation of the same arithmetic.
+      let buffedStats = d.stats, buffedMult = mult, buffedCrit = critChance;
+      if (Object.keys(statBuffs).length) {
+        const bb = Object.assign({}, build, { buffs: Object.assign({}, build.buffs, statBuffs) });
+        const bd = M.derived(bb);
+        buffedStats = bd.stats;
+        buffedCrit = bd.critChance + tt.critChance + pv.critChance + gp.critChance;
+        buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
+      }
+
+      let bestHit = 0, bestMove = null, bestBurst = 0, burstMove = null, sustainedHit = 0;
       for (const mv of moves) {
-        let dmg = M.moveDamage(build, mv);
-        let pct = tt.dmgPct + pv.dmgPct;
+        let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx });
+        let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + gp.dmgPct;
 
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
         // Affinity Boost — only pay on moves of that type.
@@ -171,21 +231,45 @@
         const es = (K.ENERGY.scalingMoves || {})[mv.name];
         if (es) dmg *= (1 + es.perEnergy * Math.max(0, cap - es.freeEnergy));
 
-        dmg *= mult;
-        if (dmg > bestHit) { bestHit = dmg; bestMove = mv; }
+        const plain = dmg * mult;
+        if (plain > bestHit) { bestHit = plain; bestMove = mv; }
+
+        // The same move with the setup up. Element-gated buffs only pay on
+        // matching move types.
+        const type = String(mv.moveType || '') + ' ' + String(mv.element || '');
+        let openPct = 0, sustPct = 0;
+        for (const rt of rotation) {
+          if (rt.gain === null) continue;
+          if (rt.elements && !rt.elements.test(type)) continue;
+          openPct += rt.gain;
+          sustPct += rt.gain * rt.uptime;
+        }
+        // Recompute from the pre-multiplier damage so the buffs compound properly.
+        const preMult = dmg;
+        const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * (1 + pct / 100) : preMult;
+        const burst = withStats * (1 + openPct / 100) * buffedMult;
+        const sust  = preMult   * (1 + sustPct / 100) * mult;
+        if (burst > bestBurst) { bestBurst = burst; burstMove = mv; }
+        if (sust > sustainedHit) sustainedHit = sust;
       }
       const ctx = {
-        stats: d.stats, hp: d.hp * (1 + tt.hpPct / 100), critChance,
+        stats: d.stats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
-        blockDr: d.blockDr + tt.dr, outHeal: d.outHeal, incHeal: d.incHeal,
+        blockDr: d.blockDr + tt.dr + gp.dr, outHeal: d.outHeal, incHeal: d.incHeal,
         initiative: d.initiative + tt.initiative,
         bestHit, bestMove, moves, goal: spec.goal,
-        traits: tt, energyCap: cap,
+        bestBurst, burstMove, sustainedHit, rotation, setups,
+        traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         passives: pv, passiveList: passivesFor(build),
         siteHp: d.hp, siteCritChance: d.critChance,   // what the site will show
       };
       const arch = K.ARCHETYPES[spec.goal] || K.ARCHETYPES[K.DEFAULT_GOAL];
-      ctx.score = arch.score(ctx);
+      // Tiny damage term as a TIE-BREAK only. A tank's score is pure survivability,
+      // so nothing a shard or enchant does ever "improves" it and the optimiser
+      // left all seven shard slots empty — a strictly worse build in practice.
+      // The weight is far too small to outrank the archetype itself; it only
+      // decides between options the archetype scores identically.
+      ctx.score = arch.score(ctx) + 1e-6 * ctx.bestHit;
       return ctx;
     }
 
@@ -204,7 +288,7 @@
 
     function rankGear(spec, w) {
       const fixed = new Set(D.FIXED_GEAR || []);
-      return Object.entries(D.gearItems).map(([name, block]) => {
+      return Object.entries(D.gearItems).filter(([name]) => usable(name)).map(([name, block]) => {
         let v = statValue(block, w);
         // A tiered gear also brings its tier points, which land on whatever stat
         // the build wants most — worth the top shape value times the best weight.
@@ -296,12 +380,19 @@
 
     // Try every option for a single slot, keeping the best. Used for armour,
     // weapon, artifact, enchant — small lists where exhaustive is affordable.
-    function bestOfSlot(build, spec, options, set) {
+    function bestOfSlot(build, spec, options, set, tieBreak) {
       let bestVal = null, bestScore = -Infinity;
       for (const opt of options) {
         set(build, opt);
         const sc = evaluate(build, spec).score;
-        if (sc > bestScore) { bestScore = sc; bestVal = opt; }
+        // A tie is not a coin flip. Some options are strictly better in game than
+        // the model can see, and picking between them by list order looks like a
+        // mistake to anyone reading the build. `tieBreak(candidate, incumbent)`
+        // says which of two equal-scoring options to keep.
+        if (sc > bestScore || (tieBreak && bestVal !== null &&
+                               Math.abs(sc - bestScore) < 1e-9 && tieBreak(opt, bestVal))) {
+          bestScore = sc; bestVal = opt;
+        }
       }
       set(build, bestVal);
       return bestVal;
@@ -321,7 +412,16 @@
       // scorer — greedy is safe here because gear contributions barely interact.
       const shortlist = rankGear(spec, w).slice(0, 14);
       b.gear = [];
-      for (let slot = 0; slot < 4; slot++) {
+
+      // A pinned gear takes the first slot and is never reconsidered — it is the
+      // reason the rest of the build exists.
+      if (spec.forceGear && D.gearItems[spec.forceGear] && usable(spec.forceGear)) {
+        const entry = { name: spec.forceGear, tier: D.MAX_GEAR_TIER, alloc: {}, traits: [] };
+        b.gear.push(entry);
+        bestTierAlloc(b, spec, entry, false);
+      }
+
+      for (let slot = b.gear.length; slot < 4; slot++) {
         let bestName = null, bestScore = -Infinity, bestAlloc = null;
         for (const cand of shortlist) {
           if (b.gear.some(g => g.name === cand.name)) continue;
@@ -335,15 +435,31 @@
         if (bestName) b.gear.push({ name: bestName, tier: D.MAX_GEAR_TIER, alloc: bestAlloc });
       }
 
-      bestOfSlot(b, spec, Object.keys(D.armourItems), (bb, v) => { bb.armour = v; });
+      // A locked slot is not searched — the point of choosing it is that it stays.
+      if (spec.armour) b.armour = spec.armour;
+      else bestOfSlot(b, spec, keepUsable(Object.keys(D.armourItems)), (bb, v) => { bb.armour = v; });
 
+      // Weapons must be compared WITH their tier points. Only the tiered series
+      // roll any, so leaving alloc empty during selection made a Dragonbone Spear
+      // look identical to a Ferrus one and hid up to 5 stat points.
       const wepOpts = weaponsFor(spec, klass);
       bestOfSlot(b, spec, wepOpts, (bb, v) => {
-        bb.weapon = v ? { name: v, tier: D.MAX_WEAPON_TIER, alloc: {} } : null;
-      });
-      if (b.weapon) bestTierAlloc(b, spec, b.weapon, true);
+        if (!v) { bb.weapon = null; return; }
+        bb.weapon = { name: v, tier: D.MAX_WEAPON_TIER, alloc: {} };
+        if (M.weaponIsTiered(v)) bestTierAlloc(bb, spec, bb.weapon, true);
+      // Weapons tie constantly, because a class whose moves carry no stat scaling
+      // (Berserker is the clearest case) gets nothing measurable from the 5 tier
+      // points. They are still 5 real stat points in game, feeding block bar, HP
+      // and everything else this model does not score, so on an equal score the
+      // tiered weapon wins. Left to list order the answer was a Ferrus Sword,
+      // which reads as a mistake whether or not it scores the same.
+      }, (cand, cur) => M.weaponIsTiered(cand) && !M.weaponIsTiered(cur));
+      // A weapon outside the tiered series has no tier and no allocation. Saying
+      // otherwise is wrong in the output and writes meaningless bits into the
+      // share link.
+      if (b.weapon && !M.weaponIsTiered(b.weapon.name)) { b.weapon.tier = 0; b.weapon.alloc = {}; }
 
-      bestOfSlot(b, spec, Object.keys(D.artifactItems), (bb, v) => {
+      bestOfSlot(b, spec, keepUsable(Object.keys(D.artifactItems)), (bb, v) => {
         bb.artifact = v ? { name: v, tier: D.MAX_GEAR_TIER, alloc: {} } : null;
       });
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
@@ -353,18 +469,30 @@
       b.mark = 'Venia';
       bestOfSlot(b, spec, order.slice(0, 3), (bb, v) => { bb.permuth = v; });
 
-      bestOfSlot(b, spec, ['', ...Object.keys(D.enchantItems)], (bb, v) => { bb.enchant = v; });
+      if (spec.enchant) b.enchant = spec.enchant;
+      else bestOfSlot(b, spec, ['', ...keepUsable(Object.keys(D.enchantItems))], (bb, v) => { bb.enchant = v; });
 
+      // Mastery first — it adds ~29 flat stat points, which shifts what the stat
+      // allocator should do with the 150 it controls.
+      pickMastery(b, spec);
       allocateStats(b, spec);
 
+      // Traits and shards can move crit chance (`fortunate` grants it flat), and
+      // the allocator's threshold snapping ran before they existed. Re-allocate
+      // ONLY when that actually changed the overcrit tier — measured across a
+      // spread of builds, an unconditional second pass cost ~40% more time and
+      // improved the score in none of them.
+      const tierBefore = evaluate(b, spec).critTier;
+      pickShards(b, spec);
       pickTraits(b, spec);
+      if (evaluate(b, spec).critTier !== tierBefore) allocateStats(b, spec);
 
       // Re-pick Permuth and tier shapes now that the stats are settled: the right
       // answer to both changes once the build's actual totals are known.
       bestOfSlot(b, spec, order.slice(0, 3), (bb, v) => { bb.permuth = v; });
       for (const g of b.gear) bestTierAlloc(b, spec, g, false);
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
-      if (b.weapon)   bestTierAlloc(b, spec, b.weapon, true);
+      if (b.weapon && M.weaponIsTiered(b.weapon.name)) bestTierAlloc(b, spec, b.weapon, true);
 
       return b;
     }
@@ -402,6 +530,57 @@
       return (_passCache[key] = { known, unknown });
     }
 
+    // Which setup buffs this build can actually cast, from its race and class.
+    const _setupCache = {};
+    function setupsFor(build) {
+      const key = (build.race || '') + '|' + (build.klass || '');
+      if (_setupCache[key]) return _setupCache[key];
+      const table = K.SETUP_MOVES || {};
+      const owned = [];
+
+      const scan = (entry, owner) => {
+        if (!entry) return;
+        for (const mv of (entry.learns || [])) {
+          if (mv.type !== 'Active') continue;
+          const def = table[mv.name];
+          if (def && (!def.owner || def.owner === owner)) owned.push(Object.assign({ move: mv.name }, def));
+        }
+      };
+      scan((D.raceMoves || {})[build.race], build.race);
+      scan((D.classMoves || {})[build.klass], build.klass);
+      const base = baseOf(build.klass);
+      if (base && base !== build.klass) scan((D.classMoves || {})[base], base);
+
+      return (_setupCache[key] = owned);
+    }
+
+    // Gear passives, aggregated the same way traits are. Split into what can be
+    // scored and what cannot, so a build can say which of its gear is doing
+    // something the numbers above do not reflect.
+    function gearPassiveTotals(build) {
+      const table = K.GEAR_PASSIVES || {};
+      const text = D.itemPassives || {};
+      const out = { dmgPct: 0, critChance: 0, hpPct: 0, dr: 0, active: [], unmodelled: [] };
+      const seen = new Set();
+
+      const consider = name => {
+        if (!name || seen.has(name)) return;
+        seen.add(name);
+        const rule = table[name];
+        if (!rule || rule.kind === 'note' || rule.value == null) {
+          if (text[name]) out.unmodelled.push({ name, note: (rule && rule.note) || text[name].slice(0, 110) });
+          return;
+        }
+        const eff = rule.value * (rule.uptime ?? 1);
+        if (out[rule.kind] !== undefined) out[rule.kind] += eff;
+        out.active.push({ name, value: rule.value, effective: eff, note: rule.note });
+      };
+
+      for (const g of build.gear || []) consider(g.name);
+      if (build.artifact) consider(build.artifact.name);
+      return out;
+    }
+
     // Aggregate the scoreable passives into the same shape traits use.
     function passiveTotals(build) {
       const { known } = passivesFor(build);
@@ -419,6 +598,187 @@
         } else if (out[p.kind] !== undefined) out[p.kind] += v;
       }
       return out;
+    }
+
+    // ── mastery ──────────────────────────────────────────────────────────────
+    // Costs: a regular node is 1 point, a capstone ("mastery") is 5, and a
+    // breakthrough is 0 points (it is paid for in echo shards).
+    //
+    // The part that is easy to get wrong, and that this used to get wrong: the
+    // tree is not a flat list. Continuing down the MIDDLE of a branch runs
+    // through the capstone, so those nodes cannot be taken without paying its 5
+    // points — unlike the side nodes, which branch around it. In the current
+    // tree `c4`, `c5a` and `c5b` all sit behind `cm1`. Taking every stat node
+    // and then buying an arbitrary capstone produced builds that were three
+    // nodes illegal and quietly unbuildable in game.
+    //
+    // So this is a real budget problem, not "take them all": greedy on stat
+    // value per point, where the cost of a node includes every unpaid ancestor
+    // it drags in with it.
+    const _mastCost = n => n.type === 'mastery' ? 5 : (n.type === 'breakthrough' ? 0 : 1);
+
+    function pickMastery(build, spec) {
+      const all = D.masteryNodes || [];
+      const cd = M.masteryData(build);
+      if (!all.length || !cd) { build.masteryNodes = []; build.masteryPoints = 0; return; }
+
+      const byId = {};
+      all.forEach(n => { byId[n.id] = n; });
+      const CAP = D.MASTERY_TOTAL_POINTS || 35;
+      const w = weightOf(spec);
+      const mults = cd.branchMultipliers || {};
+
+      // What a node is worth to THIS build: only regular nodes grant stats.
+      const valueOf = n => {
+        if (n.type !== 'node') return 0;
+        const stat = (cd.branchStats || {})[n.branch];
+        return stat ? (w[stat] || 0) * (mults[n.branch] ?? 1) : 0;
+      };
+
+      const taken = new Set();
+      let spent = 0;
+
+      // A node's parent may be an ARRAY, and builder.js requires ALL of them
+      // (parentOk uses .every, builder.js:7326). That is the shape in the tree
+      // picture: two side nodes converge into the middle one, and you need both
+      // sides to continue down the middle. Walking a single parent link missed
+      // this for l5, c3a, cb2 and r5.
+      const parentsOf = n => [].concat(n.parent == null ? [] : n.parent);
+
+      // Everything that must be bought to legally reach a node, in dependency
+      // order (parents before children), skipping anything already owned.
+      const closure = id => {
+        const need = [];
+        const seen = new Set();
+        const visit = nid => {
+          if (seen.has(nid) || taken.has(nid)) return;
+          seen.add(nid);
+          const n = byId[nid];
+          if (!n) return;
+          parentsOf(n).forEach(visit);
+          need.push(n);
+        };
+        visit(id);
+        return need;
+      };
+
+      for (;;) {
+        let best = null;
+        for (const n of all) {
+          if (taken.has(n.id)) continue;
+          const path = closure(n.id);
+          if (!path.length) continue;
+          const c = path.reduce((a, x) => a + _mastCost(x), 0);
+          if (spent + c > CAP) continue;
+          const v = path.reduce((a, x) => a + valueOf(x), 0);
+          if (v <= 0) continue;                       // capstones handled below
+          const ratio = v / Math.max(c, 0.5);         // breakthroughs are free
+          if (!best || ratio > best.ratio) best = { path, c, v, ratio };
+        }
+        if (!best) break;
+        best.path.forEach(x => taken.add(x.id));
+        spent += best.c;
+      }
+
+      // Then spend whatever is left on any node still reachable, even one whose
+      // stat this build does not care about. A stat point is never worse than an
+      // unspent point, and the value-greedy pass above stops as soon as nothing
+      // scores — which left a pure-Luck crit build sitting on 8 unused points.
+      for (;;) {
+        let cheapest = null;
+        for (const n of all) {
+          if (taken.has(n.id) || n.type === 'mastery') continue;
+          const path = closure(n.id);
+          if (!path.length) continue;
+          const c = path.reduce((a, x) => a + _mastCost(x), 0);
+          if (spent + c > CAP) continue;
+          if (!cheapest || c < cheapest.c) cheapest = { path, c };
+        }
+        if (!cheapest) break;
+        cheapest.path.forEach(x => taken.add(x.id));
+        spent += cheapest.c;
+      }
+
+      // Anything left buys a capstone, for its ability rather than for stats —
+      // preferring the branch this build actually leans on. Its prerequisites
+      // are usually already paid for by now.
+      const capstones = all.filter(n => n.type === 'mastery' && !taken.has(n.id))
+        .map(n => {
+          const path = closure(n.id);
+          return { n, path, c: path.reduce((a, x) => a + _mastCost(x), 0),
+                   branchW: (w[(cd.branchStats || {})[n.branch]] || 0) };
+        })
+        .filter(x => spent + x.c <= CAP)
+        .sort((a, b) => b.branchW - a.branchW || a.c - b.c);
+      if (capstones.length) {
+        capstones[0].path.forEach(x => taken.add(x.id));
+        spent += capstones[0].c;
+      }
+
+      // Free breakthroughs whose prerequisites are already met: they cost no
+      // points, so there is never a reason to leave one behind.
+      let added = true;
+      while (added) {
+        added = false;
+        for (const n of all) {
+          if (taken.has(n.id) || n.type !== 'breakthrough') continue;
+          const ps = [].concat(n.parent == null ? [] : n.parent);
+          if (ps.every(x => taken.has(x))) { taken.add(n.id); added = true; }
+        }
+      }
+
+      build.masteryNodes = all.filter(n => taken.has(n.id)).map(n => n.id);
+      build.masteryPoints = spent;
+      build.masteryShards = build.masteryNodes.filter(id => byId[id].type === 'breakthrough').length;
+    }
+
+    // Every selected node must have every ancestor selected, and the bill must
+    // fit the budget. Exposed so tests can assert it directly — an illegal
+    // mastery tree is not something a player can enter into the game.
+    function masteryLegal(build) {
+      const all = D.masteryNodes || [];
+      const byId = {};
+      all.forEach(n => { byId[n.id] = n; });
+      const sel = new Set(build.masteryNodes || []);
+      const problems = [];
+      let spent = 0;
+      // Checking each node's DIRECT parents is enough: every selected node runs
+      // the same check, so a missing grandparent surfaces on its own child.
+      for (const id of sel) {
+        const n = byId[id];
+        if (!n) { problems.push('unknown node ' + id); continue; }
+        spent += _mastCost(n);
+        for (const pid of [].concat(n.parent == null ? [] : n.parent)) {
+          const p = byId[pid];
+          if (!p) { problems.push(id + ' has unknown parent ' + pid); continue; }
+          if (!sel.has(pid)) problems.push(id + ' requires ' + pid + ' (' + p.type + ')');
+        }
+      }
+      const cap = D.MASTERY_TOTAL_POINTS || 35;
+      if (spent > cap) problems.push('spends ' + spent + ' of ' + cap);
+      return { ok: problems.length === 0, spent, problems };
+    }
+
+    // Seven shard slots, filled greedily with DISTINCT shards. Distinct because
+    // the builder de-duplicates by name, so a second copy of the same shard adds
+    // nothing there — and with 14 shards for 7 slots, distinct is the stronger
+    // choice anyway.
+    function pickShards(build, spec) {
+      const names = Object.keys(D.shardItems || {});
+      const slots = (K.SHARD_SLOTS || 7);
+      build.shards = [];
+      for (let i = 0; i < slots; i++) {
+        let bestName = null, bestScore = evaluate(build, spec).score;
+        for (const name of names) {
+          if (build.shards.includes(name)) continue;
+          build.shards.push(name);
+          const sc = evaluate(build, spec).score;
+          build.shards.pop();
+          if (sc > bestScore + 1e-9) { bestScore = sc; bestName = name; }
+        }
+        if (!bestName) break;          // nothing left that helps
+        build.shards.push(bestName);
+      }
     }
 
     // Fill every trait slot greedily with the real scorer. Two slots per gear and
@@ -478,16 +838,189 @@
     function pickCorruption(ctx) {
       const scored = K.CORRUPTION.map(entry => {
         const r = entry.fit(ctx);
-        return { form: entry.form, score: r.score, why: r.why };
+        return Object.assign({ form: entry.form, score: r.score, why: r.why },
+                             { damage: corruptionDamage(entry.form, ctx) });
       }).sort((a, b) => b.score - a.score);
       return { best: scored[0], all: scored };
     }
 
+    // What a form does to the damage numbers. Worked out for EVERY form, not
+    // just the chosen one, so the three can be read side by side and checked in
+    // game — which is the only way the assumed figures ever get corrected.
+    //
+    // Deliberately not part of `score`: the build is settled before a form is
+    // picked, so nothing in here can quietly change which gear was chosen.
+    function corruptionDamage(form, ctx) {
+      const fn = (K.CORRUPTION_DAMAGE || {})[form];
+      if (!fn) return null;
+      let d;
+      try { d = fn(ctx, M); } catch (e) { return null; }
+      if (!d) return null;
+      const base = ctx.bestBurst || ctx.bestHit || 0;
+      return Object.assign({}, d, {
+        burstHit: base * (d.burst || 1),
+        sustainedHit: (ctx.sustainedHit || 0) * (d.sustained || 1),
+        burstGain: Math.round(((d.burst || 1) - 1) * 1000) / 10,
+        sustainedGain: Math.round(((d.sustained || 1) - 1) * 1000) / 10,
+      });
+    }
+
     // ── entry point ──────────────────────────────────────────────────────────
+    // Races with no real stat block in the data. Excluded from every search —
+    // recommending one is recommending an unfinished entry, and its zeroed stats
+    // make it strictly worse anyway, so nothing is lost.
+    function realRaces() {
+      const roles = K.RACE_ROLES || {};
+      return Object.keys(D.races || {}).filter(r => !(roles[r] || {}).placeholder);
+    }
+
+    // Races that suit a goal. Used for RANDOM rolls, where the maths cannot save
+    // us: most racial passives are prose the engine cannot read, so left to base
+    // stats alone it will happily roll Daminos for a damage build — four lives
+    // and outgoing healing, which is excellent and entirely beside the point.
+    //
+    // Falls back to every real race rather than to nothing.
+    function racesForGoal(goal) {
+      const want = (K.GOAL_RACE_ROLES || {})[goal];
+      const roles = K.RACE_ROLES || {};
+      if (!want) return realRaces();
+      const fit = realRaces().filter(r => {
+        const rr = (roles[r] || {}).roles || [];
+        return rr.some(x => want.indexOf(x) !== -1);
+      });
+      // Tech races are off-role but earn their place through a specific combo.
+      for (const t of techFor(goal)) if (fit.indexOf(t.race) === -1 && realRaces().indexOf(t.race) !== -1) fit.push(t.race);
+      return fit.length ? fit : realRaces();
+    }
+
+    // Tech entries that apply to a goal, and to a race.
+    const techFor = goal => (K.RACE_TECH || []).filter(t => (t.goals || []).indexOf(goal) !== -1);
+    function techForRace(race, goal) {
+      return (K.RACE_TECH || []).find(t => t.race === race && (t.goals || []).indexOf(goal) !== -1) || null;
+    }
+
+    // A small seeded RNG. Random builds should still be REPRODUCIBLE when a seed
+    // is given, so tests can pin one and a shared link means the same thing
+    // tomorrow. Without a seed it varies per call, which is the whole point.
+    function rng(seed) {
+      let x = (seed | 0) || (Date.now() ^ (Math.random() * 0x7fffffff)) | 0;
+      return () => {
+        x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+        return ((x >>> 0) % 100000) / 100000;
+      };
+    }
+
+    // Pick a class, race and goal for someone who did not care — but pick them
+    // COHERENTLY. A random class with a random goal produces a Cleric told to
+    // maximise crit, which is a bad build with a funny name. Instead pick the
+    // goal first, then a class whose kit actually reads that way.
+    function rollRandom(spec) {
+      const r = rng(spec.seed);
+      const pick = arr => arr[Math.floor(r() * arr.length) % arr.length];
+
+      if (!spec.goal || spec.goal === K.DEFAULT_GOAL) {
+        // This is the actual difference between the two random modes. A plain
+        // surprise may roll `balanced` and hand back something sensible; a
+        // min-max roll refuses to, because committing to one thing and being
+        // extreme at it IS the request.
+        const goals = Object.keys(K.ARCHETYPES)
+          .filter(g => !spec.minmax || g !== 'balanced');
+        spec.goal = pick(goals);
+      }
+      if (!spec.klass) {
+        const affine = combatClasses()
+          .map(k => ({ k, a: classAffinity(k, spec) }))
+          .sort((x, y) => y.a - x.a);
+        // Only classes that genuinely read as the rolled goal. Taking the top
+        // third regardless of score produced a speed Wizard — a valid build, a
+        // terrible one, and exactly the kind of thing "random" should not hand
+        // someone who asked for a surprise rather than a joke.
+        const best = affine.length ? affine[0].a : 0;
+        let pool = affine.filter(x => x.a > 0 && x.a >= best * 0.5).map(x => x.k);
+        if (pool.length < 2) pool = affine.slice(0, 3).map(x => x.k);
+        spec.klass = pick(pool);
+      }
+      if (!spec.race) spec.race = pick(racesForGoal(spec.goal));
+
+      // If the race got in on tech, the build must actually run the combo —
+      // otherwise it is an off-role race with a story attached.
+      const tech = techForRace(spec.race, spec.goal);
+      if (tech && tech.enables && D.gearItems[tech.enables] && usable(tech.enables)) {
+        spec.forceGear = tech.enables;
+        spec.tech = tech;
+      }
+
+      spec.rolled = { goal: spec.goal, klass: spec.klass, race: spec.race };
+      return spec;
+    }
+
+    // What a build is bad at. A min-maxed build is supposed to have weaknesses —
+    // the useful thing is to name them rather than let someone discover them in
+    // a fight. Thresholds are deliberately blunt: this is a warning, not a stat
+    // sheet, and the numbers are all shown elsewhere anyway.
+    function weaknessesOf(ctx) {
+      const out = [];
+      if (ctx.hp < 120) out.push('almost no health (' + Math.round(ctx.hp) + ')');
+      else if (ctx.hp < 200) out.push('low health (' + Math.round(ctx.hp) + ')');
+      if (ctx.bestHit < 40) out.push('very little damage of your own');
+      if (ctx.critChance < 25 && ctx.goal !== 'tank' && ctx.goal !== 'heal') out.push('barely crits');
+      if (ctx.blockDr < 3) out.push('no meaningful block reduction');
+      if (ctx.outHeal < 110 && ctx.goal !== 'damage' && ctx.goal !== 'crit' && ctx.goal !== 'burst')
+        out.push('no healing to speak of');
+      return out;
+    }
+
+    // Name the finished build after what it actually became.
+    function flavourFor(ctx) {
+      for (const f of (K.FLAVOUR || [])) {
+        try { if (f.when(ctx)) return { name: f.name, line: f.line }; }
+        catch (e) { /* a bad predicate must not cost us the build */ }
+      }
+      return null;
+    }
+
+    // Anything the request locked has to survive the availability check first.
+    // Dropping it silently would answer a request for an Ivory Sword with some
+    // other weapon and no explanation, so each drop is recorded on the spec and
+    // explain.js reports it.
+    function stripUnusable(spec) {
+      spec.unavailable = spec.unavailable || [];
+      const drop = (field, label) => {
+        const name = spec[field];
+        const why = name && unavailableReason(name);
+        if (!why) return;
+        spec.unavailable.push({ what: label, name, why });
+        spec[field] = null;
+        if (spec.locked) delete spec.locked[field === 'weaponName' ? 'weapon' : field];
+      };
+      drop('weaponName', 'Weapon');
+      drop('armour', 'Armour');
+      drop('enchant', 'Enchant');
+      drop('forceGear', 'Gear');
+      // A named weapon carries its TYPE with it, and the type is still a fair
+      // constraint once the weapon itself is gone, so it is left alone.
+      return spec;
+    }
+
     function run(spec) {
+      stripUnusable(spec);
+      if (spec.random) rollRandom(spec);
+      // A race asked for by name can carry tech too — the reasoning is just as
+      // worth stating when the player chose the race themselves.
+      if (!spec.tech && spec.race) {
+        const t = techForRace(spec.race, spec.goal);
+        // Pin the enabler here too. Identifying the tech but not building around
+        // it would explain a combo the build is not actually running.
+        if (t) {
+          spec.tech = t;
+          if (t.enables && D.gearItems[t.enables] && usable(t.enables) && !spec.forceGear) spec.forceGear = t.enables;
+        }
+      }
       const klasses = spec.klass ? [spec.klass]
                     : (classesUsingWeapon(spec.weaponType) || combatClasses());
-      const races = spec.race ? [spec.race] : Object.keys(D.races);
+      // Placeholder races are never searched; a named one is still honoured, so
+      // asking for Arborivia explicitly still works.
+      const races = spec.race ? [spec.race] : realRaces();
 
       // Coarse pass: a cheap build per (class, race) to find where to look
       // properly. Without it a full search of 570 pairs is far too slow.
@@ -521,7 +1054,9 @@
       const corr = pickCorruption(bestCtx);
       best.corruption = corr.best.form;
 
-      return { build: best, ctx: bestCtx, corruption: corr, considered: coarse.length };
+      return { build: best, ctx: bestCtx, corruption: corr, considered: coarse.length,
+               flavour: flavourFor(bestCtx),
+               weaknesses: weaknessesOf(bestCtx) };
     }
 
     // Cheap stat allocation for the coarse pass: proportional to weights, no
@@ -536,7 +1071,9 @@
       build.invested = inv;
     }
 
-    return { run, evaluate, movesFor, baseOf, weightOf, rankGear, pickCorruption };
+    return { run, evaluate, movesFor, baseOf, weightOf, rankGear, pickCorruption,
+             flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
+             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor };
   }
 
   return { Optimizer };

@@ -49,6 +49,7 @@ const WANTED = [
     // soul-tree bit fields. ORDER IS LOAD-BEARING for every one of these:
     // position is the encoded id, so a reorder invalidates existing links.
     'covenantItems', 'lostScrollItems', 'scrollItems', 'soulTreeData', 'masteryNodes',
+    'masteryClassData',
   ]],
   ['js/builder.js', 'set', [
     'FIXED_GEAR', 'TIERED_WEAPON_SERIES',
@@ -121,39 +122,64 @@ function extract(src, name, kind) {
 }
 
 // ── run ─────────────────────────────────────────────────────────────────────
-const data    = {};
-const found   = [];
-const missing = [];
+// Split from the CLI half so tools/ai/test.js can re-extract in memory and check
+// the committed snapshot is still current. A stale ai-data.json is silent — the
+// engine keeps answering, just with last week's game data.
+function extractAll() {
+  const data    = {};
+  const found   = [];
+  const missing = [];
 
-for (const [file, kind, names] of WANTED) {
-  const src = read(file);
-  for (const name of names) {
-    const v = extract(src, name, kind);
-    if (v === undefined) { missing.push(name + '  (' + kind + ' in ' + file + ')'); continue; }
-    data[name] = v;
-    const size = Array.isArray(v) ? v.length
-               : (v && typeof v === 'object') ? Object.keys(v).length
-               : v;
-    found.push([name, Array.isArray(v) ? 'array[' + size + ']'
-                    : (v && typeof v === 'object') ? 'object{' + size + '}'
-                    : String(size)]);
+  for (const [file, kind, names] of WANTED) {
+    const src = read(file);
+    for (const name of names) {
+      const v = extract(src, name, kind);
+      if (v === undefined) { missing.push(name + '  (' + kind + ' in ' + file + ')'); continue; }
+      data[name] = v;
+      const size = Array.isArray(v) ? v.length
+                 : (v && typeof v === 'object') ? Object.keys(v).length
+                 : v;
+      found.push([name, Array.isArray(v) ? 'array[' + size + ']'
+                      : (v && typeof v === 'object') ? 'object{' + size + '}'
+                      : String(size)]);
+    }
   }
+
+  if (data.GEAR_TIER_SHAPES) data.MAX_GEAR_TIER = data.GEAR_TIER_SHAPES.length - 1;
+
+  // Gear passives are written as mkPassive("Name", "text") calls, not as a data
+  // literal, so the brace matcher cannot reach them. 51 of the 80 gears have one
+  // and they are a large part of what makes a gear worth taking — without them
+  // the engine picks gear on its stat block alone.
+  {
+    const src = read('js/builder.js');
+    const re = /mkPassive\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"/g;
+    const passives = {};
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      passives[m[1]] = m[2].replace(/\\n/g, ' ').replace(/\\"/g, '"').replace(/\s+/g, ' ').trim();
+    }
+    if (Object.keys(passives).length) {
+      data.itemPassives = passives;
+      found.push(['itemPassives (mkPassive)', 'object{' + Object.keys(passives).length + '}']);
+    }
+  }
+
+  if (data.mainWeaponSeries) {
+    data.weapons = {};
+    for (const [series, group] of Object.entries(data.mainWeaponSeries))
+      for (const [name, def] of Object.entries(group || {}))
+        data.weapons[name] = Object.assign({ series }, def);
+    found.push(['weapons (derived)', 'object{' + Object.keys(data.weapons).length + '}']);
+  }
+
+  return { data, found, missing };
 }
 
-// A few constants are written in source as expressions over other constants
-// (MAX_GEAR_TIER is GEAR_TIER_SHAPES.length - 1). Evaluating those in isolation
-// fails, so derive them here from what was extracted instead.
-if (data.GEAR_TIER_SHAPES) data.MAX_GEAR_TIER = data.GEAR_TIER_SHAPES.length - 1;
+module.exports = { extractAll, extract, WANTED };
+if (require.main !== module) return;
 
-// Flatten the weapon table into one name -> {type, series} map. Every consumer
-// wants it that way, and doing it once here keeps the shape out of the engine.
-if (data.mainWeaponSeries) {
-  data.weapons = {};
-  for (const [series, group] of Object.entries(data.mainWeaponSeries))
-    for (const [name, def] of Object.entries(group || {}))
-      data.weapons[name] = Object.assign({ series }, def);
-  found.push(['weapons (derived)', 'object{' + Object.keys(data.weapons).length + '}']);
-}
+const { data, found, missing } = extractAll();
 
 const report = process.argv.includes('--report');
 

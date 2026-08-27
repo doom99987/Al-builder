@@ -137,17 +137,38 @@
       return sum;
     }
 
+    // ── shared context ──────────────────────────────────────────────────
+    // Every stat function needs the same handful of things: the armour block, the
+    // merged gear contributions, mastery flats, the race base and the percentage
+    // sources. Recomputing them per stat meant one derived() rebuilt the gear
+    // tables about a dozen times and one moveDamage() rebuilt them five more —
+    // tens of thousands of rebuilds per request. Build them once, pass them down.
+    //
+    // The context is a snapshot, so it is only valid while the build is
+    // unchanged. Anything that mutates a build must take a fresh one.
+    function statContext(build) {
+      return {
+        armour:   armourOf(build),
+        gf:       gearFlat(build),
+        mastery:  masteryFlat(build),
+        race:     raceBase(build),
+        lvlBonus: levelStatBonus(build.level),
+        pct:      pctSources(build),
+      };
+    }
+
     // ── the core: getTotalStat ────────────────────────────────────────────────
-    function totalStat(build, key) {
+    function totalStat(build, key, C) {
+      C = C || statContext(build);
       const allocated = (build.invested || {})[key] || 0;
-      const lvlBonus  = levelStatBonus(build.level);
-      const armour    = armourOf(build);
-      const gf        = gearFlat(build);
+      const lvlBonus  = C.lvlBonus;
+      const armour    = C.armour;
+      const gf        = C.gf;
 
       const totalPct = (INNATE_PCT[key] ?? 0) + ((armour.pct || {})[key] ?? 0);
-      const pctBase  = allocated + (raceBase(build)[key] ?? 0) + lvlBonus;
+      const pctBase  = allocated + (C.race[key] ?? 0) + lvlBonus;
       // NOTE: round applies to the percentage part ONLY, before flats are added.
-      const otherFlat = (armour[key] ?? 0) + (gf[key] ?? 0) + masteryFlat(build)[key];
+      const otherFlat = (armour[key] ?? 0) + (gf[key] ?? 0) + C.mastery[key];
       let total = Math.round(pctBase * (1 + totalPct / 100)) + (otherFlat || 0);
 
       const ctx = { key, allocated, lvlBonus, armour, gearFlat: gf };
@@ -166,53 +187,153 @@
       return total;
     }
 
+    // Mastery grants its branch's stat per selected regular node — breakthroughs
+    // and capstones grant none. Mirrors getMasteryStatBonuses (builder.js:7162),
+    // including the 1.15 branch multiplier some classes carry.
+    //
+    // The class's own tree is used when it has one, otherwise the base class's,
+    // matching getActiveMasteryData()'s super-then-base lookup.
+    function masteryData(build) {
+      const t = D.masteryClassData || {};
+      if (build.klass && t[build.klass]) return t[build.klass];
+      for (const [base, supers] of Object.entries(D.classes || {}))
+        if ((supers || []).includes(build.klass) && t[base]) return t[base];
+      return null;
+    }
+
     function masteryFlat(build) {
-      // Mastery grants +1 to its branch stat per regular node. knowledge.js owns
-      // which branch is which stat per class; absent that, it contributes nothing
-      // rather than guessing.
       const out = { str: 0, arc: 0, end: 0, spd: 0, lck: 0 };
-      const m = build._masteryStats;
-      if (m) for (const k of STATS) out[k] += m[k] || 0;
+      const cd = masteryData(build);
+      if (!cd || !cd.branchStats) return out;
+      const chosen = build.masteryNodes;
+      if (!chosen || !chosen.length) return out;
+      const set = new Set(chosen);
+      const mults = cd.branchMultipliers || {};
+      for (const n of (D.masteryNodes || [])) {
+        if (!set.has(n.id)) continue;
+        if (n.type === 'breakthrough' || n.type === 'mastery') continue;
+        const stat = cd.branchStats[n.branch];
+        if (stat && out[stat] !== undefined) out[stat] += (mults[n.branch] ?? 1);
+      }
       return out;
     }
 
-    function allStats(build) {
+    function allStats(build, C) {
+      C = C || statContext(build);
       const o = {};
-      for (const s of STATS) o[s] = totalStat(build, s);
+      for (const s of STATS) o[s] = totalStat(build, s, C);
       return o;
+    }
+
+    // ── the OTHER stat pipeline ───────────────────────────────────────────────
+    // updatePecents() does not call getTotalStat. It derives its own `val`
+    // (builder.js:1008-1021) and the two DISAGREE in two ways that matter:
+    //
+    //   1. no Math.round — getTotalStat rounds the percentage part and rounds
+    //      again after Permuth; this path rounds neither
+    //   2. armour percentages apply to str/arc/spd ONLY (STAT_PCT_KEYS), while
+    //      getTotalStat applies them to every stat
+    //
+    // So the END behind your HP bar is not the END on your stat row whenever you
+    // wear armour with an end%. That is the site's behaviour, not a mistake here,
+    // and HP / heals / the identity stats must use THIS value to agree with it.
+    const STAT_PCT_KEYS = new Set(['str', 'arc', 'spd']);
+
+    function rawStat(build, key, C) {
+      C = C || statContext(build);
+      const armour = C.armour;
+      const gf = C.gf;
+      const allocated = (build.invested || {})[key] || 0;
+      const lvlBonus  = C.lvlBonus;
+      const otherFlat = (armour[key] ?? 0) + (C.mastery[key] ?? 0) + (gf[key] ?? 0);
+
+      const totalPct = (INNATE_PCT[key] ?? 0)
+                     + (STAT_PCT_KEYS.has(key) ? ((armour.pct || {})[key] ?? 0) : 0);
+
+      let val = totalPct > 0
+        ? (allocated + (C.race[key] ?? 0) + lvlBonus) * (1 + totalPct / 100) + otherFlat
+        : allocated + (C.race[key] ?? 0) + otherFlat + lvlBonus;
+
+      const b = build.buffs || {};
+      if (b.coagStacks) val += b.coagStacks * 1.5;
+      if (build.permuth === key && build.mark === 'Venia') val = val * 1.4;   // NOT rounded
+      return val;
+    }
+
+    // Crit chance reads its own Luck total (builder.js:967). Unlike rawStat this
+    // one DOES round after Permuth, and it is the only place Crystal Stars count.
+    function rawLuck(build, C) {
+      C = C || statContext(build);
+      const armour = C.armour;
+      const gf = C.gf;
+      const b = build.buffs || {};
+      let total = ((build.invested || {}).lck || 0)
+                + (C.race.lck ?? 0)
+                + (C.mastery.lck ?? 0)
+                + (gf.lck ?? 0)
+                + (armour.lck ?? 0)
+                + C.lvlBonus
+                + (b.crystalStarStacks || 0) * 10;
+      if (b.coagStacks) total += b.coagStacks * 1.5;
+      if (build.permuth === 'lck' && build.mark === 'Venia') total = Math.round(total * 1.4);
+      return total;
     }
 
     // ── derived stats (updatePecents) ─────────────────────────────────────────
     function derived(build) {
-      const s   = allStats(build);
-      const pct = pctSources(build);
-      const gf  = gearFlat(build);
-      const armour = armourOf(build);
+      const C   = statContext(build);       // built ONCE, threaded everywhere below
+      const s   = allStats(build, C);       // the STAT ROW values
+      const pct = C.pct;
+      const gf  = C.gf;
+      const armour = C.armour;
+
+      // Everything below uses rawStat, NOT `s`. updatePecents derives its own
+      // unrounded totals and skips armour percentages outside str/arc/spd, so
+      // reusing the stat-row value here disagreed with the site on HP and both
+      // heal stats for every armour carrying an end%.
+      const rawEnd = rawStat(build, 'end', C);
 
       // builder.js:1035-1038. END feeds a curve, the percentage sources multiply
       // that curve, and endFlat is added AFTER — it is flat HP, not flat END, so
       // it must never be folded into the stat total.
-      const hpBase = 45 + s.end * 1.00248;
+      //
+      // The site rounds TWICE here and both roundings are observable:
+      // calcPercentage() returns an already-toFixed(1) STRING for the END curve,
+      // which updatePecents then parseFloats and rounds again after applying the
+      // percentages. Rounding once leaves HP a tenth out on many builds.
+      const hpBase = round1(45 + rawEnd * 1.00248);   // calcPercentage('end', val)
       const hpPct  = pct.end ?? 0;               // armour pct + gear pct, already summed
       let flatHP   = (armour.endFlat ?? 0) + (gf.endFlat ?? 0);
       for (const fn of hooks.flatHP) flatHP = fn(build, flatHP, { stats: s });
       const hp = hpBase * (1 + hpPct / 100) + flatHP;
 
-      let critChance = s.lck + (pct['crit-chance'] ?? 0);
+      // Same double-rounding story, and then EVERY extra crit source on the page
+      // (Stultus, Frozen Diadem, the Vastic proc, Stellian Core…) is applied with
+      // its own toFixed(1). So round after the base and after each hook, not once
+      // at the end.
+      let critChance = round1(round1(rawLuck(build, C)) + (pct['crit-chance'] ?? 0));
       const ctx = { stats: s, pct };
-      for (const fn of hooks.critChance) critChance = fn(build, critChance, ctx);
+      for (const fn of hooks.critChance) critChance = round1(fn(build, critChance, ctx));
       critChance = Math.max(0, critChance);   // a negative crit chance is not a thing
 
+      const healPct = rawEnd / D.END_HEAL_DIVISOR;
+      // Saint's cm1 mastery node grants +40% INCOMING healing and nothing else
+      // (builder.js:1024). It is hardcoded in the site's own pipeline rather than
+      // living in any data table, so it is replicated here rather than in
+      // knowledge.js — the model's job is to mirror builder.js exactly.
+      const saintIncHeal = (build.klass === 'Saint (Or)'
+                            && (build.masteryNodes || []).includes('cm1')) ? 40 : 0;
       return {
         stats: s,
+        _ctx: C,          // so callers can reuse it instead of rebuilding
         hp: round1(hp),
         critChance: round1(critChance),
         critDmg: critMultiplier(build),
-        blockDr:    round1(s.str * D.STAT_IDENTITY_RATIO),
-        nrgChance:  round1(s.arc * D.STAT_IDENTITY_RATIO),
-        initiative: round1(s.spd * D.STAT_IDENTITY_RATIO),
-        outHeal: round1(100 + (pct['out-heal'] ?? 0) + s.end / D.END_HEAL_DIVISOR),
-        incHeal: round1(100 + (pct['inc-heal'] ?? 0) + s.end / D.END_HEAL_DIVISOR),
+        blockDr:    round1(rawStat(build, 'str', C) * D.STAT_IDENTITY_RATIO),
+        nrgChance:  round1(rawStat(build, 'arc', C) * D.STAT_IDENTITY_RATIO),
+        initiative: round1(rawStat(build, 'spd', C) * D.STAT_IDENTITY_RATIO),
+        outHeal: round1(100 + (pct['out-heal'] ?? 0) + healPct),
+        incHeal: round1(100 + (pct['inc-heal'] ?? 0) + healPct + saintIncHeal),
       };
     }
 
@@ -270,7 +391,10 @@
     // Move damage. scaling is written "STR/75" style in the move data.
     function moveDamage(build, move, opts) {
       opts = opts || {};
-      const s = allStats(build);
+      // Reuse the caller's stats when it has them. Recomputing all five per move
+      // was the hottest path in the engine — roughly 20k recomputations per
+      // request, each rebuilding the gear tables from scratch.
+      const s = opts.stats || allStats(build, opts.ctx);
       const parsed = parseDamage(move.damage);
       let dmg = parsed.base;
       // Scaling can name several stats — "STR/80 + SPD/80" is one term per stat,
@@ -290,7 +414,10 @@
       return dmg;
     }
 
-    const round1 = v => Math.round(v * 10) / 10;
+    // The site prints these with toFixed(1). toFixed and Math.round disagree on
+    // binary halfway values (74.05 -> "74.0" vs 74.1), which showed up as a
+    // scatter of exactly-0.1 mismatches. Round the way the page does.
+    const round1 = v => parseFloat(v.toFixed(1));
 
     // ── traits (OVERLAY — the site does not compute these) ───────────────────
     // builder.js tracks traits for share links and shows their labels, but no
@@ -341,6 +468,33 @@
       return out;
     }
 
+    // Shard bonuses. The builder de-duplicates shards by name, so a second copy
+    // of the same shard is worth nothing there — see the "Duplicate shards" trap.
+    // The optimiser therefore only ever fits DISTINCT shards, which with 7 slots
+    // and 14 shards is the better play regardless.
+    function shardTotals(build, K) {
+      const defs = D.shardItems || {};
+      const rules = (K && K.SHARDS) || {};
+      const out = { dmgPct: 0, lifesteal: 0, active: [], unmodelled: [] };
+      const seen = new Set();
+      for (const name of build.shards || []) {
+        if (!name || seen.has(name)) continue;      // dedup, as the builder does
+        seen.add(name);
+        const def = defs[name];
+        if (!def) continue;
+        const rule = rules[def.bonusType];
+        const val = def.rVal != null ? def.rVal : def.pVal;
+        if (!rule || rule.kind === 'note' || val == null) {
+          out.unmodelled.push({ name, note: (rule && rule.note) || def.bonusType });
+          continue;
+        }
+        const eff = val * (rule.stacks || 1) * (rule.uptime ?? 1);
+        if (out[rule.kind] !== undefined) out[rule.kind] += eff;
+        out.active.push({ name, value: val, effective: eff, note: rule.note });
+      }
+      return out;
+    }
+
     // Maximum energy. Overflow is the only source the data exposes.
     function energyCap(build, K) {
       const base = ((K && K.ENERGY) || {}).base || 5;
@@ -367,7 +521,10 @@
       totalStat, allStats, derived, moveDamage,
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,
-      shapesFor, allocForShape, traitTotals, energyCap, parseDamage, parseCost,
+      shapesFor, allocForShape, traitTotals, shardTotals, energyCap, parseDamage, parseCost,
+      weaponIsTiered: weaponHasTiers,
+      statContext, masteryData, masteryFlat,
+      rawStat, rawLuck,
     };
   }
 

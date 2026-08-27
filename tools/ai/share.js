@@ -105,6 +105,80 @@
     return { tier: t, shape: 0, stats: entries.map(e => e[0]) };
   }
 
+  // A gear/weapon instance as the builder stores it — {tier, shape, stats[]} —
+  // resolved into the {str:n,…} allocation the engine works with. Mirrors
+  // gearInstanceAlloc (builder.js:697).
+  function allocFromInstance(D, inst, isWeapon) {
+    if (!inst) return { tier: 0, alloc: {} };
+    const cap = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
+    const tier = Math.min(cap, Math.max(0, inst.tier | 0));
+    const shapes = (D.GEAR_TIER_SHAPES || [])[tier] || [[]];
+    const shape = shapes[Math.min(shapes.length - 1, Math.max(0, inst.shape | 0))] || [];
+    const alloc = {};
+    shape.forEach((v, i) => {
+      const st = (inst.stats || [])[i];
+      if (st) alloc[st] = (alloc[st] || 0) + v;
+    });
+    return { tier, alloc };
+  }
+
+  // Read a build OUT of the builder — the inverse of pack(). Takes whatever
+  // getBuildState() returns and produces the engine's build shape, so the AI can
+  // score what someone actually has rather than only what it invented.
+  //
+  // Everything is defensive: a half-filled builder is the normal case, and the
+  // engine is meant to cope with missing pieces rather than refuse to look.
+  function fromState(D, st) {
+    st = st || {};
+    const gearNames = st.g || [];
+    const gi = st.gi || [];
+    const wti = st.wti || [];
+
+    const traitsOf = inst => ((inst && inst.traits) || [])
+      .filter(t => t && t.id)
+      .map(t => ({ id: t.id, tier: Math.min(2, Math.max(1, t.tier | 0)) }));
+
+    const gear = [];
+    gearNames.forEach((name, i) => {
+      if (!name) return;
+      const a = allocFromInstance(D, gi[i], false);
+      gear.push({ name, tier: a.tier, alloc: a.alloc, traits: traitsOf(gi[i]) });
+    });
+
+    const artA = allocFromInstance(D, st.ai, false);
+    const wmA  = allocFromInstance(D, wti[0], true);
+    const woA  = allocFromInstance(D, wti[1], true);
+
+    return {
+      level: Math.max(1, Math.min(D.Max_Lvl || 50, st.lvl | 0 || 1)),
+      race: st.race || '',
+      klass: st.sup || st.cls || '',
+      sub: st.sub || '',
+      invested: {
+        str: st.str | 0, arc: st.arc | 0, end: st.end | 0,
+        spd: st.spd | 0, lck: st.lck | 0,
+      },
+      armour: st.arm || '',
+      gear,
+      artifact: st.art ? { name: st.art, tier: artA.tier, alloc: artA.alloc, traits: traitsOf(st.ai) } : null,
+      weapon:   st.wm  ? { name: st.wm,  tier: wmA.tier,  alloc: wmA.alloc } : null,
+      offhand:  st.wo  ? { name: st.wo,  tier: woA.tier,  alloc: woA.alloc } : null,
+      mark: st.mark || '',
+      permuth: st.pStat || '',
+      enchant: st.ench || '',
+      shards: (st.sh || []).filter(Boolean),
+      masteryNodes: (st.msty || []).slice(),
+      soul: st.soul || {},
+      covenant: st.cov || '',
+      covenantRank: st.covR || 1,
+      lostScroll: st.ls || '',
+      scroll1: st.sc1 || '',
+      scroll2: st.sc2 || '',
+      corruption: st.corr || '',
+      buffs: {},
+    };
+  }
+
   function pack(D, build, opts) {
     opts = opts || {};
     const L = buildLists(D);
@@ -271,5 +345,6 @@
   }
 
   return { pack, packBlob, container, deflateRaw, link, buildLists, wb,
+           fromState, allocFromInstance,
            BitWriter, bytesToB64u, allocToShape };
 }));

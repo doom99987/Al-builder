@@ -21,50 +21,92 @@
 
   // Cheap edit distance, capped — we only care whether a word is a near-miss for
   // a name, so anything past 3 edits is "no".
+  // Damerau-Levenshtein: a transposition costs 1, not 2. That single change is
+  // what makes "rouge" match "rogue" — probably the most common misspelling in
+  // the game, and one plain Levenshtein scores as 2 and rejects.
   function editDistance(a, b, cap) {
     cap = cap || 3;
     if (Math.abs(a.length - b.length) > cap) return cap + 1;
-    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    const d = [];
+    for (let i = 0; i <= a.length; i++) d[i] = [i];
+    for (let j = 0; j <= b.length; j++) d[0][j] = j;
     for (let i = 1; i <= a.length; i++) {
-      const cur = [i];
-      let best = i;
+      let best = Infinity;
       for (let j = 1; j <= b.length; j++) {
-        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-        best = Math.min(best, cur[j]);
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+          d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);   // transposition
+        }
+        best = Math.min(best, d[i][j]);
       }
       if (best > cap) return cap + 1;
-      prev = cur;
     }
-    return prev[b.length];
+    return d[a.length][b.length];
+  }
+
+  // How far a token of this length may stray and still count. Short words
+  // collide easily — "hard" is one edit from "Bard" — so the budget scales.
+  function editBudget(len) {
+    if (len <= 3) return 0;
+    if (len <= 6) return 1;
+    return 2;
   }
 
   // Strip the "(N)", "(Ch)", "(24%)" suffixes so "necro" can match "Necromancer (Ch)".
   const bare = name => norm(String(name).replace(/\s*\([^)]*\)\s*$/, ''));
 
-  // Find the best entry of `names` mentioned in `text`. Substring wins outright;
-  // otherwise the closest single-token near-miss, so typos still land.
-  function bestName(text, names) {
+  // Find the best entry of `names` mentioned in `text`.
+  //
+  // Candidates are SCORED rather than first-past-the-post, so a long verbatim
+  // match always beats a short fuzzy guess. `exclude` holds tokens the
+  // vocabulary already claimed — without it "hard" (a damage word) fuzzy-matches
+  // "Bard" and quietly builds the wrong class.
+  function bestName(text, names, aliases, exclude) {
     const t = norm(text);
+    if (!t) return null;
     const toks = t.split(' ');
-    let exact = null, fuzzy = null, fuzzyD = 99;
+    const skip = exclude || new Set();
+
+    // Aliases first, and deliberately NOT subject to `skip`. The exclusion set
+    // exists to stop loose fuzzy matching from stealing a vocabulary word; an
+    // alias is a curated, unambiguous mapping. "necro" is both a summon keyword
+    // and the name of a class, and it should set both — skipping it here lost the
+    // class and left the request with a goal and nothing to apply it to.
+    if (aliases) {
+      for (const tok of toks) {
+        const hit = aliases[tok];
+        if (hit && names.indexOf(hit) !== -1) return hit;
+      }
+    }
+
+    let best = null, bestScore = -1;
+    const consider = (name, score) => { if (score > bestScore) { bestScore = score; best = name; } };
+
+    // Adjacent token pairs too, so multi-word names ("Blade Dancer", "Martial
+    // Artist") match as a unit instead of only through their halves.
+    const grams = toks.slice();
+    for (let i = 0; i + 1 < toks.length; i++) grams.push(toks[i] + ' ' + toks[i + 1]);
+
     for (const name of names) {
       const b = bare(name);
       if (!b) continue;
-      if (t.includes(b)) { if (!exact || b.length > bare(exact).length) exact = name; continue; }
-      // prefix match: "necro" -> "necromancer"
-      for (const tok of toks) {
-        if (tok.length < 3) continue;
-        if (b.startsWith(tok) && tok.length >= Math.min(4, b.length)) {
-          if (!exact || b.length > bare(exact).length) exact = name;
-        }
-        // Fuzzy matching needs a long token to be safe. At 4 characters "hard"
-        // is one edit from "Bard", so "hit really hard" silently became a Bard
-        // build. Five characters minimum, one edit maximum.
-        const d = editDistance(tok, b, 2);
-        if (d < fuzzyD && d <= 1 && tok.length >= 5) { fuzzy = name; fuzzyD = d; }
+
+      if (t.indexOf(b) !== -1) { consider(name, 1000 + b.length); continue; }
+
+      for (const g of grams) {
+        if (skip.has(g) || g.length < 3) continue;
+
+        // Prefix: "necroman" -> "necromancer".
+        if (b.indexOf(g) === 0 && g.length >= 4) { consider(name, 500 + g.length); continue; }
+
+        const budget = editBudget(g.length);
+        if (!budget) continue;
+        const d = editDistance(g, b, budget);
+        if (d <= budget) consider(name, 100 + g.length * 2 - d * 10);
       }
     }
-    return exact || fuzzy;
+    return bestScore >= 0 ? best : null;
   }
 
   function parse(text, data, K) {
@@ -76,27 +118,10 @@
       statFocus: [], modifiers: [], assumptions: [], matched: [],
     };
 
-    // ── explicit names ──────────────────────────────────────────────────────
-    // Only real combat classes. classMoves also holds the five subclasses
-    // (Bard, Beastmaster, Alchemist, Blacksmith, Miner), which are secondary
-    // professions and cannot be a main class.
-    const tree = data.classes || {};
-    const combat = [...Object.keys(tree), ...Object.values(tree).flat()]
-      .filter(k => (data.classMoves || {})[k]);
-    const klass = bestName(t, combat);
-    if (klass) { spec.klass = klass; spec.matched.push('class: ' + klass); }
-
-    const race = bestName(t, Object.keys(data.races || {}));
-    if (race) { spec.race = race; spec.matched.push('race: ' + race); }
-
-    const wep = bestName(t, Object.keys(data.weapons || {}));
-    if (wep) {
-      spec.weaponName = wep;
-      spec.weaponType = (data.weapons[wep] || {}).type || null;
-      spec.matched.push('weapon: ' + wep);
-    }
-
-    // ── vocabulary ──────────────────────────────────────────────────────────
+    // ── vocabulary FIRST ────────────────────────────────────────────────────
+    // Names are matched afterwards and skip whatever the vocabulary claimed.
+    // Order matters: "hit really hard" contains "hard", which is both a damage
+    // word and one edit from "Bard".
     // Match on WORD BOUNDARIES, not substrings. "really" contains "ally", so a
     // plain includes() read "hit really hard" as a party build. Multi-word
     // entries still match as a phrase.
@@ -113,6 +138,26 @@
       return out;
     };
 
+    // Every word the vocabulary understood, so name matching cannot claim it too.
+    const claimed = new Set();
+    const claimFrom = (group) => {
+      for (const words of Object.values(group))
+        for (const w of words) {
+          const n = norm(w);
+          if (!n) continue;
+          const re = new RegExp('(^| )' + n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($| )');
+          if (re.test(t)) claimed.add(n);
+        }
+    };
+    claimFrom(K.VOCAB.goal); claimFrom(K.VOCAB.stat); claimFrom(K.VOCAB.modifier);
+
+    // "Just give me something" — the engine picks, rather than optimising for
+    // anything in particular.
+    spec.random = !!(K.VOCAB.random && hit(K.VOCAB.random).length);
+    // "random min max", "surprise me but min maxed" — commit to a specialisation
+    // rather than rolling something merely reasonable.
+    spec.minmax = spec.random && hit(K.VOCAB.modifier).indexOf('minmax') !== -1;
+
     spec.goals = hit(K.VOCAB.goal);
     if (spec.goals.length) {
       // Most specific wins, not first-declared. See GOAL_PRIORITY.
@@ -123,6 +168,28 @@
       });
       spec.goal = spec.goals[0];
       spec.matched.push('goal: ' + spec.goals.join(', '));
+    }
+
+    // ── explicit names ──────────────────────────────────────────────────────
+    // Only real combat classes. classMoves also holds the five subclasses
+    // (Bard, Beastmaster, Alchemist, Blacksmith, Miner), which are secondary
+    // professions and cannot be a main class.
+    const tree = data.classes || {};
+    const combat = [...Object.keys(tree), ...Object.values(tree).flat()]
+      .filter(k => (data.classMoves || {})[k]);
+    const AL = K.ALIASES || {};
+
+    const klass = bestName(t, combat, AL, claimed);
+    if (klass) { spec.klass = klass; spec.matched.push('class: ' + klass); }
+
+    const race = bestName(t, Object.keys(data.races || {}), AL, claimed);
+    if (race) { spec.race = race; spec.matched.push('race: ' + race); }
+
+    const wep = bestName(t, Object.keys(data.weapons || {}), null, claimed);
+    if (wep) {
+      spec.weaponName = wep;
+      spec.weaponType = (data.weapons[wep] || {}).type || null;
+      spec.matched.push('weapon: ' + wep);
     }
 
     if (!spec.weaponType) {
@@ -175,5 +242,51 @@
     return spec;
   }
 
-  return { parse, norm, bestName, editDistance };
+  // Explicit choices from the Advanced panel. These are HARD constraints — they
+  // overwrite whatever the text said, and the assumption they replace is dropped
+  // so the answer does not claim to have guessed something you picked.
+  //
+  // Anything falsy is "auto", meaning the optimiser keeps deciding it.
+  function applyOverrides(spec, o, data) {
+    if (!o) return spec;
+    spec.locked = {};
+
+    const drop = re => { spec.assumptions = spec.assumptions.filter(a => !re.test(a)); };
+
+    if (o.goal)   { spec.goal = o.goal;   spec.locked.goal = o.goal;   drop(/^No goal stated/); }
+    if (o.klass)  { spec.klass = o.klass; spec.locked.klass = o.klass; drop(/^No class named/); }
+    if (o.race)   { spec.race = o.race;   spec.locked.race = o.race;   drop(/^No race named/); }
+    if (o.armour) { spec.armour = o.armour; spec.locked.armour = o.armour; }
+    if (o.enchant){ spec.enchant = o.enchant; spec.locked.enchant = o.enchant; }
+
+    if (o.weaponName) {
+      spec.weaponName = o.weaponName;
+      spec.weaponType = ((data.weapons || {})[o.weaponName] || {}).type || spec.weaponType;
+      spec.locked.weapon = o.weaponName;
+    } else if (o.weaponType) {
+      spec.weaponType = o.weaponType;
+      spec.weaponName = null;
+      spec.locked.weaponType = o.weaponType;
+      drop(/^No class named, so classes using/);
+    }
+
+    // Carried through rather than treated as a constraint: a seed does not
+    // narrow the search, it makes a random roll reproducible.
+    if (o.seed !== undefined && o.seed !== null) spec.seed = o.seed;
+    if (o.random) spec.random = true;
+    if (o.minmax) { spec.random = true; spec.minmax = true; }
+
+    if (o.level) {
+      const lvl = Math.max(1, Math.min(data.Max_Lvl || 50, o.level | 0));
+      spec.level = lvl;
+      spec.locked.level = lvl;
+      drop(/^Level \d+ \(max\)/);
+    }
+
+    const names = Object.entries(spec.locked).map(([k, v]) => k + ': ' + v);
+    if (names.length) spec.matched.push('you chose — ' + names.join(', '));
+    return spec;
+  }
+
+  return { parse, applyOverrides, norm, bestName, editDistance };
 }));

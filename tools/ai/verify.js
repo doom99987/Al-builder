@@ -27,6 +27,16 @@
   new Function('module', 'exports', src)(me, me.exports);
   const M = me.exports.Model(data);
 
+  // Register knowledge.js QUIRKS exactly as engine.js does. Without this the
+  // model is missing every item and race hook — Stultus' Speed-to-crit
+  // conversion among them — and reports mismatches that are really just
+  // "the thing under test was never fully assembled".
+  const ksrc = await (await fetch('/tools/ai/knowledge.js?r=' + Date.now())).text();
+  const km = { exports: {} };
+  new Function('module', 'exports', ksrc)(km, km.exports);
+  const K = km.exports;
+  for (const q of K.QUIRKS) if (typeof M.register[q.hook] === 'function') M.register[q.hook](q.apply);
+
   const STATS = ['str', 'arc', 'end', 'spd', 'lck'];
   const armours = Object.keys(data.armourItems);
   const gears   = Object.keys(data.gearItems);
@@ -54,7 +64,16 @@
       weapon: Math.random() < 0.85 ? rnd(weaponsK) : '',
       artifact: Math.random() < 0.7 ? rnd(artsK) : '',
       permuth: Math.random() < 0.55 ? rnd(STATS) : '',
+      // Mastery is worth ~29 stat points, so it has to be part of the diff.
+      // Pick a random base class, optionally a superclass, and a random subset of
+      // the tree — including the 1.15-multiplier branches, whose bonuses are
+      // fractional and flow straight into the stat totals.
+      cls: rnd(Object.keys(data.classes)),
     };
+    cfg.sup = Math.random() < 0.6 ? rnd(data.classes[cfg.cls] || ['']) || '' : '';
+    cfg.mastery = (data.masteryNodes || [])
+      .filter(() => Math.random() < 0.55)
+      .map(n => n.id);
     document.getElementById('Lvl').value = cfg.level;
     const rp = document.getElementById('race-picker');
     rp.value = cfg.race; rp.dispatchEvent(new Event('change', { bubbles: true }));
@@ -69,6 +88,23 @@
     const aI = randInst(data.MAX_GEAR_TIER); Object.assign(artifactInstance, aI);
     const wI = randInst(data.MAX_WEAPON_TIER); Object.assign(weaponInstances[0], wI);
 
+    // Class drives which mastery tree is active (getActiveMasteryData reads the
+    // super picker, then the class picker).
+    const cp = document.getElementById('class-picker');
+    cp.value = cfg.cls; cp.dispatchEvent(new Event('change', { bubbles: true }));
+    const sp = document.getElementById('super-picker');
+    if (sp) {
+      sp.value = cfg.sup || '';
+      sp.dispatchEvent(new Event('change', { bubbles: true }));
+      // Read it BACK. The super options are repopulated by the class change, so
+      // assigning a value the list does not carry yet silently leaves it empty —
+      // the site then uses the base class's mastery tree while the model uses the
+      // superclass's, and every stat drifts.
+      cfg.sup = sp.value || '';
+    }
+    for (const k of Object.keys(masteryState)) delete masteryState[k];
+    for (const id of cfg.mastery) masteryState[id] = true;
+
     // markPicker is a const, so it is NOT on window — reach it by id.
     permuthStat = cfg.permuth;
     document.getElementById('mark-1').value = cfg.permuth ? 'Venia' : '';
@@ -80,6 +116,8 @@
       artifact: cfg.artifact ? { name: cfg.artifact, tier: aI.tier, alloc: A(aI) } : null,
       weapon:   cfg.weapon   ? { name: cfg.weapon,   tier: wI.tier, alloc: A(wI) } : null,
       mark: cfg.permuth ? 'Venia' : '', permuth: cfg.permuth,
+      klass: cfg.sup || cfg.cls,
+      masteryNodes: cfg.mastery,
     });
 
     for (const s of STATS) {
@@ -87,10 +125,91 @@
       const real = getTotalStat(s), mine = M.totalStat(build, s);
       if (real !== mine) mism.push({ stat: s, real, mine, cfg });
     }
+
+    // DERIVED stats too. getTotalStat agreeing does not prove HP, crit chance or
+    // the heal stats agree — those run through a second pipeline in
+    // updatePecents() with its own percentage sources, and a bug there is
+    // invisible to a stat-only check.
+    updatePecents();
+    const shown = key => {
+      const el = document.querySelector('.percent-item[data-stat="' + key + '"] .percent-val');
+      if (!el) return null;
+      // Take the FIRST number only. Paranoxian Crux renders HP as
+      // "14.7 (83.1 Shield)", and stripping non-digits glued that into 14.783.
+      const m = String(el.textContent).match(/-?\d+(?:\.\d+)?/);
+      return m ? parseFloat(m[0]) : null;
+    };
+    const d = M.derived(build);
+    // Paranoxian Crux repaints HP as "15.0 (85.2 Shield)" — current health plus a
+    // shield, not maximum health. There is no max-HP figure on the page to
+    // compare against, so HP is skipped for that artifact rather than counted as
+    // a mismatch.
+    const cruxHP = cfg.artifact === 'Paranoxian Crux';
+    const checks = [
+      ['hp',          cruxHP ? null : shown('end'), d.hp],
+      ['crit-chance', shown('crit-chance'), d.critChance],
+      ['crit-dmg',    shown('crit-dmg'),    d.critDmg],
+      ['block-dr',    shown('block-dr'),    d.blockDr],
+      ['nrg-chance',  shown('nrg-chance'),  d.nrgChance],
+      ['initiative',  shown('initiative'),  d.initiative],
+      ['out-heal',    shown('out-heal'),    d.outHeal],
+      ['inc-heal',    shown('inc-heal'),    d.incHeal],
+    ];
+    for (const [label, real, mine] of checks) {
+      if (real === null || !isFinite(real)) continue;   // not displayed in this config
+      n++;
+      // Compare at the precision the site prints (1dp, 2dp for crit damage).
+      const p = label === 'crit-dmg' ? 100 : 10;
+      if (Math.round(real * p) !== Math.round(mine * p)) {
+        mism.push({ stat: label, real, mine: Math.round(mine * p) / p, cfg });
+      }
+    }
   }
+
+  // ── share links ───────────────────────────────────────────────────────────
+  // The packed format is POSITIONAL, so it is either exactly right or wrong.
+  // The only authority is the site's own decoder, which is right here.
+  let shareChecked = 0;
+  const shareBad = [];
+  try {
+    for (const f of ['ai-data.js','model.js','knowledge.js','intent.js','optimize.js',
+                     'explain.js','share.js','engine.js']) {
+      (0, eval)(await (await fetch('/tools/ai/' + f + '?r=' + Date.now())).text());
+    }
+    const eng = ALB_Engine.Engine(window.ALB_DATA);
+    for (const q of ['max damage crit lancer', 'tanky build', 'healer',
+                     'berserker carnage max damage', 'necro summon build vastayan']) {
+      const res = eng.ask(q);
+      const url = await eng.link(res.build, { name: q });
+      const st  = _unpackState((await _loadById(url.split('id=')[1])).d, '');
+      shareChecked++;
+      const b = res.build;
+      const cmp = [
+        ['class',   st.sup || st.cls,               b.klass],
+        ['race',    st.race,                        b.race],
+        ['armour',  st.arm,                         b.armour],
+        ['weapon',  st.wm || '',                    b.weapon ? b.weapon.name : ''],
+        ['enchant', st.ench || '',                  b.enchant || ''],
+        ['corr',    st.corr || '',                  b.corruption || ''],
+        ['shards',  JSON.stringify((st.sh||[]).filter(Boolean)), JSON.stringify(b.shards)],
+        ['mastery', JSON.stringify((st.msty||[]).slice().sort()),
+                    JSON.stringify((b.masteryNodes||[]).slice().sort())],
+        ['gear',    JSON.stringify((st.g||[]).filter(Boolean)),
+                    JSON.stringify(b.gear.map(g => g.name))],
+      ];
+      for (const [label, got, want] of cmp)
+        if (String(got) !== String(want)) shareBad.push(q + ' / ' + label + ': ' + got + ' != ' + want);
+    }
+  } catch (e) {
+    shareBad.push('share check could not run: ' + (e && e.message || e));
+  }
+
+  console.log('share links: ' + shareChecked + ' checked, ' + shareBad.length + ' bad');
+  if (shareBad.length) shareBad.slice(0, 8).forEach(m => console.log('  ' + m));
 
   console.log('comparisons: ' + n + '   mismatches: ' + mism.length);
   if (mism.length) console.table(mism.slice(0, 10).map(m => ({ stat: m.stat, real: m.real, model: m.mine })));
-  else console.log('%cmodel agrees with builder.js', 'color:#3c3');
-  return { comparisons: n, mismatches: mism.length, detail: mism };
+  else if (!shareBad.length) console.log('%cmodel agrees with builder.js, and share links round-trip', 'color:#3c3');
+  return { comparisons: n, mismatches: mism.length, detail: mism,
+           shareChecked, shareBad };
 })();

@@ -25,10 +25,45 @@
     const L = [];
 
     // ── what was asked for ──────────────────────────────────────────────────
+    if (result.flavour) {
+      L.push({ h: result.flavour.name, body: result.flavour.line });
+    }
     L.push({ h: 'Request', body: spec.text ? '"' + spec.text + '"' : '(nothing specified)' });
 
+    if (spec.minmax && result.weaknesses && result.weaknesses.length) {
+      L.push({ h: 'What it gives up', body:
+        'Min-maxed for **' + ((K.ARCHETYPES[spec.goal] || {}).label || spec.goal).toLowerCase() +
+        '**, so it is deliberately bad at everything else: ' + result.weaknesses.join(', ') +
+        '. That is the trade you asked for — untick Random min-max for something more rounded.' });
+    }
+
+    if (spec.rolled) {
+      L.push({ h: 'Rolled for you', table: [
+        ['Goal',  (K.ARCHETYPES[spec.rolled.goal] || {}).label || spec.rolled.goal],
+        ['Class', spec.rolled.klass],
+        ['Race',  spec.rolled.race],
+      ]});
+    }
+
+    if (spec.locked && Object.keys(spec.locked).length) {
+      // `klass` is the internal key (class is reserved); never show it raw.
+      const LABEL = { klass: 'Class', weaponType: 'Weapon type', weapon: 'Weapon',
+                      goal: 'Goal', race: 'Race', armour: 'Armour',
+                      enchant: 'Enchant', level: 'Level' };
+      L.push({ h: 'You chose', table: Object.entries(spec.locked)
+        .map(([k, v]) => [LABEL[k] || (k.charAt(0).toUpperCase() + k.slice(1)), String(v)]) });
+    }
     if (spec.assumptions.length) {
       L.push({ h: 'What I assumed', list: spec.assumptions });
+    }
+
+    // Something the request asked for that cannot be used in game. Reported
+    // ahead of the build so the swap is never a surprise: the answer differs
+    // from what was asked for, and this is why.
+    if (spec.unavailable && spec.unavailable.length) {
+      L.push({ h: "Couldn't use", list: spec.unavailable.map(u =>
+        '**' + u.name + '** (' + u.what.toLowerCase() + ') is ' + u.why +
+        ', so it was left out and the slot was filled with the best thing that works.') });
     }
 
     // ── the build ───────────────────────────────────────────────────────────
@@ -40,7 +75,15 @@
     if (b.weapon)   kit.push(['Weapon', b.weapon.name + tierNote(b.weapon, data, M)]);
     if (b.artifact) kit.push(['Artifact', b.artifact.name + tierNote(b.artifact, data, M)]);
     b.gear.forEach((g, i) => kit.push(['Gear ' + (i + 1), g.name + tierNote(g, data, M)]));
-    if (b.enchant) kit.push(['Enchant', b.enchant]);
+    if (b.enchant) {
+      const en = (K.ENCHANTS || {})[b.enchant];
+      kit.push(['Enchant', b.enchant + (en ? '  — ' + en.note : '')]);
+    }
+    if (b.shards && b.shards.length) kit.push(['Shards', b.shards.join(', ')]);
+    if (b.masteryNodes && b.masteryNodes.length) {
+      kit.push(['Mastery', b.masteryNodes.length + ' nodes  ·  ' + (b.masteryPoints || 0) + '/' +
+                (data.MASTERY_TOTAL_POINTS || 35) + ' points  ·  ' + (b.masteryShards || 0) + ' echo shards']);
+    }
     if (b.mark)    kit.push(['Mark', b.mark + (b.permuth ? ' — Permuth on ' + b.permuth.toUpperCase() : '')]);
     if (b.corruption) kit.push(['Corruption', b.corruption]);
     L.push({ h: 'Build', table: kit });
@@ -97,12 +140,111 @@
                'an expected value rather than guaranteed.');
     }
 
+    if (spec.tech) {
+      why.push('**' + spec.tech.name + '** — ' + spec.tech.why +
+               ' That is why this build runs **' + b.race + '**, which is otherwise an odd ' +
+               'pick for this goal, and why **' + spec.tech.enables + '** is locked into a gear slot.');
+    }
+
+    const rr = (K.RACE_ROLES || {})[b.race];
+    if (rr && rr.note) {
+      why.push('**' + b.race + '** — ' + rr.note + '.');
+    }
+
     if (b.permuth) {
       why.push('Permuth (Venia) multiplies the finished ' + b.permuth.toUpperCase() +
                ' total by 1.4 — applied after gear and mastery, before Speed buffs.');
     }
 
+    // Mastery is a big, invisible chunk of the stat totals — worth naming so the
+    // numbers above are traceable.
+    if (b.masteryNodes && b.masteryNodes.length && M.masteryFlat) {
+      const mf = M.masteryFlat(b);
+      const parts = Object.entries(mf).filter(([, v]) => v)
+        .map(([k, v]) => '+' + (Math.round(v * 100) / 100) + ' ' + k.toUpperCase());
+      if (parts.length) {
+        why.push('Mastery contributes **' + parts.join(', ') + '**. Every stat node costs 1 point ' +
+                 'of 35 and there are only 29, so all of them are affordable — breakthroughs cost ' +
+                 'echo shards rather than points. The leftover 6 points buy one capstone.');
+      }
+    }
+
     L.push({ h: 'Why this build', list: why });
+
+    // ── rotation ────────────────────────────────────────────────────────────
+    // Scoring a build by one move in isolation throws away the whole idea of a
+    // setup turn, and badly undervalues any race whose contribution is a buff
+    // rather than a stat. If there is an opener, spell it out.
+    if (c.rotation && c.rotation.length) {
+      const lines = [];
+      let turn = 1;
+      for (const rt of c.rotation) {
+        lines.push('**Turn ' + turn + ' — ' + rt.move + '.** ' + (rt.note || '') +
+                   (rt.uptime < 1 ? '  *(up about ' + Math.round(rt.uptime * 100) + '% of the time over a long fight)*' : ''));
+        turn++;
+      }
+      const finisher = c.burstMove || c.bestMove;
+      if (finisher) {
+        lines.push('**Turn ' + turn + ' — ' + finisher.name + '** for about **' +
+                   n0(c.bestBurst) + '**, against ' + n0(c.bestHit) + ' with no setup.');
+      }
+      if (c.sustainedHit && Math.abs(c.sustainedHit - c.bestHit) > 1) {
+        lines.push('Over a longer fight the buffs are not always up, so sustained damage settles ' +
+                   'around **' + n0(c.sustainedHit) + '** — which is the number this build was ' +
+                   'optimised on unless you asked for burst.');
+      }
+      L.push({ h: 'Opening rotation — out of form', list: lines });
+    }
+
+    // ── the same build, in form ─────────────────────────────────────────────
+    // A second rotation rather than a bigger number on the first one, because
+    // that is what it actually is: entering the form costs 100 Corrupt Energy
+    // and the payoff usually costs several turns of setup on top. Everything
+    // above stays out of form on purpose — that is the normal case, and the one
+    // the build was optimised for.
+    if (result.corruption && result.corruption.best && result.corruption.best.damage) {
+      const cor = result.corruption.best;
+      const d = cor.damage;
+      const steps = d.steps || [];
+      if (steps.length) {
+        const lines = [];
+        let turn = 1;
+        // The out-of-form setup still happens; the form's steps come on top.
+        for (const rt of (c.rotation || [])) {
+          lines.push('**Turn ' + (turn++) + ' — ' + rt.move + '.** ' + (rt.note || ''));
+        }
+        // A step marked isFinisher IS the payoff move, so it must not be listed
+        // and then listed again as the finisher — Blasphemy was showing Carnage
+        // on two consecutive turns. Its note is folded into the finisher line.
+        let finisherNote = '';
+        for (const st of steps) {
+          if (st.isFinisher) { finisherNote = st.note || ''; continue; }
+          // turns: 0 is a bonus action. Numbering it as a turn contradicted the
+          // note sitting right next to it saying it costs none.
+          const span = st.turns === 0 ? 0 : Math.max(1, st.turns | 0);
+          const label = span === 0 ? 'Bonus action'
+                      : span > 1   ? 'Turns ' + turn + '–' + (turn + span - 1)
+                                   : 'Turn ' + turn;
+          lines.push('**' + label + ' — ' + st.move + '.** ' + (st.note || ''));
+          turn += span;
+        }
+        const finisher = c.burstMove || c.bestMove;
+        if (finisher) {
+          const gain = d.burstGain > 0 ? ', against ' + n0(c.bestBurst) + ' out of form'
+                     : d.ifCrit ? ' — the same number, because this form pays in crit rather than damage'
+                     : '';
+          lines.push(('**Turn ' + turn + ' — ' + finisher.name + '** for about **' +
+                      n0(d.burstHit) + '**' + gain + '. ' + finisherNote).trim());
+        }
+        if (d.ifCrit) {
+          lines.push('Spending Light Force is a bonus action, so it costs no turn. ' + d.ifCrit.need +
+                     ' crit rate takes this to **' + n0(d.ifCrit.hit) + '**.');
+        }
+        lines.push('*This is longer than the rotation above and it is meant to be. Weigh the extra turns, ' +
+                   'the 100 Corrupt Energy, and the Recoil backlash when the form ends against the gain.*');
+        L.push({ h: 'Opening rotation — in ' + cor.form, list: lines });
+      }
+    }
 
     // ── corruption ──────────────────────────────────────────────────────────
     if (result.corruption) {
@@ -110,6 +252,37 @@
       const lines = [ '**' + cor.best.form + '** — ' + cor.best.why ];
       for (const alt of cor.all.slice(1)) lines.push('*' + alt.form + '* — ' + alt.why);
       L.push({ h: 'Corruption form', list: lines });
+
+      // What each form is worth as a number. All three, so they can be compared
+      // and then checked in game — the assumed figures only ever get corrected
+      // by somebody testing them.
+      const withDmg = cor.all.filter(a => a.damage);
+      if (withDmg.length) {
+        const rows = withDmg.map(a => {
+          const d = a.damage;
+          // An assumed figure is never shown bare. The row itself says so, since
+          // the notes below only cover the chosen form.
+          const flag = d.assumed && d.assumed.length ? ', assumed' : '';
+          const change = d.burstGain > 0 ? '  (+' + d.burstGain + '%' + flag + ')'
+                       : d.ifCrit ? '  (+' + Math.round((d.ifCrit.mult - 1) * 100) + '% if Force covers ' +
+                                    d.ifCrit.need + ' crit)'
+                       : '  (no modelled change)';
+          return [a.form + (a.form === cor.best.form ? '  ←' : ''),
+                  n0(d.burstHit) + ' prepared  ·  ' + n0(d.sustainedHit) + ' per turn' + change];
+        });
+        const notes = [];
+        for (const l of (cor.best.damage && cor.best.damage.lines) || []) notes.push(l);
+        for (const u of (cor.best.damage && cor.best.damage.unknown) || [])
+          notes.push('*Not counted:* ' + u);
+        // Assumptions from EVERY form, not just the chosen one: a number in the
+        // table above that the game never stated has to carry its caveat.
+        for (const a of withDmg) for (const line of (a.damage.assumed || []))
+          notes.push('⚠︎ *' + a.form + ':* ' + line);
+        notes.push('Out of form these numbers are **' + n0(c.bestBurst || c.bestHit) + '** prepared and **' +
+                   n0(c.sustainedHit) + '** per turn. Nothing here changed which gear was chosen — the ' +
+                   'build is settled first and the form picked afterwards.');
+        L.push({ h: 'Damage in form', table: rows, list: notes });
+      }
     }
 
     // ── energy ──────────────────────────────────────────────────────────────
@@ -124,6 +297,17 @@
         Math.round(es.perEnergy * c.traits.energyCap * 100) + '%** of it. Base energy is assumed to be ' +
         K.ENERGY.base + '; correct it in knowledge.js if the game differs.',
       ]});
+    }
+
+    // ── shards ──────────────────────────────────────────────────────────────
+    if (c.shards && (c.shards.active.length || c.shards.unmodelled.length)) {
+      const rows = c.shards.active.map(a =>
+        [a.name, '+' + a.value + '%' + (a.note ? '  — ' + a.note : '') +
+                 (Math.abs(a.effective - a.value) > 0.01
+                   ? '  (counted as ' + (Math.round(a.effective * 10) / 10) + ')' : '')]);
+      for (const u of c.shards.unmodelled) rows.push([u.name + '  (not scored)', u.note || '']);
+      rows.push(['Total damage', '+' + (Math.round(c.shards.dmgPct * 10) / 10) + '%']);
+      L.push({ h: 'Shards', table: rows });
     }
 
     // ── passives ────────────────────────────────────────────────────────────
