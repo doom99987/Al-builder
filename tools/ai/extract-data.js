@@ -63,9 +63,17 @@ const WANTED = [
   // Captured as source and run below, not shipped. Re-implementing the site's
   // damage-text parser would mean two copies of a dozen regexes drifting apart
   // the first time somebody fixed one of them.
+  // Artifact abilities. artifactItems holds only the stat blocks, so without
+  // this the engine picks an artifact on its stats alone and is blind to what it
+  // actually DOES — Stellian Core's buff, Narthana's Sigil's healing.
+  ['js/builder.js', 'literal', ['artifactMoves']],
   ['js/builder.js', 'fn', ['parseDmgBonus']],
   ['js/data-class-moves.js', 'literal', ['classMoves']],
   ['js/data-race-moves.js',  'literal', ['raceMoves']],
+  // Boss and mob kits: passives, moves and loot for 37 encounters. Needed so a
+  // build can be aimed at a specific fight - Seraphon heals off the debuffs you
+  // stack on it, so the best general build is a bad Seraphon build.
+  ['js/encyclopedia.js', 'literal', ['BOSS_MOVE_DATA']],
 ];
 
 // ── extraction ──────────────────────────────────────────────────────────────
@@ -212,6 +220,34 @@ function extractAll() {
     if (Object.keys(passives).length) {
       data.itemPassives = passives;
       found.push(['itemPassives (mkPassive)', 'object{' + Object.keys(passives).length + '}']);
+    }
+  }
+
+  // Which encounters are actually BOSSES. BOSS_MOVE_DATA holds kits for bosses,
+  // mini bosses and ordinary mobs alike, and a target list offering "Slime" and
+  // "Goblin" alongside Seraphon is noise. The encyclopedia already classifies
+  // every entry in ENC_ITEMS, so read the type off that rather than guessing
+  // from the name.
+  //
+  // Only the name and type are kept — pulling the whole ENC_ITEMS array would
+  // add its descriptions to a snapshot the browser lazy-loads.
+  {
+    const src = read('js/encyclopedia.js');
+    const re = /\[\s*(['"])((?:\\.|(?!\1)[^\\])+)\1\s*,\s*['"](Boss|Mini Boss|Mob|Trainer)['"]/g;
+    const kinds = {};
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const name = m[2].replace(/\'/g, "'").replace(/\\"/g, '"');
+      // Shadeblade is filed as both Boss and Mini Boss (check-data.js flags the
+      // duplicate). Boss wins: the stronger classification is the useful one.
+      if (kinds[name] === 'Boss') continue;
+      kinds[name] = m[3];
+    }
+    if (Object.keys(kinds).length) {
+      data.encounterKinds = kinds;
+      const bosses = Object.values(kinds).filter(k => k === 'Boss' || k === 'Mini Boss').length;
+      found.push(['encounterKinds (parsed)',
+                  'object{' + Object.keys(kinds).length + '} · ' + bosses + ' boss/mini']);
     }
   }
 

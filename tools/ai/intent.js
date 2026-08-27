@@ -114,7 +114,7 @@
     const t = norm(raw);
     const spec = {
       text: raw, goal: null, goals: [], klass: null, race: null,
-      weaponName: null, weaponType: null, level: null, play: null, dmg: null,
+      weaponName: null, weaponType: null, level: null, play: null, dmg: null, boss: null,
       statFocus: [], modifiers: [], assumptions: [], matched: [],
     };
 
@@ -255,6 +255,7 @@
 
     if (o.play)   { spec.play = o.play;   spec.locked.play = o.play;   drop(/^Assumed solo/); }
     if (o.dmg)    { spec.dmg  = o.dmg;    spec.locked.dmg  = o.dmg;    drop(/^Assumed average/); }
+    if (o.boss)   { spec.boss = o.boss;   spec.locked.boss = o.boss; }
     if (o.goal)   { spec.goal = o.goal;   spec.locked.goal = o.goal;   drop(/^No goal stated/); }
     if (o.klass)  { spec.klass = o.klass; spec.locked.klass = o.klass; drop(/^No class named/); }
     if (o.race)   { spec.race = o.race;   spec.locked.race = o.race;   drop(/^No race named/); }

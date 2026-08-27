@@ -43,6 +43,11 @@
       for (const [series, why] of Object.entries(U.weaponSeries || {}))
         for (const [name, def] of Object.entries(D.weapons || {}))
           if (def.series === series && !out[name]) out[name] = why;
+      // Gear series are stored the other way round from weapon series: a list of
+      // names under the series, not a field on the item.
+      for (const [series, why] of Object.entries(U.gearSeries || {}))
+        for (const name of (D.gearSeries || {})[series] || [])
+          if (!out[name]) out[name] = why;
       return out;
     })();
     const unavailableReason = name => _unavailable[name] || null;
@@ -175,6 +180,149 @@
         if (filtered.length) return filtered;
       }
       return all;   // never narrow to nothing — an unfiltered choice beats no choice
+    }
+
+    // Everything the build wears, by name, for the proc and passive lookups.
+    function wornNames(build) {
+      // Slots are not a consistent shape: gear, artifact and weapon are objects
+      // like { name, tier, alloc }, while mark is a bare string. Pushing an
+      // object here makes every PROCS lookup miss silently, which is exactly
+      // what the first version did.
+      const nameOf = v => (v && typeof v === 'object') ? v.name : v;
+      const out = [];
+      for (const g of build.gear || []) { const n = nameOf(g); if (n) out.push(n); }
+      for (const slot of [build.mark, build.artifact, build.weapon, build.armour, build.permuth]) {
+        const n = nameOf(slot);
+        if (typeof n === 'string' && n) out.push(n);
+      }
+      return out;
+    }
+
+    // Procs with a stated chance, turned into what they are expected to do.
+    // Reported on every build, not only boss ones: "33% to apply an extra
+    // status" is a build property, and it was being ignored entirely.
+    function procTotals(build) {
+      const worn = wornNames(build);
+      const load = K.debuffLoad(movesOf(build));
+      const gain = K.procStatusGain(worn, load);
+      const listed = [], traps = [];
+      for (const name of worn) {
+        const p = (K.PROCS || {})[name];
+        if (!p) continue;
+        (p.trap ? traps : listed).push({
+          name, chance: p.chance, per: p.per, kind: p.kind,
+          note: p.note || null, why: p.why || null,
+        });
+      }
+      return { statusGain: gain, listed, traps, debuffLoad: load };
+    }
+
+    // ── aiming at one boss ────────────────────────────────────────────────
+    // Only mechanics that genuinely change which build is FASTER are scored.
+    // The engine has never scored status effects, so a boss being immune to
+    // them changes no number - it is reported, not priced, and saying otherwise
+    // would be inventing a penalty out of nothing.
+    //
+    // What does change the number: a boss that HEALS from the debuffs you apply.
+    // There, stacking statuses actively lengthens the fight, so a kit built
+    // around applying them is worse against that boss than its raw damage says.
+    const _bossCache = {};
+    function bossFor(spec) {
+      if (!spec.boss) return null;
+      if (_bossCache[spec.boss] !== undefined) return _bossCache[spec.boss];
+      let p = null;
+      try { p = K.bossProfile(spec.boss, D); } catch (e) { p = null; }
+      return (_bossCache[spec.boss] = p);
+    }
+
+    // Multiplier on this build's damage for the chosen fight, plus why.
+    function bossFit(build, spec, ctx) {
+      const boss = bossFor(spec);
+      if (!boss) return { mult: 1, boss: null, reasons: [] };
+      const moves = movesOf(build);
+      const load = K.debuffLoad(moves);
+      const reasons = [];
+      let mult = 1;
+      // A proc that applies extra statuses makes a debuff kit worse here, not
+      // better: every extra status is more healing for Seraphon. The engine
+      // would otherwise price Chaos Orb as neutral in the one fight where it
+      // actively hurts.
+      const procGain = K.procStatusGain(wornNames(build), load);
+      if (boss.punishesDebuffs && load.applying > 0) {
+        // Scaled by how much of the kit is doing it. Capped well short of
+        // halving: this lengthens a fight, it does not make the build useless,
+        // and an over-confident penalty would throw away good damage builds.
+        const P = K.BOSS_PENALTIES;
+        // Extra statuses from a proc count as more of the same problem.
+        const effShare = Math.min(1, load.share * (1 + procGain.extraPerTurn));
+        const penalty = Math.min(P.debuffCap, P.perDebuffShare * effShare);
+        mult *= (1 - penalty);
+        reasons.push({
+          kind: 'debuffs', pct: Math.round(penalty * 100), moves: load.names,
+          text: boss.name + ' heals off the debuffs you apply, and ' + load.applying + ' of ' +
+                load.total + ' moves in this kit apply one.' +
+                (procGain.from.length
+                  ? ' ' + procGain.from.map(f => f.name).join(' and ') + ' adds about ' +
+                    Math.round(procGain.extraPerTurn * 100) + '% more on top, which here is a cost.'
+                  : ''),
+        });
+      }
+      // A kit that wins by stacking a status the boss cannot take is doing
+      // nothing but its direct damage. Assassin into Handaconda is the case:
+      // three of its five moves are about Poison, and Handaconda is immune.
+      if (boss.statusImmune.length) {
+        const inert = K.statusLoad(moves, boss.statusImmune);
+        if (inert.applying > 0) {
+          const P = K.BOSS_PENALTIES;
+          const penalty = Math.min(P.immuneCap, P.immuneShare * inert.share);
+          mult *= (1 - penalty);
+          reasons.push({
+            kind: 'immune', pct: Math.round(penalty * 100), moves: inert.names,
+            text: boss.name + ' is immune to ' + boss.statusImmune.join(', ') + ', and ' +
+                  inert.applying + ' of ' + inert.total + ' moves in this kit are built around ' +
+                  'exactly that.',
+          });
+        }
+      }
+
+      // Solo, most boss moves have to be dodged, and dodging takes Speed. In a
+      // party the incoming moves spread across five people, so this is not
+      // applied to a team build - it would tax it for a problem it does not
+      // have. Some fights do not ask you to dodge at all, and those say so.
+      if (spec.play === 'solo' && !boss.dodgeIrrelevant && ctx && ctx.stats) {
+        const floor = K.BOSS_SOLO_MIN_SPEED;
+        const spd = ctx.stats.spd || 0;
+        if (spd < floor) {
+          const short = (floor - spd) / floor;
+          const penalty = K.BOSS_PENALTIES.noDodge * short;
+          mult *= (1 - penalty);
+          reasons.push({
+            kind: 'speed', pct: Math.round(penalty * 100), moves: [],
+            text: 'Solo, most of this fight has to be dodged, and that takes about ' + floor +
+                  ' Speed. This build has ' + Math.round(spd) + '.',
+          });
+        }
+      }
+
+      if (boss.punishesOneElement) {
+        const els = [...new Set(moves.map(m => String(m.element || m.moveType || '')).filter(Boolean))];
+        if (els.length <= 1) {
+          mult *= (1 - K.BOSS_PENALTIES.oneElement);
+          reasons.push({ kind: 'oneElement', pct: Math.round(K.BOSS_PENALTIES.oneElement * 100), moves: [],
+            text: boss.name + ' adapts to the last element used and heals from a repeat of it. ' +
+                  'This kit deals ' + (els[0] || 'a single element') + ' and nothing else.' });
+        }
+      }
+      return { mult, boss, reasons };
+    }
+
+    // Every move this build can actually use, for the boss checks above.
+    function movesOf(build) {
+      const cm = (D.classMoves || {})[build.klass] || {};
+      const base = baseOf(build.klass);
+      const bm = base && base !== build.klass ? (D.classMoves || {})[base] || {} : {};
+      return [].concat(cm.learns || [], cm.innatePassives || [],
+                       bm.learns || [], bm.innatePassives || []).filter(Boolean);
     }
 
     // A move as the build actually uses it. Overrides from a class or a bought
@@ -330,6 +478,7 @@
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
         masteryBudget: build.masteryBudget || null,
+        procs: procTotals(build),
         passives: pv, passiveList: passivesFor(build),
         siteHp: d.hp, siteCritChance: d.critChance,   // what the site will show
       };
@@ -345,7 +494,10 @@
       // HP the site will show.
       ctx.effectiveHp = ctx.hp / Math.max(0.05, 1 - ctx.dodge / 100);
 
-      ctx.score = arch.score(ctx) + 1e-6 * ctx.bestHit;
+      // Aimed at a boss, the score is how fast THIS build kills THAT boss.
+      const fit = bossFit(build, spec, ctx);
+      ctx.bossFit = fit;
+      ctx.score = (arch.score(ctx) + 1e-6 * ctx.bestHit) * fit.mult;
       return ctx;
     }
 
@@ -658,12 +810,45 @@
       const out = { dmgPct: 0, critChance: 0, hpPct: 0, dr: 0, active: [], unmodelled: [] };
       const seen = new Set();
 
+      // An artifact's ability lives in artifactMoves, not itemPassives, so
+      // without this an unmodelled artifact fell through to nothing at all - not
+      // even the "not counted" list, which is where a reader would look for it.
+      const artifactText = name => {
+        const entry = (D.artifactMoves || {})[name];
+        if (!entry) return null;
+        return (entry.learns || []).map(m => m.effect || '').filter(Boolean)
+                 .join(' ').replace(/\s+/g, ' ').trim() || null;
+      };
+
       const consider = name => {
         if (!name || seen.has(name)) return;
         seen.add(name);
+
+        // Multi-effect abilities: one artifact commonly grants damage AND
+        // defence AND crit at once, which the single-kind rule cannot express.
+        const art = (K.ARTIFACT_ABILITIES || {})[name];
+        if (art && art.effects) {
+          const up = art.uptime ?? 1;
+          for (const e of art.effects) {
+            const eff = e.value * up;
+            if (out[e.kind] !== undefined) out[e.kind] += eff;
+            // The NAME stays the item's real name. Decorating it with the kind
+            // broke the check that every counted passive traces back to a
+            // knowledge entry, and that check is worth more than a tidier label.
+            out.active.push({ name, kind: e.kind, value: e.value, effective: eff,
+                              note: art.note, source: 'artifact' });
+          }
+          return;
+        }
+        if (art && art.kind === 'note') {
+          out.unmodelled.push({ name, note: art.note });
+          return;
+        }
+
         const rule = table[name];
         if (!rule || rule.kind === 'note' || rule.value == null) {
-          if (text[name]) out.unmodelled.push({ name, note: (rule && rule.note) || text[name].slice(0, 110) });
+          const txt = text[name] || artifactText(name);
+          if (txt) out.unmodelled.push({ name, note: (rule && rule.note) || txt.slice(0, 110) });
           return;
         }
         const eff = rule.value * (rule.uptime ?? 1);

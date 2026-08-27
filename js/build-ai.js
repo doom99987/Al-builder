@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 25;
+  const ENGINE_V = 32;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -300,7 +300,12 @@
     const unusable = name => {
       if ((U.items || {})[name]) return true;
       const series = ((D.weapons || {})[name] || {}).series;
-      return !!(series && (U.weaponSeries || {})[series]);
+      if (series && (U.weaponSeries || {})[series]) return true;
+      // Gear series list their members rather than tagging them, so this has to
+      // look the other way round.
+      for (const gs of Object.keys(U.gearSeries || {}))
+        if (((D.gearSeries || {})[gs] || []).indexOf(name) !== -1) return true;
+      return false;
     };
 
     // Goals come from the archetype table, so a new archetype shows up here too.
@@ -332,6 +337,27 @@
       weapons += '</optgroup>';
     }
 
+    // Bosses and mini bosses that have a kit in the encyclopedia. Ordinary mobs
+    // are excluded: 29 of the 39 kits are things like Slime and Goblin, and a
+    // target list offering those alongside Seraphon is noise, not choice.
+    //
+    // The kind comes from the encyclopedia's own classification, not from
+    // guessing at names. Anything the classifier could not place is KEPT rather
+    // than dropped — an unclassified entry is a gap here, and silently hiding a
+    // real boss is the worse failure.
+    let bosses = '';
+    const kinds = D.encounterKinds || {};
+    const groups = [['Boss', 'Bosses'], ['Mini Boss', 'Mini bosses'], [null, 'Unclassified']];
+    for (const [kind, label] of groups) {
+      const names = Object.keys(D.BOSS_MOVE_DATA || {})
+        .filter(n => (kind ? kinds[n] === kind : !kinds[n]))
+        .sort();
+      if (!names.length) continue;
+      bosses += '<optgroup label="' + esc(label) + '">';
+      for (const n of names) bosses += opt(n, n);
+      bosses += '</optgroup>';
+    }
+
     const field = (id, label, inner) =>
       '<label class="bai-field"><span>' + esc(label) + '</span>' + inner + '</label>';
 
@@ -343,6 +369,13 @@
       field('bai-weapon', 'Weapon',      '<select id="bai-weapon">' + auto() + weapons + '</select>') +
       field('bai-armour', 'Armour',      '<select id="bai-armour">' + auto() + armours + '</select>') +
       field('bai-ench',   'Enchant',     '<select id="bai-ench">'   + auto() + enchants + '</select>') +
+      // NOT auto(). Every other field's blank option means "the engine picks one
+      // for you", which is true of a goal or a race and false here — there is no
+      // boss to pick. Left as "Auto" it reads as an instruction to choose a
+      // fight, when it actually means the opposite: build for no fight in
+      // particular. Nothing is boss-tuned unless a boss is named here.
+      field('bai-boss',   'Target boss', '<select id="bai-boss">' +
+                                          opt('', 'None — general build', true) + bosses + '</select>') +
       field('bai-level',  'Level',       '<input id="bai-level" type="number" min="1" max="' +
                                           (D.Max_Lvl || 50) + '" placeholder="Auto">') +
       '</div>' +
@@ -353,7 +386,7 @@
       '</div>';
   }
 
-  const ADV_IDS = ['bai-goal','bai-class','bai-race','bai-wtype','bai-weapon','bai-armour','bai-ench','bai-level'];
+  const ADV_IDS = ['bai-goal','bai-class','bai-race','bai-wtype','bai-weapon','bai-armour','bai-ench','bai-boss','bai-level'];
 
   function readOverrides() {
     const val = id => {
@@ -371,6 +404,7 @@
       weaponName: val('bai-weapon'),
       armour:     val('bai-armour'),
       enchant:    val('bai-ench'),
+      boss:       val('bai-boss'),
       level:      lvl ? parseInt(lvl, 10) : null,
     };
   }

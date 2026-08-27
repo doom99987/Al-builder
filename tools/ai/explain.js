@@ -48,6 +48,46 @@
         'different number.' });
     }
 
+    // Aimed at one fight. Says what was actually priced, what was only reported,
+    // and that "fastest" here means faster than the alternatives rather than a
+    // number of turns — no boss in the data carries an HP figure.
+    if (spec.boss && c.bossFit && c.bossFit.boss) {
+      const b = c.bossFit.boss;
+      const lines = [];
+      if (b.statusImmune.length)
+        lines.push('**Immune to** ' + b.statusImmune.join(', ') + '. Anything in your kit that ' +
+                   'applies those does nothing here.');
+      if (b.otherImmune && b.otherImmune.length)
+        lines.push('**Also immune to** ' + b.otherImmune.join(', ') + '.');
+      if (b.blocks || b.dodges)
+        lines.push('It can ' + [b.blocks && 'block', b.dodges && 'dodge'].filter(Boolean).join(' and ') +
+                   ', so some hits land for nothing regardless of the build.');
+      if (b.why)       lines.push('**' + b.name + ':** ' + b.why);
+      if (b.alsoWatch) lines.push('*Also worth knowing:* ' + b.alsoWatch);
+      for (const r of c.bossFit.reasons)
+        lines.push('**Counted as −' + r.pct + '%:** ' + r.text +
+                   (r.moves.length ? ' (' + r.moves.join(', ') + ')' : ''));
+      if (b.fromPlayers && b.fromPlayers.length)
+        lines.push('*The immunity to ' + b.fromPlayers.join(', ') + ' is player knowledge, not ' +
+                   'something the encyclopedia states — worth adding there too.*');
+      if (b.dodgeIrrelevant)
+        lines.push('Dodging does not decide this fight, so the usual solo Speed floor of **' +
+                   (K.BOSS_SOLO_MIN_SPEED || 40) + '** is not applied here.');
+      else if (spec.play === 'team')
+        lines.push('Solo you would want about **' + (K.BOSS_SOLO_MIN_SPEED || 40) + ' Speed** to ' +
+                   'dodge this fight. In a full party the incoming moves spread across five ' +
+                   'people, so that floor is not applied to this build.');
+      if (!b.modelled)
+        lines.push('*No tactics are written for this boss yet.* Its passives and moves are read ' +
+                   'from the encyclopedia, but nothing beyond the immunities above is priced — ' +
+                   'so this is the general best build, filtered by what it is immune to.');
+      lines.push('*"Fastest" here means faster than the other builds considered, not a number of ' +
+                 'turns: no boss in the game data carries an HP figure, so kill time cannot be ' +
+                 'computed. The penalties above are placeholders in `BOSS_PENALTIES`, sized ' +
+                 'deliberately small because nobody has timed the fight both ways.*');
+      L.push({ h: 'Built for ' + b.name, list: lines });
+    }
+
     if (spec.minmax && result.weaknesses && result.weaknesses.length) {
       L.push({ h: 'What it gives up', body:
         'Min-maxed for **' + ((K.ARCHETYPES[spec.goal] || {}).label || spec.goal).toLowerCase() +
@@ -502,6 +542,58 @@
           'they do, so they could not compete for the points at all. Game-wide, only **' + priced +
           ' of ' + total + '** capstone abilities are modelled. If one of them is a pick you know is ' +
           'right, tell me what it actually does and it gets priced and competed for like the rest.' });
+      }
+    }
+
+    // ── the artifact comparison is one-sided, and must say so ───────────────
+    // Only Stellian Core states plain numbers ("+30% Dmg, 20% DR, 15% Crit
+    // rate"). The other eleven artifacts do something the game describes without
+    // figures - a time rewind, an overkill AoE, "X damage (scales on level)".
+    //
+    // Pricing the one that CAN be priced and nothing else means it wins on every
+    // build, which is the same bias the weapon passives had before they were
+    // counted. It may well be the right pick; the point is that this engine
+    // cannot tell, and a silent 18-out-of-18 sweep would read as a verdict.
+    if (c.gearPassives && b.artifact && (K.ARTIFACT_ABILITIES || {})[b.artifact.name]) {
+      const priced = Object.keys(K.ARTIFACT_ABILITIES || {})
+        .filter(n => (K.ARTIFACT_ABILITIES[n] || {}).effects).length;
+      const total = Object.keys(data && data.artifactMoves || {}).length;
+      if (total > priced) {
+        L.push({ h: 'Why this artifact, honestly', body:
+          '**' + b.artifact.name + '** is one of only **' + priced + '** artifacts out of **' +
+          total + '** whose ability this engine can put a number on. The rest do things the game ' +
+          'describes without figures — a time rewind, an overkill explosion, "X damage (scales ' +
+          'on level)" — so they score as if their ability did nothing. This one is not being ' +
+          'compared against them so much as compared against blanks. It is a strong artifact; ' +
+          'treat "the best" as unproven.' });
+      }
+    }
+
+    // ── procs ───────────────────────────────────────────────────────────────
+    // Ten items state a percentage chance to do something and not one of them
+    // was mentioned anywhere. A stated chance is exactly what an engine should
+    // be turning into an expectation, and where it cannot, it should say which
+    // half of the number is missing.
+    if (c.procs && (c.procs.listed.length || c.procs.traps.length)) {
+      const rows = [];
+      for (const p of c.procs.listed) {
+        const per = p.per === 'turn' ? ' per turn' : p.per === 'status' ? ' per status applied' : ' on hit';
+        rows.push([p.name, Math.round(p.chance * 100) + '%' + per + '. ' + (p.note || '') +
+                   (p.why ? '  *Not counted in the damage above: ' + p.why + '.*' : '')]);
+      }
+      if (rows.length) {
+        const g = c.procs.statusGain;
+        L.push({ h: 'Procs', table: rows, body: g.extraPerTurn > 0
+          ? 'This kit applies a status on **' + c.procs.debuffLoad.applying + ' of ' +
+            c.procs.debuffLoad.total + '** of its moves, so ' +
+            g.from.map(f => f.name).join(' and ') + ' is expected to add about **' +
+            Math.round(g.extraPerTurn * 100) + '%** more statuses on top of that.'
+          : 'A chance with a stated number is worth counting. Where the payload is not stated ' +
+            'too, the row says so rather than guessing at it.' });
+      }
+      for (const t of c.procs.traps) {
+        L.push({ h: 'Watch out', body: '**' + t.name + '** — ' + (t.note || '') +
+                 (t.why ? ' ' + t.why.charAt(0).toUpperCase() + t.why.slice(1) + '.' : '') });
       }
     }
 
