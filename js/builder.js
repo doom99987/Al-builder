@@ -1680,8 +1680,11 @@ const artifactDesc = document.getElementById("artifact-desc");
 const shardItems = {
   "Striking (R)":    { effect: "Hitting an enemy above 80% of their max HP will increase the damage of your hit.\n\nRadiant: ~8.2%", rVal: 8.2,  pVal: null, bonusType: "conditional-hp-above" },
   "Striking (P)":    { effect: "Hitting an enemy above 80% of their max HP will increase the damage of your hit.\n\nPure: ~7.5%",    rVal: null, pVal: 7.5,  bonusType: "conditional-hp-above" },
-  "Shattering (R)":  { effect: "Increases your damage for every negative status effect currently applied to your target.\n\nRadiant: ~3% per debuff",  rVal: 3.0,  pVal: null, bonusType: "per-debuff-target" },
-  "Shattering (P)":  { effect: "Increases your damage for every negative status effect currently applied to your target.\n\nPure: ~2.5% per debuff",    rVal: null, pVal: 2.5,  bonusType: "per-debuff-target" },
+  // Nerfed to 25% of the previous values (3% / 2.5%) — reported in the game's
+  // Discord, not measured here. If that turns out wrong, these two numbers and
+  // the two in the effect text are the only things to change.
+  "Shattering (R)":  { effect: "Increases your damage for every negative status effect currently applied to your target.\n\nRadiant: ~0.75% per debuff",  rVal: 0.75,  pVal: null, bonusType: "per-debuff-target" },
+  "Shattering (P)":  { effect: "Increases your damage for every negative status effect currently applied to your target.\n\nPure: ~0.625% per debuff",    rVal: null, pVal: 0.625,  bonusType: "per-debuff-target" },
   "Regenerative (R)":{ effect: "Grants lifesteal to all your attacks.\n\nRadiant: 0.75%", rVal: 0.75, pVal: null, bonusType: "lifesteal" },
   "Regenerative (P)":{ effect: "Grants lifesteal to all your attacks.\n\nPure: 0.7%",     rVal: null, pVal: 0.7,  bonusType: "lifesteal" },
   "Voltaic (R)":     { effect: "Hitting an enemy has a small chance of granting you one energy.\n\nRadiant: Unknown", rVal: null, pVal: null, bonusType: "energy-chance" },

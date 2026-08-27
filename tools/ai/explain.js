@@ -30,6 +30,24 @@
     }
     L.push({ h: 'Request', body: spec.text ? '"' + spec.text + '"' : '(nothing specified)' });
 
+    // Which damage number this build was optimised against. It changes the build
+    // materially — average pays for Luck and crit chance, potential does not —
+    // so it belongs near the top rather than buried in the assumptions.
+    if (spec.dmg && (K.DAMAGE_MODELS || {})[spec.dmg]) {
+      const m = K.DAMAGE_MODELS[spec.dmg];
+      const other = spec.dmg === 'average' ? 'potential' : 'average';
+      const om = K.DAMAGE_MODELS[other];
+      L.push({ h: 'Damage model', body:
+        'Built for **' + m.label.toLowerCase() + '** — ' + m.note + '. ' +
+        (spec.dmg === 'average'
+          ? 'Crit chance is therefore worth exactly what it returns, which is why Luck competes ' +
+            'with raw damage here at all.'
+          : 'Crit chance past the first point buys nothing on this measure, so Luck stops ' +
+            'competing and the points go to raw scaling and crit damage instead.') +
+        ' Asking for **' + om.label.toLowerCase() + '** gives a different build, not just a ' +
+        'different number.' });
+    }
+
     if (spec.minmax && result.weaknesses && result.weaknesses.length) {
       L.push({ h: 'What it gives up', body:
         'Min-maxed for **' + ((K.ARCHETYPES[spec.goal] || {}).label || spec.goal).toLowerCase() +
@@ -125,6 +143,17 @@
     why.push('Optimised for **' + arch.label.toLowerCase() + '**. ' + arch.blurb);
 
     if (c.bestMove) {
+      // The numbers here are the ones the build actually uses. When a class or a
+      // bought mastery node rewrote the move, say so on the spot — otherwise the
+      // printed scaling is the raw data, which reads as the mastery doing
+      // nothing even while the damage beside it already reflects the change.
+      if (c.bestMove.shapeNote) {
+        why.push('**' + c.bestMove.name + '** is rewritten on this build: ' + c.bestMove.shapeNote +
+                 ' (the game data alone says ' + (c.bestMove.shapedBy.rawBase || '?') +
+                 (c.bestMove.shapedBy.rawHits > 1 ? 'x' + c.bestMove.shapedBy.rawHits : '') +
+                 ' scaling ' + (c.bestMove.shapedBy.rawScaling || 'nothing') +
+                 '). Every number below uses the rewritten version.');
+      }
       why.push('Best move is **' + c.bestMove.name + '** (' + (c.bestMove.damage || 0) + ' base' +
                (c.bestMove.scaling ? ', scales ' + c.bestMove.scaling : '') + '), landing at about **' +
                n0(c.bestHit) + '** expected damage once crit is applied.');
@@ -240,8 +269,14 @@
           lines.push('Spending Light Force is a bonus action, so it costs no turn. ' + d.ifCrit.need +
                      ' crit rate takes this to **' + n0(d.ifCrit.hit) + '**.');
         }
+        const entryTurns = K.CORRUPTION_ENTRY_TURNS || 0;
         lines.push('*This is longer than the rotation above and it is meant to be. Weigh the extra turns, ' +
                    'the 100 Corrupt Energy, and the Recoil backlash when the form ends against the gain.*');
+        if (entryTurns) {
+          lines.push('*Banking that 100 Corrupt Energy takes about **' + entryTurns + ' turns**, so the ' +
+                     'finisher above lands somewhere near turn **' + turn + '**. In a fight that ends ' +
+                     'before then, none of this happens and the rotation above is the only one you get.*');
+        }
         L.push({ h: 'Opening rotation — in ' + cor.form, list: lines });
       }
     }
@@ -281,6 +316,16 @@
         notes.push('Out of form these numbers are **' + n0(c.bestBurst || c.bestHit) + '** prepared and **' +
                    n0(c.sustainedHit) + '** per turn. Nothing here changed which gear was chosen — the ' +
                    'build is settled first and the form picked afterwards.');
+        // The number that decides whether any of the above is worth reading.
+        // Without it the in-form column looks like a straight upgrade, when it
+        // is really a state you spend a third of a long fight reaching.
+        if (K.CORRUPTION_ENTRY_TURNS) {
+          notes.push('**These are late-fight numbers.** Banking 100 Corrupt Energy takes about **' +
+                     K.CORRUPTION_ENTRY_TURNS + ' turns**, so the in-form column does not apply until ' +
+                     'roughly turn ' + K.CORRUPTION_ENTRY_TURNS + '. Against anything that dies before ' +
+                     'then, the out-of-form figures are the only ones that ever happen — which is why ' +
+                     'the build was optimised for those and not for these.');
+        }
         L.push({ h: 'Damage in form', table: rows, list: notes });
       }
     }

@@ -425,6 +425,37 @@
       return v;
     }
 
+    // The shape a move actually has on THIS build, after every override has had
+    // its say. moveDamage has always applied these; nothing could ask what they
+    // produced, so the write-up printed the raw data instead and a Blade Dancer
+    // who had bought Flowing Dance Proficiency was told the move still scaled
+    // STR/75 + SPD/75. The damage was right; the sentence next to it was not,
+    // which reads exactly like the mastery doing nothing.
+    //
+    // Returns a plain object and never touches `move` — the move objects come
+    // straight from the shared data snapshot and writing to one would leak into
+    // every later build.
+    function effectiveShape(build, move) {
+      const parsed = parseDamageCached(move.damage);
+      let base = parsed.base, hits = parsed.hits;
+      let scaling = String(move.scaling || '');
+      let second = null, changed = false;
+      const notes = [];
+      for (const fn of hooks.moveShape) {
+        const sh = fn(build, { move, base, hits, scaling });
+        if (!sh) continue;
+        if (sh.note) notes.push(sh.note);
+        if (sh.base !== undefined) { base = sh.base; changed = true; }
+        if (sh.hits !== undefined) { hits = sh.hits; changed = true; }
+        if (sh.scaling !== undefined && String(sh.scaling) !== scaling) {
+          scaling = String(sh.scaling); changed = true;
+        }
+        if (sh._second) { second = sh._second; changed = true; }
+      }
+      return { base, hits, scaling, second, changed, notes,
+               rawBase: parsed.base, rawHits: parsed.hits, rawScaling: String(move.scaling || '') };
+    }
+
     function moveDamage(build, move, opts) {
       opts = opts || {};
       // Reuse the caller's stats when it has them. Recomputing all five per move
@@ -579,7 +610,7 @@
     }
 
     return {
-      STATS, emptyBuild, data: D, register,
+      STATS, emptyBuild, data: D, register, effectiveShape,
       totalStat, allStats, derived, moveDamage,
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,
