@@ -686,6 +686,36 @@
   // abilities NOT counted" rather than silently scored as zero.
   const MASTERY_ABILITY_DEFAULT_UPTIME = 0.5;
 
+  // ── PARTY ─────────────────────────────────────────────────────────────────
+  // Nobody plays a Lionheart, a Paladin or a Citadel alone. Their kit is built
+  // to be pointed at four other people, and an ability worth 15% to you is worth
+  // 15% to five people — the engine was scoring all of it as if you were solo,
+  // which is why a defensive capstone kept losing to a stat node.
+  //
+  // Whether you are in a party is ASKED, never inferred. Guessing it from the
+  // goal was wrong in both directions: plenty of people solo a tank to survive
+  // content they cannot out-damage, and plenty take a damage build into a
+  // five-stack where a party-wide debuff is worth five times what it looks like.
+  // It changes which capstones are worth 5 points, so it is not a detail to
+  // assume on somebody's behalf.
+  //
+  // `party` on an ability below says its effect lands on the team rather than on
+  // you. Scaled by ALLIES, not by party size: the ability already counts once
+  // for you, and this adds the other four — with a discount, because you cannot
+  // guard everyone at once and no group stays in range of everything.
+  // A superclass needs level 15 (builder.js:146 — the site greys the options out
+  // and labels them "Req. Lvl 15"). Above that a base class is not a choice
+  // anybody makes: measured at level 50, Warrior scores 552 against Berserker's
+  // 2279. Below it, a superclass is not a choice anybody CAN make.
+  const SUPERCLASS_MIN_LEVEL = 15;
+
+  const PARTY_SIZE   = 5;
+  const PARTY_SPREAD = 0.5;   // how much of the team a team effect actually reaches
+  const PLAY_STYLES  = {
+    solo: { label: 'Solo',      note: 'nothing you do for other people counts' },
+    team: { label: 'Full team', note: 'a party of ' + 5 + ', so party effects are worth several times more' },
+  };
+
   const MASTERY_ABILITIES = {
     // ── close to unconditional ───────────────────────────────────────────────
     'Element Mastery':      { kind: 'dmgPct', value: 15, uptime: 0.95,
@@ -764,19 +794,118 @@
                                     'multiplier in the game, and not modelled here' },
 
     // ── defensive and utility: real, but not a bigger hit ────────────────────
-    'Holy Shield':          { kind: 'dr', value: 15, uptime: 0.4,
-                              note: '+15% true damage resistance while guarding an ally' },
+    'Holy Shield':          { kind: 'dr', value: 15, uptime: 0.4, party: true,
+                              note: '+15% true damage resistance while guarding an ally — the whole ' +
+                                    'point of it is that somebody else is being protected' },
     'Strategist':           { kind: 'dr', value: 25, uptime: 0.5,
                               note: '+5% DR per negative status on you, which stacks' },
     'High Endurance':       { kind: 'dr', value: 30, uptime: 0.3,
                               note: '+30% DR below 30% HP, and it bypasses DR ignorance' },
-    'One For All':          { kind: 'note',
-                              note: '-30% damage for +50% outgoing healing — a deliberate trade, not a loss' },
+    'Prideful Heart':       { kind: 'dr', value: 20, uptime: 0.5, party: true,
+                              note: 'Torrefy lets you take another 20% of an ally\'s damage for them — ' +
+                                    'worth nothing solo and a great deal in a party' },
+    'One For All':          { kind: 'note', party: true,
+                              note: '-30% damage for +50% outgoing healing — a deliberate trade in a party ' +
+                                    'and a straight loss alone' },
     'Lightspeed':           { kind: 'note',
                               note: 'stacking 10% autododge with no cap; survivability, not damage' },
     'Deep Focus':           { kind: 'note',
                               note: '+25% enchant proc chance — worth real damage on a proc enchant, ' +
                                     'but only as much as that enchant is worth' },
+  };
+
+  // ── MOVE OVERRIDES ──────────────────────────────────────────
+  // A handful of moves do not use the damage and scaling printed on them. Some
+  // masteries REPLACE both outright, and builder.js hard-codes the replacements
+  // (builder.js:4462-4479). No multiplier can express that, so these rewrite the
+  // move before it is scaled.
+  //
+  // Everything here was found by verify.js comparing move damage against the
+  // live page — which is the whole reason that check now exists.
+  //
+  //   when(build)  -> is this override live for this build
+  //   base/scaling -> what the move actually is when it is
+  const MOVE_OVERRIDES = {
+    // Blade Dancer rm1: Parry Master. 8 / STR-40 becomes 12 / STR-32.
+    'Parry Counter': [{
+      when: b => b.klass === 'Blade Dancer (N)' && (b.masteryNodes || []).includes('rm1'),
+      base: 12, scaling: 'STR/32',
+      note: 'Parry Master rewrites this move: 12 base and STR/32, not 8 and STR/40',
+    }],
+    // Blade Dancer rm2: Flowing Dance Proficiency changes the scaling stat.
+    'Flowing Dance': [{
+      when: b => b.klass === 'Blade Dancer (N)' && (b.masteryNodes || []).includes('rm2'),
+      scaling: 'SPD/50',
+      note: 'Flowing Dance Proficiency rescales it onto Speed at SPD/50',
+    }],
+    // Arbiter's Mantle: the class rewrites two of its own moves, mastery or not.
+    'Strike': [{
+      when: b => b.klass === 'Arbiter (N)',
+      base: 10, scaling: 'ARC/150',
+      note: "Arbiter's Strike is 10 base scaling on Arcane, not the shared 5 on Strength",
+    }],
+    'Lookout': [{
+      when: b => b.klass === 'Arbiter (N)',
+      scaling: 'STR/75 + ARC/50',
+      note: 'Arbiter adds ARC/50 on top of the printed scaling',
+    }],
+    // Crucible is three hits with two different shapes: hit 1 at 9 / STR-65, then
+    // two more at 3.6 / STR-90 each, and hits 2-3 always land on the Vulnerable
+    // hit 1 applies, which is worth a flat 1.20 (builder.js:4530-4540).
+    // 2 x 3.6 x 1.20 = 8.64, expressed as one second part on its own scaling.
+    'Crucible': [{
+      when: () => true,
+      base: 9, scaling: 'STR/65',
+      second: { base: 8.64, scaling: 'STR/90' },
+      note: 'three hits: 9 on STR/65, then two of 3.6 on STR/90, both hitting the ' +
+            'Vulnerable that hit 1 applies for a flat 1.20',
+    }],
+    // Stinger is two attacks in one and its damage string, "5 + 10", parses as
+    // nothing at all — so the move was being dropped from the search entirely.
+    // Modelled as the two parts summed at their own scalings.
+    'Stinger': [{
+      when: () => true,
+      base: 5, scaling: 'ARC/75',
+      second: { base: 10, scaling: 'ARC/70 + SPD/100' },
+      note: 'two-part attack: a 5-base stab on ARC/75, then 10-base arrows on ARC/70 + SPD/100',
+    }],
+  };
+
+  // ── WEAPON PASSIVES ─────────────────────────────────────────
+  // Every weapon carries its series' passive, and none of them were counted.
+  //
+  // The effect: five of the thirteen series roll tier points and are otherwise
+  // identical to the model, so the choice between them came down to whichever
+  // one bestOfSlot happened to see first. Dragon won 81% of builds. Primordial's
+  // flat +20% — the biggest unconditional damage bonus on any weapon in the game
+  // — was invisible, and so was Blacksteel's +10% and Darkblood's +10%.
+  //
+  // Keyed by SERIES, because that is how the passives are written in the game
+  // data: `itemPassives['Primordial']`, not `itemPassives['Primordial Spear']`.
+  // Same shape as GEAR_PASSIVES otherwise.
+  const WEAPON_PASSIVES = {
+    'Primordial': { kind: 'dmgPct', value: 20, uptime: 1,
+                    note: '+20% damage, unconditional — the largest flat weapon bonus in the game' },
+    'Blacksteel': { kind: 'dmgPct', value: 10, uptime: 1,
+                    note: '+10% damage, unconditional' },
+    'Darkblood':  { kind: 'dmgPct', value: 10, uptime: 1,
+                    note: '+10% damage, unconditional, and it reflects statuses back at the attacker' },
+    'Blight':     { kind: 'dmgPct', value: 20, uptime: 0.55,
+                    note: '+20% against Weakened or Vulnerable, and it applies Cursed while they are' },
+    'Icerind':    { kind: 'dmgPct', value: 20, uptime: 0.45,
+                    note: '+20% against Cold, which it can apply itself' },
+    'Dragon':     { kind: 'dmgPct', value: 15, uptime: 0.45,
+                    note: '+15% against Burning' },
+    'Corealloy':  { kind: 'dmgPct', value: 15, uptime: 0.5,
+                    note: '+5% damage per Energy, read AFTER the move spends it — so a big ' +
+                          'dump move gets almost none of it' },
+    'Jade':       { kind: 'note',
+                    note: '+30% incoming and outgoing healing — excellent on a healer, nothing on a hit' },
+    'Sandstone':  { kind: 'note',
+                    note: '20% chance to apply 2 Sundered; no damage of its own' },
+    'Sun':        { kind: 'note',
+                    note: 'defence procs on hit, and the enemy Defense Down half is bugged' },
+    'Ferrus':     { kind: 'note', note: 'no passive at all' },
   };
 
   // ── CLASS WEAPONS ─────────────────────────────────────────────────────────
@@ -838,6 +967,30 @@
   // To add one: give it a name, say which hook it belongs to, and write the
   // maths. Nothing else in the engine needs to know it exists.
   const QUIRKS = [
+    {
+      name: 'Class and mastery move rewrites',
+      hook: 'moveShape',
+      note: 'Some masteries replace a move base damage and scaling outright rather than ' +
+            'multiplying the result, so this runs before the scaling maths. Registered as a QUIRK ' +
+            'rather than wired up in engine.js because QUIRKS are what every consumer of the model ' +
+            'already walks — including verify.js, which is the one harness that has to see it.',
+      apply: (build, shape) => {
+        const rules = MOVE_OVERRIDES[shape && shape.move && shape.move.name];
+        if (!rules) return null;
+        for (const rule of rules) {
+          let live = false;
+          try { live = !!rule.when(build); } catch (e) { live = false; }
+          if (!live) continue;
+          const out = {};
+          if (rule.base    !== undefined) out.base    = rule.base;
+          if (rule.hits    !== undefined) out.hits    = rule.hits;
+          if (rule.scaling !== undefined) out.scaling = rule.scaling;
+          out._second = rule.second || null;
+          return out;
+        }
+        return null;
+      },
+    },
     {
       name: 'Stultus innate',
       hook: 'critChance',
@@ -1127,6 +1280,19 @@
   // build explains not just what to take but what NOT to.
   const TRAPS = [
     {
+      // Asking for a superclass below level 15 is honoured — you may well be
+      // planning ahead — but it is not a build you can equip today, and saying
+      // nothing would let somebody spend an evening building it first.
+      name: 'Class not unlocked yet',
+      when: (b, M) => {
+        const tree = (M.data.classes || {});
+        const isSuper = Object.values(tree).flat().includes(b.klass);
+        return isSuper && (b.level || 0) < 15;
+      },
+      warn: 'This class needs level 15 and the build is set below that. Everything here is still ' +
+            'correct for the level you gave, but you cannot take the class itself until 15.',
+    },
+    {
       name: 'Duplicate shards',
       when: b => {
         const seen = new Set();
@@ -1151,7 +1317,9 @@
   ];
 
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
-           UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME,
+           UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
+           WEAPON_PASSIVES,
+           PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, SUPERCLASS_MIN_LEVEL,
            ENERGY, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,

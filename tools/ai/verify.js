@@ -55,6 +55,21 @@
   }
 
   const mism = []; let n = 0;
+
+  // Move damage. This exists because of a bug it would have caught immediately
+  // and did not, because nothing here had ever compared a damage number.
+  //
+  // model.js computed  base + floor(stat / div)  for each scaling term. The site
+  // computes  base x (1 + SUM(stat / div))  — summed first, then multiplied, and
+  // never floored (builder.js:4080). On Carnage, whose damage is "1x20", the
+  // floor threw the Strength contribution away entirely: 236 STR read as +2
+  // damage rather than x3.36, so the engine learned that Strength did nothing
+  // for a Berserker and poured every point into crit instead.
+  //
+  // Every stat total agreed perfectly the whole time. Stats are not damage.
+  let dmgChecked = 0;
+  const dmgBad = [];
+
   for (let t = 0; t < TRIALS; t++) {
     const cfg = {
       level: 1 + Math.floor(Math.random() * 50),
@@ -77,11 +92,26 @@
     document.getElementById('Lvl').value = cfg.level;
     const rp = document.getElementById('race-picker');
     rp.value = cfg.race; rp.dispatchEvent(new Event('change', { bubbles: true }));
-    document.getElementById('armour-main').value = cfg.armour;
+    const armEl = document.getElementById('armour-main');
+    armEl.value = cfg.armour; cfg.armour = armEl.value || '';
     STATS.forEach(s => document.querySelector('.stat-row[data-stat="' + s + '"] .stat-val').value = cfg.invested[s]);
-    ['gear-1','gear-2','gear-3','gear-4'].forEach((id, i) => document.getElementById(id).value = cfg.gear[i] || '');
-    document.getElementById('weapon-main').value = cfg.weapon;
-    document.getElementById('artifact-picker').value = cfg.artifact;
+    // Assign, then READ BACK. A select silently ignores a value its option list
+    // does not carry, and the site now hides gear that is not in the game — so
+    // the page was quietly equipping nothing while the model still counted a
+    // +4 STR gear, and every stat drifted by exactly that gear's block.
+    //
+    // This is the same trap the super-picker note below describes. Reading the
+    // value back makes the harness follow the page instead of assuming it
+    // complied, whatever the page decides to offer in future.
+    ['gear-1','gear-2','gear-3','gear-4'].forEach((id, i) => {
+      const el = document.getElementById(id);
+      el.value = cfg.gear[i] || '';
+      cfg.gear[i] = el.value || '';
+    });
+    const wepEl = document.getElementById('weapon-main');
+    wepEl.value = cfg.weapon; cfg.weapon = wepEl.value || '';
+    const artEl = document.getElementById('artifact-picker');
+    artEl.value = cfg.artifact; cfg.artifact = artEl.value || '';
 
     const gI = [0,1,2,3].map(() => randInst(data.MAX_GEAR_TIER));
     gI.forEach((x, i) => gearInstances[i] = x);
@@ -104,6 +134,12 @@
     }
     for (const k of Object.keys(masteryState)) delete masteryState[k];
     for (const id of cfg.mastery) masteryState[id] = true;
+
+    // The enchant is not part of the randomised config, so whatever the page had
+    // when the harness started stayed selected for every trial. An autosaved
+    // Ivory enchant is enough to make the whole run look wrong.
+    const enchEl = document.getElementById('enchant-picker');
+    if (enchEl) enchEl.value = '';
 
     // markPicker is a const, so it is NOT on window — reach it by id.
     permuthStat = cfg.permuth;
@@ -164,7 +200,74 @@
         mism.push({ stat: label, real, mine: Math.round(mine * p) / p, cfg });
       }
     }
+
+    // ── and the damage those stats are supposed to produce ──────────────────
+    // Only where the site is doing the same job as moveDamage: no damage-bonus
+    // multipliers active, and a move whose damage and scaling it will both parse.
+    try {
+      // moveDamage is the RAW scaled hit: base x (1 + scaling), no multipliers.
+      // The site multiplies by several things on top, and checking only
+      // getActiveDmgMult missed the rest — Shard of Blight's x1.25 on Dark moves
+      // showed up as Dark Smite being 25% "wrong" when both sides were right and
+      // simply measuring different things.
+      const mults = [
+        typeof getActiveDmgMult === 'function' ? getActiveDmgMult() : 1,
+        typeof getEnchantMult === 'function' ? getEnchantMult() : 1,
+      ];
+      const multClean = mults.every(v => Math.abs(v - 1) < 1e-9);
+      if (multClean && typeof dmgCalcMoveList !== 'undefined') {
+        for (let i = 0; i < dmgCalcMoveList.length; i++) {
+          const mv = dmgCalcMoveList[i];
+          if (!mv || mv.damage === undefined) continue;
+          if (typeof parseScaling !== 'function' || !parseScaling(mv.scaling)) continue;
+          // Per-move multipliers the site applies and moveDamage deliberately
+          // does not: element gates and the Darkbeast bonus.
+          const eff = typeof getEffectiveMoveType === 'function'
+                    ? getEffectiveMoveType(mv.moveType) : mv.moveType;
+          const perMove = [
+            typeof getShardOfBlightMult === 'function' ? getShardOfBlightMult(eff) : 1,
+            typeof getBlizzardMult === 'function' ? getBlizzardMult(eff) : 1,
+            typeof getActiveDmgMult === 'function' ? getActiveDmgMult(eff) : 1,
+          ];
+          if (!perMove.every(v => Math.abs(v - 1) < 1e-9)) continue;
+          if (mv.slot === 'Darkbeast') continue;
+          const row = [...document.querySelectorAll('.dc-row[data-idx]')]
+            .find(r => +r.dataset.idx === i);
+          if (!row) continue;
+          toggleDmgDetail(row, i, true);
+          const txt = (row.nextElementSibling || {}).innerText || '';
+          // Three shapes the site prints, most specific first:
+          //   "Total: 8.6 + 21.8 = 30.4"                   two-part attacks
+          //   "1(1 + STR(236)/100) = 3.4 x 20 hits = 67.2" multi-hit
+          //   "5(1 + STR(2)/75) = 5.1"                     the ordinary case
+          // Reading the first "= N" on a two-part move caught only the opening
+          // stab and reported the model as wrong when it was right.
+          const summed = txt.match(/Total:[^=]*=\s*([\d.]+)/);
+          const total  = txt.match(/[×x]\s*(\d+)\s*hits\s*=\s*([\d.]+)/);
+          const perHit = txt.match(/\)\s*=\s*([\d.]+)/);
+          const real = summed ? parseFloat(summed[1])
+                     : total  ? parseFloat(total[2])
+                     : perHit ? parseFloat(perHit[1]) : null;
+          if (real === null || !isFinite(real)) continue;
+          const mine = M.moveDamage(build, mv);
+          dmgChecked++;
+          // The site prints to one decimal, so allow the rounding it does.
+          if (Math.abs(real - mine) > 0.15) {
+            dmgBad.push({ move: mv.name, damage: mv.damage, scaling: mv.scaling,
+                          real, mine: Math.round(mine * 10) / 10, cfg });
+          }
+        }
+      }
+    } catch (e) {
+      if (!dmgBad.some(x => x.move === '(harness error)')) {
+        dmgBad.push({ move: '(harness error)', real: String(e && e.message || e), mine: '' });
+      }
+    }
   }
+
+  console.log('move damage: ' + dmgChecked + ' compared, ' + dmgBad.length + ' wrong');
+  if (dmgBad.length) console.table(dmgBad.slice(0, 10).map(x =>
+    ({ move: x.move, damage: x.damage, scaling: x.scaling, site: x.real, model: x.mine })));
 
   // ── share links ───────────────────────────────────────────────────────────
   // The packed format is POSITIONAL, so it is either exactly right or wrong.
@@ -211,5 +314,6 @@
   if (mism.length) console.table(mism.slice(0, 10).map(m => ({ stat: m.stat, real: m.real, model: m.mine })));
   else if (!shareBad.length) console.log('%cmodel agrees with builder.js, and share links round-trip', 'color:#3c3');
   return { comparisons: n, mismatches: mism.length, detail: mism,
-           shareChecked, shareBad };
+           shareChecked, shareBad,
+           dmgChecked, dmgBad };
 })();

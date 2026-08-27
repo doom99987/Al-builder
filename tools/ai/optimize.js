@@ -56,12 +56,19 @@
     // ── move handling ────────────────────────────────────────────────────────
     // A class's kit is its own moves plus its base class's, since a superclass
     // keeps what it learned on the way up.
+    const _baseOfCache = {};
     function baseOf(klass) {
+      if (_baseOfCache[klass] !== undefined) return _baseOfCache[klass];
+      let found = null;
       for (const [base, supers] of Object.entries(D.classes || {}))
-        if (base === klass || (supers || []).includes(klass)) return base;
-      return null;
+        if (base === klass || (supers || []).includes(klass)) { found = base; break; }
+      return (_baseOfCache[klass] = found);
     }
+    // Called once per evaluate(), which is a few thousand times per request, and
+    // it rebuilds the same list from the same static data every time.
+    const _movesCache = {};
     function movesFor(klass) {
+      if (_movesCache[klass]) return _movesCache[klass];
       const out = [];
       const seen = new Set();
       const add = k => {
@@ -77,7 +84,7 @@
       add(klass);
       const b = baseOf(klass);
       if (b && b !== klass) add(b);
-      return out;
+      return (_movesCache[klass] = out);
     }
 
     // Bard, Beastmaster, Alchemist, Blacksmith and Miner live in classMoves but
@@ -88,6 +95,23 @@
       const tree = D.classes || {};
       return [...Object.keys(tree), ...Object.values(tree).flat()]
         .filter(k => (D.classMoves || {})[k]);
+    }
+
+    // Which classes a build at this LEVEL can actually be. A superclass needs
+    // level 15; above that nobody stays a base class, and the search was picking
+    // one about one roll in ten. Measured at level 50 a base class scores around
+    // a quarter of its own superclasses, so those were not close calls — they
+    // were builds nobody would ever play.
+    //
+    // An explicitly named class is never filtered out here; run() handles that,
+    // so asking for a Warrior still gets you a Warrior.
+    function classesForLevel(level) {
+      const tree = D.classes || {};
+      const bases  = Object.keys(tree).filter(k => (D.classMoves || {})[k]);
+      const supers = Object.values(tree).flat().filter(k => (D.classMoves || {})[k]);
+      const min = K.SUPERCLASS_MIN_LEVEL ?? 15;
+      if ((level || 0) < min) return bases;
+      return supers.length ? supers : bases;
     }
 
     // No table says which class uses which weapon, so infer it: a class that
@@ -165,7 +189,7 @@
       const cap = M.energyCap(build, K);
       const pv = passiveTotals(build);
       const gp = gearPassiveTotals(build);
-      const ma = masteryAbilityTotals(build);
+      const ma = masteryAbilityTotals(build, spec);
       const sh = M.shardTotals(build, K);
       const en = (K.ENCHANTS || {})[build.enchant];
       const enPct = en && en.kind === 'dmgPct' ? en.value * (en.uptime ?? 1) : 0;
@@ -290,12 +314,31 @@
 
     function rankGear(spec, w) {
       const fixed = new Set(D.FIXED_GEAR || []);
+      const passives = K.GEAR_PASSIVES || {};
+      const topWeight = Math.max(...STATS.map(s => w[s] || 0));
       return Object.entries(D.gearItems).filter(([name]) => usable(name)).map(([name, block]) => {
         let v = statValue(block, w);
         // A tiered gear also brings its tier points, which land on whatever stat
         // the build wants most — worth the top shape value times the best weight.
-        if (!fixed.has(name)) v += 9 * Math.max(...STATS.map(s => w[s] || 0));
+        if (!fixed.has(name)) v += 9 * topWeight;
         if ((D.gearPctBonuses || {})[name]) v += 4;   // percentage bonuses are real but unmodelled here
+
+        // And its PASSIVE, if knowledge.js can score one. This shortlist is cut
+        // to fourteen, so a gear whose whole value is its passive — Molten
+        // Carapace's +30% defence, Egg Shelmet's shield — was being dropped
+        // before the real scorer ever saw it, purely because its stat block is
+        // unremarkable. Only the modelled ones can count here; the rest are
+        // reported as uncounted exactly as before.
+        const rule = passives[name];
+        if (rule && rule.kind !== 'note' && rule.value != null) {
+          const eff = rule.value * (rule.uptime ?? 1);
+          const relevance = rule.kind === 'dr' || rule.kind === 'hpPct' ? (w.end || 0)
+                          : rule.kind === 'critChance' ? (w.lck || 0)
+                          : topWeight;
+          // Scaled into the same rough range as the stat terms above: a
+          // percentage point of a real effect against a point of stat weight.
+          v += eff * Math.max(0.2, relevance / 10) * 0.6;
+        }
         return { name, v, block };
       }).sort((a, b) => b.v - a.v);
     }
@@ -575,11 +618,35 @@
         }
         const eff = rule.value * (rule.uptime ?? 1);
         if (out[rule.kind] !== undefined) out[rule.kind] += eff;
-        out.active.push({ name, value: rule.value, effective: eff, note: rule.note });
+        // `kind` has to travel with the entry: without it the write-up labelled
+        // Crystal Sphere's +5 CRIT CHANCE as "+5% damage", because the renderer
+        // had nothing to switch on.
+        out.active.push({ name, kind: rule.kind, value: rule.value, effective: eff, note: rule.note });
       };
 
       for (const g of build.gear || []) consider(g.name);
       if (build.artifact) consider(build.artifact.name);
+
+      // The weapon, which this never looked at. Its passive belongs to the
+      // SERIES rather than the individual weapon, so it is looked up that way
+      // and reported under the series name — which is what the game calls it.
+      const wpn = build.weapon && build.weapon.name;
+      if (wpn) {
+        const series = ((D.weapons || {})[wpn] || {}).series;
+        const rule = series && (K.WEAPON_PASSIVES || {})[series];
+        if (rule && rule.kind !== 'note' && rule.value != null) {
+          const eff = rule.value * (rule.uptime ?? 1);
+          if (out[rule.kind] !== undefined) out[rule.kind] += eff;
+          out.active.push({ name: series + ' (weapon)', kind: rule.kind, value: rule.value,
+                            effective: eff, note: rule.note });
+        } else if (series) {
+          const text = (D.itemPassives || {})[series];
+          if (rule || text) {
+            out.unmodelled.push({ name: series + ' (weapon)',
+                                  note: (rule && rule.note) || (text || '').slice(0, 110) });
+          }
+        }
+      }
       return out;
     }
 
@@ -591,7 +658,19 @@
     // Two sources, in order: knowledge.js if it has an entry, otherwise the
     // number extract-data.js got by running builder.js's own parseDmgBonus over
     // the description. Anything neither can read is reported, not scored.
-    function masteryAbilityTotals(build) {
+    // How much a team-facing effect is really worth to THIS build. One for you
+    // plus the allies it actually reaches — and exactly 1 for a solo damage
+    // build, so nothing changes for the goals that are played alone.
+    function partyScale(spec) {
+      // Only what the person actually chose. No goal is treated as implying a
+      // party: soloing a tank is a real way to play and the engine has no
+      // business deciding otherwise.
+      if (!spec || spec.play !== 'team') return 1;
+      const allies = Math.max(0, (K.PARTY_SIZE || 5) - 1);
+      return 1 + allies * (K.PARTY_SPREAD ?? 0.5);
+    }
+
+    function masteryAbilityTotals(build, spec) {
       const table = K.MASTERY_ABILITIES || {};
       const perClass = (D.masteryAbilities || {})[build.klass] || {};
       const out = { dmgPct: 0, critChance: 0, dr: 0, active: [], unmodelled: [] };
@@ -615,10 +694,14 @@
         const value  = rule && rule.value != null ? rule.value : entry.bonus;
         const uptime = rule && rule.uptime != null ? rule.uptime : K.MASTERY_ABILITY_DEFAULT_UPTIME;
         if (value == null) { out.unmodelled.push({ name: entry.name, note: rule && rule.note }); continue; }
-        const eff = value * uptime;
+        // A team effect is counted once for you and again for the allies it
+        // reaches. A damage build gets a scale of exactly 1, so this can never
+        // quietly inflate a solo build.
+        const scale = (rule && rule.party) ? partyScale(spec) : 1;
+        const eff = value * uptime * scale;
         if (out[kind] !== undefined) out[kind] += eff;
         out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
-                          note: rule && rule.note });
+                          party: scale > 1 ? scale : null, note: rule && rule.note });
       }
       return out;
     }
@@ -670,37 +753,70 @@
       const w = weightOf(spec);
       const mults = cd.branchMultipliers || {};
 
-      // What a capstone's ABILITY is worth to this build. Scaled into the same
-      // rough range as a stat node so the two can be compared at all: a stat
-      // point moves damage about a percent, so a percentage point of a buff and
-      // a point of stat weight are put on comparable footing and the cost side
-      // of the ratio does the rest.
+      // ── pricing, by measurement rather than by guess ──────────────────────
+      // Stat nodes and capstones were priced in different units and the
+      // comparison between them was meaningless. A stat node was scored by the
+      // goal's WEIGHT for that stat (a number from 0 to about 10); a capstone by
+      // its ability's PERCENTAGE. Stat nodes therefore won roughly three to one
+      // on value-per-point regardless of what was actually true.
+      //
+      // What is actually true, measured on real builds: five mastery stat points
+      // move a damage build about 2.8%, and the capstone those same five points
+      // could have bought is worth 7% to 24%. The engine was pricing them almost
+      // exactly backwards.
+      //
+      // So both are now measured with the real scorer, in one unit — percent of
+      // this build's score. Eleven extra evaluate() calls per build, which is
+      // nothing next to the thousands the search already runs, and it removes a
+      // whole class of "the weights say X but the maths says Y" disagreement.
+      const _probeBase = evaluate(build, spec).score || 1;
+      const _pctOfBase = score => ((score / _probeBase) - 1) * 100;
+
+      // What one point in each stat is worth here. Probed in fives and divided,
+      // because a single point often rounds away to nothing.
+      const perStatPoint = {};
+      for (const st of STATS) {
+        const before = build.invested[st] | 0;
+        try {
+          build.invested[st] = before + 5;
+          perStatPoint[st] = _pctOfBase(evaluate(build, spec).score) / 5;
+        } catch (e) {
+          perStatPoint[st] = 0;
+        } finally {
+          // Restore in a finally: a throwing probe used to leave five phantom
+          // points in the stat it was measuring, and every later evaluate in
+          // this build would have scored against them.
+          build.invested[st] = before;
+        }
+      }
+
+      // What each capstone's ability is worth here — measured the same way, by
+      // switching it on and asking the scorer. This automatically respects the
+      // goal: a damage capstone probes as worthless on a tank because the tank's
+      // score does not read damage.
+      const _abilityCache = {};
       const abilityValue = nodeId => {
-        const entry = ((D.masteryAbilities || {})[build.klass] || {})[nodeId];
-        if (!entry) return 0;
-        const rule = (K.MASTERY_ABILITIES || {})[entry.name];
-        if (rule && rule.kind === 'note') return 0;
-        const value = rule && rule.value != null ? rule.value : entry.bonus;
-        if (value == null) return 0;
-        const uptime = rule && rule.uptime != null ? rule.uptime : K.MASTERY_ABILITY_DEFAULT_UPTIME;
-        const kind   = rule ? rule.kind : 'dmgPct';
-        // Weighted by what the goal actually wants, so a tank does not buy a
-        // damage capstone and a damage build does not buy a defensive one.
-        const goalW = kind === 'dr'         ? (w.end || 0)
-                    : kind === 'critChance' ? (w.lck || 0)
-                    :                         Math.max(w.str || 0, w.arc || 0);
-        return value * uptime * Math.max(0.25, goalW / 10);
+        if (_abilityCache[nodeId] !== undefined) return _abilityCache[nodeId];
+        const before = build.masteryNodes;
+        build.masteryNodes = (before || []).concat([nodeId]);
+        let v;
+        try { v = Math.max(0, _pctOfBase(evaluate(build, spec).score)); }
+        catch { v = 0; }
+        build.masteryNodes = before;
+        return (_abilityCache[nodeId] = v);
       };
 
-      // What a node is worth to THIS build. Stat nodes grant stats; capstones
-      // grant an ability, and are worth whatever that ability does.
+      // Both in percent-of-score now, so value-per-point compares like with like.
       const valueOf = n => {
         if (n.type === 'mastery') return abilityValue(n.id);
         if (n.type !== 'node') return 0;
         const stat = (cd.branchStats || {})[n.branch];
-        return stat ? (w[stat] || 0) * (mults[n.branch] ?? 1) : 0;
+        return stat ? (perStatPoint[stat] || 0) * (mults[n.branch] ?? 1) : 0;
       };
 
+      // The probes read build.masteryNodes, so it has to be a list before they
+      // run rather than whatever the previous build left behind.
+      build.masteryNodes = [];
       const taken = new Set();
       let spent = 0;
 
@@ -999,7 +1115,7 @@
         spec.goal = pick(goals);
       }
       if (!spec.klass) {
-        const affine = combatClasses()
+        const affine = classesForLevel(spec.level)
           .map(k => ({ k, a: classAffinity(k, spec) }))
           .sort((x, y) => y.a - x.a);
         // Only classes that genuinely read as the rolled goal. Taking the top
@@ -1029,12 +1145,31 @@
     // the useful thing is to name them rather than let someone discover them in
     // a fight. Thresholds are deliberately blunt: this is a warning, not a stat
     // sheet, and the numbers are all shown elsewhere anyway.
-    function weaknessesOf(ctx) {
+    function weaknessesOf(ctx, build) {
       const out = [];
+      const lvl = Math.max(1, (build && build.level) || 50);
+
       if (ctx.hp < 120) out.push('almost no health (' + Math.round(ctx.hp) + ')');
       else if (ctx.hp < 200) out.push('low health (' + Math.round(ctx.hp) + ')');
-      if (ctx.bestHit < 40) out.push('very little damage of your own');
-      if (ctx.critChance < 25 && ctx.goal !== 'tank' && ctx.goal !== 'heal') out.push('barely crits');
+
+      // Scaled to level, because a flat threshold stops meaning anything the
+      // moment the damage model changes. It did: move scaling used to be
+      // floored and added instead of multiplied, so every damage figure here
+      // was a fraction of its real value and a flat "under 40" caught builds
+      // that now legitimately hit for hundreds.
+      //
+      // A damage build at level 50 hits for well over a thousand. Anything under
+      // roughly a tenth of that will not be killing things on its own, whatever
+      // else it is good at.
+      const killingPower = lvl * 6;
+      if (ctx.bestHit < killingPower) {
+        out.push('very little damage of your own (' + Math.round(ctx.bestHit) + ')');
+      }
+
+      // Applies to tanks too. A 10%-crit wall is a real thing to know about
+      // before you take it into a fight you have to finish.
+      if (ctx.critChance < 25) out.push('barely crits (' + Math.round(ctx.critChance) + '%)');
+
       if (ctx.blockDr < 3) out.push('no meaningful block reduction');
       if (ctx.outHeal < 110 && ctx.goal !== 'damage' && ctx.goal !== 'crit' && ctx.goal !== 'burst')
         out.push('no healing to speak of');
@@ -1075,6 +1210,15 @@
 
     function run(spec) {
       stripUnusable(spec);
+      // The panel makes this a required choice. Anything reaching the engine
+      // without one is answered as solo, and told so — an unstated assumption
+      // here silently changes which capstones are worth five points.
+      if (spec.play !== 'team' && spec.play !== 'solo') {
+        spec.play = 'solo';
+        spec.assumptions.push('Assumed solo, since no play style was chosen. ' +
+                              'Pick "Full team" if you play in a party — it changes which ' +
+                              'mastery capstones are worth their five points.');
+      }
       if (spec.random) rollRandom(spec);
       // A race asked for by name can carry tech too — the reasoning is just as
       // worth stating when the player chose the race themselves.
@@ -1087,8 +1231,18 @@
           if (t.enables && D.gearItems[t.enables] && usable(t.enables) && !spec.forceGear) spec.forceGear = t.enables;
         }
       }
-      const klasses = spec.klass ? [spec.klass]
-                    : (classesUsingWeapon(spec.weaponType) || combatClasses());
+      // A named class always wins. Otherwise the pool is only what this level
+      // can be — and a weapon-type filter is intersected with it rather than
+      // replacing it, or asking for a Spear at level 50 put Slayer back in.
+      const allowed = classesForLevel(spec.level);
+      let klasses;
+      if (spec.klass) {
+        klasses = [spec.klass];
+      } else {
+        const byWeapon = classesUsingWeapon(spec.weaponType);
+        const pool = byWeapon ? byWeapon.filter(k => allowed.includes(k)) : allowed;
+        klasses = pool.length ? pool : allowed;
+      }
       // Placeholder races are never searched; a named one is still honoured, so
       // asking for Arborivia explicitly still works.
       const races = spec.race ? [spec.race] : realRaces();
@@ -1127,7 +1281,7 @@
 
       return { build: best, ctx: bestCtx, corruption: corr, considered: coarse.length,
                flavour: flavourFor(bestCtx),
-               weaknesses: weaknessesOf(bestCtx) };
+               weaknesses: weaknessesOf(bestCtx, best) };
     }
 
     // Cheap stat allocation for the coarse pass: proportional to weights, no
@@ -1145,7 +1299,7 @@
     return { run, evaluate, movesFor, baseOf, weightOf, rankGear, pickCorruption,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
              masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
-             masteryAbilityTotals };
+             masteryAbilityTotals, classesForLevel };
   }
 
   return { Optimizer };

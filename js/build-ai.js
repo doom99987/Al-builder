@@ -22,7 +22,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 18;
+  const ENGINE_V = 21;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -124,6 +124,12 @@
     'something cool',
   ];
 
+  // Solo or in a party. Deliberately starts as null and stays that way until
+  // somebody says: it decides whether an ability that protects four other people
+  // is worth five mastery points, and that is not a thing to guess on their
+  // behalf. The Build button will not run without it.
+  let playStyle = null;
+
   // Dismissed for the rest of the visit, and back on the next page load. A
   // notice that never returns stops being read after the first change to what
   // it is warning about; one that returns on every open is just a nag.
@@ -154,6 +160,12 @@
           '<input id="bai-q" placeholder="max damage crit lancer" autocomplete="off">' +
           '<button class="bai-go" id="bai-go">Build</button>' +
         '</div>' +
+        '<div class="bai-play" id="bai-play">' +
+          '<span class="bai-play-label">Playing</span>' +
+          '<button class="bai-play-opt" data-play="solo" type="button">Solo</button>' +
+          '<button class="bai-play-opt" data-play="team" type="button">Full team of 5</button>' +
+          '<span class="bai-play-hint" id="bai-play-hint">Pick one — it changes which builds are good.</span>' +
+        '</div>' +
         '<div class="bai-checks">' +
           '<label class="bai-check" title="Read the build currently in the builder and suggest a better version of it">' +
             '<input type="checkbox" id="bai-usecurrent"> ' +
@@ -182,6 +194,16 @@
       wipDismissed = true;
       ov.querySelector('#bai-wip').setAttribute('hidden', '');
     });
+    ov.querySelectorAll('.bai-play-opt').forEach(btn => btn.addEventListener('click', () => {
+      playStyle = btn.dataset.play;
+      ov.querySelectorAll('.bai-play-opt').forEach(b =>
+        b.classList.toggle('bai-play-on', b.dataset.play === playStyle));
+      const hint = ov.querySelector('#bai-play-hint');
+      const K = window.ALB_Knowledge;
+      const style = K && K.PLAY_STYLES && K.PLAY_STYLES[playStyle];
+      hint.textContent = style ? style.note : '';
+      hint.classList.remove('bai-play-needed');
+    }));
     ov.querySelector('#bai-close').addEventListener('click', close);
     ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
     ov.querySelector('#bai-go').addEventListener('click', run);
@@ -315,6 +337,7 @@
     };
     const lvl = val('bai-level');
     return {
+      play:       playStyle,
       goal:       val('bai-goal'),
       klass:      val('bai-class'),
       race:       val('bai-race'),
@@ -327,7 +350,10 @@
   }
 
   function countOverrides() {
+    // `play` is a required answer, not an optional override, so it does not
+    // belong in the "N options set" count on the Advanced toggle.
     const o = readOverrides();
+    delete o.play;
     return Object.values(o).filter(v => v !== null && v !== '' && !Number.isNaN(v)).length;
   }
 
@@ -394,8 +420,24 @@
     return html;
   }
 
+  // Refuses rather than assuming. Both answers are legitimate and they produce
+  // genuinely different builds, so the only wrong move is to pick one silently.
+  function needsPlayStyle(ov) {
+    if (playStyle) return false;
+    const hint = ov.querySelector('#bai-play-hint');
+    if (hint) {
+      hint.textContent = 'Choose Solo or Full team first — a party changes which mastery ' +
+                         'capstones and which classes are worth taking.';
+      hint.classList.add('bai-play-needed');
+    }
+    const box = ov.querySelector('#bai-play');
+    if (box) { box.classList.remove('bai-play-nudge'); void box.offsetWidth; box.classList.add('bai-play-nudge'); }
+    return true;
+  }
+
   function run() {
     const ov = ensureOverlay();
+    if (needsPlayStyle(ov)) return;
     const useCurrent = ov.querySelector('#bai-usecurrent');
     if (useCurrent && useCurrent.checked) return runAnalyse();
 
