@@ -682,6 +682,32 @@ body {
   letter-spacing: 0.3px;
 }
 
+/* Legal links. Before this, the Privacy Policy and Terms were reachable ONLY
+   from the trades consent modal — a rule nobody can find is a rule nobody can
+   use, and AdSense expects the privacy notice to be easily accessible. They sit
+   in the home footer rather than a global one on purpose: body is a flex column
+   with overflow hidden, so a site-wide footer would take vertical space away
+   from all ten page containers, the builder included. */
+.home-legal-links {
+  display: block;
+  margin-top: 6px;
+}
+.home-legal-links a {
+  color: #666;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.home-legal-links a:hover,
+.home-legal-links a:focus-visible {
+  color: #aaa;
+  border-bottom-color: #333;
+}
+.home-legal-sep {
+  color: #333;
+  margin: 0 8px;
+}
+
 /* Old card classes kept for any lingering references */
 .home-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; max-width: 1100px; margin: 0 auto 60px; padding: 0 24px; }
 .home-card { background: #000; border: 1px solid #1a1a1a; border-radius: 8px; padding: 24px; }

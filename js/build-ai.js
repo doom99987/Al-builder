@@ -1,18 +1,19 @@
 /*
-  Build AI panel — admin only.
+  Build AI panel — admins and testers.
 
   Opened from the profile menu. The engine itself lives in tools/ai/ and is
   shared with the CLI and the standalone page; nothing is duplicated here.
 
-  LAZY LOADED. The engine plus its data snapshot is ~180KB, and this is an
-  admin-only feature, so none of it is fetched until an admin actually opens the
-  panel. Adding the files to index.html would have charged every visitor for
-  something almost none of them can use.
+  LAZY LOADED. The engine plus its data snapshot is ~180KB, and this is a
+  restricted feature, so none of it is fetched until someone who may use it
+  actually opens the panel. Adding the files to index.html would have charged
+  every visitor for something almost none of them can use.
 
-  The admin check mirrors the Admin Panel's (window._sbIsAdmin). It is a
-  client-side gate on a client-side tool — it keeps the entry point out of the
-  menu, it is not a security boundary, and it does not need to be: the engine
-  only reads game data that is already public in builder.js.
+  The access check is window._sbCanUseAI — admins plus the tester list in sb.js.
+  Testers get this panel and nothing else. It is a client-side gate on a
+  client-side tool: it keeps the entry point out of the menu, it is not a
+  security boundary, and it does not need to be, because the engine only reads
+  game data that is already public in builder.js.
 */
 'use strict';
 
@@ -22,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 21;
+  const ENGINE_V = 23;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -41,7 +42,11 @@
   let loading = null;
   let lastResult = null;
 
-  const isAdmin = () => !!(window._sbIsAdmin && window._sbIsAdmin());
+  // Falls back to the admin check so that a browser holding a stale sb.js — one
+  // cached from before the tester role existed — still lets admins in rather
+  // than locking everyone out of the panel.
+  const canUseAI = () => !!((window._sbCanUseAI && window._sbCanUseAI()) ||
+                            (window._sbIsAdmin  && window._sbIsAdmin()));
 
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -727,7 +732,14 @@
     // summary next to the reason for every other expensive choice.
     if (ctx.masteryAbilities && ctx.masteryAbilities.active.length) {
       for (const a of ctx.masteryAbilities.active) {
-        const unit = a.kind === 'critChance' ? ' crit chance' : a.kind === 'dr' ? '% DR' : '% damage';
+        // Third copy of this switch, and the third time it has had to learn a
+        // kind. A flat +23 Speed rendered here as "+23% damage" and 100 dodge as
+        // "+100% damage" - wrong in the way that reads as perfectly plausible.
+        const unit = a.kind === 'critChance' ? ' crit chance'
+                   : a.kind === 'dr'        ? '% DR'
+                   : a.kind === 'dodge'     ? '% autododge'
+                   : a.kind === 'statFlat'  ? ' flat ' + String(a.stat || 'spd').toUpperCase()
+                   :                          '% damage';
         niches.push('<b>' + esc(a.name) + ' (mastery):</b> +' + a.value + unit +
                     (a.uptime < 1 ? ', counted at ' + Math.round(a.uptime * 100) + '% uptime' : ', always on') +
                     (a.note ? ' — ' + esc(a.note) : ''));
@@ -831,7 +843,7 @@
   window._openBuildAI = function () {
     // Re-checked here, not just where the menu item is drawn — the menu is built
     // once and this is reachable from the console.
-    if (!isAdmin()) return;
+    if (!canUseAI()) return;
     if (window._closeProfileMenu) window._closeProfileMenu();
     const ov = ensureOverlay();
     const wip = ov.querySelector('#bai-wip');

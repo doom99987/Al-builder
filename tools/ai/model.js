@@ -186,7 +186,10 @@
       if (key === 'spd') {
         const b = build.buffs || {};
         const spdPct  = ((b.rallyingSpd ? 25 : 0) + (b.empPierceSpd ? 25 : 0));
-        const spdFlat = (b.focusStepSpd ? Math.max(1, clampLvl(build.level)) * 2 : 0);
+        // Flourish is a flat 25 Speed in stance, and 48 with the Ranger's
+        // Flourish Proficiency mastery (builder.js:3851, 6166).
+        const spdFlat = (b.focusStepSpd ? Math.max(1, clampLvl(build.level)) * 2 : 0)
+                      + (b.flourishSpd ? (b.flourishProf ? 48 : 25) : 0);
         if (spdPct || spdFlat) total = Math.round(total * (1 + spdPct / 100)) + spdFlat;
       }
       return total;

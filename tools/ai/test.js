@@ -1630,6 +1630,149 @@ describe('mastery abilities', () => {
     }
   });
 
+  it('labels a mastery ability by what it actually grants', () => {
+    // Flourish Proficiency is a flat +23 SPEED and was written up as "+23%
+    // damage" - plausible-looking and wrong, the same class of bug the gear
+    // passives had.
+    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'damage', play: 'solo' });
+    const flourish = r.ctx.masteryAbilities.active.find(a => a.name === 'Flourish Proficiency');
+    ok(flourish, 'Ranger did not take Flourish Proficiency');
+    eq(flourish.kind, 'statFlat', 'Flourish Proficiency is not reported as a flat stat');
+    eq(flourish.stat, 'spd', 'Flourish Proficiency does not say which stat it grants');
+    const sec = r.explanation.find(x => /Mastery abilities counted/.test(x.h));
+    const txt = JSON.stringify(sec.table);
+    ok(txt.indexOf('% damage') === -1 || txt.indexOf('flat SPD') !== -1,
+       'a flat Speed bonus is labelled as damage: ' + txt.slice(0, 160));
+  });
+
+  it('actually applies a flat stat from a mastery', () => {
+    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'speed', play: 'solo' });
+    ok((r.ctx.masteryAbilities.statFlat.spd || 0) > 0, 'no flat Speed accumulated');
+  });
+
+  it('says what it passed over when the goal cannot read it', () => {
+    // A damage goal scores survivability at exactly zero, so Lightspeed - the
+    // capstone a Ranger actually takes - reads as worthless to it. That is a
+    // real trade, and the answer to "why is the obvious mastery missing".
+    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'damage', play: 'solo' });
+    const sec = r.explanation.find(x => x.h === 'Masteries it did not take');
+    ok(sec, 'nothing explains the capstones it did not buy');
+    const row = (sec.table || []).find(t => /Lightspeed/.test(t[0]));
+    ok(row, 'Lightspeed is not among them');
+    ok(/Nothing towards/.test(row[1]), 'no reason given for Lightspeed: ' + row[1]);
+  });
+
+  it('gives every capstone it skipped a reason, not just a name', () => {
+    // The whole point. A list of things it did not take, with no why attached,
+    // is the output this replaced.
+    const REASONS = ['value', 'lost', 'zero', 'unmodelled'];
+    for (const klass of ['Ranger (Or)', 'Berserker (Ch)', 'Saint (Or)', 'Hexer (N)']) {
+      for (const goal of ['damage', 'tank']) {
+        const r = engine.ask('', { klass, goal, play: 'solo' });
+        for (const x of r.ctx.masteryPassedOver || []) {
+          ok(REASONS.indexOf(x.reason) !== -1,
+             klass + '/' + goal + ': ' + x.name + ' has reason ' + JSON.stringify(x.reason));
+          ok(x.detail && x.detail.length > 20,
+             klass + '/' + goal + ': ' + x.name + ' has no usable detail');
+          ok(typeof x.cost === 'number' && x.cost > 0, x.name + ' has no cost');
+        }
+      }
+    }
+  });
+
+  it('blames the engine, not the goal, for an ability it cannot price', () => {
+    // An unpriced ability always measures zero, so checking "measured zero"
+    // before "is it even priced" reports every gap in knowledge.js as "your
+    // goal does not value it" - which is a confident, plausible lie.
+    let seen = 0;
+    for (const klass of Object.keys(data.masteryClassData || {})) {
+      const r = engine.ask('', { klass, goal: 'damage', play: 'solo' });
+      for (const x of r.ctx.masteryPassedOver || []) {
+        const rule = (K.MASTERY_ABILITIES || {})[x.name];
+        const priced = rule && rule.kind !== 'note' && rule.value != null;
+        if (!priced) {
+          seen++;
+          eq(x.reason, 'unmodelled', x.name + ' is unpriced but was reported as ' + x.reason);
+        }
+      }
+    }
+    ok(seen > 0, 'no unpriced capstone was skipped anywhere, so this proves nothing');
+  });
+
+  it('says out loud that an unpriced capstone is a gap here, not a weak ability', () => {
+    const r = engine.ask('', { klass: 'Saint (Or)', goal: 'damage', play: 'solo' });
+    const sec = r.explanation.find(x => /not priced here/i.test(x.h));
+    ok(sec, 'nothing explains what "not priced here" means');
+    ok(/not.{0,4}\*\* a judgement|not\*\* a judgement/i.test(sec.body) || /gap in this engine/.test(sec.body),
+       'the caveat does not actually say it is a gap rather than a verdict');
+    // The count is computed from the data, so it cannot go stale in the copy.
+    const m = sec.body.match(/\*\*(\d+) of (\d+)\*\*/);
+    ok(m, 'no priced/total count in the caveat');
+    let total = 0;
+    for (const per of Object.values(data.masteryAbilities || {})) total += Object.keys(per).length;
+    eq(Number(m[2]), total, 'the total does not match the data');
+    ok(Number(m[1]) > 0 && Number(m[1]) < Number(m[2]), 'the priced count is nonsense');
+  });
+
+  it('leaves the capstone pass something to spend', () => {
+    // THE REGRESSION THIS MOST NEEDS. The capstone pass used to run AFTER the
+    // "spend whatever is left" filler, so it had exactly 0 points every single
+    // time and bought nothing, ever - and the spare points went to stat nodes
+    // the build had already been measured not to care about.
+    let runs = 0, hadPoints = 0, bought = 0;
+    for (const klass of Object.keys(data.masteryClassData || {})) {
+      for (const goal of ['damage', 'tank']) {
+        const b = engine.ask('', { klass, goal, play: 'solo' }).ctx.masteryBudget;
+        ok(b, klass + '/' + goal + ' reports no mastery budget at all');
+        runs++;
+        if (b.leftAtCapstone > 0) hadPoints++;
+        if (b.bought) bought++;
+      }
+    }
+    ok(hadPoints > runs / 4, 'the capstone pass had points in only ' + hadPoints + ' of ' + runs +
+                             ' builds - it is running after the filler again');
+    ok(bought > 0, 'the capstone pass never bought anything in ' + runs + ' builds');
+  });
+
+  it('keeps the mastery budget arithmetic honest', () => {
+    for (const klass of Object.keys(data.masteryClassData || {})) {
+      const r = engine.ask('', { klass, goal: 'damage', play: 'solo' });
+      const b = r.ctx.masteryBudget;
+      ok(b.spent <= b.cap, klass + ' spends ' + b.spent + ' of ' + b.cap);
+      eq(b.statNodes + b.capstonesTaken * 5, b.spent,
+         klass + ': ' + b.statNodes + ' nodes + ' + b.capstonesTaken + ' capstones != ' + b.spent);
+    }
+  });
+
+  it('explains itself even when it took no capstone at all', () => {
+    // The section used to sit inside "did it take any capstone", so the one
+    // build most likely to prompt the question answered it least.
+    const sections = h => engine.ask('', h).explanation.map(x => x.h);
+    for (const klass of Object.keys(data.masteryClassData || {})) {
+      const r = engine.ask('', { klass, goal: 'damage', play: 'solo' });
+      if ((r.ctx.masteryPassedOver || []).length === 0) continue;
+      ok(r.explanation.some(x => x.h === 'Masteries it did not take'),
+         klass + ' skipped capstones and said nothing about it');
+    }
+    void sections;
+  });
+
+  it('takes the autododge capstone when survival is the goal', () => {
+    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'tank', play: 'solo' });
+    ok(r.ctx.masteryAbilities.active.some(a => a.name === 'Lightspeed'),
+       'a survival Ranger did not take Lightspeed');
+    ok(r.ctx.dodge > 0, 'dodge never reached the context');
+    ok(r.ctx.effectiveHp > r.ctx.hp, 'avoidance did not raise effective health');
+  });
+
+  it('keeps avoidance out of the HP it reports', () => {
+    // effectiveHp is for scoring only. The HP this build reports has to stay the
+    // HP the site will show, or the link and the write-up disagree.
+    const solo = engine.ask('', { klass: 'Ranger (Or)', goal: 'tank', play: 'solo' });
+    ok(solo.ctx.hp < solo.ctx.effectiveHp, 'the two figures are the same, so one of them is wrong');
+    ok(Number.isFinite(solo.ctx.hp) && solo.ctx.hp > 0, 'reported HP is not a number');
+  });
+
   it('discounts a conditional ability, and does not discount an unconditional one', () => {
     // Uptime is the whole reason this table exists: a +100% that needs the
     // target stunned first cannot be scored like a +100% that always applies.
@@ -1786,6 +1929,29 @@ describe('play style', () => {
     eq(r.spec.play, 'solo', 'a tank with no answer was assumed to be in a party');
     ok(r.spec.assumptions.some(a => /solo/i.test(a)),
        'defaulted to solo without saying so');
+  });
+
+  it('every renderer knows every mastery kind', () => {
+    // This label bug has now been fixed three times in three different unit
+    // switches - explain.js twice, and the builder Summary box once, where a
+    // flat +23 Speed read as "+23% damage" and 100 autododge as "+100% damage".
+    // Generalised so the NEXT new kind cannot slip through any of them: a kind
+    // with no branch falls through to "% damage", which is always plausible and
+    // always wrong.
+    const kinds = new Set();
+    for (const r of Object.values(K.MASTERY_ABILITIES || {})) {
+      if (r && r.kind && r.kind !== 'note' && r.kind !== 'dmgPct') kinds.add(r.kind);
+    }
+    ok(kinds.size > 0, 'no non-damage mastery kinds exist, so this test proves nothing');
+    const root = path.join(__dirname, '..', '..');
+    for (const f of ['tools/ai/explain.js', 'js/build-ai.js']) {
+      const src = fs.readFileSync(path.join(root, f), 'utf8');
+      for (const k of kinds) {
+        ok(src.indexOf("a.kind === '" + k + "'") !== -1,
+           f + ' has no unit for mastery kind ' + JSON.stringify(k) +
+           ' - it falls through to "% damage"');
+      }
+    }
   });
 
   it('the panel makes it a required choice, not a default', () => {
