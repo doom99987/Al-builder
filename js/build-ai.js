@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 23;
+  const ENGINE_V = 25;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -134,6 +134,10 @@
   // is worth five mastery points, and that is not a thing to guess on their
   // behalf. The Build button will not run without it.
   let playStyle = null;
+  // Second required choice. Average and potential damage build genuinely
+  // different characters — average pays for Luck, potential does not — so this
+  // is asked rather than assumed, exactly like Solo/Full team.
+  let dmgModel = null;
 
   // Dismissed for the rest of the visit, and back on the next page load. A
   // notice that never returns stops being read after the first change to what
@@ -171,6 +175,12 @@
           '<button class="bai-play-opt" data-play="team" type="button">Full team of 5</button>' +
           '<span class="bai-play-hint" id="bai-play-hint">Pick one — it changes which builds are good.</span>' +
         '</div>' +
+        '<div class="bai-play" id="bai-dmg">' +
+          '<span class="bai-play-label">Damage</span>' +
+          '<button class="bai-play-opt" data-dmg="average" type="button">Average</button>' +
+          '<button class="bai-play-opt" data-dmg="potential" type="button">Potential</button>' +
+          '<span class="bai-play-hint" id="bai-dmg-hint">Average folds in crit chance; potential is the crit landing.</span>' +
+        '</div>' +
         '<div class="bai-checks">' +
           '<label class="bai-check" title="Read the build currently in the builder and suggest a better version of it">' +
             '<input type="checkbox" id="bai-usecurrent"> ' +
@@ -199,14 +209,24 @@
       wipDismissed = true;
       ov.querySelector('#bai-wip').setAttribute('hidden', '');
     });
-    ov.querySelectorAll('.bai-play-opt').forEach(btn => btn.addEventListener('click', () => {
+    ov.querySelectorAll('#bai-play .bai-play-opt').forEach(btn => btn.addEventListener('click', () => {
       playStyle = btn.dataset.play;
-      ov.querySelectorAll('.bai-play-opt').forEach(b =>
+      ov.querySelectorAll('#bai-play .bai-play-opt').forEach(b =>
         b.classList.toggle('bai-play-on', b.dataset.play === playStyle));
       const hint = ov.querySelector('#bai-play-hint');
       const K = window.ALB_Knowledge;
       const style = K && K.PLAY_STYLES && K.PLAY_STYLES[playStyle];
       hint.textContent = style ? style.note : '';
+      hint.classList.remove('bai-play-needed');
+    }));
+    ov.querySelectorAll('#bai-dmg .bai-play-opt').forEach(btn => btn.addEventListener('click', () => {
+      dmgModel = btn.dataset.dmg;
+      ov.querySelectorAll('#bai-dmg .bai-play-opt').forEach(b =>
+        b.classList.toggle('bai-play-on', b.dataset.dmg === dmgModel));
+      const hint = ov.querySelector('#bai-dmg-hint');
+      const K = window.ALB_Knowledge;
+      const m = K && K.DAMAGE_MODELS && K.DAMAGE_MODELS[dmgModel];
+      hint.textContent = m ? m.note : '';
       hint.classList.remove('bai-play-needed');
     }));
     ov.querySelector('#bai-close').addEventListener('click', close);
@@ -343,6 +363,7 @@
     const lvl = val('bai-level');
     return {
       play:       playStyle,
+      dmg:        dmgModel,
       goal:       val('bai-goal'),
       klass:      val('bai-class'),
       race:       val('bai-race'),
@@ -355,10 +376,11 @@
   }
 
   function countOverrides() {
-    // `play` is a required answer, not an optional override, so it does not
-    // belong in the "N options set" count on the Advanced toggle.
+    // `play` and `dmg` are required answers, not optional overrides, so neither
+    // belongs in the "N options set" count on the Advanced toggle.
     const o = readOverrides();
     delete o.play;
+    delete o.dmg;
     return Object.values(o).filter(v => v !== null && v !== '' && !Number.isNaN(v)).length;
   }
 
@@ -440,9 +462,26 @@
     return true;
   }
 
+  // Same refusal as the play style, for the same reason: both answers are
+  // legitimate and they produce different builds, so guessing is the only wrong
+  // move. Checked after the play style so the two nudges do not fight.
+  function needsDmgModel(ov) {
+    if (dmgModel) return false;
+    const hint = ov.querySelector('#bai-dmg-hint');
+    if (hint) {
+      hint.textContent = 'Choose Average or Potential first — average pays for Luck and crit ' +
+                         'chance, potential pays for raw damage and crit damage instead.';
+      hint.classList.add('bai-play-needed');
+    }
+    const box = ov.querySelector('#bai-dmg');
+    if (box) { box.classList.remove('bai-play-nudge'); void box.offsetWidth; box.classList.add('bai-play-nudge'); }
+    return true;
+  }
+
   function run() {
     const ov = ensureOverlay();
     if (needsPlayStyle(ov)) return;
+    if (needsDmgModel(ov)) return;
     const useCurrent = ov.querySelector('#bai-usecurrent');
     if (useCurrent && useCurrent.checked) return runAnalyse();
 

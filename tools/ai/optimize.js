@@ -177,6 +177,21 @@
       return all;   // never narrow to nothing — an unfiltered choice beats no choice
     }
 
+    // A move as the build actually uses it. Overrides from a class or a bought
+    // mastery node can rewrite the base, the hit count and the scaling, and the
+    // raw data object knows nothing about any of it.
+    function withShape(build, move) {
+      if (!move) return move;
+      const sh = M.effectiveShape(build, move);
+      if (!sh.changed) return move;
+      return Object.assign({}, move, {
+        damage:  sh.hits > 1 ? sh.base + 'x' + sh.hits : String(sh.base),
+        scaling: sh.scaling,
+        shapedBy: sh,            // what changed, for the write-up to explain
+        shapeNote: (sh.notes || []).join(' '),
+      });
+    }
+
     // ── evaluation ───────────────────────────────────────────────────────────
     // One place turns a build into a score. Everything else just proposes builds.
     function evaluate(build, spec) {
@@ -207,7 +222,18 @@
 
       const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance + ma.critChance;
       const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
-      const mult = M.expectedMultiplier(critChance, critDmg);
+      // The chosen damage model decides what "damage" means for the whole search.
+      //
+      //   average    expected value, crit chance folded in. Luck is priced at
+      //              what it returns.
+      //   potential  the crit landed. Crit CHANCE past the first point buys
+      //              nothing here, so Luck stops competing and crit damage and
+      //              raw scaling win instead.
+      //
+      // This is deliberately not a display setting: it changes which build the
+      // search decides is best, which is the entire point of asking.
+      const potential  = spec.dmg === 'potential';
+      const mult = potential ? critDmg : M.expectedMultiplier(critChance, critDmg);
 
       // ── setup rotation ────────────────────────────────────────────────────
       // A buff cast before the hit is part of the build, not a footnote. Two
@@ -297,8 +323,10 @@
         // last rather than shaving a percentage off each hit.
         dodge: Math.min(95, ma.dodge),
         initiative: d.initiative + tt.initiative,
-        bestHit, bestMove, moves, goal: spec.goal,
-        bestBurst, burstMove, sustainedHit, rotation, setups,
+        // Reported with the shape the build actually gives them. `mv` objects are
+        // shared game data, so this attaches to a copy rather than writing to one.
+        bestHit, bestMove: withShape(build, bestMove), moves, goal: spec.goal,
+        bestBurst, burstMove: withShape(build, burstMove), sustainedHit, rotation, setups,
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
         masteryBudget: build.masteryBudget || null,

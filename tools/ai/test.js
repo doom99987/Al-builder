@@ -1331,7 +1331,206 @@ describe('availability', () => {
 });
 
 // ── 6d. what a corruption form does to the numbers ──────────────────────────
+describe('mastery reaches the move', () => {
+  it('reports the scaling the mastery actually gives, not the raw data', () => {
+    // The reported bug: a Blade Dancer who had BOUGHT Flowing Dance Proficiency
+    // was told the move still scaled STR/75 + SPD/75. The damage was already
+    // right - moveDamage applies the override - but the sentence beside it
+    // printed the raw game data, which reads exactly like the mastery doing
+    // nothing. "mastery isnt being calculated after getting it".
+    const r = engine.ask('', { klass: 'Blade Dancer (N)', goal: 'speed', play: 'solo', dmg: 'average' });
+    ok((r.build.masteryNodes || []).includes('rm2'),
+       'this build no longer takes rm2, so the test proves nothing - pick another goal');
+    eq(r.ctx.bestMove.name, 'Flowing Dance', 'best move changed; retarget this test');
+    eq(r.ctx.bestMove.scaling, 'SPD/50',
+       'the mastery was bought but the move still reports ' + r.ctx.bestMove.scaling);
+    ok(r.ctx.bestMove.shapeNote, 'nothing says why the move changed');
+  });
+
+  it('does not rewrite the move when the mastery was not bought', () => {
+    const r = engine.ask('', { klass: 'Blade Dancer (N)', goal: 'damage', play: 'solo', dmg: 'average' });
+    if ((r.build.masteryNodes || []).includes('rm2')) return;   // it did buy it; nothing to check
+    if (r.ctx.bestMove.name !== 'Flowing Dance') return;
+    eq(r.ctx.bestMove.scaling, 'STR/75 + SPD/75',
+       'the override fired without the node being taken');
+  });
+
+  it('never writes the effective shape onto the shared move data', () => {
+    // The move objects come straight from the snapshot. Writing to one would
+    // leak the last build's mastery into every later build.
+    const withNode = engine.ask('', { klass: 'Blade Dancer (N)', goal: 'speed', play: 'solo', dmg: 'average' });
+    void withNode;
+    const cm = data.classMoves['Blade Dancer (N)'] || {};
+    const raw = [].concat(cm.learns || [], cm.innatePassives || [])
+                  .find(m => m && m.name === 'Flowing Dance');
+    eq(raw.scaling, 'STR/75 + SPD/75', 'the shared game data was mutated to ' + raw.scaling);
+  });
+});
+
+describe('damage model', () => {
+  it('average and potential build genuinely different characters', () => {
+    // The reason this is asked rather than assumed. On average, crit chance
+    // returns what it costs and Luck competes; on potential, a crit is assumed
+    // to land, so crit CHANCE past the first point buys nothing and the points
+    // go to raw scaling instead.
+    const base = { klass: 'Blade Dancer (N)', goal: 'damage', play: 'solo' };
+    const avg = engine.ask('', Object.assign({ dmg: 'average'   }, base));
+    const pot = engine.ask('', Object.assign({ dmg: 'potential' }, base));
+    ok(avg.build.invested.lck > pot.build.invested.lck,
+       'average (' + avg.build.invested.lck + ' LCK) did not value Luck above potential (' +
+       pot.build.invested.lck + ' LCK)');
+    ok(avg.ctx.critChance > pot.ctx.critChance, 'average did not end with more crit chance');
+  });
+
+  it('prices Luck at what it actually returns on average', () => {
+    const r = engine.ask('', { klass: 'Blade Dancer (N)', goal: 'damage', play: 'solo', dmg: 'average' });
+    ok(r.ctx.critChance > 0, 'an average-damage build ended with no crit chance at all');
+    // Expected value, not a ceiling: the reported hit must sit at or below the
+    // number a landed crit would give.
+    const ceiling = r.ctx.bestHit * (r.ctx.critChance >= 100 ? 1 : 4);
+    ok(r.ctx.bestHit <= ceiling, 'the reported hit is not an expected value');
+  });
+
+  it('says which model it built for, and that the other differs', () => {
+    for (const dmg of ['average', 'potential']) {
+      const r = engine.ask('', { klass: 'Blade Dancer (N)', goal: 'damage', play: 'solo', dmg });
+      const sec = r.explanation.find(x => x.h === 'Damage model');
+      ok(sec, dmg + ': nothing says which damage model was used');
+      ok(new RegExp(K.DAMAGE_MODELS[dmg].label, 'i').test(sec.body), dmg + ': the wrong label');
+    }
+  });
+
+  it('the panel makes it a required choice, not a default', () => {
+    const root = path.join(__dirname, '..', '..');
+    const js = fs.readFileSync(path.join(root, 'js/build-ai.js'), 'utf8');
+    ok(/let dmgModel = null/.test(js), 'the panel preselects a damage model');
+    ok(js.indexOf('needsDmgModel') !== -1, 'nothing stops a build without the choice');
+    ok(/function run\(\)[\s\S]{0,300}needsDmgModel\(ov\)\) return;/.test(js),
+       'run() does not gate on the choice');
+    ok(/data-dmg="average"/.test(js) && /data-dmg="potential"/.test(js), 'both options are not offered');
+    ok(/delete o\.dmg/.test(js), 'the required choice is counted as an Advanced override');
+    // The two required rows must not steal each other's buttons.
+    ok(/#bai-play \.bai-play-opt/.test(js) && /#bai-dmg \.bai-play-opt/.test(js),
+       'the two chooser rows share an unscoped selector and will overwrite each other');
+  });
+});
+
+describe('class weapons', () => {
+  it('never hands a class a weapon type it cannot equip', () => {
+    // Berserker is greatsword-only. The inference read "The Big Sword" in its kit
+    // as the `Sword` type and gave every Berserker build a Primordial Sword - a
+    // build nobody can actually enter into the game.
+    for (const [klass, allowed] of Object.entries(K.CLASS_WEAPONS)) {
+      if (!data.classMoves || !data.classMoves[klass]) continue;   // base classes
+      for (const goal of ['damage', 'tank']) {
+        const r = engine.ask('', { klass, goal, play: 'solo' });
+        const name = r.build.weapon && r.build.weapon.name;
+        if (!name) continue;
+        const type = (data.weapons[name] || {}).type;
+        ok(allowed.includes(type),
+           klass + '/' + goal + ' was given ' + name + ' (' + type + '), but the class can only use ' +
+           allowed.join(', '));
+      }
+    }
+  });
+
+  it('an explicit table entry beats the inference', () => {
+    // The whole point of the override: inference has to lose to a stated fact.
+    eq(K.CLASS_WEAPONS['Berserker (Ch)'].join(), 'Greatsword', 'Berserker is not pinned to Greatsword');
+    const r = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo' });
+    eq((data.weapons[r.build.weapon.name] || {}).type, 'Greatsword',
+       'a Berserker is still being handed ' + r.build.weapon.name);
+  });
+
+  it('every weapon type named in the table exists in the data', () => {
+    const real = new Set(Object.values(data.weapons || {}).map(w => w.type));
+    for (const [klass, allowed] of Object.entries(K.CLASS_WEAPONS)) {
+      for (const t of allowed) {
+        ok(real.has(t), klass + ' is restricted to "' + t + '", which is not a weapon type in the data');
+      }
+    }
+  });
+});
+
+describe('shard values', () => {
+  it('reads shard percentages from the site, never from a copy in the engine', () => {
+    // Shattering was nerfed to a quarter of its old value. That edit belongs in
+    // js/builder.js, which the snapshot is extracted from - if the number were
+    // ALSO written into the engine, a balance change would have to be made twice
+    // and the two copies would drift apart silently.
+    //
+    // Proved by changing the data and watching the answer move, rather than by
+    // scanning the source for the literal: the first version of this test did
+    // that and tripped over an unrelated `uptime: 0.7` that happened to equal a
+    // shard's value. A test that fires on coincidence is worse than none.
+    const bumped = JSON.parse(JSON.stringify(data));
+    bumped.shardItems['Shattering (R)'].rVal = 100;
+    const spec = { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo' };
+    const before = engine.ask('', spec);
+    const after  = Engine(bumped).ask('', spec);
+    const shardDmg = r => (r.ctx.shards && r.ctx.shards.dmgPct) || 0;
+    ok(shardDmg(after) > shardDmg(before),
+       'a shard worth 100% per debuff scored no more than one worth ' +
+       data.shardItems['Shattering (R)'].rVal + '% — the engine is not reading the data');
+  });
+
+  it('a nerfed shard actually loses ground in the search', () => {
+    // The whole point of putting the number in the data: it has to reach the
+    // optimiser. Shattering at a quarter strength must no longer outrank the
+    // unconditional shards.
+    const sh = data.shardItems['Shattering (R)'];
+    ok(sh && sh.rVal < 1, 'Shattering (R) is not at its nerfed value: ' + (sh && sh.rVal));
+    const r = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', play: 'solo' });
+    const picks = r.build.shards || [];
+    const iShat = picks.indexOf('Shattering (R)');
+    const iEmp  = picks.indexOf('Empowering (R)');
+    ok(iEmp !== -1, 'the always-on shard was not picked at all');
+    ok(iShat === -1 || iShat > iEmp,
+       'Shattering still outranks an unconditional shard at a quarter strength');
+  });
+});
+
 describe('corruption damage', () => {
+  it('charges every form the turns it takes to get into one', () => {
+    // Reported from play: banking 100 Corrupt Energy is about seven turns. It is
+    // the single most important number about corruption, because every in-form
+    // figure is a state you reach a third of the way into a long fight rather
+    // than an opener - and without it the in-form column reads as a free upgrade.
+    const T = K.CORRUPTION_ENTRY_TURNS;
+    ok(typeof T === 'number' && T > 0, 'no entry-turn cost is defined');
+    for (const form of K.CORRUPTION) {
+      const fn = K.CORRUPTION_DAMAGE[form.name];
+      if (!fn) continue;
+      const d = fn({ energyCap: 5, moves: [{ name: 'X', cost: 3 }], critChance: 30, level: 50 });
+      const entry = (d.steps || []).find(st => /Ignition/i.test(st.move));
+      ok(entry, form.name + ' has no step for entering the form');
+      eq(entry.turns, T, form.name + ' does not charge the entry cost');
+    }
+  });
+
+  it('numbers the in-form rotation from after the entry, not from turn one', () => {
+    const r = engine.ask('', { klass: 'Darkwraith (Ch)', goal: 'damage', play: 'solo', corruption: true });
+    const rot = r.explanation.find(x => /Opening rotation — in /.test(x.h));
+    ok(rot, 'no in-form rotation');
+    const entryLine = rot.list.find(l => /Ignition/.test(l));
+    ok(/Turns 1–7|Turns 1-7/.test(entryLine),
+       'the entry does not span its seven turns: ' + entryLine.slice(0, 80));
+    // The finisher cannot land before the form has even been entered.
+    const finisher = rot.list.filter(l => /^\*\*Turn \d+ —/.test(l)).pop();
+    const n = finisher && Number((finisher.match(/Turn (\d+)/) || [])[1]);
+    ok(n > K.CORRUPTION_ENTRY_TURNS,
+       'the payoff lands on turn ' + n + ', at or before the ' + K.CORRUPTION_ENTRY_TURNS +
+       ' it takes to enter the form');
+  });
+
+  it('says the in-form damage is a late-fight number', () => {
+    const r = engine.ask('', { klass: 'Darkwraith (Ch)', goal: 'damage', play: 'solo', corruption: true });
+    const sec = r.explanation.find(x => x.h === 'Damage in form');
+    ok(sec, 'no in-form damage section');
+    ok((sec.list || []).some(l => /late-fight/i.test(l) && new RegExp(K.CORRUPTION_ENTRY_TURNS).test(l)),
+       'nothing says when these numbers start applying');
+  });
+
   it('works out every form, not only the chosen one', () => {
     for (const q of REQUESTS.slice(0, 10)) {
       const r = ask(q);

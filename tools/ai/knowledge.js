@@ -723,6 +723,26 @@
     team: { label: 'Full team', note: 'a party of ' + 5 + ', so party effects are worth several times more' },
   };
 
+  // ── DAMAGE MODELS ─────────────────────────────────────────────────────────
+  // Two honest ways to read a damage number, and they build different characters.
+  //
+  //   average    what the move does per swing over a long fight, crit chance
+  //              folded in: base x (1 + p(critMult - 1)). Luck is worth exactly
+  //              what it actually returns, and a 25% crit build is priced at 25%.
+  //   potential  what it does WHEN the crit lands. Luck stops paying once it can
+  //              buy a crit at all, and everything flows to raw damage and crit
+  //              DAMAGE instead of crit chance.
+  //
+  // Neither is wrong. Average is what a long fight gives you; potential is the
+  // number you screenshot. They are far apart on a low-crit build, which is
+  // exactly why the engine must not pick one for you.
+  const DAMAGE_MODELS = {
+    average:   { label: 'Average damage',
+                 note: 'crit chance folded in — what the move really does per swing over a fight' },
+    potential: { label: 'Potential damage',
+                 note: 'the number when the crit lands — a ceiling, not an average' },
+  };
+
   const MASTERY_ABILITIES = {
     // ── close to unconditional ───────────────────────────────────────────────
     'Element Mastery':      { kind: 'dmgPct', value: 15, uptime: 0.95,
@@ -932,6 +952,13 @@
   // Entries here OVERRIDE the inference. Add a line whenever you see a class
   // given the wrong weapon; it is the cheapest correction in the whole engine.
   const CLASS_WEAPONS = {
+    // Greatsword ONLY. The inference read its kit text - "The Big Sword",
+    // "Sword Training" - as the `Sword` type and handed every Berserker build a
+    // Primordial Sword, which the class cannot equip. "Greatsword" does not
+    // match sword, so nothing was going to fix this except saying it.
+    // Warrior and Blade Dancer are left to inference: nobody has told me what
+    // they can hold, and guessing is how this went wrong in the first place.
+    'Berserker (Ch)': ['Greatsword'],
     'Thief': ['Dagger'], 'Rogue (N)': ['Dagger'], 'Assassin (Ch)': ['Dagger'],
     'Ranger (Or)': ['Dagger'],
     'Martial Artist': ['Gauntlets'], 'Monk (Or)': ['Gauntlets'],
@@ -1001,6 +1028,9 @@
           if (rule.hits    !== undefined) out.hits    = rule.hits;
           if (rule.scaling !== undefined) out.scaling = rule.scaling;
           out._second = rule.second || null;
+          // Why the move changed, in words. Without this the write-up can say
+          // the numbers moved but not what moved them.
+          out.note = rule.note || null;
           return out;
         }
         return null;
@@ -1150,6 +1180,16 @@
     condemnedPct: 10,
   };
 
+  // How long it actually takes to bank 100 Corrupt Energy and enter a form.
+  // Reported from play, not from anything the game states — the game gives the
+  // cost, never the rate.
+  //
+  // This is the single most important number about corruption and it was
+  // missing: every in-form figure below is a state you reach around turn seven,
+  // not an opener. A fight that ends sooner is a fight where the form never
+  // happened at all, and the out-of-form rotation is the only one that ran.
+  const CORRUPTION_ENTRY_TURNS = 7;
+
   const CORRUPTION_DAMAGE = {
     Blasphemy: (c) => {
       // "Any move costing 0-2 NRG generates 1 Notch up to your cap. Any move
@@ -1165,7 +1205,9 @@
           lines: ['No move in this kit costs 3+ energy, so there is nothing to spend a Notch stack on. ' +
                   'The form still banks Notch and still pays the holding Recoil for it.'],
           unknown: [], assumed: [],
-          steps: [{ move: 'Soul Ignition', note: 'Spend 100 Corrupt Energy to enter the form.' }],
+          steps: [{ move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
+                    note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
+                          CORRUPTION_ENTRY_TURNS + ' turns.' }],
         };
       }
       // "10% at 1 Notch, scaling to 30% at your cap."
@@ -1185,7 +1227,9 @@
             '**+' + (100 * (sustained - 1)).toFixed(1) + '%** damage per turn, not +30%.',
         ],
         steps: [
-          { move: 'Soul Ignition', note: 'Spend 100 Corrupt Energy to enter the form.' },
+          { move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
+            note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
+                  CORRUPTION_ENTRY_TURNS + ' turns.' },
           { move: 'Bank Notch', turns: cap,
             note: 'Moves costing 0-2 energy, one Notch each, up to your cap of ' + cap +
                   '. This is the cost of the +30%, and it is why the sustained figure is so much smaller.' },
@@ -1232,7 +1276,9 @@
                   hit: c.bestHit / (before || 1) * after },
         lines,
         steps: [
-          { move: 'Soul Ignition', note: 'Spend 100 Corrupt Energy to enter the form. You start in Dark Wing.' },
+          { move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
+            note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
+                  CORRUPTION_ENTRY_TURNS + ' turns. You start in Dark Wing.' },
           { move: 'Build Light Force',
             note: 'Force goes to whichever stance you are in, and it is White Wing that builds Light. ' +
                   'A flat amount per hit plus a bonus on a crit, once per turn, scaling with crit tier — ' +
@@ -1267,7 +1313,9 @@
                'times what it shows here — these numbers only count your own hits.']
           : ['No move in this kit costs 2+ energy, so there is nothing to apply Condemned with.'],
         steps: appliers ? [
-          { move: 'Soul Ignition', note: 'Spend 100 Corrupt Energy to enter the form. You start in Tyrant.' },
+          { move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
+            note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
+                  CORRUPTION_ENTRY_TURNS + ' turns. You start in Tyrant.' },
           { move: 'Strike / Magic Missile', note: 'Marks the target as your Subject. Only one at a time.' },
           { move: 'Trade damage', note: 'Mandate builds on your Subject as you trade with it. The first 2 ' +
                                         'stacks are guaranteed; past that it is a roll that improves with Corrupt Power.' },
@@ -1275,7 +1323,9 @@
                                     'pool — the only pool your abilities spend from.' },
           { move: 'Any 2+ energy move', note: 'Spends 1 Mandate to apply or refresh Condemned on the target.' },
         ] : [
-          { move: 'Soul Ignition', note: 'Spend 100 Corrupt Energy to enter the form.' },
+          { move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
+            note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
+                  CORRUPTION_ENTRY_TURNS + ' turns.' },
         ],
         unknown: [
           'The Shield from harvesting Mandate, the party Damage Reduction pool, and the damage Regent ' +
@@ -1334,9 +1384,10 @@
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
            UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
-           PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, SUPERCLASS_MIN_LEVEL,
+           PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
            ENERGY, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
-           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, TRAPS };
+           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED,
+           CORRUPTION_ENTRY_TURNS, TRAPS };
 }));
