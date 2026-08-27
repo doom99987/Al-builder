@@ -646,7 +646,7 @@
         <button class="sb-menu-item sb-menu-item-amorus" onclick="window._closeProfileMenu();window._amorusTrackerOpen?.()">&#9670;&nbsp; Amorus Tracker</button>
       </div>
       <button class="sb-menu-item sb-menu-item-bank" onclick="window._closeProfileMenu();window._bankOpen?.()">Bank</button>
-      ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel <span id="sb-menu-report-badge" class="sb-report-badge" style="display:none"></span></button>` : ''}
+      ${isAdmin() ? `<div class="sb-menu-divider"></div><button class="sb-menu-item sb-menu-item-ai" onclick="window._closeProfileMenu();window._openBuildAI?.()">&#10022;&nbsp; AI</button><button class="sb-menu-item sb-menu-item-admin" onclick="window._openAdminPanel()">&#9760;&nbsp; Admin Panel <span id="sb-menu-report-badge" class="sb-report-badge" style="display:none"></span></button>` : ''}
       <div class="sb-menu-divider"></div>
       <button class="sb-menu-item sb-menu-item-danger" onclick="window._sbSignOut()">&#10148;&nbsp; Logout</button>`;
     document.body.appendChild(menu);

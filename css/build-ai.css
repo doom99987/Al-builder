@@ -1,0 +1,181 @@
+/* Build AI panel — admin only. Matches the bank/trades modal conventions. */
+
+#bai-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4vh;
+  z-index: 9000;
+}
+#bai-overlay.bai-open { display: flex; }
+
+#bai-modal {
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  padding: 22px;
+  width: min(96vw, 820px);
+  max-height: 92vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: 'Rajdhani', Arial, sans-serif;
+}
+
+.bai-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bai-title {
+  font-size: 20px; font-weight: 700; color: #c9a227;
+  letter-spacing: .04em; margin: 0;
+}
+.bai-sub { color: #777; font-size: 13px; margin: -6px 0 4px; line-height: 1.45; }
+.bai-x {
+  background: none; border: 0; color: #666; font-size: 22px;
+  cursor: pointer; line-height: 1; padding: 0 4px;
+}
+.bai-x:hover { color: #ccc; }
+
+/* WIP notice. Amber rather than the panel's gold, so it reads as a warning and
+   not as another heading, and it sits above everything it is warning about. */
+.bai-wip {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: #1c1607; border: 1px solid #6b5312; border-radius: 8px;
+  padding: 9px 10px 9px 11px; margin: -2px 0 2px;
+}
+.bai-wip[hidden] { display: none; }
+.bai-wip-tag {
+  flex: 0 0 auto; background: #c9a227; color: #101010;
+  font-size: 11px; font-weight: 700; letter-spacing: .09em;
+  border-radius: 4px; padding: 2px 7px; margin-top: 1px;
+}
+.bai-wip-text { flex: 1; color: #c2ab74; font-size: 12.5px; line-height: 1.45; }
+.bai-wip-x {
+  flex: 0 0 auto; background: none; border: 0; color: #8a7434;
+  font-size: 19px; line-height: 1; cursor: pointer; padding: 0 2px;
+}
+.bai-wip-x:hover { color: #e0c080; }
+
+.bai-ask { display: flex; gap: 8px; }
+#bai-q {
+  flex: 1; background: #141414; border: 1px solid #2a2a2a; border-radius: 6px;
+  color: #eee; font-family: inherit; font-size: 15px; padding: 10px 12px;
+}
+#bai-q:focus { outline: none; border-color: #c9a227; }
+.bai-go {
+  background: #c9a227; border: 0; border-radius: 6px; color: #101010;
+  font-family: inherit; font-size: 15px; font-weight: 700;
+  padding: 10px 22px; cursor: pointer; letter-spacing: .03em;
+}
+.bai-go:hover { filter: brightness(1.1); }
+.bai-go:disabled { opacity: .5; cursor: default; }
+
+.bai-examples { font-size: 12px; color: #666; line-height: 2; }
+.bai-ex {
+  color: #c8a870; cursor: pointer; border-bottom: 1px dotted currentColor;
+  margin-right: 11px;
+}
+.bai-ex:hover { color: #e0c080; }
+
+.bai-out { display: flex; flex-direction: column; gap: 10px; }
+.bai-sec {
+  background: #111; border: 1px solid #232323; border-radius: 8px; padding: 12px 14px;
+}
+.bai-sec h3 {
+  margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  color: #777; font-weight: 700;
+}
+.bai-sec.bai-warn { border-color: #6b4a2a; }
+.bai-sec.bai-warn h3 { color: #d89a5a; }
+.bai-sec table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.bai-sec td { padding: 3px 0; vertical-align: top; color: #ddd; }
+.bai-sec td:first-child { color: #808080; width: 190px; padding-right: 12px; }
+.bai-sec ul { margin: 0; padding-left: 17px; font-size: 14px; color: #ddd; }
+.bai-sec li { margin-bottom: 6px; line-height: 1.5; }
+.bai-sec li:last-child { margin-bottom: 0; }
+.bai-sec b { color: #c8a870; font-weight: 600; }
+.bai-sec i { color: #888; font-style: normal; }
+
+.bai-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bai-btn {
+  background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #ddd;
+  font-family: inherit; font-size: 14px; font-weight: 600; padding: 9px 16px; cursor: pointer;
+}
+.bai-btn:hover { border-color: #c9a227; color: #fff; }
+.bai-btn-primary { background: #c9a227; border-color: #c9a227; color: #101010; }
+.bai-btn-primary:hover { filter: brightness(1.1); color: #101010; }
+.bai-link {
+  color: #c8a870; font-size: 12px; word-break: break-all; text-decoration: none;
+}
+.bai-link:hover { text-decoration: underline; }
+.bai-note { color: #666; font-size: 12px; }
+
+@media (max-width: 620px) {
+  #bai-modal { padding: 16px; }
+  .bai-sec td:first-child { width: 120px; }
+  .bai-ask { flex-direction: column; }
+}
+
+/* ── advanced options ─────────────────────────────────────────────────────── */
+.bai-adv-toggle {
+  background: none; border: 0; color: #888; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase;
+  padding: 4px 0; text-align: left; align-self: flex-start;
+}
+.bai-adv-toggle:hover { color: #c8a870; }
+.bai-adv-count { color: #c9a227; font-weight: 700; text-transform: none; letter-spacing: 0; }
+
+.bai-adv {
+  background: #111; border: 1px solid #232323; border-radius: 8px; padding: 14px;
+}
+.bai-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 14px;
+}
+.bai-field { display: flex; flex-direction: column; gap: 4px; }
+.bai-field > span {
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #777; font-weight: 700;
+}
+.bai-field select,
+.bai-field input {
+  background: #171717; border: 1px solid #2a2a2a; border-radius: 5px; color: #ddd;
+  font-family: inherit; font-size: 14px; padding: 7px 8px; width: 100%;
+}
+.bai-field select:focus,
+.bai-field input:focus { outline: none; border-color: #c9a227; }
+.bai-field select optgroup { background: #111; color: #c8a870; font-style: normal; }
+.bai-field select option { background: #171717; color: #ddd; }
+
+.bai-adv-foot {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px;
+}
+
+/* ── check my current build ───────────────────────────────────────────────── */
+.bai-check {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  color: #999; font-size: 13px; font-weight: 600; user-select: none;
+  align-self: flex-start; padding: 2px 0;
+}
+.bai-check:hover { color: #c8a870; }
+.bai-check input { accent-color: #c9a227; width: 15px; height: 15px; cursor: pointer; }
+
+.bai-cmp th {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .07em;
+  color: #777; text-align: left; font-weight: 700; padding-bottom: 4px;
+}
+.bai-cmp td:first-child { width: 130px; }
+.bai-cmp td { padding: 3px 10px 3px 0; }
+.bai-up   { color: #7fbf6a; font-weight: 700; }
+.bai-down { color: #d97b7b; font-weight: 700; }
+.bai-same { color: #666; }
+.bai-from { color: #8a8a8a; text-decoration: line-through; }
+
+.bai-checks { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.bai-reroll {
+  background: #1a1a1a; border: 1px solid #333; border-radius: 5px; color: #c8a870;
+  font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+  padding: 5px 12px; cursor: pointer; text-transform: uppercase;
+}
+.bai-reroll:hover { border-color: #c9a227; color: #fff; }

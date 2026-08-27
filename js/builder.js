@@ -1975,6 +1975,10 @@ function renderCorruptionDesc() {
 if (corruptionPicker) {
   buildSimpleDropdown(corruptionPicker, Object.keys(corruptionForms), () => {
     renderCorruptionDesc();
+    // The calculator only offers the selected form's buffs, so it has to be
+    // rebuilt here or a Blasphemy toggle survives a switch to Tyranny.
+    if (typeof renderDmgBonusSection === "function") renderDmgBonusSection();
+    if (typeof recalcOpenDetails === "function") recalcOpenDetails();
     updatePecents();
     if (typeof autoSave === "function") autoSave();
   });
@@ -3778,6 +3782,21 @@ const TEAM_BUFFS = [
   { key: 'blizzard',   label: "Blizzard",       mult: 1.20, desc: "+20% ice damage for the team for 4 turns." },
   { key: 'arcaneRitual',label: "Arcane Ritual", mult: 1.40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
 ];
+// --- Corruption form ---
+// Being in your Corruption Form changes what a hit is worth, so the calculator
+// can show the in-form number next to the normal one. Everything here is OFF by
+// default: out of form is the ordinary case and the one people compare against.
+//
+// Only the form selected in the Corruption picker is offered. Where the game
+// states a number it is used as written; where it does not — Condemned, and how
+// much Light Force a hit grants — the control is a slider you set yourself
+// rather than a figure presented as fact.
+const corruptionBuffsActive = { notch: false, condemned: false, lightForce: false };
+let notchSpent     = 5;   // 1..cap  Notch consumed by this hit
+let notchCap       = 5;   // 1..12   your max energy, which is also the Notch cap
+let condemnedPct   = 10;  // 0..50   UNSTATED by the game — placeholder, set it yourself
+let lightForceCrit = 0;   // 0..100  flat Crit Rate bought 1:1 with Light Force
+
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
@@ -4197,7 +4216,10 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (m.name === "Dark Smite" && superPicker.value === "Darkwraith (Ch)" && masteryState["lm2"]) return 50;
     return m.critBonus;
   })();
-  const getMoveCritChancePct = () => { const b = getCritChancePct(); return b !== null ? b + moveCritBonus : null; };
+  const getMoveCritChancePct = () => {
+    const b = getCritChancePct();
+    return b !== null ? b + moveCritBonus + getCorruptionCritBonus() : null;
+  };
 
   // Parse base damage — handle "6x2" style
   let baseDmgNum = null;
@@ -5050,6 +5072,7 @@ function getActiveDmgMult(moveType = null) {
     if (b.key === 'castAmplify') { mult *= Math.pow(1.20, castAmplifyStacks); return; }
     mult *= b.mult;
   });
+  mult *= getCorruptionDmgMult();
   if (summonBuffsActive.spiritAwakening) mult *= 1.50;
   // Sinister Gaze: enemy received your Bulk Up defense debuff → they take more damage (multiplicative)
   if (sinisterGazeReflect) {
@@ -5072,6 +5095,55 @@ function getEnchantMult() {
   if (ench === 'Midas'   && enchantCondActive.midasProc) return 1.15;
   if (ench === 'Reaper'  && enchantCondActive.reaperProc) return 1 + 0.25 * enchantReaperEnemyHp / 100;
   return 1;
+}
+
+// Blasphemy: "Any move costing 3+ NRG consumes the entire stack", worth
+// "10% at 1 Notch, scaling to 30% at your cap".
+function notchDmgPct() {
+  const cap = Math.max(1, notchCap);
+  const n   = Math.min(Math.max(1, notchSpent), cap);
+  return cap <= 1 ? 30 : 10 + 20 * (n - 1) / (cap - 1);
+}
+
+// The damage multiplier from being in form. 1 when no form is picked, which is
+// every build that has not asked for this.
+function getCorruptionDmgMult() {
+  const form = corruptionPicker?.value;
+  if (!form) return 1;
+  let mult = 1;
+  if (form === "Blasphemy" && corruptionBuffsActive.notch)     mult *= 1 + notchDmgPct() / 100;
+  if (form === "Tyranny"   && corruptionBuffsActive.condemned) mult *= 1 + condemnedPct / 100;
+  return mult;
+}
+
+// Heresy converts Light Force to Crit Rate 1:1 on your next attack, so it moves
+// crit chance rather than damage — including across an overcrit tier, which is
+// the whole reason a crit build cares about the form.
+function getCorruptionCritBonus() {
+  return (corruptionPicker?.value === "Heresy" && corruptionBuffsActive.lightForce)
+    ? Math.max(0, lightForceCrit) : 0;
+}
+
+function toggleCorruptionBuff(key) {
+  corruptionBuffsActive[key] = !corruptionBuffsActive[key];
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+function changeNotchSpent(delta) {
+  notchSpent = Math.min(notchCap, Math.max(1, notchSpent + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+function changeNotchCap(delta) {
+  notchCap = Math.min(12, Math.max(1, notchCap + delta));
+  if (notchSpent > notchCap) notchSpent = notchCap;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+function setCondemnedPct(v) {
+  condemnedPct = Math.min(50, Math.max(0, +v || 0));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+function setLightForceCrit(v) {
+  lightForceCrit = Math.min(100, Math.max(0, +v || 0));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function toggleTeamBuff(key) {
@@ -6086,6 +6158,83 @@ function renderDmgBonusSection() {
   });
   html += `</div>`;
 
+  // --- Corruption Form (only once a form is picked) ---
+  // Deliberately after Team Buffs: it is the same kind of thing, a multiplier
+  // you turn on for a turn, and it belongs next to them rather than hidden.
+  const _corrForm = corruptionPicker?.value;
+  if (_corrForm) {
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Corruption — ${_corrForm}</h3><div class="dc-bonus-list">`;
+
+    if (_corrForm === "Blasphemy") {
+      const _on = corruptionBuffsActive.notch;
+      const _pct = notchDmgPct();
+      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="notch" title="Spending a Notch stack on a damaging move deals bonus damage — 10% at 1 Notch, scaling to 30% at your cap.">
+        <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Notch spend</span>
+        <span class="dc-bonus-pct">×${(1 + _pct / 100).toFixed(2)}</span>
+      </div>`;
+      if (_on) {
+        html += `<div class="dc-energy-section" style="margin:2px 0 2px 0">
+          <span class="dc-energy-label">Notch spent</span>
+          <div class="dc-energy-counter">
+            <button class="dc-energy-btn" onclick="changeNotchSpent(-1)">−</button>
+            <span class="dc-energy-val">${notchSpent}</span>
+            <button class="dc-energy-btn" onclick="changeNotchSpent(1)">+</button>
+          </div>
+        </div>
+        <div class="dc-energy-section" style="margin:2px 0 6px 0">
+          <span class="dc-energy-label">Cap (max energy)</span>
+          <div class="dc-energy-counter">
+            <button class="dc-energy-btn" onclick="changeNotchCap(-1)">−</button>
+            <span class="dc-energy-val">${notchCap}</span>
+            <button class="dc-energy-btn" onclick="changeNotchCap(1)">+</button>
+          </div>
+        </div>
+        <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">
+          ${notchSpent} of ${notchCap} Notch → +${_pct.toFixed(1)}% damage. A full stack takes ${notchCap} cheap turns to bank.
+        </div>`;
+      }
+    }
+
+    if (_corrForm === "Tyranny") {
+      const _on = corruptionBuffsActive.condemned;
+      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="condemned" title="A move costing 2+ NRG spends 1 Mandate to apply Condemned, making the target take more damage from everyone. The game does not state how much.">
+        <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Condemned</span>
+        <span class="dc-bonus-pct">×${(1 + condemnedPct / 100).toFixed(2)}</span>
+      </div>`;
+      if (_on) {
+        html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
+          <span class="dc-rage-slider-label">Condemned: <b>${condemnedPct}%</b> <span style="color:#c58b5a">untested</span></span>
+          <input type="range" class="dc-rage-slider" min="0" max="50" step="1" value="${condemnedPct}" oninput="setCondemnedPct(this.value)">
+        </div>
+        <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">
+          The game never states this figure. Set it to whatever you measure — and note it raises damage from everyone, not just you.
+        </div>`;
+      }
+    }
+
+    if (_corrForm === "Heresy") {
+      const _on = corruptionBuffsActive.lightForce;
+      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="lightForce" title="Dark Wing: spend 25/50/75/100% of your Light Force for Crit Rate 1:1 on your next attack.">
+        <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
+        <span class="dc-bonus-name">Light Force → Crit</span>
+        <span class="dc-bonus-pct">+${lightForceCrit}%</span>
+      </div>`;
+      if (_on) {
+        html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
+          <span class="dc-rage-slider-label">Force spent: <b>+${lightForceCrit}%</b> crit rate</span>
+          <input type="range" class="dc-rage-slider" min="0" max="100" step="1" value="${lightForceCrit}" oninput="setLightForceCrit(this.value)">
+        </div>
+        <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">
+          Converts 1:1, so this is Force spent. How much Force a hit grants is not stated anywhere — set what you actually have. Crossing 100 crit chance is a whole overcrit tier.
+        </div>`;
+      }
+    }
+
+    html += `</div>`;
+  }
+
   // --- Summon Buffs (Vastayan only) ---
   if (raceName === "Vastayan (9%)") {
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Summon Buffs</h3><div class="dc-bonus-list">`;
@@ -6280,6 +6429,10 @@ function renderDmgBonusSection() {
     }
     if (row.dataset.teamKey) {
       row.addEventListener("click", () => toggleTeamBuff(row.dataset.teamKey));
+      return;
+    }
+    if (row.dataset.corrKey) {
+      row.addEventListener("click", () => toggleCorruptionBuff(row.dataset.corrKey));
       return;
     }
     if (row.dataset.summonKey) {
@@ -6784,8 +6937,8 @@ const masteryClassData = {
     }
   },
   "Necromancer (Ch)": {
-    branches: { red: "Speed", green: "Arcane", blue: "Speed" },
-    branchStats: { shared: "lck", red: "spd", green: "arc", blue: "spd" },
+    branches: { red: "Speed", green: "Arcane", blue: "Endurance" },
+    branchStats: { shared: "lck", red: "spd", green: "arc", blue: "end" },
     nodes: {
       s1:  { name: "Luck Node" }, s2:  { name: "Luck Node" },
       s3:  { name: "Luck Node" }, s4:  { name: "Luck Node" },
@@ -6802,11 +6955,11 @@ const masteryClassData = {
       c5b: { name: "Arcane Node" },
       cm1: { name: "Life Absorption",             desc: "Gain 2.5% regen per summon slot filled by you.\n10% total for 4 summons." },
       cm2: { name: "Darklight Drain Proficiency", desc: "Now gives all summons a 15% damage and damage reduction buff for 4 turns. Adds a 20% passive regen buff to everyone for 3 turns." },
-      r1:  { name: "Speed Node" }, r2:  { name: "Speed Node" },
-      r3:  { name: "Speed Node" }, r4:  { name: "Speed Node" },
-      r5:  { name: "Speed Node" }, r6:  { name: "Speed Node" },
-      r7:  { name: "Speed Node" }, r8:  { name: "Speed Node" },
-      r9:  { name: "Speed Node" },
+      r1:  { name: "Endurance Node" }, r2:  { name: "Endurance Node" },
+      r3:  { name: "Endurance Node" }, r4:  { name: "Endurance Node" },
+      r5:  { name: "Endurance Node" }, r6:  { name: "Endurance Node" },
+      r7:  { name: "Endurance Node" }, r8:  { name: "Endurance Node" },
+      r9:  { name: "Endurance Node" },
       rm1: { name: "Final Goodbye",               desc: "When a summon dies, remnants of its power remain in your hands, granting a stack of Arcane buff (up to 15% max, at 5% per summon death)." },
       rm2: { name: "Raise Death Proficiency",     desc: "Revived ally HP increased from 60% to 80%. Revived ally cannot die until their next turn begins (but their turn is skipped upon revival). Cooldown reduced from 16 turns to 11 turns." },
     }
@@ -8448,6 +8601,8 @@ function loadBuildState(state) {
   bossCorrupted = false;
   Object.keys(statusEffectsActive).forEach(k => { statusEffectsActive[k] = false; });
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
+  Object.keys(corruptionBuffsActive).forEach(k => { corruptionBuffsActive[k] = false; });
+  notchSpent = 5; notchCap = 5; condemnedPct = 10; lightForceCrit = 0;
   Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
@@ -8465,6 +8620,10 @@ function loadBuildState(state) {
   renderSoulTree();
   renderMastery();
   renderMasteryInfoSection();
+  // The calculator only offers the SELECTED corruption form buffs, and nothing
+  // else rebuilds that panel on load, so a shared Blasphemy build was opening
+  // with whatever panel the previous build had left behind.
+  renderDmgBonusSection();
 }
 
 // Share button
