@@ -22,7 +22,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 17;
+  const ENGINE_V = 18;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -681,6 +681,16 @@
       niches.push('<b>Gear passives doing work:</b> ' +
                   esc(ctx.gearPassives.active.map(a => a.name).join(', ')) + '.');
     }
+    // The capstones cost 5 mastery points each, so what they do belongs in the
+    // summary next to the reason for every other expensive choice.
+    if (ctx.masteryAbilities && ctx.masteryAbilities.active.length) {
+      for (const a of ctx.masteryAbilities.active) {
+        const unit = a.kind === 'critChance' ? ' crit chance' : a.kind === 'dr' ? '% DR' : '% damage';
+        niches.push('<b>' + esc(a.name) + ' (mastery):</b> +' + a.value + unit +
+                    (a.uptime < 1 ? ', counted at ' + Math.round(a.uptime * 100) + '% uptime' : ', always on') +
+                    (a.note ? ' — ' + esc(a.note) : ''));
+      }
+    }
     if (res.build.corruption) {
       const c = res.corruption && res.corruption.best;
       const d = c && c.damage;
@@ -711,7 +721,12 @@
     if (ctx.gearPassives && ctx.gearPassives.unmodelled.length) {
       gaps.push(ctx.gearPassives.unmodelled.length + ' gear passives');
     }
-    gaps.push('mastery capstones', 'conditional buffs');
+    // Mastery capstones used to be a blanket gap; now only the ones this build
+    // actually took and could not read are.
+    if (ctx.masteryAbilities && ctx.masteryAbilities.unmodelled.length) {
+      gaps.push(ctx.masteryAbilities.unmodelled.length + ' mastery capstone abilities');
+    }
+    gaps.push('conditional buffs');
     L.push('<br><i>Not counted in the numbers above: ' + esc(gaps.join(', ')) +
            '. Traits are counted here but the site does not compute them, so its ' +
            'own readouts will be lower.</i>');

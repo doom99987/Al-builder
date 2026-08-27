@@ -326,6 +326,26 @@
       }
     }
 
+    // ── mastery abilities ───────────────────────────────────────────────────
+    // The stat points a mastery tree grants were always counted. The CAPSTONE
+    // abilities — 5 points each, and the reason to take one branch over another
+    // — were not, so this says which ones are in the numbers and at what uptime.
+    if (c.masteryAbilities && (c.masteryAbilities.active.length || c.masteryAbilities.unmodelled.length)) {
+      const ma = c.masteryAbilities;
+      if (ma.active.length) {
+        const unit = a => a.kind === 'critChance' ? ' crit chance' : a.kind === 'dr' ? '% DR' : '% damage';
+        L.push({ h: 'Mastery abilities counted', table: ma.active.map(a =>
+          [a.name, '+' + a.value + unit(a) +
+                   (a.uptime < 1 ? '  — counted at ' + Math.round(a.uptime * 100) + '% uptime' : '  — always on') +
+                   (a.note ? '.  ' + a.note : '')]) });
+      }
+      if (ma.unmodelled.length) {
+        L.push({ h: 'Mastery abilities NOT counted', body:
+          'Capstones this build paid 5 points each for, whose effect the numbers above ignore:',
+          list: ma.unmodelled.map(u => '**' + u.name + '**' + (u.note ? ' — ' + u.note : '')) });
+      }
+    }
+
     // ── caveats ─────────────────────────────────────────────────────────────
     if (c.traits && c.traits.active.length) {
       L.push({ h: 'Note', body:

@@ -663,6 +663,122 @@
     'Shattered Clock Hand': { kind: 'note', note: '30% chance to cut cooldowns on Strike' },
   };
 
+  // ── MASTERY ABILITIES ───────────────────────────────────────
+  // The six capstones are the expensive half of the mastery tree: 5 points each
+  // out of 35, against 1 for a stat node. Until now the engine could only see
+  // the stat points, so it was buying a capstone on branch colour and calling it
+  // a choice — the ability it was actually paying for was invisible to it.
+  //
+  // Two layers feed this:
+  //
+  //   1. extract-data.js runs builder.js's OWN parseDmgBonus over all 108
+  //      ability descriptions and stores what it finds (`masteryAbilities`).
+  //      That covers 23 of them for free and cannot drift from the site.
+  //   2. This table, which overrides or adds. It exists because a parsed number
+  //      is only half the answer: "+100% against stunned enemies" and "+15% to
+  //      all your elements" both read as a percentage, and only one of them is
+  //      close to always on.
+  //
+  // `uptime` is the whole point. Without it the optimiser buys Overload for its
+  // +100% and never notices it needs the target stunned first.
+  //
+  // Anything with no entry and no parsed number is reported under "Mastery
+  // abilities NOT counted" rather than silently scored as zero.
+  const MASTERY_ABILITY_DEFAULT_UPTIME = 0.5;
+
+  const MASTERY_ABILITIES = {
+    // ── close to unconditional ───────────────────────────────────────────────
+    'Element Mastery':      { kind: 'dmgPct', value: 15, uptime: 0.95,
+                              note: '+15% to magic, fire, nature, holy, dark and ice — a caster\'s whole kit' },
+    'Cursed Fists':         { kind: 'dmgPct', value: 10, uptime: 1,
+                              note: '+10% to all Darkwraith and Darkbeast skills, and +20% crit chance on strikes' },
+    'Shadow Master':        { kind: 'dmgPct', value: 30, uptime: 0.5,
+                              note: '+30% while invisible — half a rotation for an Assassin' },
+    'Oppression':           { kind: 'dmgPct', value: 25, uptime: 0.6,
+                              note: '+5% per unique status on the target, capped at 5 — needs them applied first' },
+    'Energy Manipulator':   { kind: 'dmgPct', value: 22.5, uptime: 0.6,
+                              note: '+3.75% per energy held, +22.5% at 6 — and it reads CURRENT energy, so ' +
+                                    'spending on the hit lowers it' },
+    'Unending Flow':        { kind: 'dmgPct', value: 50, uptime: 0.45,
+                              note: '+5% per consecutive attacking turn to +50%, and a turn without damage resets it' },
+    'Blood Mastery':        { kind: 'dmgPct', value: 25, uptime: 0,
+                              note: 'currently does nothing — the passive it modifies was reverted' },
+
+    // ── conditional on a status you have to apply ────────────────────────────
+    'Overload':             { kind: 'dmgPct', value: 100, uptime: 0.2,
+                              note: '+100% against STUNNED enemies only, and bosses resist stun' },
+    'Vital Strike':         { kind: 'dmgPct', value: 20, uptime: 0.6,
+                              note: '+20% against bleeding targets — reliable once your kit applies Bleed' },
+    'Poison Fan Proficiency':      { kind: 'dmgPct', value: 10, uptime: 0.6,
+                              note: '+10% against poisoned targets' },
+    'Crushing Strike Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.55,
+                              note: '+20% against vulnerable or weakened targets' },
+    'Lightning Crash Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.5,
+                              note: '+20% against burning targets' },
+    'Blaze Proficiency':    { kind: 'dmgPct', value: 30, uptime: 0.8,
+                              note: '15% always, doubled to 30% against a burning target — and it guarantees the Burn itself' },
+    'Carnage Proficiency':  { kind: 'dmgPct', value: 20, uptime: 0.5,
+                              note: '+20% against weakened, which the move itself applies, plus 15% while below 40% HP' },
+    'Head Splitter Proficiency': { kind: 'dmgPct', value: 30, uptime: 0.35,
+                              note: '+30% to low-health targets, and the move becomes full AoE' },
+    'Intense Rage':         { kind: 'dmgPct', value: 60, uptime: 0.3,
+                              note: '+60% below 30% HP, up from 40% — a real buff you have to nearly die for' },
+    'Grand Guard':          { kind: 'dmgPct', value: 10, uptime: 0.7,
+                              note: '+10% while at 40% DR or more, which a Citadel usually is' },
+    'Cell Charge':          { kind: 'dmgPct', value: 50, uptime: 0.3,
+                              note: '+50%, but it charges off 10 blocks or 20 dodges' },
+    'Runic Shield':         { kind: 'dmgPct', value: 10, uptime: 0.4,
+                              note: '+10% per block, Holy moves only, one turn each' },
+    'Blood Eruption Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.6,
+                              note: '+20% for 3 turns after the move, and better scaling on it' },
+
+    // ── single-move upgrades: real, but only on that one move ────────────────
+    'Holy Crash Proficiency':   { kind: 'dmgPct', value: 25, uptime: 0.3,
+                              note: '1.25x, on Holy Crash alone' },
+    'Light Burst Proficiency':  { kind: 'dmgPct', value: 30, uptime: 0.3,
+                              note: '+30%, on Light Burst alone' },
+    'Bloody Burst Proficiency': { kind: 'dmgPct', value: 50, uptime: 0.3,
+                              note: '+50% shard damage and a third shard, on Bloody Burst alone' },
+    'Flame Drop Proficiency':   { kind: 'dmgPct', value: 25, uptime: 0.3,
+                              note: '+25% base, and another 25% off absorbed flame stacks' },
+    'Blazing Barrage Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.3,
+                              note: '+20% and 2 blinded against a burning target, on that move' },
+    'Call Skeleton Proficiency':   { kind: 'dmgPct', value: 30, uptime: 0.4,
+                              note: 'free to cast, and your NEXT skeleton gets +30% damage and +50% HP' },
+    "Nature's Wrath":       { kind: 'dmgPct', value: 15, uptime: 0.6,
+                              note: 'doubles Verdant Archer from 7.5% to 15%' },
+    'Rending Barrage Proficiency': { kind: 'dmgPct', value: 25, uptime: 0.5,
+                              note: '+2.5% per combined Bleed stack, +25% at 10' },
+    'Crucible Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.6,
+                              note: 'converts your combined defence buffs into a damage buff for 2 turns' },
+    'The Big Sword':        { kind: 'dmgPct', value: 40, uptime: 0.25,
+                              note: '+40% Strike damage, greatsword only, plus 7.5% lifesteal that is always on' },
+    'Berserkin Time':       { kind: 'dmgPct', value: 15, uptime: 0.5,
+                              note: '+15% per Bloodlust stack instead of 10%, and 5% DR per stack up to 80%' },
+
+    // ── crit ─────────────────────────────────────────────────────────────────
+    'Dark Smite Proficiency': { kind: 'critChance', value: 50, uptime: 0.3,
+                              note: '+50% crit chance on Dark Smite, on top of its base 25%' },
+    'Overcore':             { kind: 'note',
+                              note: 'at 6 Darkcores your crits are upgraded a whole tier — the biggest ' +
+                                    'multiplier in the game, and not modelled here' },
+
+    // ── defensive and utility: real, but not a bigger hit ────────────────────
+    'Holy Shield':          { kind: 'dr', value: 15, uptime: 0.4,
+                              note: '+15% true damage resistance while guarding an ally' },
+    'Strategist':           { kind: 'dr', value: 25, uptime: 0.5,
+                              note: '+5% DR per negative status on you, which stacks' },
+    'High Endurance':       { kind: 'dr', value: 30, uptime: 0.3,
+                              note: '+30% DR below 30% HP, and it bypasses DR ignorance' },
+    'One For All':          { kind: 'note',
+                              note: '-30% damage for +50% outgoing healing — a deliberate trade, not a loss' },
+    'Lightspeed':           { kind: 'note',
+                              note: 'stacking 10% autododge with no cap; survivability, not damage' },
+    'Deep Focus':           { kind: 'note',
+                              note: '+25% enchant proc chance — worth real damage on a proc enchant, ' +
+                                    'but only as much as that enchant is worth' },
+  };
+
   // ── CLASS WEAPONS ─────────────────────────────────────────────────────────
   // No table in the game data says which class uses which weapon, so the engine
   // infers it from the class's passives ("Scholar Training … Staves"). That
@@ -1035,7 +1151,7 @@
   ];
 
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
-           UNAVAILABLE,
+           UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME,
            ENERGY, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,

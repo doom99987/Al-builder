@@ -79,6 +79,34 @@ the "improvement" costs something — a **Trade-offs** callout naming it:
 An optimiser maximises one number; that can cost something you were relying on,
 and colouring a cell red is not good enough.
 
+## Mastery: the points and the abilities
+
+A mastery tree gives two different things and the engine used to see only one.
+
+**The stat points** — 29 nodes at 1 point each — were always counted.
+
+**The six capstones** cost 5 points apiece out of 35 and their entire value is a
+written ability. That text was invisible to the engine, so it bought a capstone
+on branch colour: a damage Elementalist paid 5 points for an energy proc it could
+not read, while `Element Mastery` (+15% to its whole elemental kit) sat unbought
+on the other side of the tree.
+
+Two layers feed it now:
+
+1. `extract-data.js` runs **builder.js's own `parseDmgBonus`** over all 108
+   ability descriptions and stores what it finds. The site already does this for
+   its damage calculator; running the same function means the two agree by
+   construction instead of by a replica somebody has to keep in step. 23 of the
+   108 come out with a number for free.
+2. `MASTERY_ABILITIES` in knowledge.js overrides and extends. A parsed number is
+   only half an answer — `Overload` (+100%) and `Element Mastery` (+15%) both
+   read as a percentage, and only one is close to always on. **`uptime` is the
+   point of the table.** Without it the optimiser buys the +100% and never
+   notices it needs the target stunned first.
+
+Anything neither layer can read is reported under "Mastery abilities NOT counted"
+rather than scored as zero, the same as gear passives.
+
 ## The WIP notice
 
 The panel opens with an amber **WIP** banner above everything else, dismissible
