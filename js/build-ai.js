@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 32;
+  const ENGINE_V = 33;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -324,6 +324,11 @@
     const races   = Object.keys(D.races || {}).map(r => opt(r, r)).join('');
     const armours = Object.keys(D.armourItems || {}).filter(a => !unusable(a)).map(a => opt(a, a)).join('');
     const enchants = Object.keys(D.enchantItems || {}).filter(e => !unusable(e)).map(e => opt(e, e)).join('');
+    // Covenants are never unavailable — there are four, all joinable, and the
+    // engine now always picks one. The override is here for the same reason the
+    // armour one is: you may already be in a covenant and not want to be told to
+    // switch.
+    const covenants = Object.keys(D.covenantItems || {}).map(cv => opt(cv, cv)).join('');
 
     const types = [...new Set(Object.values(D.weapons || {}).map(w => w.type))].filter(Boolean).sort();
     const wtypes = types.map(t => opt(t, t)).join('');
@@ -369,6 +374,7 @@
       field('bai-weapon', 'Weapon',      '<select id="bai-weapon">' + auto() + weapons + '</select>') +
       field('bai-armour', 'Armour',      '<select id="bai-armour">' + auto() + armours + '</select>') +
       field('bai-ench',   'Enchant',     '<select id="bai-ench">'   + auto() + enchants + '</select>') +
+      field('bai-cov',    'Covenant',    '<select id="bai-cov">'    + auto() + covenants + '</select>') +
       // NOT auto(). Every other field's blank option means "the engine picks one
       // for you", which is true of a goal or a race and false here — there is no
       // boss to pick. Left as "Auto" it reads as an instruction to choose a
@@ -386,7 +392,8 @@
       '</div>';
   }
 
-  const ADV_IDS = ['bai-goal','bai-class','bai-race','bai-wtype','bai-weapon','bai-armour','bai-ench','bai-boss','bai-level'];
+  const ADV_IDS = ['bai-goal','bai-class','bai-race','bai-wtype','bai-weapon','bai-armour','bai-ench',
+                   'bai-cov','bai-boss','bai-level'];
 
   function readOverrides() {
     const val = id => {
@@ -404,6 +411,7 @@
       weaponName: val('bai-weapon'),
       armour:     val('bai-armour'),
       enchant:    val('bai-ench'),
+      covenant:   val('bai-cov'),
       boss:       val('bai-boss'),
       level:      lvl ? parseInt(lvl, 10) : null,
     };
@@ -796,6 +804,29 @@
         niches.push('<b>' + esc(rt.move) + ':</b> ' + esc(rt.note || '') +
                     (rt.uptime < 1 ? ' (about ' + Math.round(rt.uptime * 100) + '% uptime over a long fight)' : ''));
       }
+    }
+    // The covenant, and specifically WHY - it is the one slot where three of the
+    // four options usually measure the same, so a bare name would read as
+    // arbitrary.
+    if (res.build.covenant) {
+      const cv = res.covenant;
+      const best = cv && cv.best;
+      niches.push('<b>' + esc(res.build.covenant) + ' (covenant, rank ' +
+                  (res.build.covenantRank || 1) + '):</b> ' +
+                  esc(best ? best.why : '') +
+                  (cv && cv.decidedBy === 'fit'
+                    ? ' <i>' + (cv.tied === (cv.all || []).length ? 'All ' + cv.all.length : 'The top ' + (cv.tied || 2)) +
+                      ' scored the same on this build, so this is a recommendation rather than a ' +
+                      'measured result.</i>' : ''));
+    }
+    // A build that deliberately fights below half health reprices its own gear,
+    // and that is far too surprising to leave out of the summary.
+    if (ctx.hpStance && ctx.hpStance.committed) {
+      const gates = (ctx.gearPassives ? ctx.gearPassives.active : []).filter(a => a.hpGate);
+      niches.push('<b>Fights hurt:</b> this build sits BELOW half health on purpose, which is ' +
+                  'where its own passives pay out' +
+                  (gates.length ? '. ' + esc(gates.map(g => g.name).join(', ')) +
+                                  ' is priced for that, not at the usual figure' : '') + '.');
     }
     if (ctx.gearPassives && ctx.gearPassives.active.length) {
       niches.push('<b>Gear passives doing work:</b> ' +

@@ -92,6 +92,40 @@
       return (_movesCache[klass] = out);
     }
 
+    // A covenant's attacks. Cult of Thanasius's Death Curtain is a 6x2 scaling
+    // on STR/75 AND ARC/75, which is a real move in a rotation and was invisible
+    // to the engine because covenantMoves was never even extracted.
+    //
+    // Gated on RANK, the same way the site gates them: at rank 1 you have the
+    // rank 1 move and nothing else.
+    const _covMoveCache = {};
+    function covenantMovesFor(name, rank) {
+      if (!name) return [];
+      const key = name + '|' + (rank | 0);
+      if (_covMoveCache[key]) return _covMoveCache[key];
+      const entry = (D.covenantMoves || {})[name];
+      const out = [];
+      for (const mv of ((entry || {}).learns || [])) {
+        if (mv.type !== 'Active' || mv.damage === undefined) continue;
+        if ((mv.level || 1) > (rank | 0)) continue;
+        out.push(mv);
+      }
+      return (_covMoveCache[key] = out);
+    }
+
+    // class kit + covenant kit, cached on the pair so evaluate() does not
+    // concat two arrays several thousand times a request.
+    const _kitCache = {};
+    function kitFor(build, klass) {
+      const cov = build.covenant || '';
+      if (!cov) return movesFor(klass);
+      const key = klass + '|' + cov + '|' + (build.covenantRank | 0);
+      if (_kitCache[key]) return _kitCache[key];
+      const extra = covenantMovesFor(cov, build.covenantRank);
+      const out = extra.length ? movesFor(klass).concat(extra) : movesFor(klass);
+      return (_kitCache[key] = out);
+    }
+
     // Bard, Beastmaster, Alchemist, Blacksmith and Miner live in classMoves but
     // are SUBclasses — secondary professions, not combat classes. Picking one as
     // your main class is not a thing the game allows, so they are excluded from
@@ -344,7 +378,7 @@
     // One place turns a build into a score. Everything else just proposes builds.
     function evaluate(build, spec) {
       const d = M.derived(build);
-      const moves = movesFor(build.klass || spec.klass || '');
+      const moves = kitFor(build, build.klass || spec.klass || '');
 
       // Trait overlay. The site does not compute these, so they live on top of
       // the verified base rather than inside it.
@@ -388,7 +422,7 @@
       // numbers come out of this: the opener (everything up), and the sustained
       // figure (each buff weighted by its uptime, duration / cooldown).
       const setups = setupsFor(build);
-      let setupDmgPct = 0, setupSustainedPct = 0;
+      let setupDmgPct = 0, setupSustainedPct = 0, setupDr = 0;
       const statBuffs = {};
       const rotation = [];
       for (const su of setups) {
@@ -400,6 +434,12 @@
           rotation.push({ move: su.move, gain: full, elements: su.elements || null, note: su.note, uptime });
         } else if (su.kind === 'statBuff' && su.statBuff) {
           statBuffs[su.statBuff] = true;
+          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+        } else if (su.kind === 'dr') {
+          // A defensive setup. It is not damage, so it does not belong in
+          // setupDmgPct - it is uptime-weighted onto block DR, which is what the
+          // survival archetypes actually score.
+          setupDr += su.value * uptime;
           rotation.push({ move: su.move, gain: null, note: su.note, uptime });
         } else if (su.kind === 'summonDmgPct') {
           rotation.push({ move: su.move, gain: null, note: su.note, uptime });
@@ -465,7 +505,8 @@
       const ctx = {
         stats: d.stats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
-        blockDr: d.blockDr + tt.dr + gp.dr + ma.dr, outHeal: d.outHeal, incHeal: d.incHeal,
+        blockDr: d.blockDr + tt.dr + gp.dr + ma.dr + pv.dr + setupDr,
+        outHeal: d.outHeal, incHeal: d.incHeal,
         // Avoidance is not damage reduction and must not be added to it: an
         // attack that misses does nothing at all, so it multiplies how long you
         // last rather than shaving a percentage off each hit.
@@ -479,6 +520,7 @@
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
         masteryBudget: build.masteryBudget || null,
         procs: procTotals(build),
+        hpStance: K.hpStance ? K.hpStance(build.klass, build.race) : null,
         passives: pv, passiveList: passivesFor(build),
         siteHp: d.hp, siteCritChance: d.critChance,   // what the site will show
       };
@@ -719,6 +761,12 @@
       if (spec.enchant) b.enchant = spec.enchant;
       else bestOfSlot(b, spec, ['', ...keepUsable(Object.keys(D.enchantItems))], (bb, v) => { bb.enchant = v; });
 
+      // The covenant goes in before mastery and stats, not after: it can add an
+      // attack to the kit (Death Curtain scales on STR/75 + ARC/75, which pulls
+      // a stat spread towards a hybrid) and it can move outgoing healing. Both
+      // are things the stat allocator has to be able to see.
+      b.covenantChoice = pickCovenant(b, spec);
+
       // Mastery first — it adds ~29 flat stat points, which shifts what the stat
       // allocator should do with the 150 it controls.
       pickMastery(b, spec);
@@ -750,7 +798,8 @@
     // and the to-do list for extending PASSIVES.
     const _passCache = {};
     function passivesFor(build) {
-      const key = (build.race || '') + '|' + (build.klass || '');
+      const key = (build.race || '') + '|' + (build.klass || '') + '|' +
+                  (build.covenant || '') + '|' + (build.covenantRank | 0);
       if (_passCache[key]) return _passCache[key];
 
       const known = [];
@@ -773,6 +822,15 @@
       scan((D.classMoves || {})[build.klass], build.klass);
       const base = baseOf(build.klass);
       if (base && base !== build.klass) scan((D.classMoves || {})[base], base);
+      // A covenant is mostly passives - it is the whole reason to join one - and
+      // its rank gates them exactly the way a class level gates a class passive.
+      if (build.covenant) {
+        const cov = (D.covenantMoves || {})[build.covenant];
+        if (cov) {
+          const rank = build.covenantRank | 0;
+          scan({ learns: (cov.learns || []).filter(m => (m.level || 1) <= rank) }, build.covenant);
+        }
+      }
 
       return (_passCache[key] = { known, unknown });
     }
@@ -780,7 +838,8 @@
     // Which setup buffs this build can actually cast, from its race and class.
     const _setupCache = {};
     function setupsFor(build) {
-      const key = (build.race || '') + '|' + (build.klass || '');
+      const key = (build.race || '') + '|' + (build.klass || '') + '|' +
+                  (build.covenant || '') + '|' + (build.covenantRank | 0);
       if (_setupCache[key]) return _setupCache[key];
       const table = K.SETUP_MOVES || {};
       const owned = [];
@@ -797,6 +856,13 @@
       scan((D.classMoves || {})[build.klass], build.klass);
       const base = baseOf(build.klass);
       if (base && base !== build.klass) scan((D.classMoves || {})[base], base);
+      if (build.covenant) {
+        const cov = (D.covenantMoves || {})[build.covenant];
+        if (cov) {
+          const rank = build.covenantRank | 0;
+          scan({ learns: (cov.learns || []).filter(m => (m.level || 1) <= rank) }, build.covenant);
+        }
+      }
 
       return (_setupCache[key] = owned);
     }
@@ -809,6 +875,12 @@
       const text = D.itemPassives || {};
       const out = { dmgPct: 0, critChance: 0, hpPct: 0, dr: 0, active: [], unmodelled: [] };
       const seen = new Set();
+      // Where this build sits on its own health bar. An item gated on an HP
+      // threshold is worth what it is worth TO THIS BUILD, not what it is worth
+      // on average - which is the difference between Stellian Core being the
+      // best artifact in the game and being nearly dead weight.
+      const stance = K.hpStance ? K.hpStance(build.klass, build.race) : null;
+      const gated = (name, declared) => (K.hpGateFor ? K.hpGateFor(name, stance, declared) : null);
 
       // An artifact's ability lives in artifactMoves, not itemPassives, so
       // without this an unmodelled artifact fell through to nothing at all - not
@@ -828,7 +900,8 @@
         // defence AND crit at once, which the single-kind rule cannot express.
         const art = (K.ARTIFACT_ABILITIES || {})[name];
         if (art && art.effects) {
-          const up = art.uptime ?? 1;
+          const g = gated(name, art.uptime ?? 1);
+          const up = g ? g.uptime : (art.uptime ?? 1);
           for (const e of art.effects) {
             const eff = e.value * up;
             if (out[e.kind] !== undefined) out[e.kind] += eff;
@@ -836,7 +909,8 @@
             // broke the check that every counted passive traces back to a
             // knowledge entry, and that check is worth more than a tidier label.
             out.active.push({ name, kind: e.kind, value: e.value, effective: eff,
-                              note: art.note, source: 'artifact' });
+                              note: art.note, source: 'artifact',
+                              hpGate: g ? { agrees: g.agrees, uptime: g.uptime, why: g.why } : null });
           }
           return;
         }
@@ -851,12 +925,14 @@
           if (txt) out.unmodelled.push({ name, note: (rule && rule.note) || txt.slice(0, 110) });
           return;
         }
-        const eff = rule.value * (rule.uptime ?? 1);
+        const g = gated(name, rule.uptime ?? 1);
+        const eff = rule.value * (g ? g.uptime : (rule.uptime ?? 1));
         if (out[rule.kind] !== undefined) out[rule.kind] += eff;
         // `kind` has to travel with the entry: without it the write-up labelled
         // Crystal Sphere's +5 CRIT CHANCE as "+5% damage", because the renderer
         // had nothing to switch on.
-        out.active.push({ name, kind: rule.kind, value: rule.value, effective: eff, note: rule.note });
+        out.active.push({ name, kind: rule.kind, value: rule.value, effective: eff, note: rule.note,
+                          hpGate: g ? { agrees: g.agrees, uptime: g.uptime, why: g.why } : null });
       };
 
       for (const g of build.gear || []) consider(g.name);
@@ -955,12 +1031,20 @@
     // Aggregate the scoreable passives into the same shape traits use.
     function passiveTotals(build) {
       const { known } = passivesFor(build);
-      const out = { dmgPct: 0, critChance: 0, summonHpPct: 0, summonDmgPct: 0, byMoveType: [] };
+      const out = { dmgPct: 0, critChance: 0, dr: 0, summonHpPct: 0, summonDmgPct: 0, byMoveType: [] };
       const wepType = build.weapon ? ((D.weapons || {})[build.weapon.name] || {}).type : null;
+      const stance = K.hpStance ? K.hpStance(build.klass, build.race) : null;
+      const agreeUp = (K.HP_GATE_UPTIME || {}).agree ?? 0.8;
       for (const p of known) {
         // A weapon-training passive pays nothing without that weapon equipped.
         if (p.whenWeapon && p.whenWeapon !== wepType) continue;
-        const v = p.value * (p.uptime ?? 1);
+        // A passive that only pays while you are hurt is worth its cautious
+        // table value on a build that is not trying to be hurt, and the stance
+        // uptime on one that is.
+        const up = (p.hpGate && stance && stance.committed && stance.side === p.hpGate)
+          ? Math.max(p.uptime ?? 1, agreeUp)
+          : (p.uptime ?? 1);
+        const v = p.value * up;
         if (p.kind === 'dmgPct') {
           // A passive limited to a move type only pays on matching moves, so it
           // is held aside rather than added to the flat total.
@@ -1363,6 +1447,62 @@
       return n;
     }
 
+    // ── covenant ─────────────────────────────────────────────────────────────
+    // Unlike corruption, this runs BEFORE the build is finished, because a
+    // covenant can change the numbers: Way of Life's outgoing healing is in the
+    // site's own covenantBonuses, and Death Curtain and Gilded Strike are real
+    // attacks that the damage search should be allowed to build around.
+    //
+    // Measurement first, knowledge second. Three of the four covenants measure
+    // identically on most goals - they hand out no stats at all - so `fit` is
+    // what separates them, capped at a 5% swing so it can never overturn a real
+    // measured gap.
+    const COVENANT_FIT_WEIGHT = 0.05;
+    function pickCovenant(build, spec) {
+      const min = K.COVENANT_MIN_LEVEL ?? 10;
+      if ((build.level || 0) < min) { build.covenant = ''; build.covenantRank = 1; return null; }
+
+      const all = Object.keys(D.covenantItems || {});
+      if (!all.length) return null;
+      const rank = K.COVENANT_ASSUMED_RANK ?? 20;
+      // A locked covenant is not searched. Everything else still runs, so the
+      // write-up can say what the locked one gives and what it gave up.
+      const locked = spec.covenant && all.indexOf(spec.covenant) !== -1 ? spec.covenant : null;
+
+      const scored = [];
+      for (const name of all) {
+        build.covenant = name;
+        build.covenantRank = rank;
+        const ctx = evaluate(build, spec);
+        const entry = (K.COVENANTS || {})[name] || {};
+        let fit = { score: 0, why: '' };
+        if (entry.fit) { try { fit = entry.fit(ctx, spec) || fit; } catch (e) { /* a covenant is not worth losing the build over */ } }
+        scored.push({
+          name, measured: ctx.score, fit: fit.score, why: fit.why,
+          blurb: entry.blurb || '', unpriced: entry.unpriced || [],
+          score: ctx.score * (1 + COVENANT_FIT_WEIGHT * Math.max(0, Math.min(100, fit.score)) / 100),
+        });
+      }
+      scored.sort((a, b) => b.score - a.score);
+      const chosen = locked ? scored.find(x => x.name === locked) : scored[0];
+      build.covenant = chosen.name;
+      build.covenantRank = rank;
+      // Whether the measurement or the reasoning decided it. Worth being exact
+      // about: "they measured the same and this one reads best" is a very
+      // different claim from "this one is worth 15% more outgoing healing".
+      //
+      // The test is whether the winner would STILL win with the fit weight set
+      // to zero — that is, whether it holds the measured top spot on its own.
+      // Checking that the four merely differ somewhere is a weaker claim that
+      // was being reported as the stronger one.
+      const top = Math.max(...scored.map(x => x.measured));
+      const eps = 1e-6 * Math.max(1, Math.abs(top));
+      const tied = scored.filter(x => x.measured >= top - eps);
+      const decidedBy = locked ? 'locked'
+                      : (tied.length === 1 && tied[0].name === chosen.name) ? 'measured' : 'fit';
+      return { best: chosen, all: scored, rank, decidedBy, locked, tied: tied.length };
+    }
+
     // ── corruption ───────────────────────────────────────────────────────────
     function pickCorruption(ctx) {
       const scored = K.CORRUPTION.map(entry => {
@@ -1622,6 +1762,7 @@
       best.corruption = corr.best.form;
 
       return { build: best, ctx: bestCtx, corruption: corr, considered: coarse.length,
+               covenant: best.covenantChoice || null,
                flavour: flavourFor(bestCtx),
                weaknesses: weaknessesOf(bestCtx, best) };
     }
@@ -1638,9 +1779,11 @@
       build.invested = inv;
     }
 
-    return { run, evaluate, movesFor, baseOf, weightOf, rankGear, pickCorruption,
+    return { run, evaluate, movesFor, covenantMovesFor, kitFor, baseOf, weightOf, rankGear,
+             pickCorruption, pickCovenant,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
              masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
+             passivesFor, setupsFor,
              masteryAbilityTotals, classesForLevel };
   }
 

@@ -67,6 +67,10 @@ const WANTED = [
   // this the engine picks an artifact on its stats alone and is blind to what it
   // actually DOES — Stellian Core's buff, Narthana's Sigil's healing.
   ['js/builder.js', 'literal', ['artifactMoves']],
+  // Covenant abilities. covenantItems is four empty objects — the covenant's
+  // whole content is its learns list, so without this the engine could name a
+  // covenant and know nothing whatsoever about what joining one gives you.
+  ['js/builder.js', 'literal', ['covenantMoves']],
   ['js/builder.js', 'fn', ['parseDmgBonus']],
   ['js/data-class-moves.js', 'literal', ['classMoves']],
   ['js/data-race-moves.js',  'literal', ['raceMoves']],

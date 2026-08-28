@@ -84,6 +84,12 @@
       // the tree — including the 1.15-multiplier branches, whose bonuses are
       // fractional and flow straight into the stat totals.
       cls: rnd(Object.keys(data.classes)),
+      // Covenants gate on RANK, and the only bonus in the table unlocks at rank
+      // 5 — so the rank has to be randomised across that boundary or half the
+      // branch never runs. A blank covenant is in the mix too, since that is
+      // still the common case.
+      covenant: Math.random() < 0.7 ? rnd(Object.keys(data.covenantItems || {})) : '',
+      covRank: 1 + Math.floor(Math.random() * 20),
     };
     cfg.sup = Math.random() < 0.6 ? rnd(data.classes[cfg.cls] || ['']) || '' : '';
     cfg.mastery = (data.masteryNodes || [])
@@ -141,6 +147,20 @@
     const enchEl = document.getElementById('enchant-picker');
     if (enchEl) enchEl.value = '';
 
+    // The covenant pickers are disabled below level 10, and a disabled select
+    // still takes a value — so read back what the page actually holds rather
+    // than trusting what was assigned, exactly as the gear slots do above.
+    const covEl = document.getElementById('covenant-picker');
+    const covRankEl = document.getElementById('covenant-rank');
+    if (covEl) {
+      covEl.value = cfg.covenant;
+      cfg.covenant = covEl.value || '';
+      if (covRankEl) { covRankEl.value = cfg.covRank; cfg.covRank = Math.min(20, Math.max(1, +covRankEl.value || 1)); }
+      covEl.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      cfg.covenant = '';
+    }
+
     // markPicker is a const, so it is NOT on window — reach it by id.
     permuthStat = cfg.permuth;
     document.getElementById('mark-1').value = cfg.permuth ? 'Venia' : '';
@@ -152,6 +172,7 @@
       artifact: cfg.artifact ? { name: cfg.artifact, tier: aI.tier, alloc: A(aI) } : null,
       weapon:   cfg.weapon   ? { name: cfg.weapon,   tier: wI.tier, alloc: A(wI) } : null,
       mark: cfg.permuth ? 'Venia' : '', permuth: cfg.permuth,
+      covenant: cfg.covenant, covenantRank: cfg.covRank,
       klass: cfg.sup || cfg.cls,
       masteryNodes: cfg.mastery,
     });

@@ -42,6 +42,7 @@
       weapon: null,        // { name, tier, alloc }
       offhand: null,
       mark: '', permuth: '',
+      covenant: '', covenantRank: 1,
       enchant: '',
       shards: [],
       mastery: {},         // { nodeId: true }
@@ -139,6 +140,16 @@
       if (build.weapon)  add(D.weaponBonuses[build.weapon.name]);
       if (build.offhand) add(D.weaponBonuses[build.offhand.name]);
       for (const g of build.gear || []) add(D.gearPctBonuses?.[g.name]);
+      // Covenant rank-gated bonuses, which the site applies as step 3 of
+      // updatePecents. There is exactly one entry in the table today - Way of
+      // Life's +15% outgoing healing from rank 5 - and it was missing here for
+      // as long as the engine never chose a covenant. The moment it does, a
+      // healer build's outgoing healing has to agree with what the site shows.
+      const cov = (D.covenantBonuses || {})[build.covenant];
+      if (cov) {
+        const rank = Math.min(20, Math.max(1, build.covenantRank | 0 || 1));
+        for (const tier of cov) if (rank >= tier.minRank) add(tier.bonuses);
+      }
       return sum;
     }
 
