@@ -174,10 +174,42 @@
     {
       const lines = [];
       const noteFor = n => (K.roleItemNote ? K.roleItemNote(spec.goal, n) : null);
+      const ctxInert = c.inertGear || [];
+      const lost = b._rolePicks || {};
       for (const n of [b.sub, b.lostScroll, b.scroll1, b.scroll2, b.artifact && b.artifact.name]) {
         if (!n) continue;
         const why = noteFor(n);
-        if (why) lines.push('**' + n + '** — chosen for the role, not for the score: ' + why + '.');
+        if (!why) continue;
+        // Say what it cost. "Chosen for the role" reads very differently when
+        // the alternative measured 6% better, and hiding that would be the
+        // engine quietly overruling its own numbers without saying so.
+        const gap = lost[n];
+        lines.push('**' + n + '** — chosen for the role rather than the score' +
+          (gap ? ', giving up ' + gap + '% of the measured score to do it' : '') +
+          ': ' + why + '.');
+      }
+
+      // Anything being worn purely for its stat block.
+      const dead = [];
+      for (const g of (b.gear || [])) {
+        const why = K.gearNeedNote ? K.gearNeedNote(g.name) : null;
+        if (why && ctxInert && ctxInert.indexOf(g.name) !== -1) dead.push('**' + g.name + '** — ' + why + '.');
+      }
+      if (dead.length) {
+        lines.push('Worn for the stat block only, with the passive doing nothing here:');
+        for (const d of dead) lines.push(d);
+      }
+      // Fires, but with a catch. Kept separate from the dead list on purpose:
+      // "this does nothing" and "this does something and here is the cost" are
+      // different sentences and only one of them is a reason to swap the item.
+      const caution = [];
+      for (const n of (c.cautionGear || [])) {
+        const why = K.gearNeedNote ? K.gearNeedNote(n) : null;
+        if (why) caution.push('**' + n + '** — ' + why + '.');
+      }
+      if (caution.length) {
+        lines.push('Working, with a catch worth knowing:');
+        for (const d of caution) lines.push(d);
       }
       for (const n of [b.lostScroll, b.scroll1, b.scroll2]) {
         if (!n) continue;
@@ -564,7 +596,10 @@
         // Every kind needs its own unit. Labelling a flat +23 Speed as "+23%
         // damage" is the same mistake the gear passives had, and it is the kind
         // of wrong that reads as perfectly plausible.
-        const unit = a => a.kind === 'critChance' ? ' crit chance'
+        // A bugged ability carries no value, so there is no number for a unit
+        // to label. It is reported by its note alone, which says it does not work.
+        const unit = a => a.kind === 'bugged'     ? ''
+                        : a.kind === 'critChance' ? ' crit chance'
                         : a.kind === 'dr'        ? '% DR'
                         : a.kind === 'dodge'     ? '% autododge'
                         : a.kind === 'statFlat'  ? ' flat ' + String(a.stat || 'spd').toUpperCase()

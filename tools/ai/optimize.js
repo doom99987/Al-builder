@@ -149,6 +149,77 @@
       return out;
     }
 
+    // What this build actually DOES, read from its own kit. Used to decide
+    // whether an item's passive can ever fire for it — see GEAR_NEEDS.
+    const _doesCache = {};
+    function buildDoes(build) {
+      const key = [build.klass, build.race, build.sub || '', build.covenant || '',
+                   build.covenantRank | 0, build.scroll1 || '', build.scroll2 || '',
+                   build.lostScroll || ''].join('|');
+      if (_doesCache[key]) return _doesCache[key];
+
+      const elements = new Set();
+      let summons = false, poison = false;
+      const note = mv => {
+        // Elements come from ATTACKS only. An item that puts a status on your
+        // Magic attacks gains nothing from a Magic BUFF, and counting one let
+        // Breath of Fungyir - a once-per-20-turns team heal that happens to be
+        // typed Magic - keep Madseer's Codex alive on a Holy healer.
+        const isAttack = mv.damage !== undefined && mv.damage !== null && mv.damage !== 'N/A';
+        if (isAttack && mv.moveType) elements.add(String(mv.moveType).toLowerCase());
+        const text = String(mv.name || '') + ' ' + String(mv.quote || '') + ' ' + String(mv.effect || '');
+        // Deliberately narrow. A bare "call " matched "Call upon cleansing
+        // light" and convinced the engine that a Saint had summons.
+        if (/summons?\b|skeleton|sylph|darkbeast|raise dead/i.test(text)) summons = true;
+        if (/\bpoison/i.test(text)) poison = true;
+      };
+      const scan = e => { for (const mv of ((e || {}).learns || [])) note(mv);
+                          for (const p of ((e || {}).innatePassives || [])) note(p); };
+      scan((D.classMoves || {})[build.klass]);
+      const base = baseOf(build.klass);
+      if (base && base !== build.klass) scan((D.classMoves || {})[base]);
+      if (build.sub) scan((D.classMoves || {})[build.sub]);
+      scan((D.raceMoves || {})[build.race]);
+      if (build.covenant) scan((D.covenantMoves || {})[build.covenant]);
+      for (const n of [build.scroll1, build.scroll2]) if (n) scan((D.scrollMoves || {})[n]);
+      if (build.lostScroll) scan((D.lostScrollMoves || {})[build.lostScroll]);
+
+      return (_doesCache[key] = { elements, summons, poison });
+    }
+
+    // Can this item's passive ever fire for this build? Returns null when there
+    // is nothing to say, or the reason it cannot.
+    //
+    // Split into two questions, because they are two different claims:
+    //   inertFor   the passive CANNOT fire. The item is stat block only.
+    //   cautionFor it fires and there is a catch worth printing.
+    function inertFor(name, build, spec) {
+      if (K.gearNeedIsCaution && K.gearNeedIsCaution(name)) return null;
+      return needUnmet(name, build, spec);
+    }
+
+    function cautionFor(name, build, spec) {
+      if (!(K.gearNeedIsCaution && K.gearNeedIsCaution(name))) return null;
+      return needUnmet(name, build, spec);
+    }
+
+    function needUnmet(name, build, spec) {
+      const need = (K.GEAR_NEEDS || {})[name];
+      if (!need) return null;
+      const does = buildDoes(build);
+      if (need.element) {
+        for (const el of does.elements) if (need.element.test(el)) return null;
+        return need.why;
+      }
+      if (need.summons) return does.summons ? null : need.why;
+      if (need.poison)  return does.poison  ? null : need.why;
+      // A blocking item wants a build that is actually being hit and guarding.
+      if (need.blocking) return (spec && /tank/.test(spec.goal || '')) ? null : need.why;
+      // Anti-synergy rather than a requirement: it is worse in a party.
+      if (need.healedBy) return (spec && spec.play === 'team') ? need.why : null;
+      return null;
+    }
+
     // Every move this build has that HEALS. Deliberately separate from kitFor:
     // that one filters on `damage`, so Holy Grace and Cleansing Prayer - moves
     // with a healing figure and no damage figure - were never in it. That is the
@@ -665,6 +736,17 @@
         bestHeal = Math.max(bestHeal, amount);
         perTurn += amount / cd;
       }
+      // Which of the gear actually on the build has a passive that cannot fire.
+      // Reported rather than penalised: the stat block is still real, and the
+      // honest statement is "you are wearing this for the numbers, not the text".
+      ctx.inertGear = (build.gear || [])
+        .map(g => g.name)
+        .filter(n => inertFor(n, build, spec));
+      ctx.cautionGear = [...(build.gear || []).map(g => g.name),
+                         build.artifact && build.artifact.name]
+        .filter(Boolean)
+        .filter(n => cautionFor(n, build, spec));
+
       ctx.heals = healMoves.sort((a, b) => b.perTurn - a.perTurn);
       ctx.bestHeal = bestHeal;
       ctx.healPerTurn = perTurn;
@@ -904,11 +986,16 @@
       return Math.abs(a - b) <= Math.max(1e-9, Math.abs(b) * IMPROVE_EPS);
     }
 
-    function bestOfSlot(build, spec, options, set, tieBreak) {
+    // `prefer(opt)` marks an option whose value the model cannot see. Such an
+    // option is kept when it is within ROLE_ITEM_MARGIN of the best score, not
+    // merely when it ties — see the note on ROLE_ITEM_MARGIN.
+    function bestOfSlot(build, spec, options, set, tieBreak, prefer) {
       let bestVal = null, bestScore = -Infinity;
+      const scored = prefer ? [] : null;
       for (const opt of options) {
         set(build, opt);
         const sc = evaluate(build, spec).score;
+        if (scored) scored.push({ opt, sc });
         // A tie is not a coin flip. Some options are strictly better in game than
         // the model can see, and picking between them by list order looks like a
         // mistake to anyone reading the build. `tieBreak(candidate, incumbent)`
@@ -923,6 +1010,23 @@
           bestScore = sc; bestVal = opt;
         }
       }
+
+      // Second pass: if a preferred option lost, but lost by less than the
+      // allowance, it takes the slot back. Recorded on the build so the
+      // write-up can say it was chosen this way and by how much it lost.
+      if (scored && bestScore > 0) {
+        const margin = K.ROLE_ITEM_MARGIN ?? 0.10;
+        const floor = bestScore * (1 - margin);
+        const pick = scored
+          .filter(x => x.opt && prefer(x.opt) && x.sc >= floor)
+          .sort((a, b) => b.sc - a.sc)[0];
+        if (pick && pick.opt !== bestVal) {
+          build._rolePicks = build._rolePicks || {};
+          build._rolePicks[pick.opt] = Math.round((1 - pick.sc / bestScore) * 1000) / 10;
+          bestVal = pick.opt;
+        }
+      }
+
       set(build, bestVal);
       return bestVal;
     }
@@ -972,15 +1076,27 @@
       const tierOf = name => (fixedGear.has(name) ? 0 : D.MAX_GEAR_TIER);
 
       for (let slot = b.gear.length; slot < 4; slot++) {
-        let bestName = null, bestScore = -Infinity, bestAlloc = null;
+        let bestName = null, bestScore = -Infinity, bestAlloc = null, bestDead = true;
         for (const cand of shortlist) {
           if (b.gear.some(g => g.name === cand.name)) continue;
           const entry = { name: cand.name, tier: tierOf(cand.name), alloc: {} };
           b.gear.push(entry);
           if (!fixedGear.has(cand.name)) bestTierAlloc(b, spec, entry, false);
           const sc = evaluate(b, spec).score;
-          if (sc > bestScore) { bestScore = sc; bestName = cand.name; bestAlloc = Object.assign({}, entry.alloc); }
           b.gear.pop();
+
+          // A passive that cannot fire for this build is worth nothing, so on a
+          // tie the item whose passive DOES something wins. This is what stops a
+          // Saint wearing Madseer's Codex for its Arcane while its whole effect
+          // - statuses on Magic, Fire, Ice and Hex - sits dead, and its QTE
+          // downside does not.
+          const dead = !!inertFor(cand.name, b, spec);
+          const better = bestName === null || improves(sc, bestScore) ||
+                         (ties(sc, bestScore) && bestDead && !dead);
+          if (better) {
+            bestScore = sc; bestName = cand.name; bestDead = dead;
+            bestAlloc = Object.assign({}, entry.alloc);
+          }
         }
         if (bestName) b.gear.push({ name: bestName, tier: tierOf(bestName), alloc: bestAlloc });
       }
@@ -1014,10 +1130,10 @@
       // is written "X (scales on level)" and never stated, so the model can see
       // nothing — and list order was handing the healer the artifact for people
       // at full HP rather than the one that fires off their own healing.
+      const isRoleItem = v => !!(v && K.roleItemNote && K.roleItemNote(spec.goal, v));
       bestOfSlot(b, spec, keepUsable(Object.keys(D.artifactItems)), (bb, v) => {
         bb.artifact = v ? { name: v, tier: D.MAX_GEAR_TIER, alloc: {} } : null;
-      }, (cand, cur) => !!(K.roleItemNote && K.roleItemNote(spec.goal, cand) &&
-                          !K.roleItemNote(spec.goal, cur)));
+      }, (cand, cur) => isRoleItem(cand) && !isRoleItem(cur), isRoleItem);
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
 
       // Permuth multiplies one finished stat total by 1.4 — always worth taking,
@@ -1049,16 +1165,17 @@
       const pinned = (slot, options) =>
         spec[slot] === 'none' ? [''] : (spec[slot] ? [spec[slot]] : options);
 
+      const preferRole = v => !!(v && K.roleItemNote && K.roleItemNote(spec.goal, v));
       bestOfSlot(b, spec, pinned('sub', ['', ...(D.subClasses || [])]),
-                 (bb, v) => { bb.sub = v; }, rolePick);
+                 (bb, v) => { bb.sub = v; }, rolePick, preferRole);
 
       const scrollOpts = scrollsFor(klass);
       bestOfSlot(b, spec, pinned('lostScroll', ['', ...scrollOpts.lost]),
-                 (bb, v) => { bb.lostScroll = v; }, rolePick);
+                 (bb, v) => { bb.lostScroll = v; }, rolePick, preferRole);
       bestOfSlot(b, spec, pinned('scroll1', ['', ...scrollOpts.scrolls]),
-                 (bb, v) => { bb.scroll1 = v; }, rolePick);
+                 (bb, v) => { bb.scroll1 = v; }, rolePick, preferRole);
       bestOfSlot(b, spec, pinned('scroll2', ['', ...scrollOpts.scrolls.filter(n => n !== b.scroll1)]),
-                 (bb, v) => { bb.scroll2 = v; }, rolePick);
+                 (bb, v) => { bb.scroll2 = v; }, rolePick, preferRole);
 
       // Free slots, same as the shards. A scroll slot left blank because nothing
       // in it moved a number reads as a bug, and in game you would obviously
@@ -1317,8 +1434,10 @@
         if (!entry) continue;
         const rule = table[entry.name];
 
-        // An explicit note-only entry, or nothing to go on at all.
-        if ((rule && rule.kind === 'note') || (!rule && entry.bonus == null)) {
+        // A bugged ability contributes nothing, exactly like a note — the
+        // difference is what the capstone picker does with it, below.
+        if ((rule && (rule.kind === 'note' || rule.kind === 'bugged')) ||
+            (!rule && entry.bonus == null)) {
           out.unmodelled.push({ name: entry.name, note: (rule && rule.note) || null });
           continue;
         }
@@ -1559,6 +1678,10 @@
         const e = ((D.masteryAbilities || {})[build.klass] || {})[x.n.id];
         if (!e) return false;
         const r = (K.MASTERY_ABILITIES || {})[e.name];
+        // A known-bugged ability is NOT an unknown. The fallback below exists to
+        // back a real ability the engine merely cannot measure; backing one that
+        // does not work is how five mastery points get spent on nothing.
+        if (r && r.kind === 'bugged') return false;
         return (r && r.kind === 'note') || (!r && e.bonus == null) ||
                (r && r.kind !== 'note' && r.value == null);
       };
@@ -1629,7 +1752,10 @@
           // whole tree free — so "it measured nothing" has to be checked before
           // "there was no room", or every answer collapses into the budget.
           let reason, detail;
-          if (!known) {
+          if (rule && rule.kind === 'bugged') {
+            reason = 'bugged';
+            detail = rule.note;
+          } else if (!known) {
             // Checked FIRST of all. An unpriced ability always measures zero, so
             // without this it gets reported as "your goal does not value it",
             // which blames the goal for a gap in the engine.
@@ -2127,7 +2253,7 @@
              pickCorruption, pickCovenant,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
              masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
-             passivesFor, setupsFor, healMovesFor,
+             passivesFor, setupsFor, healMovesFor, buildDoes, inertFor, cautionFor,
              masteryAbilityTotals, classesForLevel };
   }
 

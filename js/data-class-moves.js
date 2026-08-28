@@ -1170,9 +1170,10 @@ const classMoves = {
         cooldown: 5,
         moveType: "Holy",
         category: "Utility",
-        healing: 4,
+        healing: 5,
+        healingPctHp: 0.5,
         scaling: "STR/80 + ARC/80",
-        effect: "Removes the target's status effects before the heal.",
+        effect: "Removes the target's status effects before the heal. The base heal is 5 + 0.5% of max HP.",
         image: "https://trello.com/1/cards/67b32965d4aec03ba93fe899/attachments/697fc2c1ed1609ee1feed8a2/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202021615.png"
       },
       {
@@ -1200,9 +1201,10 @@ const classMoves = {
         cooldown: 5,
         moveType: "Holy",
         category: "Utility",
-        healing: 15,
+        healing: 18,
+        healingPctHp: 4,
         scaling: "STR/100 + ARC/100",
-        effect: "Heals more than Cleansing Prayer.",
+        effect: "Heals more than Cleansing Prayer. The base heal is 18 + 4% of max HP.",
         image: "https://trello.com/1/cards/67b32965d4aec03ba93fe899/attachments/697fc2be8f54b204bf5b4134/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202021422.png"
       },
       {

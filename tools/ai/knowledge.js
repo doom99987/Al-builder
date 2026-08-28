@@ -189,10 +189,24 @@
       //
       // Falls back to the old multiplier when a build has no healing move at
       // all, so a healer-by-gear still scores above nothing.
+      // Total healing over a fight = how much you heal a turn x how many turns
+      // you are alive to do it. That is the whole formula, and it is why a
+      // healer wants damage reduction: nothing in the game boosts healing much
+      // beyond Narthana's Leaf and the Luck milestone, so once those are in,
+      // the next best thing for your healing output is not dying.
+      //
+      // healPerTurn ALREADY has the outgoing multiplier folded in (optimize.js
+      // applies it per move), so it must not be applied again here - doing that
+      // squared it and bought Arcane at the expense of everything else.
       score: c => {
-        const mult = (c.effectiveHeal ?? c.outHeal) / 100;
-        const rate = c.healPerTurn ? c.healPerTurn : (c.effectiveHeal ?? c.outHeal) / 10;
-        return rate * mult * 10 * (1 + c.hp / 250);
+        const surv = (c.effectiveHp ?? c.hp) * (1 + c.blockDr / 100);
+        // No healing move means no healing. The multiplier multiplies nothing -
+        // which is the whole lesson of the Paladin, and of the Necromancer that
+        // won this role on a survivability score while healing zero per turn.
+        // The tiny term keeps builds that all heal nothing in a sane order and
+        // is far too small to outscore anything that actually heals.
+        if (!c.healPerTurn) return surv / 1000;
+        return c.healPerTurn * surv / 10;
       },
       blurb: 'Endurance grants END/4 to both heal stats, so bulk and healing scale together.',
     },
@@ -395,6 +409,21 @@
         'biggest subclass attack in the game',
     },
   };
+
+  // How far a role item is allowed to lose by and still be taken.
+  //
+  // A tiebreak was not enough. Once the healing archetype started scoring damage
+  // reduction, Stellian Core beat Narthana's Sigil by 4.4% on DR alone - a real
+  // measured gain - and the healer stopped carrying the artifact that fires off
+  // its own healing. The Sigil's damage is written "X (scales on level)" and can
+  // never be measured, so it can never win a contest decided purely on numbers.
+  //
+  // 10% is a deliberate, bounded allowance, the same shape as
+  // COVENANT_FIT_WEIGHT: enough to carry an item whose whole value is invisible
+  // to the model, far too small to justify a genuinely bad pick. Anything that
+  // beats a role item by more than this takes the slot, and the write-up always
+  // says which happened.
+  const ROLE_ITEM_MARGIN = 0.10;
 
   function roleItemNote(goal, name) {
     const r = roleOf(goal);
@@ -784,6 +813,67 @@
       { name: 'Hunker Down', kind: 'note', note: '15% defence for 3 turns after guarding' },
     ],
   };
+
+  // ── GEAR SYNERGY ──────────────────────────────────────────────────────────
+  // What an item's passive NEEDS before it does anything.
+  //
+  // The optimiser scores an item by its stat block plus whatever GEAR_PASSIVES
+  // can price. That is how a Saint ended up in Madseer's Codex, Imbuement
+  // Reliquary and Impure Crown: all three are Arcane 4-5, Arcane feeds Holy
+  // Grace, and all three passives are dead on a healer -
+  //
+  //   Madseer's Codex     statuses on Magic/Fire/Ice/Hex attacks. Saint is Holy.
+  //                       It also makes your QTEs HARDER, so it is a downside.
+  //   Imbuement Reliquary "summons gain your enchant". Saint has no summons.
+  //   Impure Crown        extra Poison stacks. Saint applies no Poison.
+  //
+  // Nothing was wrong with the arithmetic. The engine simply had no way to know
+  // a passive could not fire. Each entry names the condition and it is checked
+  // against what the build's own kit actually does, so this cannot go stale in
+  // the way a hand-maintained "bad for healers" list would.
+  //
+  //   element   the passive only fires on attacks of these types
+  //   summons   the build must actually summon something
+  //   poison    the build must apply Poison itself
+  //   blocking  pays only when you block, so it wants a build that guards
+  //   healedBy  being healed by an ally makes it worse
+  //
+  // `caution: true` marks the second kind of entry. Not everything here is a
+  // DEAD passive: Yar'thul's Wrath in a party still fires, it just loses a
+  // stack every time somebody heals you, and Ptera's Heart poisons the enemy
+  // whether or not you have a Poison build - it also poisons YOU. Those are
+  // warnings to print, not reasons to refuse the item, and lumping them in with
+  // "this cannot fire at all" flagged 36 perfectly good damage builds as broken.
+  const GEAR_NEEDS = {
+    "Madseer's Codex":     { element: /magic|fire|ice|hex/i,
+                             why: 'its statuses only fire on Magic, Fire, Ice and Hex attacks, and it ' +
+                                  'makes your QTEs harder in exchange - on a kit with none of those ' +
+                                  'elements it is a pure downside worn for the stat block' },
+    'Imbuement Reliquary': { summons: true,
+                             why: 'it gives your SUMMONS the full effects of your enchant, and this ' +
+                                  'build has no summons' },
+    'Impure Crown':        { poison: true,
+                             why: 'it adds a stack every time you apply Poison, and this build applies ' +
+                                  'no Poison' },
+    "Ptera's Heart":       { poison: true, caution: true,
+                             why: 'it poisons every enemy AND you, every turn. Without a Poison build ' +
+                                  'to feed, the half that lands on you is the half you get' },
+    'Spore Root':          { blocking: true, caution: true,
+                             why: 'it only does anything when you BLOCK a melee attack' },
+    'Desert Escutcheon':   { blocking: true, caution: true,
+                             why: 'its charges only build when you successfully block' },
+    "Yar'thul's Wrath":    { healedBy: true, caution: true,
+                             why: 'you LOSE an Overheat stack every time an ally heals you, so it ' +
+                                  'actively fights a party that has a healer in it' },
+  };
+
+  function gearNeedNote(name) {
+    return (GEAR_NEEDS[name] || {}).why || null;
+  }
+
+  function gearNeedIsCaution(name) {
+    return !!(GEAR_NEEDS[name] || {}).caution;
+  }
 
   // ── SHARDS ────────────────────────────────────────────────────────────────
   // Shards DO carry numbers in the game data (rVal / pVal) keyed by bonusType,
@@ -1844,7 +1934,26 @@
     return out;
   }
 
+  // `kind: 'bugged'` is a THIRD state, and it exists because the other two both
+  // gave the wrong answer.
+  //
+  //   priced     the engine has a number and can weigh it
+  //   note       the engine has no number, so it is reported and never scored -
+  //              but it is still assumed to be worth SOMETHING, and the capstone
+  //              picker deliberately prefers an unpriced real ability over stat
+  //              nodes the build has already been measured not to want
+  //   bugged     it does not work in game. Worth nothing, and specifically must
+  //              not be picked up by that "unpriced beats stats" fallback, which
+  //              is exactly how a Saint was spending 5 of its 35 mastery points
+  //              on Piercing Grace.
   const MASTERY_ABILITIES = {
+    // ── does not work in game ────────────────────────────────────────────────
+    'Piercing Grace':       { kind: 'bugged',
+                              note: 'the game says Cursed would only negate 75% of your healing ' +
+                                    'instead of 100%. Reported by the site owner as BUGGED and ' +
+                                    'non-functional, so it is worth nothing and the 5 points it ' +
+                                    'costs go elsewhere. Remove this entry if it is ever fixed.' },
+
     // ── close to unconditional ───────────────────────────────────────────────
     'Element Mastery':      { kind: 'dmgPct', value: 15, uptime: 0.95,
                               note: '+15% to magic, fire, nature, holy, dark and ice — a caster\'s whole kit' },
@@ -2505,9 +2614,9 @@
 
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
            CLASS_ROLE, classRole,
-           ROLES, roleOf, ROLE_ITEMS, roleItemNote, SCROLL_NOTES,
+           ROLES, roleOf, ROLE_ITEMS, roleItemNote, ROLE_ITEM_MARGIN, SCROLL_NOTES,
            ROLE_GOALS, ROLE_ORDER, goalsForRoles, goalWeights,
-           MILESTONES, milestonesFor,
+           MILESTONES, milestonesFor, GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
            UNAVAILABLE, AVOID, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
