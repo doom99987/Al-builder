@@ -43,6 +43,10 @@
       offhand: null,
       mark: '', permuth: '',
       covenant: '', covenantRank: 1,
+      // Two scrolls and one lost scroll. share.js has always encoded these
+      // three; nothing ever filled them, so every build the AI produced went out
+      // with three empty slots.
+      scroll1: '', scroll2: '', lostScroll: '',
       enchant: '',
       shards: [],
       mastery: {},         // { nodeId: true }
@@ -518,6 +522,21 @@
       return dmg;
     }
 
+    // How much a healing move actually heals, before the outgoing-healing
+    // multiplier. Identical shape to moveDamage - the game writes healing the
+    // same way it writes damage, `healing: 15` with `scaling: "STR/100 + ARC/100"`
+    // - and until now nothing anywhere computed it. The engine knew a Saint had
+    // a bigger healing PERCENTAGE and had no idea Holy Grace existed.
+    function moveHealing(build, move) {
+      if (!move || move.healing == null || move.healing === 'N/A') return 0;
+      const base = parseFloat(move.healing);
+      if (!isFinite(base)) return 0;
+      const s = derived(build).stats;
+      let contrib = 0;
+      for (const [stat, div] of scaleTerms(String(move.scaling || ''))) contrib += s[stat] / div;
+      return base * (1 + contrib);
+    }
+
     // The site prints these with toFixed(1). toFixed and Math.round disagree on
     // binary halfway values (74.05 -> "74.0" vs 74.1), which showed up as a
     // scatter of exactly-0.1 mismatches. Round the way the page does.
@@ -622,7 +641,7 @@
 
     return {
       STATS, emptyBuild, data: D, register, effectiveShape,
-      totalStat, allStats, derived, moveDamage,
+      totalStat, allStats, derived, moveDamage, moveHealing,
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,
       shapesFor, allocForShape, traitTotals, shardTotals, energyCap, parseDamage, parseCost,

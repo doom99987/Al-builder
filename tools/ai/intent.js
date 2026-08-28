@@ -259,7 +259,9 @@
   // so the answer does not claim to have guessed something you picked.
   //
   // Anything falsy is "auto", meaning the optimiser keeps deciding it.
-  function applyOverrides(spec, o, data) {
+  // `K` is optional only so an older call site cannot crash; every caller in
+  // this repo passes it, and the role overrides need it.
+  function applyOverrides(spec, o, data, K) {
     if (!o) return spec;
     spec.locked = {};
 
@@ -271,6 +273,31 @@
     if (o.goal)   { spec.goal = o.goal;   spec.locked.goal = o.goal;   drop(/^No goal stated/); }
     if (o.klass)  { spec.klass = o.klass; spec.locked.klass = o.klass; drop(/^No class named/); }
     if (o.race)   { spec.race = o.race;   spec.locked.race = o.race;   drop(/^No race named/); }
+    // Roles. One or several — several is a request for a build that does more
+    // than one job, which is a real thing people want and a worse build at each
+    // of them. The goal is derived, so everything downstream is unchanged.
+    if (K && !o.goal && o.roles && o.roles.length) {
+      const roles = (Array.isArray(o.roles) ? o.roles : [o.roles])
+        .filter(r => (K.ROLE_GOALS || {})[r]);
+      if (roles.length) {
+        spec.roles = roles;
+        spec.locked.roles = roles.slice();
+        const weights = K.goalWeights ? K.goalWeights(roles) : null;
+        const goals = weights ? weights.map(x => x[0]) : K.goalsForRoles(roles);
+        spec.goal = goals[0];
+        spec.goals = goals;
+        if (weights) spec.goalWeights = weights;
+        drop(/^No goal stated/);
+      }
+    }
+
+    // '' and null mean AUTO — the optimiser decides. 'none' means the slot is
+    // deliberately empty, which is a different instruction and one the search
+    // cannot otherwise be given.
+    for (const slot of ['sub', 'scroll1', 'scroll2', 'lostScroll']) {
+      if (o[slot]) { spec[slot] = o[slot]; spec.locked[slot] = o[slot]; }
+    }
+
     if (o.armour) { spec.armour = o.armour; spec.locked.armour = o.armour; }
     if (o.enchant){ spec.enchant = o.enchant; spec.locked.enchant = o.enchant; }
     if (o.covenant){ spec.covenant = o.covenant; spec.locked.covenant = o.covenant; }

@@ -130,6 +130,7 @@
   // the requested way. Add words freely; they only ever break ties.
   const ARCHETYPES = {
     damage: {
+      role: 'DPS',
       label: 'Maximum damage',
       statWeights: { str: 3, arc: 3, lck: 2, spd: 1, end: 0 },
       kitWords: ['damage','deal','strike','attack','pierce','slash','power'],
@@ -139,6 +140,7 @@
       blurb: 'Every point that does not raise damage is a wasted point.',
     },
     burst: {
+      role: 'DPS',
       label: 'Biggest single hit',
       statWeights: { str: 3, arc: 3, lck: 4, spd: 1, end: 0 },
       kitWords: ['damage','execute','massive','heavy','charge','empowered'],
@@ -148,6 +150,7 @@
       blurb: 'Optimised for the largest single number, not sustained output.',
     },
     crit: {
+      role: 'DPS',
       label: 'Crit / overcrit',
       statWeights: { lck: 5, str: 2, arc: 2, spd: 1, end: 0 },
       kitWords: ['crit','critical','precise','lethal','assassinate'],
@@ -156,21 +159,45 @@
       blurb: 'Luck feeds Crit Chance 1:1, and each 100% crosses into a higher crit tier.',
     },
     tank: {
+      role: 'Tank',
       label: 'Survivability',
       statWeights: { end: 5, str: 2, arc: 0, spd: 1, lck: 0 },
       kitWords: ['block','guard','shield','defen','armou','taunt','protect','fortif','resist','damage reduction'],
       // Effective HP: raw HP scaled by block damage reduction and incoming heals.
-      score: c => (c.effectiveHp ?? c.hp) * (1 + c.blockDr / 100) * (1 + (c.incHeal - 100) / 400),
+      score: c => (c.effectiveHp ?? c.hp) * (1 + c.blockDr / 100) *
+                  (1 + ((c.effectiveIncHeal ?? c.incHeal) - 100) / 400),
       blurb: 'Endurance drives HP, and Strength converts to block damage reduction.',
     },
     heal: {
+      role: 'Healer',
       label: 'Healing / support',
       statWeights: { end: 4, arc: 3, str: 1, spd: 2, lck: 0 },
       kitWords: ['heal','restore','mend','cleanse','revive','bless','pray','sanct'],
-      score: c => c.outHeal * (1 + c.hp / 400),
+      // What you actually heal per turn, not just the percentage you heal FOR.
+      //
+      // This used to be the multiplier alone, which is why a Saint and a Paladin
+      // scored alike: the model could see that both had a big outgoing-healing
+      // figure and could not see that only one of them owns Holy Grace. Heal
+      // rate folds in the move, its stat scaling and its cooldown - so casting
+      // it more often is worth something, which is what cooldown reduction is
+      // for, and it is also the proc rate on Narthana's Sigil.
+      //
+      // The health divisor is 250 rather than the 400 the old multiplier-only
+      // score used, and it is not a compromise: at 400 the search pushed Luck
+      // to 83, overshooting the 60 milestone and wasting 23 points. At 250 the
+      // healer keeps 241 HP AND heals more per turn than it did at 178.
+      //
+      // Falls back to the old multiplier when a build has no healing move at
+      // all, so a healer-by-gear still scores above nothing.
+      score: c => {
+        const mult = (c.effectiveHeal ?? c.outHeal) / 100;
+        const rate = c.healPerTurn ? c.healPerTurn : (c.effectiveHeal ?? c.outHeal) / 10;
+        return rate * mult * 10 * (1 + c.hp / 250);
+      },
       blurb: 'Endurance grants END/4 to both heal stats, so bulk and healing scale together.',
     },
     summon: {
+      role: 'DPS',
       label: 'Summons',
       statWeights: { arc: 5, end: 2, lck: 1, spd: 1, str: 0 },
       kitWords: ['summon','skeleton','minion','spirit','raise','conjure','pet'],
@@ -187,13 +214,20 @@
       blurb: 'Summon health and summon damage both scale off Arcane.',
     },
     status: {
+      role: 'Support',
       label: 'Status / damage over time',
       statWeights: { arc: 3, str: 2, spd: 2, lck: 2, end: 1 },
       kitWords: ['bleed','burn','poison','hex','curse','wound','infect','plague','stack'],
-      score: c => c.bestHit * 0.7 + c.stats.spd * 2,
-      blurb: 'Status application cares about acting often, not about one large hit.',
+      // The health term is deliberately gentler than the healer's (hp/800, not
+      // hp/400). Without ANY health term this archetype collapsed to pure damage
+      // the moment it was blended with anything - a Support build came out on
+      // 76 HP, which applies no debuffs to anybody because it is dead. Stacking
+      // a status takes TURNS, and turns are something you have to live through.
+      score: c => (c.bestHit * 0.7 + c.stats.spd * 2) * (1 + c.hp / 800),
+      blurb: 'Status application cares about acting often, and about living long enough to stack it.',
     },
     speed: {
+      role: 'Support',
       label: 'Speed / initiative',
       statWeights: { spd: 5, str: 2, arc: 2, lck: 1, end: 1 },
       kitWords: ['speed','swift','haste','dash','initiative','agil','quick','evade'],
@@ -201,13 +235,15 @@
       blurb: 'Speed grants initiative at SPD/10 and decides who moves first.',
     },
     party: {
+      role: 'Support',
       label: 'Party support',
       statWeights: { end: 4, arc: 2, spd: 2, str: 1, lck: 1 },
       kitWords: ['ally','allies','party','team','rally','aura','shared','support'],
-      score: c => c.hp * 0.5 + c.outHeal * 2 + c.stats.spd,
+      score: c => c.hp * 0.5 + (c.effectiveHeal ?? c.outHeal) * 2 + c.stats.spd,
       blurb: 'Built to keep a group alive rather than to top the damage chart.',
     },
     balanced: {
+      role: 'Flex',
       label: 'Balanced',
       statWeights: { str: 2, arc: 2, end: 2, spd: 2, lck: 2 },
       kitWords: [],
@@ -218,6 +254,152 @@
       blurb: 'A build that does not fall apart when the fight goes badly.',
     },
   };
+
+  // ── ROLES ─────────────────────────────────────────────────────────────────
+  // The four jobs in a party, plus the one that is not a job. A role is a
+  // property of the GOAL, not of the class - a Saint told to maximise damage is
+  // playing DPS badly, and the build should say so rather than pretend.
+  //
+  // This exists because the goals are too fine-grained to be useful as a label.
+  // Nobody asks for a "status / damage over time" build; they ask who debuffs.
+  const ROLES = {
+    Tank: {
+      label: 'Tank',
+      blurb: 'Takes the hits the rest of the party cannot. Scored on effective HP, ' +
+             'block damage reduction and incoming healing.',
+    },
+    Healer: {
+      label: 'Healer',
+      blurb: 'Keeps everyone standing. Scored on outgoing healing and enough health to ' +
+             'keep casting it. Damage is not part of the job.',
+    },
+    Support: {
+      label: 'Support / Debuff',
+      blurb: 'Changes the shape of the fight - debuffs, party buffs, acting first. Its ' +
+             'contribution is mostly on other people\'s stat sheets.',
+    },
+    DPS: {
+      label: 'DPS',
+      blurb: 'Kills things. Every point that does not raise damage is a wasted point, ' +
+             'which is why these builds have almost no health.',
+    },
+    Flex: {
+      label: 'Flex',
+      blurb: 'Not one of the four. A build that does not fall apart when the fight goes ' +
+             'badly, at the cost of being the best at nothing.',
+    },
+  };
+
+  // Which goals a role is made of. Choosing a role is the normal way in - the
+  // ten goals are too fine-grained to put in front of somebody ("status /
+  // damage over time" is not how anyone describes a build), and four roles are.
+  //
+  // Support is the one that needs two: the debuff half and the team half are
+  // scored by different archetypes and the job is both.
+  // An entry is a goal name, or [goal, weight]. Weight only matters where a
+  // role is made of more than one.
+  const ROLE_GOALS = {
+    Tank:    ['tank'],
+    Healer:  ['heal'],
+    // Buffing the team and debuffing the enemy are both this job. `party` takes
+    // the larger share because `status` is a damage archetype underneath, and an
+    // even blend produced a 76 HP "support" that supports nobody because it is
+    // dead. Measured across weightings: 1:1 and 2:1 both stayed glass, 3:1 is
+    // where it turns into a real support - fast enough to act first, healing,
+    // and bulky enough to be there on turn three.
+    Support: [['party', 3], ['status', 1]],
+    DPS:     ['damage'],
+    Flex:    ['balanced'],
+  };
+
+  // [goal, weight] pairs for a set of roles, merged so a goal named by two
+  // roles counts once at the larger weight.
+  function goalWeights(roles) {
+    const out = [];
+    for (const r of (roles || [])) {
+      for (const item of (ROLE_GOALS[r] || [])) {
+        const g = Array.isArray(item) ? item[0] : item;
+        const wt = Array.isArray(item) ? item[1] : 1;
+        if (!ARCHETYPES[g]) continue;
+        const found = out.find(x => x[0] === g);
+        if (found) found[1] = Math.max(found[1], wt);
+        else out.push([g, wt]);
+      }
+    }
+    return out;
+  }
+
+  // Roles in the order they should be offered and shown.
+  const ROLE_ORDER = ['Tank', 'Healer', 'Support', 'DPS'];
+
+  function goalsForRoles(roles) {
+    return goalWeights(roles).map(x => x[0]);
+  }
+
+  function roleOf(goal) {
+    const a = ARCHETYPES[goal];
+    return (a && ROLES[a.role]) ? Object.assign({ key: a.role }, ROLES[a.role]) : null;
+  }
+
+  // Items that are unmistakably built for one role but whose value the model
+  // CANNOT price, so they can never win on score - only break a tie.
+  //
+  // Narthana's Sigil is the case that made this necessary. Its damage is written
+  // as "X (scales on level)" and never stated, so it measures exactly equal to
+  // Stellian Core on a healer - and list order handed the healer the artifact
+  // built for people at full HP instead of the one that fires off their healing.
+  const ROLE_ITEMS = {
+    Healer: {
+      "Narthana's Sigil":
+        'the healer artifact: every 270 HP you heal, it deals damage and heals the party ' +
+        'for the same amount. Outgoing healing IS the proc rate, so the build that heals ' +
+        'hardest also fires it most often',
+      'Breath of Fungyir':
+        'it FULLY heals your entire team. No number, so no score - but nothing else in the ' +
+        'lost scroll list is close for somebody whose job is keeping people alive',
+      'Bard':
+        'Curar Forte heals everyone around you for 7%, and Latir Minor hands out a damage and ' +
+        'regen buff. It is the only subclass that does the healer\'s job',
+      'Self Cure':
+        'strips every status off you for 5% of your max HP. A healer who is silenced, cursed or ' +
+        'stunned is healing nobody, and this is the only self-cleanse in the scroll list',
+      'Wind Reflect':
+        'a shield on yourself or an ally that stops physical attacks outright for 3 turns. It ' +
+        'does not fully work on bosses, which is the honest caveat',
+    },
+    Tank: {
+      'Heavenly Prayer':
+        '15% damage reduction, 3 Resist, 10% lifesteal and two turns of Death Defy. Only the ' +
+        'DR has a number, and the Death Defy is probably worth more than it',
+      'Blacksmith':
+        'Jury Rigging is a 10 HP shield scaling on END/150 - the only subclass move that ' +
+        'protects anybody',
+      'Lesser Absorb':
+        'pulls 5% of an ally\'s incoming damage onto you. That is a cost on any other build and ' +
+        'the entire job on this one',
+    },
+    Support: {
+      "Metrom's Grasp":
+        'drops enemy defence by 40% for five turns. Nothing here models enemy defence, so it ' +
+        'scores nothing and is still the strongest thing a debuff build can bring',
+      'Alchemist':
+        'Dangerous Mixture applies three stacks of three different debuffs at once, ' +
+        'unblockable and undodgeable',
+      'Lights Out':
+        '3 Blinded and 1 Stunned on every enemy at once, on a 5 turn cooldown. It can backfire ' +
+        'onto you, which is why it scores nothing',
+    },
+    DPS: {
+      'Miner':
+        'The Right Angle is 12 base scaling on STR/70 + END/140 and hits everything - the ' +
+        'biggest subclass attack in the game',
+    },
+  };
+
+  function roleItemNote(goal, name) {
+    const r = roleOf(goal);
+    return (r && (ROLE_ITEMS[r.key] || {})[name]) || null;
+  }
 
   // The fallback when a request says nothing usable. Never leave this empty —
   // it is what makes "make me a build" return something instead of an error.
@@ -307,6 +489,79 @@
   //                    whose own moves cost it HP.
   function classRole(klass) {
     return (klass && CLASS_ROLE[klass]) || null;
+  }
+
+  // ── STAT MILESTONES ───────────────────────────────────────────────────────
+  // Every stat crosses three thresholds - 25 / 60 / 110 - and each one grants a
+  // real effect. The SITE renders them and applies none of them. Neither did
+  // this engine, and the consequences were not small:
+  //
+  //   LCK 60 is +35% OUTGOING HEALING, and the healing archetype weighted Luck
+  //   at zero. Every healer the AI has ever produced walked past a third of its
+  //   own healing because base stats were the only thing being counted.
+  //
+  //   STR 110 and ARC 110 each cut a cooldown, which is the whole of "casting it
+  //   more often" and was invisible.
+  //
+  // `text` is the game's own wording and is asserted against `statMilestones` in
+  // the tests - if a game update rewords one of these, that fails loudly rather
+  // than the engine quietly pricing something that no longer exists.
+  //
+  // Index is the TIER: 0 -> 25 points, 1 -> 60, 2 -> 110.
+  const MILESTONES = {
+    lck: [
+      { kind: 'note',       text: 'Crit Damage increased by 10%.',
+        note: 'not counted: critDmg is computed from the site\'s own formula and this is not in it' },
+      { kind: 'outHealPct', value: 35, text: 'Gain 35% Outgoing healing.' },
+      { kind: 'note',       text: 'Gain gold after battles end.',
+        note: 'gold, which no build score can see' },
+    ],
+    end: [
+      { kind: 'note',       text: 'Take 20% less damage from status effects.',
+        note: 'not counted: nothing here models incoming status damage' },
+      { kind: 'incHealPct', value: 35, text: 'Gain 35% Incoming healing.' },
+      { kind: 'note',       text: 'Passive regen increased by 2.',
+        note: 'not counted: regen is per-turn healing and this model has no turn loop for it' },
+    ],
+    str: [
+      { kind: 'note', text: 'Strike\'s base damage becomes 6.5.',
+        note: 'not counted: Strike is the unarmed basic, and no optimised build uses it' },
+      { kind: 'note', text: 'Take 10% less damage when blocking.',
+        note: 'not counted separately - block damage reduction already comes from Strength' },
+      { kind: 'cdCut', value: 1, elements: /magic/i, text: 'Magic Element attacks cost 1 less cooldown.' },
+    ],
+    arc: [
+      { kind: 'note', text: 'Use one extra potion.', note: 'potions are not modelled' },
+      { kind: 'note', text: '15% chance to gain an extra energy at the start of your turn.',
+        note: 'not counted: a chance at energy, and energy is a cap here rather than a flow' },
+      { kind: 'cdCut', value: 1, elements: /physical/i, text: 'Physical Element attacks cost 1 less cooldown.' },
+    ],
+    spd: [
+      { kind: 'note', text: 'Enemies are less likely to dodge your attacks.', note: 'no number given' },
+      { kind: 'note', text: 'The dodge bar gets bigger.', note: 'no number given' },
+      { kind: 'dodgePct', value: 5, text: '5% chance to auto-dodge attacks.' },
+    ],
+  };
+
+  // Which milestones a set of finished stats has actually reached.
+  function milestonesFor(stats, tiers) {
+    const steps = tiers || [25, 60, 110];
+    const out = { outHealPct: 0, incHealPct: 0, dodgePct: 0, cdCut: [], reached: [], missed: [] };
+    for (const [stat, list] of Object.entries(MILESTONES)) {
+      const have = Math.max(0, (stats || {})[stat] || 0);
+      list.forEach((def, i) => {
+        const need = steps[i];
+        if (need === undefined || !def) return;
+        const row = { stat, need, tier: i + 1, text: def.text, kind: def.kind, note: def.note };
+        if (have < need) { out.missed.push(row); return; }
+        out.reached.push(row);
+        if (def.kind === 'outHealPct') out.outHealPct += def.value;
+        else if (def.kind === 'incHealPct') out.incHealPct += def.value;
+        else if (def.kind === 'dodgePct') out.dodgePct += def.value;
+        else if (def.kind === 'cdCut') out.cdCut.push({ elements: def.elements, value: def.value, stat, text: def.text });
+      });
+    }
+    return out;
   }
 
   // ── ENERGY ────────────────────────────────────────────────────────────────
@@ -409,8 +664,14 @@
     'Vastayan (9%)': [
       { name: 'Spirit Caller', kind: 'summonHpPct', value: 20, skeleton: 50,
         note: 'summons +20% HP, Skeletons +50%' },
-      { name: 'Affinity Boost', kind: 'dmgPct', value: 10, when: /magic|hex|dark/i,
-        note: 'Magic and Hex damage' },
+      // Demoted from a priced +10%. Affinity Boost has NO text in the game data
+      // at all - only the name - so that 10% was priced from nothing, which is
+      // the one thing this file is not allowed to do. Restore it the moment
+      // somebody can point at a number.
+      { name: 'Affinity Boost', kind: 'note',
+        note: 'boosts damage of some affinity - the game data gives the name and nothing else, ' +
+              'no elements and no figure, so it is NOT counted. It was previously priced at +10% ' +
+              'to Magic, Hex and Dark on no stated authority.' },
     ],
     'Drauga (6%)': [
       { name: 'Enhanced Bloodlust', kind: 'dmgPct', value: 13.75, uptime: 0.5,
@@ -426,6 +687,25 @@
     'Dullahan (1%)': [
       { name: 'Bonus Stat Points', kind: 'points', value: 3,
         note: '+3 stat points every 10 levels — already in the point budget' },
+    ],
+
+    // Two races whose innate passives have NO effect text in the game data at
+    // all - only the names. The names are the whole of what was extractable, so
+    // for years the engine could see "Reduced Cooldowns" and knew nothing about
+    // it. The numbers below are REPORTED BY THE SITE OWNER, not read out of the
+    // data, and they are marked as such wherever they show up.
+    'Sheea (Ob)': [
+      { name: 'Reduced Cooldowns', kind: 'cdCut', value: 1, source: 'owner',
+        note: 'every cooldown is 1 turn shorter, and it STACKS with the STR 110 and ARC 110 ' +
+              'milestones. On anything whose job is repeating a move - a healer above all - ' +
+              'that is worth more than a stat block.' },
+    ],
+    'Daminos (3%)': [
+      { name: 'Outgoing Healing', kind: 'note',
+        note: 'an innate outgoing-healing bonus with no figure anywhere in the data. NOT counted ' +
+              'because inventing the number would be inventing the build. Restructure (5 + 5% max ' +
+              'HP regen for 3 turns) and Mulligan Realm (~21% outgoing healing to the whole party, ' +
+              'plus a chance to survive a fatal blow) are real and also uncounted.' },
     ],
 
     // The low-HP classes. Every one of these was in the "not counted" list until
@@ -462,17 +742,23 @@
               'summons are actually landing.' },
     ],
 
-    // Reported, not priced. Holy Emissary is a flat +35% to outgoing AND incoming
-    // healing, and it is real - but `outHeal` and `incHeal` are numbers the SITE
-    // shows, and the site does not apply class passives to them. Pricing it here
-    // would print a healing figure arcanelineagebuilder.com disagrees with, and
-    // it cannot change a decision anyway: a flat multiplier on every heal does
-    // not reorder the gear, the stats or the classes.
+    // Priced, but NOT into the reported figure. Holy Emissary is a flat +35% to
+    // outgoing and incoming healing; `outHeal` is a number the SITE shows and
+    // the site does not apply class passives to it, so raising it here would
+    // print a figure arcanelineagebuilder.com disagrees with.
+    //
+    // So it feeds a separate `effectiveHeal` that the healing archetypes score
+    // on - exactly how `effectiveHp` already works for dodge. It was originally
+    // left unpriced on the grounds that a flat multiplier cannot change a
+    // decision. That was wrong: it cannot reorder one class's gear, but it
+    // absolutely reorders CLASSES, and without it a Paladin stacking Endurance
+    // measured as a better healer than a Saint.
     'Saint (Or)': [
-      { name: 'Holy Emissary', kind: 'note',
-        note: '+35% outgoing AND incoming healing. NOT counted in the healing number above, ' +
-              'because that number is the site\'s and the site does not apply class passives ' +
-              'to it. Multiply both healing figures by 1.35 for the real total.' },
+      { name: 'Holy Emissary', kind: 'outHealPct', value: 35,
+        note: '+35% outgoing AND incoming healing. Counted in the healing SCORE but deliberately ' +
+              'not added to the Heal out figure below, because that figure is the site\'s and ' +
+              'the site does not apply class passives to it. Multiply it by 1.35 for the real ' +
+              'total in game.' },
     ],
 
     // Weapon-training passives. `whenWeapon` pays only while the matching weapon
@@ -657,8 +943,17 @@
     'Veneri (6%)':    { roles: ['utility'],
                         note: 'gold, enchants and potions — economy rather than combat' },
 
-    'Arborivia (3%)': { roles: [], placeholder: true, note: 'no stat block in the data yet' },
-    'Calvariae (3%)': { roles: [], placeholder: true, note: 'no stat block in the data yet' },
+    // Zero stat block, full kit. These were excluded as unfinished entries,
+    // which was wrong: they grant no stats ON PURPOSE and are played entirely
+    // for their moves. Excluding them meant they could never be recommended
+    // even where the kit is the whole point.
+    'Arborivia (3%)': { roles: ['support', 'crit'],
+                        note: 'no stat bonuses at all - Leaf Thrust carries +50 crit chance and ' +
+                              'Maple Vindication is party-wide regen. Everything it gives is in ' +
+                              'the kit, so it is only worth taking for the kit' },
+    'Calvariae (3%)': { roles: ['tank'],
+                        note: 'no stat bonuses at all - Brittle Cure trades 20% of current HP for ' +
+                              'a 25% damage-reduction buff' },
   };
 
   // ── SETUP MOVES ───────────────────────────────────────────────────────────
@@ -718,6 +1013,74 @@
       kind: 'statBuff', statBuff: 'focusStepSpd',
       note: 'LVL x 2 flat Speed for 4 turns — +100 at level 50, which is enormous on any move that scales with Speed',
     },
+
+    // ── scrolls ────────────────────────────────────────────────────────────
+    // Owner is the SCROLL, because every scroll's move shares its name. Only
+    // the ones whose game text states a number are here; the rest are reported
+    // by SCROLL_NOTES below and priced at nothing, which is the honest answer
+    // when the text says "a damage and defense buff" and stops there.
+    'Absolute Radiance': {
+      owner: 'Absolute Radiance', cost: 4, cd: 18, duration: 5, reliability: 1,
+      kind: 'dmgPct', value: 13.5,
+      note: 'ramps 7.5 / 10 / 12.5 / 15 / 22.5% across its five turns - counted at the ' +
+            'AVERAGE of those, 13.5%, rather than the 22.5% headline you only reach on turn five',
+    },
+    'Lesser Empower': {
+      owner: 'Lesser Empower', cost: 2, cd: 6, duration: 2, reliability: 1,
+      kind: 'dmgPct', value: 15,
+      note: 'a flat +15% for 2 turns on a 6 turn cooldown',
+    },
+    'Steel Body': {
+      owner: 'Steel Body', cost: 2, cd: 8, duration: 1, reliability: 1,
+      kind: 'dr', value: 80,
+      note: '80% incoming damage reduction, but for ONE turn on an 8 turn cooldown - counted at ' +
+            'duration over cooldown, so it prices at a tenth of the headline. It does not work ' +
+            'on boss ultimates.',
+    },
+    'Heavenly Prayer': {
+      owner: 'Heavenly Prayer', cost: 5, cd: 22, duration: 3, reliability: 1,
+      kind: 'dr', value: 15,
+      note: '15% damage reduction for 3 turns. The 10% lifesteal, 3 Resist and the two turns of ' +
+            'Death Defy it also grants are NOT counted - none of them has a number this model ' +
+            'can use, and Death Defy in particular is worth more than the DR is',
+    },
+    'Blizzard': {
+      owner: 'Blizzard', cost: 2, cd: 15, duration: 4, reliability: 1,
+      kind: 'dmgPct', value: 20, elements: /ice/i,
+      note: '+20% ICE damage for the team for 4 turns - it pays only on ice moves. The team ' +
+            'defence it also gives is not counted',
+    },
+  };
+
+  // Scrolls whose effect is real and unpriceable. Reported with the build so a
+  // slot that measures at zero does not read as an empty slot.
+  const SCROLL_NOTES = {
+    'Bulk Up': '+20% damage AND -20% of your own defence, stacking multiplicatively (2 stacks = ' +
+               '44% more damage taken). NOT priced: the upside has a number and the downside does ' +
+               'not fit this model, and pricing only the upside would hand it to every build.',
+    'Immolation': '+10% damage for the rest of the fight, and it drains you to 0.1 HP and leaves ' +
+                  'you there. NOT priced, for the same reason as Bulk Up.',
+    'Metrom\'s Grasp': 'drops the enemy defence 40% and adds 40% to your damage-over-time for 5 ' +
+                       'turns. NOT priced: nothing here models enemy defence or DoT output. On a ' +
+                       'debuff build it is doing real work these numbers miss.',
+    'Breath of Fungyir': 'FULLY heals your entire team, and heavy-stuns the target. NOT priced: ' +
+                         'there is no number, and a full team heal is worth more than any figure ' +
+                         'on this sheet.',
+    'Wild Impulse': 'your next hit becomes a pseudo-AoE for 20% to everything nearby, and applies ' +
+                    'Vulnerable and Weakened. NOT priced: this model fights one enemy.',
+    'Surprise Package': 'a bomb for 30% of the target max HP - only 5% on a boss. NOT priced: ' +
+                        'damage as a fraction of the TARGET\'s health is not something this ' +
+                        'model computes.',
+    'Torching Soul': 'heals 3% of max HP per Burn and gives an unstated damage and defence buff. ' +
+                     'NOT priced: "a buff" is not a number.',
+    'Wind Reflect': 'blocks physical attacks outright for 3 turns, and does not fully work on ' +
+                    'bosses. NOT priced: no number, and the boss caveat is the case that matters.',
+    'Lesser Absorb': 'redirects 5% of an ALLY\'s incoming damage onto you. Party only, and a ' +
+                     'cost rather than a gain when you are the one being scored.',
+    'Self Cure': 'cleanses every status on you for ~5% of your max HP. NOT priced: worth ' +
+                 'everything or nothing depending on what you are fighting.',
+    'Lights Out': '3 Blinded and 1 Stunned on everything, with a chance to backfire onto you.',
+    'Simple Curse': 'a small Arcane attack that is in the move pool above with the rest of them.',
   };
 
   // ── RACE TECH ─────────────────────────────────────────────────────────────
@@ -1747,6 +2110,20 @@
     },
   };
 
+  // Things that DO exist and work, and that the builder is told not to
+  // recommend anyway. Kept apart from UNAVAILABLE on purpose: that table means
+  // "the game will not let you", and saying that about an item somebody can
+  // equip right now would be a lie in the write-up.
+  //
+  // It is merged into the same lookup, so an entry here removes the item from
+  // every search — gear, armour, artifact, weapon, enchant alike.
+  const AVOID = {
+    'Shadowy Crook':
+      'excluded at the site owner\'s request. It was being handed to 22 of 180 optimised ' +
+      'builds on its stat block alone, so this is not a no-op — no reason has been recorded ' +
+      'here yet, and one belongs in this entry.',
+  };
+
   // ── QUIRKS ────────────────────────────────────────────────────────────────
   // Item behaviour the data tables do not encode. Each entry registers itself
   // into the model's hooks. `when` decides whether it is live for a build.
@@ -2128,7 +2505,10 @@
 
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
            CLASS_ROLE, classRole,
-           UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
+           ROLES, roleOf, ROLE_ITEMS, roleItemNote, SCROLL_NOTES,
+           ROLE_GOALS, ROLE_ORDER, goalsForRoles, goalWeights,
+           MILESTONES, milestonesFor,
+           UNAVAILABLE, AVOID, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
            BOSS_TACTICS, BOSS_PENALTIES, BOSS_SOLO_MIN_SPEED, STATUS_WORDS,
