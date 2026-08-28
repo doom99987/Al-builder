@@ -331,6 +331,59 @@ All of these currently resolve correctly: `necromancr`, `assasin`, `berzerker`,
 `darkwrath`, `impalor`, `lionhart`, `citdel`, `arbitor`, `brawlr`, `monkk`,
 `hexr`, `rouge`, `vastyan`, `stultis`, `dulahan`, `estela`.
 
+## Naming a class names a role
+
+A request that names a class and **no goal** is built for what that class is
+*for*, not for a compromise. `saint build` is a healer. `citadel build` is a
+tank. The table is `CLASS_ROLE` in `knowledge.js`, and every entry states the
+moves the claim rests on:
+
+| Class | Role | Because |
+|---|---|---|
+| Saint (Or) | heal | the only class whose moves carry a healing number — Cleansing Prayer and Holy Grace — plus Holy Emissary (+35% to all healing) |
+| Citadel (Or) | tank | all three moves are defensive; Sanctified Protection redirects 75% of the party's damage onto you |
+| Lionheart (N) | tank | Torrefy eats damage aimed at allies, Vulcanised Vigor converts damage taken into DR, Benumb stops HP loss outright |
+| Paladin (Or) | tank | Enduring Fighter is a permanent 15% DR; Shield Training and Protector take hits meant for the team |
+| Sentry | tank | base class, only reachable under level 15 — Hunker Down and Lookout |
+
+**Anything stated in the request wins.** `dmg saint` is a damage build and
+`crit saint` is a crit build; the role only ever fills a gap. A *stat* focus does
+not override it — `full arcane saint` is still a healer, because a stat focus
+says **how**, not **what**, and it steers the allocation directly regardless of
+the goal (`optimize.js` adds 6 to the weight of every focused stat). Saint's
+heals scale on `STR/100 + ARC/100`, so arcane on a Saint *is* a healing
+instruction.
+
+### Why the table is short
+
+The bar for an entry is **the archetype it points at must still score staying
+alive**. `heal` multiplies by `(1 + hp/400)`, `tank` is built on effective HP —
+so committing a Saint or a Citadel to its role costs it nothing it wanted.
+
+`damage`, `burst`, `crit`, `speed`, `summon` and `status` have no health term in
+their score at all. That is not theoretical: routing `necromancer build` into
+`summon` produced a **66 HP Necromancer**, and `hexer build` an 82 HP Hexer.
+Both are unmistakably summoner and debuffer classes and both are deliberately
+left out — someone who asks for a summoner by name can have one, but someone who
+typed a class name and nothing else should not be handed a glass cannon
+silently. If those archetypes ever score health, they are the first two entries
+to add.
+
+The same logic is why no attacker class is listed. `balanced` already scores
+damage heavily and keeps some Endurance; it is a poor default for a class built
+to heal or hold a line (it put a Citadel on **98 HP**) and a perfectly
+reasonable one for a class built to attack.
+
+### Why it is a declared table
+
+Reading the role out of the move text gets it wrong. Counting kit-word
+occurrences — the same mechanic `classAffinity` uses to pick a class for a
+random build — puts **Citadel on `damage`**: its own moves say "75% of their
+damage is redirected to you", the single most defensive sentence in the game,
+and the word that gets counted is "damage". Lionheart ties `damage` with `tank`.
+So the roles are declared and the reasons are checkable: a test asserts every
+entry names a move the class actually has.
+
 ## Are the builds actually good?
 
 The search is checked against a **fully-kitted random build of the same class and

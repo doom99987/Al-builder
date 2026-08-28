@@ -1682,6 +1682,114 @@ describe('fighting hurt', () => {
   });
 });
 
+describe('class roles', () => {
+  const goalOf = q => Intent.parse(q, data, K).goal;
+  const ROLES  = K.CLASS_ROLE || {};
+
+  it('every entry is a real class pointing at a real archetype, with a reason', () => {
+    ok(Object.keys(ROLES).length >= 4, 'CLASS_ROLE is suspiciously short');
+    for (const [klass, role] of Object.entries(ROLES)) {
+      ok((data.classMoves || {})[klass], klass + ' is not a class');
+      ok(K.ARCHETYPES[role.goal], klass + ' points at an archetype that does not exist: ' + role.goal);
+      ok(role.why && role.why.length > 40, klass + ' gives no real reason');
+    }
+  });
+
+  // The bar the table sets for itself. `damage`, `burst`, `crit`, `speed`,
+  // `summon` and `status` score nothing for health, and defaulting a bare class
+  // name into one of them produced a 66 HP Necromancer. If an archetype's score
+  // ignores HP entirely, no class may default into it.
+  it('no class defaults into an archetype that does not care whether you live', () => {
+    const base = {
+      stats: { str: 100, arc: 100, end: 100, spd: 100, lck: 100 },
+      hp: 400, effectiveHp: 400, bestHit: 500, sustainedHit: 450, bestBurst: 700,
+      outHeal: 150, incHeal: 150, blockDr: 20, critTier: 1, passives: {},
+    };
+    for (const [klass, role] of Object.entries(ROLES)) {
+      const arch = K.ARCHETYPES[role.goal];
+      const lo = arch.score({ ...base });
+      const hi = arch.score({ ...base, hp: 800, effectiveHp: 800 });
+      ok(hi > lo, klass + ' defaults to ' + role.goal + ', whose score ignores health entirely');
+    }
+  });
+
+  it('the reason names moves the class actually has', () => {
+    for (const [klass, role] of Object.entries(ROLES)) {
+      const src = data.classMoves[klass] || {};
+      const own = [...(src.learns || []), ...(src.innatePassives || [])].map(m => m.name);
+      const named = own.filter(n => n && role.why.indexOf(n) !== -1);
+      ok(named.length >= 1,
+         klass + ': the reason names none of its own moves (' + own.join(', ') + ')');
+    }
+  });
+
+  it('a named class with no goal is built for its role', () => {
+    eq(goalOf('saint build'), 'heal');
+    eq(goalOf('saint'), 'heal');
+    eq(goalOf('make me a citadel'), 'tank');
+    eq(goalOf('paladin build'), 'tank');
+    eq(goalOf('lionheart'), 'tank');
+  });
+
+  it('a stated goal always wins', () => {
+    eq(goalOf('dmg saint'), 'damage');
+    eq(goalOf('damage saint'), 'damage');
+    eq(goalOf('crit saint'), 'crit');
+    eq(goalOf('summoner citadel'), 'summon');
+  });
+
+  it('a stat focus does not override the role, and still steers the stats', () => {
+    // "How", not "what". Saint's heals scale on STR/100 + ARC/100, so arcane on
+    // a Saint is a healing instruction, and optimize.js weights statFocus
+    // directly whatever the goal turns out to be.
+    const spec = Intent.parse('full arcane saint', data, K);
+    eq(spec.goal, 'heal');
+    ok(spec.statFocus.indexOf('arc') !== -1, 'the arcane focus was dropped');
+  });
+
+  it('a class with no declared role is left alone', () => {
+    eq(goalOf('berserker build'), K.DEFAULT_GOAL);
+    eq(goalOf('necromancer build'), K.DEFAULT_GOAL);
+    eq(goalOf('assassin'), K.DEFAULT_GOAL);
+  });
+
+  it('naming no class at all changes nothing', () => {
+    eq(goalOf('make me a build'), K.DEFAULT_GOAL);
+  });
+
+  it('says out loud that it chose the goal, and why', () => {
+    const spec = Intent.parse('saint build', data, K);
+    const said = spec.assumptions.join(' ');
+    ok(/no goal stated/i.test(said), 'never admits it picked the goal');
+    ok(said.indexOf('Holy Emissary') !== -1, 'never says why Saint is a healer');
+    ok(/override/i.test(said), 'never says how to override it');
+  });
+
+  // The point of the whole change: the default has to be better AT THE THING THE
+  // CLASS IS FOR than the one it replaced, or it is just a different answer.
+  it('the role default beats the old balanced default at the class role', () => {
+    const saintRole = ask('saint build');
+    const saintOld  = ask('saint build', { goal: K.DEFAULT_GOAL });
+    ok(saintRole.ctx.outHeal > saintOld.ctx.outHeal,
+       'a Saint heals no better for being built as a healer: ' +
+       saintRole.ctx.outHeal + ' vs ' + saintOld.ctx.outHeal);
+
+    const citRole = ask('citadel build');
+    const citOld  = ask('citadel build', { goal: K.DEFAULT_GOAL });
+    ok(citRole.ctx.hp > citOld.ctx.hp * 1.5,
+       'a Citadel is no tougher for being built as a tank: ' +
+       Math.round(citRole.ctx.hp) + ' vs ' + Math.round(citOld.ctx.hp));
+  });
+
+  it('a role build still has enough health to be worth playing', () => {
+    for (const klass of Object.keys(ROLES)) {
+      const r = ask(klass + ' build');
+      if (r.build.klass !== klass) continue;   // base classes resolve upward
+      ok(r.ctx.hp > 200, klass + ' defaults to a ' + r.ctx.hp + ' HP build');
+    }
+  });
+});
+
 describe('seasonal gear', () => {
   it('never puts event gear in a build', () => {
     // Easter and Winter Solstice gear is in the data and cannot be equipped, the

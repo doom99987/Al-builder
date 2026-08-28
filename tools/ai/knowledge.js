@@ -231,6 +231,84 @@
   const GOAL_PRIORITY = ['summon', 'crit', 'burst', 'status', 'heal', 'tank',
                          'party', 'speed', 'damage', 'balanced'];
 
+  // ── CLASS ROLE ────────────────────────────────────────────────────────────
+  // What a class is FOR. Naming a class names a role: "saint build" is a request
+  // for a healer, not for a compromise that happens to be wearing Saint's kit.
+  //
+  // Consulted ONLY when a request names a class and states no goal. Any goal
+  // word wins outright - "dmg saint" is a damage build, and nothing here
+  // overrules it. A stat focus does not: "full arcane saint" is still a healer,
+  // and the arcane still lands, because a stat focus also weights the allocation
+  // directly (optimize.js) and Saint's heals scale on STR/100 + ARC/100 anyway.
+  //
+  // DECLARED, not read out of the move text, because reading the text gets it
+  // wrong. Counting kit words puts Citadel on `damage` - its own moves say "75%
+  // of their damage is redirected to you", the single most defensive sentence in
+  // the game, and the word that gets counted is "damage". Every entry names the
+  // moves it rests on, so the claim is checkable against the game data.
+  //
+  // THE BAR FOR AN ENTRY: the archetype it points at must still score staying
+  // alive. `heal` multiplies by (1 + hp/400) and `tank` is built on effective HP,
+  // so committing a Saint or a Citadel to its role costs it nothing it wanted.
+  // `damage`, `burst`, `crit`, `speed`, `summon` and `status` have NO health term
+  // in their score at all, and it is not theoretical - routing "necromancer
+  // build" to `summon` produced a 66 HP Necromancer, and "hexer build" an 82 HP
+  // Hexer. Someone who asks for a summoner by name can have that; someone who
+  // typed a class name and nothing else should not be handed it silently.
+  //
+  // So this table is short on purpose. `balanced` is a poor default for a class
+  // built to heal or to hold a line - it put a Citadel on 98 HP - and a perfectly
+  // reasonable one for a class built to attack.
+  const CLASS_ROLE = {
+    'Saint (Or)': { goal: 'heal', why:
+      'it is the only class in the game whose moves carry a healing number - Cleansing Prayer ' +
+      'and Holy Grace - Holy Emissary raises all your healing by 35%, and Graceful Returns pays ' +
+      'you a defence and regen buff for healing an ally' },
+
+    'Citadel (Or)': { goal: 'tank', why:
+      'all three of its moves are defensive: Crucible opens with a vitality-scaled damage ' +
+      'reduction buff, Blinding Vow hands an ally 10% DR, and Sanctified Protection redirects ' +
+      '75% of the whole party\'s damage onto you' },
+
+    'Lionheart (N)': { goal: 'tank', why:
+      'Torrefy absorbs damage aimed at your allies while you guard, Vulcanised Vigor converts ' +
+      'damage you have taken into stacking DR and attack power, and Benumb stops HP loss ' +
+      'outright for two turns' },
+
+    'Paladin (Or)': { goal: 'tank', why:
+      'Enduring Fighter is a permanent 15% damage resistance, Shield Training and Protector let ' +
+      'you take hits meant for your team, and Holy Crash pulls the room onto you' },
+
+    // Base class. Only reachable below level 15, since classesForLevel drops the
+    // bases above that - but "level 10 sentry build" is a real request.
+    'Sentry': { goal: 'tank', why:
+      'Hunker Down pays you 15% defence for guarding, and Lookout exists to put you in front of ' +
+      'a target of your choice' },
+  };
+
+  // Deliberately NOT here, and why, so nobody adds them by pattern-matching:
+  //
+  //   Necromancer (Ch) unmistakably a summoner - Call Skeleton, Raise Dead,
+  //   Hexer (N)        Darklight Drain - and Hexer has exactly one attack in its
+  //                    whole kit. Both fail the survivability bar above and
+  //                    nothing else. If `summon` and `status` ever score health,
+  //                    these two are the first entries to add.
+  //   Darkwraith (Ch)  a summoner whose Darkcores come from CRITS. The summon
+  //                    archetype weights Arcane at 5 and Luck at 1, so committing
+  //                    it would have the build dump the exact stat that feeds
+  //                    its summons.
+  //   Lancer (N)       Rooted Fighter blocks, Poised Slayer heals off dodges,
+  //                    Rallying Shout buffs the team, and Empowered Pierce and
+  //                    Discharge are ordinary attacks. Genuinely a bruiser; no
+  //                    single archetype is more right than `balanced`.
+  //   Impaler (Ch)     bleeds constantly, but Bloody Berserker is a straight
+  //                    +1% damage per 1% HP missing. It is a damage class that
+  //                    happens to bleed, and `damage` zeroes Endurance on a class
+  //                    whose own moves cost it HP.
+  function classRole(klass) {
+    return (klass && CLASS_ROLE[klass]) || null;
+  }
+
   // ── ENERGY ────────────────────────────────────────────────────────────────
   // The base energy cap is NOT recorded anywhere in the site's data, so it is an
   // assumption. If it is wrong, correct it here — it is the single number every
@@ -382,6 +460,19 @@
         note: 'Under 50% HP your summons gain 6% lifesteal, paid to YOU rather than to them. ' +
               'Not counted: it is sustain rather than damage, and it depends on how much your ' +
               'summons are actually landing.' },
+    ],
+
+    // Reported, not priced. Holy Emissary is a flat +35% to outgoing AND incoming
+    // healing, and it is real - but `outHeal` and `incHeal` are numbers the SITE
+    // shows, and the site does not apply class passives to them. Pricing it here
+    // would print a healing figure arcanelineagebuilder.com disagrees with, and
+    // it cannot change a decision anyway: a flat multiplier on every heal does
+    // not reorder the gear, the stats or the classes.
+    'Saint (Or)': [
+      { name: 'Holy Emissary', kind: 'note',
+        note: '+35% outgoing AND incoming healing. NOT counted in the healing number above, ' +
+              'because that number is the site\'s and the site does not apply class passives ' +
+              'to it. Multiply both healing figures by 1.35 for the real total.' },
     ],
 
     // Weapon-training passives. `whenWeapon` pays only while the matching weapon
@@ -2036,6 +2127,7 @@
   ];
 
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
+           CLASS_ROLE, classRole,
            UNAVAILABLE, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
