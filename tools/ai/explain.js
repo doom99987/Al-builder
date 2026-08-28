@@ -126,6 +126,17 @@
 
     // ── the build ───────────────────────────────────────────────────────────
     const kit = [];
+    // The role goes at the top because it is what every number below is being
+    // judged against. Several roles means the build was scored on all of them
+    // at once and is beaten at each by something that only does one.
+    const roleDefs = (spec.roles || []).map(r => (K.ROLES || {})[r]).filter(Boolean);
+    if (roleDefs.length) {
+      kit.push(['Role', roleDefs.map(r => r.label).join('  +  ') +
+                        (roleDefs.length > 1 ? '   (scored on all ' + roleDefs.length + ' at once)' : '')]);
+    } else {
+      const r1 = K.roleOf ? K.roleOf(spec.goal) : null;
+      if (r1) kit.push(['Role', r1.label]);
+    }
     kit.push(['Class',  b.klass || '—']);
     kit.push(['Race',   b.race || '—']);
     kit.push(['Level',  String(b.level)]);
@@ -133,11 +144,21 @@
     if (b.weapon)   kit.push(['Weapon', b.weapon.name + tierNote(b.weapon, data, M)]);
     if (b.artifact) kit.push(['Artifact', b.artifact.name + tierNote(b.artifact, data, M)]);
     b.gear.forEach((g, i) => kit.push(['Gear ' + (i + 1), g.name + tierNote(g, data, M)]));
+    if (b.sub) kit.push(['Subclass', b.sub]);
+    const filled = b.scrollsInert ? '   — ' + b.scrollsInert + ' of these changes nothing here; the slot is free so it is not left empty' : '';
+    if (b.lostScroll) kit.push(['Lost scroll', b.lostScroll]);
+    const scrolls = [b.scroll1, b.scroll2].filter(Boolean);
+    if (scrolls.length) kit.push(['Scrolls', scrolls.join(', ') + filled]);
     if (b.enchant) {
       const en = (K.ENCHANTS || {})[b.enchant];
       kit.push(['Enchant', b.enchant + (en ? '  — ' + en.note : '')]);
     }
-    if (b.shards && b.shards.length) kit.push(['Shards', b.shards.join(', ')]);
+    if (b.shards && b.shards.length) {
+      kit.push(['Shards', b.shards.join(', ') +
+        (b.shardsInert === (b.shards.length)
+          ? '   — none of these changes a number on this build'
+          : b.shardsInert ? '   — the last ' + b.shardsInert + ' change nothing here' : '')]);
+    }
     if (b.masteryNodes && b.masteryNodes.length) {
       kit.push(['Mastery', b.masteryNodes.length + ' nodes  ·  ' + (b.masteryPoints || 0) + '/' +
                 (data.MASTERY_TOTAL_POINTS || 35) + ' points  ·  ' + (b.masteryShards || 0) + ' echo shards']);
@@ -146,6 +167,31 @@
     if (b.covenant) kit.push(['Covenant', b.covenant + '  (rank ' + (b.covenantRank || 1) + ')']);
     if (b.corruption) kit.push(['Corruption', b.corruption]);
     L.push({ h: 'Build', table: kit });
+
+    // Everything the build is carrying whose value is real and unmeasured. This
+    // is where a healer finds out WHY it is holding Breath of Fungyir when the
+    // numbers above say it does nothing.
+    {
+      const lines = [];
+      const noteFor = n => (K.roleItemNote ? K.roleItemNote(spec.goal, n) : null);
+      for (const n of [b.sub, b.lostScroll, b.scroll1, b.scroll2, b.artifact && b.artifact.name]) {
+        if (!n) continue;
+        const why = noteFor(n);
+        if (why) lines.push('**' + n + '** — chosen for the role, not for the score: ' + why + '.');
+      }
+      for (const n of [b.lostScroll, b.scroll1, b.scroll2]) {
+        if (!n) continue;
+        const note = (K.SCROLL_NOTES || {})[n];
+        if (note && !noteFor(n)) lines.push('**' + n + '** — ' + note);
+      }
+      if (b.shardsInert === (b.shards || []).length && (b.shards || []).length) {
+        lines.push('**Shards** — every shard in the game is damage, lifesteal or energy. None of ' +
+                   'them touches healing, block or incoming damage, so for this build there is ' +
+                   'genuinely nothing in the list. The slots are free, so they are filled with the ' +
+                   'best of the rest.');
+      }
+      if (lines.length) L.push({ h: 'Chosen for the role, not for the numbers', list: lines });
+    }
 
     // ── stats ───────────────────────────────────────────────────────────────
     const inv = b.invested;
@@ -156,7 +202,12 @@
       ['Crit chance', n1(c.critChance) + '%' + (c.critTier ? '  (tier ' + c.critTier + ' — every hit crits)' : '')],
       ['Crit damage', c.critDmg.toFixed(2) + 'x'],
       ['Block DR / Initiative', n1(c.blockDr) + '%  ·  ' + n1(c.initiative) + '%'],
-      ['Heal out / in', n1(c.outHeal) + '%  ·  ' + n1(c.incHeal) + '%'],
+      ['Heal out / in', n1(c.outHeal) + '%  ·  ' + n1(c.incHeal) + '%' +
+        // The site does not apply class healing passives to its own
+        // percentage, so neither do we - but the SCORE does, and hiding
+        // that would make a Saint look like a worse healer than it is.
+        (c.effectiveHeal && c.effectiveHeal > c.outHeal + 0.5
+          ? '   (scored as ' + n1(c.effectiveHeal) + '% with your class healing passive - the site does not add that to its own figure)' : '')],
       ['Max energy', String(c.energyCap ?? '—') +
         (c.traits && c.traits.energyCap ? '  (+' + c.traits.energyCap + ' from Overflow)' : '')],
     ]});

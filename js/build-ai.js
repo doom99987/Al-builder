@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 34;
+  const ENGINE_V = 36;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -134,6 +134,10 @@
   // is worth five mastery points, and that is not a thing to guess on their
   // behalf. The Build button will not run without it.
   let playStyle = null;
+  // Roles are a SET, not a choice. Picking two is a request for a build that
+  // does two jobs and is worse at each — a real thing people want, and the only
+  // way to ask for it.
+  let roles = [];
   // Second required choice. Average and potential damage build genuinely
   // different characters — average pays for Luck, potential does not — so this
   // is asked rather than assumed, exactly like Solo/Full team.
@@ -168,6 +172,12 @@
         '<div class="bai-ask">' +
           '<input id="bai-q" placeholder="max damage crit lancer" autocomplete="off">' +
           '<button class="bai-go" id="bai-go">Build</button>' +
+        '</div>' +
+        '<div class="bai-play" id="bai-role">' +
+          '<span class="bai-play-label">Role</span>' +
+          ROLE_BUTTONS() +
+          '<span class="bai-play-hint" id="bai-role-hint">Pick one. Pick several for a build ' +
+            'that does more than one job — and is worse at each of them.</span>' +
         '</div>' +
         '<div class="bai-play" id="bai-play">' +
           '<span class="bai-play-label">Playing</span>' +
@@ -209,6 +219,28 @@
       wipDismissed = true;
       ov.querySelector('#bai-wip').setAttribute('hidden', '');
     });
+    ov.querySelectorAll('#bai-role .bai-play-opt').forEach(btn => btn.addEventListener('click', () => {
+      const r = btn.dataset.role;
+      const at = roles.indexOf(r);
+      if (at === -1) roles.push(r); else roles.splice(at, 1);
+      ov.querySelectorAll('#bai-role .bai-play-opt').forEach(b =>
+        b.classList.toggle('bai-play-on', roles.indexOf(b.dataset.role) !== -1));
+
+      const hint = ov.querySelector('#bai-role-hint');
+      const K = window.ALB_Knowledge;
+      if (!roles.length) {
+        hint.textContent = 'Pick one. Pick several for a build that does more than one job — ' +
+                           'and is worse at each of them.';
+      } else if (roles.length === 1) {
+        const def = K && K.ROLES && K.ROLES[roles[0]];
+        hint.textContent = def ? def.blurb : '';
+      } else {
+        hint.textContent = roles.join(' + ') + ' — scored on all ' + roles.length +
+          ' at once, so it will be beaten at each of them by a build that only does one.';
+      }
+      hint.classList.remove('bai-play-needed');
+      syncAdvCount();
+    }));
     ov.querySelectorAll('#bai-play .bai-play-opt').forEach(btn => btn.addEventListener('click', () => {
       playStyle = btn.dataset.play;
       ov.querySelectorAll('#bai-play .bai-play-opt').forEach(b =>
@@ -395,6 +427,18 @@
   const ADV_IDS = ['bai-goal','bai-class','bai-race','bai-wtype','bai-weapon','bai-armour','bai-ench',
                    'bai-cov','bai-boss','bai-level'];
 
+  // Built from ROLE_ORDER so the panel cannot drift from the engine. Falls back
+  // to the four names if knowledge has not loaded yet — this markup is built
+  // before the engine is lazy-loaded.
+  function ROLE_BUTTONS() {
+    const K = window.ALB_Knowledge;
+    const order = (K && K.ROLE_ORDER) || ['Tank', 'Healer', 'Support', 'DPS'];
+    const label = r => ((K && K.ROLES && K.ROLES[r] && K.ROLES[r].label) || r);
+    return order.map(r =>
+      '<button class="bai-play-opt" data-role="' + esc(r) + '" type="button">' +
+      esc(label(r)) + '</button>').join('');
+  }
+
   function readOverrides() {
     const val = id => {
       const el = document.getElementById(id);
@@ -404,6 +448,9 @@
     return {
       play:       playStyle,
       dmg:        dmgModel,
+      // An explicit Goal in Advanced still wins: it is the finer instruction of
+      // the two, and somebody who opened Advanced and picked one meant it.
+      roles:      roles.length ? roles.slice() : null,
       goal:       val('bai-goal'),
       klass:      val('bai-class'),
       race:       val('bai-race'),
@@ -423,6 +470,7 @@
     const o = readOverrides();
     delete o.play;
     delete o.dmg;
+    delete o.roles;   // a required answer, not an optional override
     return Object.values(o).filter(v => v !== null && v !== '' && !Number.isNaN(v)).length;
   }
 
@@ -491,6 +539,23 @@
 
   // Refuses rather than assuming. Both answers are legitimate and they produce
   // genuinely different builds, so the only wrong move is to pick one silently.
+  // The first question, and a refusal rather than a guess for the same reason
+  // the play style is: every answer is legitimate and they produce completely
+  // different builds. A Saint built as DPS and a Saint built as a healer share
+  // a class name and nothing else.
+  function needsRole(ov) {
+    if (roles.length) return false;
+    const hint = ov.querySelector('#bai-role-hint');
+    if (hint) {
+      hint.textContent = 'Choose at least one role first — it decides what "good" even means. ' +
+                         'You can pick more than one.';
+      hint.classList.add('bai-play-needed');
+    }
+    const box = ov.querySelector('#bai-role');
+    if (box) { box.classList.remove('bai-play-nudge'); void box.offsetWidth; box.classList.add('bai-play-nudge'); }
+    return true;
+  }
+
   function needsPlayStyle(ov) {
     if (playStyle) return false;
     const hint = ov.querySelector('#bai-play-hint');
@@ -522,6 +587,7 @@
 
   function run() {
     const ov = ensureOverlay();
+    if (needsRole(ov)) return;
     if (needsPlayStyle(ov)) return;
     if (needsDmgModel(ov)) return;
     const useCurrent = ov.querySelector('#bai-usecurrent');

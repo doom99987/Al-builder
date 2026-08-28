@@ -863,11 +863,22 @@ describe('random and flavour', () => {
   });
 
   it('never rolls a placeholder race', () => {
-    // Arborivia and Calvariae have no stat block in the data yet; recommending
-    // one is recommending an unfinished entry.
+    // There are no placeholders any more: Arborivia and Calvariae DO have zero
+    // stat blocks, but that is the point of them rather than a gap - both have
+    // full move kits and are played for those. The mechanism stays, because the
+    // next race added to the data may genuinely be unfinished.
+    //
+    // So this now tests the mechanism and the claim behind it: whatever is
+    // marked placeholder is never rolled, AND nothing is silently unfinished -
+    // every race must have either stats or a kit.
     const placeholders = Object.entries(K.RACE_ROLES || {})
       .filter(([, v]) => v.placeholder).map(([k]) => k);
-    ok(placeholders.length > 0, 'no placeholder races declared — has the data been filled in?');
+    for (const [name, stats] of Object.entries(data.races || {})) {
+      const hasStats = Object.values(stats).some(v => v > 0);
+      const hasKit = (((data.raceMoves || {})[name] || {}).learns || []).length > 0;
+      ok(hasStats || hasKit || placeholders.indexOf(name) !== -1,
+         name + ' has neither stats nor a kit and is not marked placeholder');
+    }
     for (let i = 0; i < 80; i++) {
       const race = engine.ask('', { minmax: true }).build.race;
       ok(placeholders.indexOf(race) === -1, 'rolled placeholder ' + race);
@@ -1005,11 +1016,14 @@ describe('random and flavour', () => {
 
   it('SETUP_MOVES name real moves on the race or class that owns them', () => {
     for (const [name, def] of Object.entries(K.SETUP_MOVES || {})) {
-      // Three kinds of owner now: a race, a class, or a covenant. A covenant's
-      // moves are gated on RANK rather than level, but the field is the same one.
+      // Five kinds of owner now: a race, a class, a covenant or either flavour of
+      // scroll. A covenant's moves are gated on RANK rather than level, and a
+      // scroll's move always shares the scroll's own name, but the field is the
+      // same one in every case.
       const src = def.owner
         ? ((data.raceMoves || {})[def.owner] || (data.classMoves || {})[def.owner] ||
-           (data.covenantMoves || {})[def.owner])
+           (data.covenantMoves || {})[def.owner] || (data.scrollMoves || {})[def.owner] ||
+           (data.lostScrollMoves || {})[def.owner])
         : null;
       ok(src, name + ' names an unknown owner: ' + def.owner);
       ok((src.learns || []).some(m => m.name === name && m.type === 'Active'),
@@ -1037,11 +1051,16 @@ describe('random and flavour', () => {
     // testing the tie-break rather than the modelling. What is not a coin flip:
     // the castable race gains from an opener and the permanent one gains
     // nothing, because it has nothing to set up.
-    const burst = engine.ask('', { klass: 'Elementalist (Or)', goal: 'burst' });
+    // Scrolls are pinned off throughout. Absolute Radiance and Lesser Empower
+    // are open to everybody and buff anything, so with them in play EVERY build
+    // has an opener and "the race with no setup" no longer exists — which is a
+    // true statement about the game and a false premise for this test.
+    const NO_SCROLLS = { sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' };
+    const burst = engine.ask('', { klass: 'Elementalist (Or)', goal: 'burst', ...NO_SCROLLS });
     eq(burst.build.race, 'Corvolus (3%)', 'burst should favour the castable buff');
 
-    const corv = engine.ask('', { klass: 'Elementalist (Or)', race: 'Corvolus (3%)', goal: 'burst' });
-    const niss = engine.ask('', { klass: 'Elementalist (Or)', race: 'Nisse (20%)',  goal: 'burst' });
+    const corv = engine.ask('', { klass: 'Elementalist (Or)', race: 'Corvolus (3%)', goal: 'burst', ...NO_SCROLLS });
+    const niss = engine.ask('', { klass: 'Elementalist (Or)', race: 'Nisse (20%)',  goal: 'burst', ...NO_SCROLLS });
     ok(corv.ctx.bestBurst > corv.ctx.bestHit * 1.05,
        'Corvolus gains nothing from its opener');
     ok(Math.abs(niss.ctx.bestBurst - niss.ctx.bestHit) < 0.5,
@@ -1057,7 +1076,8 @@ describe('random and flavour', () => {
   });
 
   it('a race with no setup moves has no rotation', () => {
-    const r = engine.ask('', { race: 'Nisse (20%)', klass: 'Elementalist (Or)', goal: 'burst' });
+    const r = engine.ask('', { race: 'Nisse (20%)', klass: 'Elementalist (Or)', goal: 'burst',
+                               sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' });
     eq(r.ctx.rotation.length, 0, 'invented a rotation');
     eq(Math.round(r.ctx.bestBurst), Math.round(r.ctx.bestHit), 'burst differs with no setup');
   });
@@ -1078,8 +1098,12 @@ describe('random and flavour', () => {
     // gate ADMITS dark, so the premise "this kit is entirely physical" would be
     // false and the test would be measuring nothing.
     for (const klass of ['Lancer (N)', 'Brawler (N)']) {
+      // Scrolls off for the same reason the covenant is pinned: Lesser Empower
+      // and Absolute Radiance are element-blind, so with them equipped a
+      // physical kit DOES gain burst — correctly, and from a different buff
+      // than the one this test is about.
       const r = engine.ask('', { race: 'Corvolus (3%)', klass, goal: 'burst',
-                                 covenant: 'Church of Raphion' });
+                                 covenant: 'Church of Raphion', sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' });
       const mv = r.ctx.burstMove || r.ctx.bestMove;
       eq(String(mv && mv.moveType), 'Physical', klass + ' best move is not Physical — pick another');
       eq(Math.round(r.ctx.bestBurst), Math.round(r.ctx.bestHit),
@@ -1790,6 +1814,407 @@ describe('class roles', () => {
   });
 });
 
+describe('roles', () => {
+  const ROLES = K.ROLES || {};
+  const byRole = roles => ask('', { roles, level: data.Max_Lvl });
+
+  it('every role maps to archetypes that exist', () => {
+    for (const [name, goals] of Object.entries(K.ROLE_GOALS || {})) {
+      ok(ROLES[name], name + ' has no entry in ROLES');
+      ok(goals.length, name + ' maps to no goal at all');
+      for (const item of goals) {
+        const g = Array.isArray(item) ? item[0] : item;
+        const wt = Array.isArray(item) ? item[1] : 1;
+        ok(K.ARCHETYPES[g], name + ' maps to an unknown goal: ' + g);
+        ok(wt > 0, name + ' weights ' + g + ' at ' + wt);
+      }
+    }
+  });
+
+  it('every archetype declares a role, and every role is described', () => {
+    for (const [g, a] of Object.entries(K.ARCHETYPES)) {
+      ok(a.role, g + ' has no role');
+      ok(ROLES[a.role], g + ' claims an unknown role: ' + a.role);
+    }
+    for (const [name, def] of Object.entries(ROLES)) {
+      ok(def.label && def.blurb && def.blurb.length > 30, name + ' is not described');
+    }
+  });
+
+  it('the four offered roles are the four the player picks between', () => {
+    const order = K.ROLE_ORDER || [];
+    eq(order.length, 4, 'ROLE_ORDER is not four roles');
+    for (const r of order) ok(ROLES[r], r + ' is offered but not defined');
+    ok(order.indexOf('Flex') === -1, 'Flex is a fallback, not something to offer');
+  });
+
+  it('choosing a role sets the goal', () => {
+    eq(byRole(['Healer']).spec.goal, 'heal');
+    eq(byRole(['Tank']).spec.goal, 'tank');
+    eq(byRole(['DPS']).spec.goal, 'damage');
+  });
+
+  it('an explicit goal beats the role picker', () => {
+    const r = ask('', { roles: ['Healer'], goal: 'damage', level: data.Max_Lvl });
+    eq(r.spec.goal, 'damage', 'the role overrode an explicit goal');
+  });
+
+  // The whole point of allowing several: it has to actually blend, and it has
+  // to actually cost something. A "hybrid" that equals one of its halves is a
+  // label, not a build.
+  it('two roles produce a build between the two, not one of them', () => {
+    const dps  = byRole(['DPS']);
+    const tank = byRole(['Tank']);
+    const both = byRole(['DPS', 'Tank']);
+
+    ok(both.ctx.hp > dps.ctx.hp * 1.5,
+       'DPS+Tank is as fragile as pure DPS: ' + Math.round(both.ctx.hp) + ' vs ' + Math.round(dps.ctx.hp));
+    ok(both.ctx.bestHit > tank.ctx.bestHit * 1.5,
+       'DPS+Tank hits no harder than a pure tank');
+    ok(both.ctx.bestHit < dps.ctx.bestHit,
+       'DPS+Tank hits as hard as pure DPS — the tank half cost nothing');
+    ok(both.ctx.hp < tank.ctx.hp,
+       'DPS+Tank is as tough as a pure tank — the damage half cost nothing');
+  });
+
+  // Healer + Tank is NOT the pair to test this with: both archetypes want
+  // Endurance, so for a Saint the two answers genuinely coincide and the blend
+  // costing nothing is the correct result. Healer and DPS actually conflict.
+  it('a healer told to also deal damage heals less and hits harder', () => {
+    const pure = byRole(['Healer']);
+    const both = byRole(['Healer', 'DPS']);
+    ok(both.ctx.effectiveHeal < pure.ctx.effectiveHeal,
+       'the damage half was free: ' + Math.round(both.ctx.effectiveHeal) +
+       ' vs ' + Math.round(pure.ctx.effectiveHeal));
+    ok(both.ctx.bestHit > pure.ctx.bestHit * 2,
+       'the damage half bought nothing');
+  });
+
+  // Every role EXCEPT DPS, which is supposed to be made of paper — its own
+  // archetype weights Endurance at zero and its blurb says so. Asserting a
+  // health floor there would be asserting against the design.
+  it('no role except DPS produces a build too fragile to do its job', () => {
+    for (const r of (K.ROLE_ORDER || [])) {
+      if (r === 'DPS') continue;
+      const res = byRole([r]);
+      ok(res.ctx.hp > 100, r + ' builds on ' + Math.round(res.ctx.hp) + ' HP');
+    }
+    ok(byRole(['DPS']).ctx.hp < 200, 'a DPS build is unexpectedly bulky — check the archetype');
+  });
+
+  it('the write-up leads with the role', () => {
+    const r = byRole(['Healer']);
+    const build = r.explanation.find(x => x.h === 'Build');
+    eq(build.table[0][0], 'Role', 'the Build table does not open with the role');
+    ok(/Healer/.test(build.table[0][1]), 'the role row does not say Healer');
+  });
+});
+
+describe('scrolls and subclass', () => {
+  const saint = () => ask('', { klass: 'Saint (Or)', goal: 'heal', level: data.Max_Lvl });
+
+  it('the scroll tables were extracted', () => {
+    ok(Object.keys(data.scrollMoves || {}).length >= 10, 'no scrollMoves');
+    ok(Object.keys(data.lostScrollMoves || {}).length >= 5, 'no lostScrollMoves');
+    ok(Object.keys(data.scrollClassRestrictions || {}).length, 'no scroll gates');
+    ok(Object.keys(data.lostScrollClassRestrictions || {}).length, 'no lost scroll gates');
+  });
+
+  it('every scroll gate names a real BASE class', () => {
+    const bases = new Set(Object.keys(data.classes || {}));
+    for (const tbl of ['scrollClassRestrictions', 'lostScrollClassRestrictions']) {
+      for (const [name, list] of Object.entries(data[tbl] || {})) {
+        if (!list) continue;
+        for (const c of list) ok(bases.has(c), tbl + '/' + name + ' names a non-base class: ' + c);
+      }
+    }
+  });
+
+  it('a build fills the three scroll slots it always had', () => {
+    const r = saint();
+    ok(r.build.lostScroll, 'no lost scroll');
+    ok(r.build.scroll1, 'no first scroll');
+    ok(r.build.sub, 'no subclass');
+  });
+
+  it('honours the class gate, both ways', () => {
+    // Saint is a Slayer underneath, and Breath of Fungyir is Slayer/Warrior.
+    const saintOk = (data.lostScrollClassRestrictions || {})['Breath of Fungyir'];
+    ok(saintOk && saintOk.indexOf('Slayer') !== -1, 'the fixture moved');
+
+    const cit = ask('', { klass: 'Citadel (Or)', goal: 'tank', level: data.Max_Lvl });
+    for (const slot of ['lostScroll', 'scroll1', 'scroll2']) {
+      const name = cit.build[slot];
+      if (!name) continue;
+      const tbl = slot === 'lostScroll' ? 'lostScrollClassRestrictions' : 'scrollClassRestrictions';
+      const gate = (data[tbl] || {})[name];
+      ok(!gate || gate.indexOf('Sentry') !== -1,
+         'a Citadel was given ' + name + ', which is gated to ' + (gate || []).join('/'));
+    }
+  });
+
+  it('a healer takes the healer lost scroll and a DPS does not', () => {
+    eq(saint().build.lostScroll, 'Breath of Fungyir');
+    const dps = ask('', { klass: 'Saint (Or)', goal: 'damage', level: data.Max_Lvl });
+    ok(dps.build.lostScroll !== 'Breath of Fungyir',
+       'a damage Saint was handed the team-heal scroll');
+  });
+
+  it('a pinned slot is not searched, and "none" means empty', () => {
+    const none = ask('', { klass: 'Saint (Or)', goal: 'heal', level: data.Max_Lvl,
+                           sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' });
+    eq(none.build.sub, '', 'sub was filled anyway');
+    eq(none.build.lostScroll, '', 'lost scroll was filled anyway');
+    eq(none.build.scroll1, '', 'scroll was filled anyway');
+
+    const pin = ask('', { klass: 'Saint (Or)', goal: 'heal', level: data.Max_Lvl,
+                          lostScroll: 'Absolute Radiance' });
+    eq(pin.build.lostScroll, 'Absolute Radiance', 'a pinned scroll was overridden');
+  });
+
+  it('a scroll that grants an attack puts it in the move pool', () => {
+    const withIt = ask('', { klass: 'Wizard', goal: 'damage', level: data.Max_Lvl,
+                             lostScroll: 'Permafrost Curse' });
+    const names = (withIt.ctx.moves || []).map(m => m.name);
+    ok(names.indexOf('Permafrost Curse') !== -1, 'the scroll attack never reached the kit');
+  });
+});
+
+describe('the healer build the numbers used to miss', () => {
+  const heal = () => ask('', { klass: 'Saint (Or)', goal: 'heal', level: data.Max_Lvl });
+
+  // rankGear priced ANY percentage bonus at a flat +4, so the single best item
+  // a healer can wear ranked 67th of 67 and was cut from the shortlist before
+  // the real scorer saw it.
+  it('wears the +75% outgoing healing gear', () => {
+    const names = heal().build.gear.map(g => g.name);
+    ok(names.indexOf("Narthana's Leaf") !== -1,
+       'the healer is not wearing Narthana\'s Leaf: ' + names.join(', '));
+  });
+
+  it('and a damage build is not', () => {
+    const dps = ask('', { klass: 'Saint (Or)', goal: 'damage', level: data.Max_Lvl });
+    ok(dps.build.gear.every(g => g.name !== "Narthana's Leaf"),
+       'a damage build took the healing gear');
+  });
+
+  it('every gear with a percentage bonus gets a seat at the table', () => {
+    // The guarantee itself, not one example of it: the shortlist is a speed
+    // hack and must never be the thing that decides.
+    const O = engine.optimizer;
+    for (const name of Object.keys(data.gearPctBonuses || {})) {
+      if (!O.usable(name)) continue;
+      ok(data.gearItems[name], name + ' has a percentage bonus but is not a gear');
+    }
+  });
+
+  it('fixed gear carries no tier and no allocation', () => {
+    const leaf = heal().build.gear.find(g => g.name === "Narthana's Leaf");
+    ok(leaf, 'no Leaf to check');
+    eq(leaf.tier, 0, 'a fixed gear claims a tier');
+    eq(Object.keys(leaf.alloc || {}).length, 0, 'a fixed gear claims an allocation');
+  });
+
+  it('takes the healer artifact over the one that ties with it', () => {
+    eq(heal().build.artifact.name, "Narthana's Sigil");
+    const dps = ask('', { klass: 'Saint (Or)', goal: 'damage', level: data.Max_Lvl });
+    ok(dps.build.artifact.name !== "Narthana's Sigil",
+       'a damage Saint took the healing artifact');
+  });
+
+  // Every shard is damage, lifesteal or energy. On a healer each one moved the
+  // score by ~7e-7 — pure floating-point dust — and the old absolute 1e-9
+  // threshold counted that as an improvement seven times over.
+  it('knows its shards do nothing, and says so', () => {
+    const r = heal();
+    eq(r.build.shardsInert, r.build.shards.length,
+       'some shard is claimed to help a healing build');
+    const build = r.explanation.find(x => x.h === 'Build');
+    const row = build.table.find(t => t[0] === 'Shards');
+    ok(/changes a number/.test(row[1]), 'the shard row does not admit it');
+  });
+
+  it('a damage build has shards that really do help', () => {
+    const dps = ask('', { klass: 'Berserker (Ch)', goal: 'damage', level: data.Max_Lvl });
+    eq(dps.build.shardsInert, 0, 'a damage build cannot use its own damage shards');
+  });
+
+  it('explains the picks the numbers cannot justify', () => {
+    const sec = heal().explanation.find(x => /Chosen for the role/.test(x.h));
+    ok(sec, 'no section explaining the role picks');
+    ok(sec.list.some(l => /Narthana's Sigil/.test(l)), 'never says why the Sigil');
+    ok(sec.list.some(l => /Breath of Fungyir/.test(l)), 'never says why the lost scroll');
+  });
+});
+
+describe('the avoid list', () => {
+  it('is honoured everywhere a name can appear', () => {
+    const O = engine.optimizer;
+    for (const name of Object.keys(K.AVOID || {})) {
+      eq(O.usable(name), false, name + ' is on the avoid list and still usable');
+      ok(O.unavailableReason(name), name + ' gives no reason');
+    }
+  });
+
+  it('never reaches a build', () => {
+    const avoid = new Set(Object.keys(K.AVOID || {}));
+    if (!avoid.size) return;
+    for (const goal of ['damage', 'tank', 'heal', 'crit', 'speed']) {
+      const b = ask('', { goal, level: data.Max_Lvl }).build;
+      const worn = [b.armour, b.enchant, b.artifact && b.artifact.name, b.weapon && b.weapon.name,
+                    ...(b.gear || []).map(g => g.name)].filter(Boolean);
+      for (const n of worn) ok(!avoid.has(n), goal + ' build is wearing ' + n);
+    }
+  });
+
+  it('is kept separate from what the game does not allow', () => {
+    // Two different claims. Saying "not in the game" about an item somebody can
+    // equip right now would be a lie in the write-up.
+    for (const name of Object.keys(K.AVOID || {})) {
+      ok(!((K.UNAVAILABLE || {}).items || {})[name],
+         name + ' is in both AVOID and UNAVAILABLE');
+    }
+  });
+});
+
+describe('stat milestones', () => {
+  it('every declared milestone quotes the game text exactly', () => {
+    // If a game update rewords one of these, this fails rather than the engine
+    // quietly pricing something that no longer says what it used to.
+    for (const [stat, list] of Object.entries(K.MILESTONES || {})) {
+      const real = (data.statMilestones || {})[stat];
+      ok(real, stat + ' is not a stat the game has milestones for');
+      eq(list.length, real.length, stat + ' declares a different number of tiers');
+      list.forEach((def, i) => {
+        eq(def.text, real[i], stat + ' tier ' + (i + 1) + ' text has drifted');
+        ok(def.kind, stat + ' tier ' + (i + 1) + ' has no kind');
+        if (def.kind === 'note') ok(def.note, stat + ' tier ' + (i + 1) + ' is uncounted with no reason');
+        else ok(def.value > 0, stat + ' tier ' + (i + 1) + ' is priced at nothing');
+      });
+    }
+  });
+
+  it('reads the thresholds off the game data, not a copy of them', () => {
+    const tiers = data.STAT_MILESTONE_TIERS;
+    eq(tiers.length, 3, 'the game no longer has three milestone tiers');
+    const none = K.milestonesFor({ str: 0, arc: 0, end: 0, spd: 0, lck: 0 }, tiers);
+    eq(none.reached.length, 0, 'reached a milestone on zero stats');
+    const all = K.milestonesFor({ str: 999, arc: 999, end: 999, spd: 999, lck: 999 }, tiers);
+    eq(all.reached.length, 15, 'did not reach every milestone on maxed stats');
+    // Exactly at the threshold counts; one under does not.
+    eq(K.milestonesFor({ lck: tiers[1] }, tiers).outHealPct, 35, 'LCK 60 is not paying out');
+    eq(K.milestonesFor({ lck: tiers[1] - 1 }, tiers).outHealPct, 0, 'LCK 59 is paying out');
+  });
+
+  // The reason this was worth doing at all.
+  it('a healer takes Luck to the +35% outgoing healing milestone', () => {
+    const r = ask('', { roles: ['Healer'], level: data.Max_Lvl });
+    const need = data.STAT_MILESTONE_TIERS[1];
+    ok(r.ctx.stats.lck >= need,
+       'a healer stopped at ' + r.ctx.stats.lck + ' Luck, short of the ' + need + ' milestone');
+    ok(r.ctx.milestones.reached.some(m => m.stat === 'lck' && m.tier === 2),
+       'the milestone is not recorded as reached');
+    ok(r.ctx.effectiveHeal > r.ctx.outHeal,
+       'the milestone did not raise the scored healing');
+  });
+
+  it('the reported healing stays what the site would show', () => {
+    // effectiveHeal is the engine's; outHeal must remain the site's number.
+    const r = ask('', { roles: ['Healer'], level: data.Max_Lvl });
+    const site = engine.model.derived(r.build);
+    eq(r.ctx.outHeal, site.outHeal, 'the reported outgoing healing drifted from the model');
+  });
+});
+
+describe('healing is an amount, not a percentage', () => {
+  const healer = () => ask('', { roles: ['Healer'], level: data.Max_Lvl });
+
+  it('computes what a heal actually heals', () => {
+    const r = healer();
+    ok(r.ctx.healPerTurn > 0, 'the healer heals nothing per turn');
+    ok(r.ctx.bestHeal > 0, 'the healer has no best heal');
+    ok(r.ctx.heals.some(h => h.name === 'Holy Grace'), 'Holy Grace is not in the heal list');
+  });
+
+  it('a class with no healing move heals nothing, however big its percentage', () => {
+    // This is the whole confusion: a Paladin stacking Endurance had a LARGER
+    // outgoing-healing percentage than a Saint and no way to heal anybody.
+    const pal = ask('', { klass: 'Paladin (Or)', goal: 'heal', level: data.Max_Lvl });
+    eq(pal.ctx.healPerTurn, 0, 'a Paladin is healing without a healing move');
+    ok(pal.ctx.outHeal > 100, 'the fixture moved — the Paladin should still have the multiplier');
+  });
+
+  it('healing moves scale on stats the way damage does', () => {
+    const M = engine.model;
+    const grace = (data.classMoves['Saint (Or)'].learns || []).find(m => m.name === 'Holy Grace');
+    ok(grace && grace.healing === 15, 'Holy Grace fixture moved');
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Dullahan (1%)';
+    const low = M.moveHealing(b, grace);
+    b.invested.str = 100; b.invested.arc = 100;
+    const high = M.moveHealing(b, grace);
+    ok(high > low, 'Holy Grace does not scale with STR and ARC');
+  });
+
+  it('a shorter cooldown is worth something', () => {
+    const r = healer();
+    const cd = r.ctx.effectiveCd;
+    const grace = (data.classMoves['Saint (Or)'].learns || []).find(m => m.name === 'Holy Grace');
+    ok(cd(grace) < grace.cooldown || !r.ctx.cdCutFlat,
+       'a cooldown cut is recorded but not applied');
+  });
+
+  it('and the race that shortens cooldowns wins the healer slot', () => {
+    // Sheea grants no useful stat block for a healer at all. It wins on
+    // "Reduced Cooldowns" alone, which is the point: base stats are not the
+    // whole of a race.
+    const r = healer();
+    eq(r.build.race, 'Sheea (Ob)',
+       'the healer picked ' + r.build.race + ' — cooldown reduction is not being valued');
+    ok(r.ctx.cdCutFlat >= 1, 'Sheea is equipped but its cooldown cut is not counted');
+  });
+
+  it('a milestone cooldown cut only applies to its own element', () => {
+    const tiers = data.STAT_MILESTONE_TIERS;
+    const m = K.milestonesFor({ str: tiers[2] }, tiers);
+    const cut = m.cdCut.find(c => c.stat === 'str');
+    ok(cut, 'STR 110 grants no cooldown cut');
+    ok(cut.elements.test('Magic'), 'the STR cut does not apply to Magic');
+    ok(!cut.elements.test('Holy'), 'the STR cut wrongly applies to Holy');
+  });
+});
+
+describe('races are more than a stat block', () => {
+  it('no race with a real kit is excluded as unfinished', () => {
+    for (const [name, entry] of Object.entries(data.raceMoves || {})) {
+      if (!((entry.learns || []).length)) continue;
+      const role = (K.RACE_ROLES || {})[name];
+      ok(role, name + ' has a kit and no RACE_ROLES entry');
+      ok(!role.placeholder, name + ' has a full kit and is still marked placeholder');
+    }
+  });
+
+  it('a race passive with no game text says where its number came from', () => {
+    for (const [race, list] of Object.entries(K.PASSIVES || {})) {
+      if (!(data.races || {})[race]) continue;
+      for (const p of list) {
+        if (p.kind === 'note') continue;
+        // `points` is not an overlay. Dullahan's +3 per 10 levels is computed by
+        // model.js itself, mirroring builder.js, and the entry exists to say so -
+        // its own note is "already in the point budget". Nothing is being priced
+        // from nothing there.
+        if (p.kind === 'points') continue;
+        const src = (data.raceMoves || {})[race] || {};
+        const named = [...(src.innatePassives || []), ...(src.learns || [])].find(m => m.name === p.name);
+        ok(named, race + ' declares a passive it does not have: ' + p.name);
+        const text = String(named.effect || '') + String(named.quote || '');
+        // Either the game states it, or we say out loud that somebody told us.
+        ok(text.trim().length > 0 || p.source,
+           race + '/' + p.name + ' is priced from nothing and does not say so');
+      }
+    }
+  });
+});
+
 describe('seasonal gear', () => {
   it('never puts event gear in a build', () => {
     // Easter and Winter Solstice gear is in the data and cannot be equipped, the
@@ -2371,7 +2796,11 @@ describe('corruption damage', () => {
   });
 
   it('numbers the in-form rotation from after the entry, not from turn one', () => {
-    const r = engine.ask('', { klass: 'Darkwraith (Ch)', goal: 'damage', play: 'solo', corruption: true });
+    // No scrolls: with one equipped the rotation opens by casting it, so the
+    // form entry starts on turn 2 and the span shifts. That is correct and it
+    // is not what this test is checking.
+    const r = engine.ask('', { klass: 'Darkwraith (Ch)', goal: 'damage', play: 'solo',
+                               corruption: true, sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' });
     const rot = r.explanation.find(x => /Opening rotation — in /.test(x.h));
     ok(rot, 'no in-form rotation');
     const entryLine = rot.list.find(l => /Ignition/.test(l));

@@ -71,6 +71,18 @@ const WANTED = [
   // whole content is its learns list, so without this the engine could name a
   // covenant and know nothing whatsoever about what joining one gives you.
   ['js/builder.js', 'literal', ['covenantMoves']],
+
+  // Scrolls. Both scroll tables are empty stat blocks in exactly the way
+  // covenantItems is - the whole content of a scroll is the MOVE it grants, so
+  // without these four the engine can see three build slots it has no reason to
+  // fill and no idea what filling them would do.
+  //
+  // The restriction tables are keyed on BASE class ("Slayer"), not on the
+  // superclass, which is why a Saint can take Breath of Fungyir.
+  ['js/builder.js', 'literal', ['scrollMoves']],
+  ['js/builder.js', 'literal', ['lostScrollMoves']],
+  ['js/builder.js', 'literal', ['scrollClassRestrictions']],
+  ['js/builder.js', 'literal', ['lostScrollClassRestrictions']],
   ['js/builder.js', 'fn', ['parseDmgBonus']],
   ['js/data-class-moves.js', 'literal', ['classMoves']],
   ['js/data-race-moves.js',  'literal', ['raceMoves']],

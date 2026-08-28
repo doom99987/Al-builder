@@ -38,7 +38,7 @@
     // `overrides` comes from the Advanced panel: explicit class / race / weapon /
     // level / goal choices that beat anything the text said.
     function ask(text, overrides) {
-      const spec = Intent.applyOverrides(Intent.parse(text, data, K), overrides, data);
+      const spec = Intent.applyOverrides(Intent.parse(text, data, K), overrides, data, K);
       let result;
       try {
         result = O.run(spec);
@@ -107,7 +107,7 @@
           // it an upgrade.
           goal:  inferGoal(current),
         }, o),
-        data);
+        data, K);
 
       const currentCtx = O.evaluate(current, spec);
       let improved = null, improvedCtx = null, improvedFlavour = null,

@@ -39,7 +39,10 @@
     // gets asked about every item of every candidate build.
     const _unavailable = (() => {
       const U = K.UNAVAILABLE || {};
-      const out = Object.assign({}, U.items || {});
+      // AVOID is a different claim from UNAVAILABLE — "we do not recommend it"
+      // rather than "the game will not let you" — but it removes an item from
+      // the search in exactly the same way, so it resolves into the same lookup.
+      const out = Object.assign({}, U.items || {}, K.AVOID || {});
       for (const [series, why] of Object.entries(U.weaponSeries || {}))
         for (const [name, def] of Object.entries(D.weapons || {}))
           if (def.series === series && !out[name]) out[name] = why;
@@ -113,16 +116,96 @@
       return (_covMoveCache[key] = out);
     }
 
-    // class kit + covenant kit, cached on the pair so evaluate() does not
-    // concat two arrays several thousand times a request.
+    // Scrolls: two ordinary, one lost. Both lists are gated on the BASE class,
+    // not the superclass, which is why a Saint can carry Breath of Fungyir - it
+    // is a Slayer underneath.
+    const _scrollCache = {};
+    function scrollsFor(klass) {
+      if (_scrollCache[klass]) return _scrollCache[klass];
+      const base = baseOf(klass) || klass;
+      const allowed = (table, name) => {
+        const list = (D[table] || {})[name];
+        return !list || list.indexOf(base) !== -1;
+      };
+      return (_scrollCache[klass] = {
+        scrolls: Object.keys(D.scrollItems || {})
+                   .filter(n => allowed('scrollClassRestrictions', n) && usable(n)),
+        lost:    Object.keys(D.lostScrollItems || {})
+                   .filter(n => allowed('lostScrollClassRestrictions', n) && usable(n)),
+      });
+    }
+
+    // The attack a scroll or a subclass grants. Same filter movesFor uses, plus
+    // one more: subclass utilities carry the STRING "N/A" in the damage field
+    // rather than leaving it out, and that is not a number.
+    function grantedMoves(table, name) {
+      const entry = (D[table] || {})[name];
+      const out = [];
+      for (const mv of ((entry || {}).learns || [])) {
+        if (mv.type !== 'Active' || mv.damage === undefined ||
+            mv.damage === null || mv.damage === 'N/A') continue;
+        out.push(mv);
+      }
+      return out;
+    }
+
+    // Every move this build has that HEALS. Deliberately separate from kitFor:
+    // that one filters on `damage`, so Holy Grace and Cleansing Prayer - moves
+    // with a healing figure and no damage figure - were never in it. That is the
+    // mechanical reason the engine could not see a Saint healing.
+    //
+    // Race moves are included here and not in kitFor for the same reason they
+    // matter: Daminos heals, and no attack list would ever have shown it.
+    const _healCache = {};
+    function healMovesFor(build) {
+      const key = [build.klass, build.race, build.sub || '', build.covenant || '',
+                   build.covenantRank | 0, build.scroll1 || '', build.scroll2 || '',
+                   build.lostScroll || ''].join('|');
+      if (_healCache[key]) return _healCache[key];
+      const out = [];
+      const seen = new Set();
+      const scan = entry => {
+        for (const mv of ((entry || {}).learns || [])) {
+          if (mv.healing == null || mv.healing === 'N/A') continue;
+          if (seen.has(mv.name)) continue;
+          seen.add(mv.name);
+          out.push(mv);
+        }
+      };
+      scan((D.classMoves || {})[build.klass]);
+      const base = baseOf(build.klass);
+      if (base && base !== build.klass) scan((D.classMoves || {})[base]);
+      if (build.sub) scan((D.classMoves || {})[build.sub]);
+      scan((D.raceMoves || {})[build.race]);
+      if (build.covenant) {
+        const cov = (D.covenantMoves || {})[build.covenant];
+        if (cov) scan({ learns: (cov.learns || []).filter(m => (m.level || 1) <= (build.covenantRank | 0)) });
+      }
+      for (const n of [build.scroll1, build.scroll2]) if (n) scan((D.scrollMoves || {})[n]);
+      if (build.lostScroll) scan((D.lostScrollMoves || {})[build.lostScroll]);
+      return (_healCache[key] = out);
+    }
+
+    // class kit + covenant kit + whatever the scrolls and the subclass add.
+    // Cached on ALL of it: a kit cached on the class alone survived a scroll
+    // change and the search then compared every scroll against the same kit.
     const _kitCache = {};
     function kitFor(build, klass) {
-      const cov = build.covenant || '';
-      if (!cov) return movesFor(klass);
-      const key = klass + '|' + cov + '|' + (build.covenantRank | 0);
+      const key = [klass, build.covenant || '', build.covenantRank | 0, build.sub || '',
+                   build.scroll1 || '', build.scroll2 || '', build.lostScroll || ''].join('|');
       if (_kitCache[key]) return _kitCache[key];
-      const extra = covenantMovesFor(cov, build.covenantRank);
-      const out = extra.length ? movesFor(klass).concat(extra) : movesFor(klass);
+
+      let out = movesFor(klass);
+      const extra = [];
+      if (build.covenant) extra.push(...covenantMovesFor(build.covenant, build.covenantRank));
+      if (build.sub) extra.push(...grantedMoves('classMoves', build.sub));
+      for (const n of [build.scroll1, build.scroll2]) if (n) extra.push(...grantedMoves('scrollMoves', n));
+      if (build.lostScroll) extra.push(...grantedMoves('lostScrollMoves', build.lostScroll));
+
+      if (extra.length) {
+        const seen = new Set(out.map(m => m.name));
+        out = out.concat(extra.filter(m => !seen.has(m.name) && seen.add(m.name)));
+      }
       return (_kitCache[key] = out);
     }
 
@@ -536,11 +619,109 @@
       // HP the site will show.
       ctx.effectiveHp = ctx.hp / Math.max(0.05, 1 - ctx.dodge / 100);
 
+      // Stat milestones. The site renders these and applies none of them, so
+      // like the class passives they go into effective figures rather than into
+      // the numbers the site will show.
+      ctx.milestones = K.milestonesFor
+        ? K.milestonesFor(ctx.stats, D.STAT_MILESTONE_TIERS)
+        : { outHealPct: 0, incHealPct: 0, dodgePct: 0, cdCut: [], reached: [], missed: [] };
+
+      if (ctx.milestones.dodgePct) ctx.effectiveHp = ctx.hp /
+        Math.max(0.05, 1 - Math.min(95, ctx.dodge + ctx.milestones.dodgePct) / 100);
+
+      // Healing the site does not apply to its own percentage - class passives
+      // and stat milestones - folded into SEPARATE figures the healing and tank
+      // archetypes score on, so the Heal out/in numbers this build reports stay
+      // the ones the site will show.
+      const outBonus = ((ctx.passives || {}).outHealPct || 0) + ctx.milestones.outHealPct;
+      ctx.effectiveHeal = ctx.outHeal * (1 + outBonus / 100);
+      ctx.effectiveIncHeal = ctx.incHeal + ctx.milestones.incHealPct;
+
+      // ── how much you heal, and how often ──────────────────────────────────
+      // A cooldown cut is worth exactly what it lets you repeat, so the two are
+      // computed together. Race cuts are flat; milestone cuts are element-gated
+      // (STR 110 shortens Magic attacks, ARC 110 shortens Physical ones), so a
+      // Holy heal gets nothing from either milestone and everything from Sheea.
+      const flatCut = (ctx.passives || {}).cdCut || 0;
+      ctx.cdCutFlat = flatCut;
+      const cdFor = mv => {
+        const raw = Number(mv.cooldown) || 0;
+        if (!raw) return 1;
+        let cut = flatCut;
+        for (const c of ctx.milestones.cdCut)
+          if (c.elements && c.elements.test(String(mv.moveType || ''))) cut += c.value;
+        return Math.max(1, raw - cut);
+      };
+      ctx.effectiveCd = cdFor;
+
+      const healMult = ctx.effectiveHeal / 100;
+      let bestHeal = 0, perTurn = 0;
+      const healMoves = [];
+      for (const mv of healMovesFor(build)) {
+        const amount = M.moveHealing(build, mv) * healMult;
+        if (!amount) continue;
+        const cd = cdFor(mv);
+        healMoves.push({ name: mv.name, amount, cd, perTurn: amount / cd });
+        bestHeal = Math.max(bestHeal, amount);
+        perTurn += amount / cd;
+      }
+      ctx.heals = healMoves.sort((a, b) => b.perTurn - a.perTurn);
+      ctx.bestHeal = bestHeal;
+      ctx.healPerTurn = perTurn;
+
       // Aimed at a boss, the score is how fast THIS build kills THAT boss.
       const fit = bossFit(build, spec, ctx);
       ctx.bossFit = fit;
-      ctx.score = (arch.score(ctx) + 1e-6 * ctx.bestHit) * fit.mult;
+      ctx.score = (blendScore(ctx, spec, arch) + 1e-6 * ctx.bestHit) * fit.mult;
       return ctx;
+    }
+
+    // ── more than one job ────────────────────────────────────────────────────
+    // Picking two roles is a real request — a healer who can hold a line — and
+    // it is a WORSE build at each of them. The score has to express that, which
+    // means the two archetypes have to be comparable, and raw they are not: a
+    // damage score runs to ~3000 and a healing score to ~600, so adding them
+    // would just be the damage score with rounding noise.
+    //
+    // So each goal is divided by what it scores on one fixed reference build,
+    // and the results are combined with a GEOMETRIC mean. Geometric, not
+    // arithmetic, because a build that does one of its two jobs and none of the
+    // other should not come out average — it should come out bad.
+    const BLEND_REF = {
+      stats: { str: 100, arc: 100, end: 100, spd: 100, lck: 100 },
+      hp: 400, effectiveHp: 400, bestHit: 500, sustainedHit: 450, bestBurst: 700,
+      outHeal: 150, incHeal: 150, blockDr: 20, critTier: 1, critChance: 50,
+      critDmg: 2, dodge: 0, initiative: 10, energyCap: 5, passives: {},
+    };
+    const _refScore = {};
+    function refFor(goal) {
+      if (_refScore[goal] === undefined) {
+        const a = K.ARCHETYPES[goal];
+        let v = 1;
+        try { v = a ? a.score(BLEND_REF) : 1; } catch (e) { v = 1; }
+        _refScore[goal] = Math.abs(v) > 1e-9 ? Math.abs(v) : 1;
+      }
+      return _refScore[goal];
+    }
+
+    function blendScore(ctx, spec, arch) {
+      const goals = (spec.goals || []).filter(g => K.ARCHETYPES[g]);
+      if (goals.length < 2) return arch.score(ctx);
+
+      const pairs = (spec.goalWeights && spec.goalWeights.length)
+        ? spec.goalWeights.filter(x => K.ARCHETYPES[x[0]])
+        : goals.map(g => [g, 1]);
+
+      let logSum = 0, wSum = 0;
+      for (const [g, wt] of pairs) {
+        let v = 0;
+        try { v = K.ARCHETYPES[g].score(ctx) / refFor(g); } catch (e) { v = 0; }
+        logSum += wt * Math.log(Math.max(v, 1e-6));
+        wSum += wt;
+      }
+      // Back onto the scale of the FIRST goal, so a blended score still reads
+      // like a score rather than like a ratio.
+      return Math.exp(logSum / (wSum || 1)) * refFor(pairs[0][0]);
     }
 
     // ── analytic ranking ─────────────────────────────────────────────────────
@@ -549,6 +730,20 @@
     function weightOf(spec) {
       const arch = K.ARCHETYPES[spec.goal] || K.ARCHETYPES[K.DEFAULT_GOAL];
       const w = Object.assign({}, arch.statWeights);
+      // Several goals means several stat directions. Averaged, so two roles pull
+      // the spread between them instead of the first one winning outright.
+      const goals = (spec.goals || []).filter(g => K.ARCHETYPES[g]);
+      if (goals.length > 1) {
+        const pairs = (spec.goalWeights && spec.goalWeights.length)
+          ? spec.goalWeights.filter(x => K.ARCHETYPES[x[0]])
+          : goals.map(g => [g, 1]);
+        const wSum = pairs.reduce((a, x) => a + x[1], 0) || 1;
+        for (const st of STATS) {
+          let sum = 0;
+          for (const [g, wt] of pairs) sum += wt * ((K.ARCHETYPES[g].statWeights || {})[st] || 0);
+          w[st] = sum / wSum;
+        }
+      }
       // An explicit stat request outranks the archetype's default direction.
       for (const s of spec.statFocus || []) w[s] = (w[s] || 0) + 6;
       return w;
@@ -619,7 +814,7 @@
               if (build.invested[from] < step) break;
               build.invested[from] -= step; build.invested[to] += step;
               const sc = evaluate(build, spec).score;
-              if (sc > best + 1e-9) { best = sc; moved = true; }
+              if (improves(sc, best)) { best = sc; moved = true; }
               else { build.invested[from] += step; build.invested[to] -= step; }
             }
           }
@@ -644,6 +839,29 @@
           break;
         }
       }
+      // Stat milestones are the same shape of problem as the crit tiers, and
+      // worse: LCK 60 is +35% outgoing healing, and a healer seeded with a Luck
+      // weight of zero has to climb sixty points that each make the build worse
+      // before the one that makes it much better. Hill climbing never gets
+      // there. So try each threshold explicitly, exactly like the crit tiers.
+      for (const stat of STATS) {
+        for (const target of (D.STAT_MILESTONE_TIERS || [])) {
+          const cur = evaluate(build, spec);
+          if ((cur.stats[stat] || 0) >= target) continue;
+          const need = Math.ceil(target - (cur.stats[stat] || 0));
+          for (const donor of STATS.filter(x => x !== stat)
+                                   .sort((a, b) => build.invested[b] - build.invested[a])) {
+            const take = Math.min(need, Math.max(0, build.invested[donor]));
+            if (!take) continue;
+            build.invested[donor] -= take; build.invested[stat] += take;
+            const sc = evaluate(build, spec).score;
+            if (improves(sc, best)) { best = sc; Object.assign(snapshot, build.invested); }
+            else { build.invested[donor] += take; build.invested[stat] -= take; }
+            break;
+          }
+        }
+      }
+
       build.invested = snapshot;
       return best;
     }
@@ -669,6 +887,23 @@
 
     // Try every option for a single slot, keeping the best. Used for armour,
     // weapon, artifact, enchant — small lists where exhaustive is affordable.
+    // Is `sc` a REAL improvement on `best`, or floating-point dust?
+    //
+    // Every greedy picker here asked "sc > best + 1e-9". Scores run from ~50 to
+    // ~5000, so that epsilon is 1e-11 relative — far under the noise floor of
+    // the multiply chain a score comes out of. It showed up as a healer wearing
+    // seven pure-damage shards: each one "improved" outgoing healing by 7e-7.
+    //
+    // Relative, floored at 1e-9 so a score of zero still behaves.
+    const IMPROVE_EPS = 1e-6;
+    function improves(sc, best) {
+      return sc > best + Math.max(1e-9, Math.abs(best) * IMPROVE_EPS);
+    }
+    // The mirror of it: near enough to call a tie.
+    function ties(a, b) {
+      return Math.abs(a - b) <= Math.max(1e-9, Math.abs(b) * IMPROVE_EPS);
+    }
+
     function bestOfSlot(build, spec, options, set, tieBreak) {
       let bestVal = null, bestScore = -Infinity;
       for (const opt of options) {
@@ -678,8 +913,13 @@
         // the model can see, and picking between them by list order looks like a
         // mistake to anyone reading the build. `tieBreak(candidate, incumbent)`
         // says which of two equal-scoring options to keep.
-        if (sc > bestScore || (tieBreak && bestVal !== null &&
-                               Math.abs(sc - bestScore) < 1e-9 && tieBreak(opt, bestVal))) {
+        //
+        // The primary test is `improves`, not `>`. With a bare `>`, a difference
+        // of 2e-6 in a score of 596 counted as a win and settled the slot before
+        // the tiebreak was ever consulted — which is exactly how a healer ended
+        // up in Stellian Core instead of Narthana's Sigil.
+        if (bestVal === null || improves(sc, bestScore) ||
+            (tieBreak && ties(sc, bestScore) && tieBreak(opt, bestVal))) {
           bestScore = sc; bestVal = opt;
         }
       }
@@ -699,7 +939,22 @@
 
       // Gear: shortlist analytically, then pick four greedily with the real
       // scorer — greedy is safe here because gear contributions barely interact.
+      //
+      // The shortlist is a SPEED hack and a speed hack must never be what
+      // decides. rankGear prices a percentage bonus at a flat +4 whatever it
+      // says, so Narthana's Leaf — +75% OUTGOING HEALING, the single best item a
+      // healer can wear — ranked 67th of 67 on a healing build and was cut
+      // before the real scorer ever saw it. Wearing it is worth +71 percentage
+      // points of outgoing healing and a 9% better score.
+      //
+      // So every gear whose value lives in a percentage gets a guaranteed seat
+      // and the real scorer settles it. There are three such items in the whole
+      // game, so this costs three evaluations and closes the hole for good.
       const shortlist = rankGear(spec, w).slice(0, 14);
+      for (const name of Object.keys(D.gearPctBonuses || {})) {
+        if (!usable(name) || shortlist.some(g => g.name === name)) continue;
+        shortlist.push({ name, v: 0, block: D.gearItems[name] || {} });
+      }
       b.gear = [];
 
       // A pinned gear takes the first slot and is never reconsidered — it is the
@@ -710,18 +965,24 @@
         bestTierAlloc(b, spec, entry, false);
       }
 
+      // Fixed gear is exactly its base stat block: no tier roll, no traits, no
+      // allocation. Claiming T6 on one is wrong in the output and writes bits
+      // into the share link that the site strips on load.
+      const fixedGear = new Set(D.FIXED_GEAR || []);
+      const tierOf = name => (fixedGear.has(name) ? 0 : D.MAX_GEAR_TIER);
+
       for (let slot = b.gear.length; slot < 4; slot++) {
         let bestName = null, bestScore = -Infinity, bestAlloc = null;
         for (const cand of shortlist) {
           if (b.gear.some(g => g.name === cand.name)) continue;
-          const entry = { name: cand.name, tier: D.MAX_GEAR_TIER, alloc: {} };
+          const entry = { name: cand.name, tier: tierOf(cand.name), alloc: {} };
           b.gear.push(entry);
-          bestTierAlloc(b, spec, entry, false);
+          if (!fixedGear.has(cand.name)) bestTierAlloc(b, spec, entry, false);
           const sc = evaluate(b, spec).score;
           if (sc > bestScore) { bestScore = sc; bestName = cand.name; bestAlloc = Object.assign({}, entry.alloc); }
           b.gear.pop();
         }
-        if (bestName) b.gear.push({ name: bestName, tier: D.MAX_GEAR_TIER, alloc: bestAlloc });
+        if (bestName) b.gear.push({ name: bestName, tier: tierOf(bestName), alloc: bestAlloc });
       }
 
       // A locked slot is not searched — the point of choosing it is that it stays.
@@ -748,9 +1009,15 @@
       // share link.
       if (b.weapon && !M.weaponIsTiered(b.weapon.name)) { b.weapon.tier = 0; b.weapon.alloc = {}; }
 
+      // On a tie, the artifact actually built for this role wins. Narthana's
+      // Sigil measures EXACTLY equal to Stellian Core on a healer — its damage
+      // is written "X (scales on level)" and never stated, so the model can see
+      // nothing — and list order was handing the healer the artifact for people
+      // at full HP rather than the one that fires off their own healing.
       bestOfSlot(b, spec, keepUsable(Object.keys(D.artifactItems)), (bb, v) => {
         bb.artifact = v ? { name: v, tier: D.MAX_GEAR_TIER, alloc: {} } : null;
-      });
+      }, (cand, cur) => !!(K.roleItemNote && K.roleItemNote(spec.goal, cand) &&
+                          !K.roleItemNote(spec.goal, cur)));
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
 
       // Permuth multiplies one finished stat total by 1.4 — always worth taking,
@@ -766,6 +1033,49 @@
       // a stat spread towards a hybrid) and it can move outgoing healing. Both
       // are things the stat allocator has to be able to see.
       b.covenantChoice = pickCovenant(b, spec);
+
+      // Subclass and the three scroll slots, for the same reason and in the same
+      // place: they add moves and buffs, and the allocator has to see them.
+      //
+      // Most of them measure at nothing — "fully heals your entire team" has no
+      // number — so the role tiebreak is what actually decides those. That is
+      // the honest split: measurement first, and where there is nothing to
+      // measure, the item built for the job.
+      const rolePick = (cand, cur) => !!(K.roleItemNote &&
+        K.roleItemNote(spec.goal, cand) && !K.roleItemNote(spec.goal, cur));
+
+      // A pinned slot is not searched. 'none' pins it EMPTY, which is not the
+      // same instruction as leaving it on auto.
+      const pinned = (slot, options) =>
+        spec[slot] === 'none' ? [''] : (spec[slot] ? [spec[slot]] : options);
+
+      bestOfSlot(b, spec, pinned('sub', ['', ...(D.subClasses || [])]),
+                 (bb, v) => { bb.sub = v; }, rolePick);
+
+      const scrollOpts = scrollsFor(klass);
+      bestOfSlot(b, spec, pinned('lostScroll', ['', ...scrollOpts.lost]),
+                 (bb, v) => { bb.lostScroll = v; }, rolePick);
+      bestOfSlot(b, spec, pinned('scroll1', ['', ...scrollOpts.scrolls]),
+                 (bb, v) => { bb.scroll1 = v; }, rolePick);
+      bestOfSlot(b, spec, pinned('scroll2', ['', ...scrollOpts.scrolls.filter(n => n !== b.scroll1)]),
+                 (bb, v) => { bb.scroll2 = v; }, rolePick);
+
+      // Free slots, same as the shards. A scroll slot left blank because nothing
+      // in it moved a number reads as a bug, and in game you would obviously
+      // carry SOMETHING. So fill what is left with a scroll whose effect we can
+      // at least describe, and record that it was a fill rather than a pick.
+      b.scrollsInert = 0;
+      const described = n => (K.SCROLL_NOTES || {})[n] || (K.roleItemNote && K.roleItemNote(spec.goal, n));
+      const fill = (slot, pool) => {
+        if (b[slot] || spec[slot] === 'none') return;
+        const taken = [b.scroll1, b.scroll2, b.lostScroll];
+        const pick = pool.filter(n => taken.indexOf(n) === -1)
+                         .sort((x, y) => (described(y) ? 1 : 0) - (described(x) ? 1 : 0))[0];
+        if (pick) { b[slot] = pick; b.scrollsInert++; }
+      };
+      fill('lostScroll', scrollOpts.lost);
+      fill('scroll1', scrollOpts.scrolls);
+      fill('scroll2', scrollOpts.scrolls);
 
       // Mastery first — it adds ~29 flat stat points, which shifts what the stat
       // allocator should do with the 150 it controls.
@@ -785,7 +1095,7 @@
       // Re-pick Permuth and tier shapes now that the stats are settled: the right
       // answer to both changes once the build's actual totals are known.
       bestOfSlot(b, spec, order.slice(0, 3), (bb, v) => { bb.permuth = v; });
-      for (const g of b.gear) bestTierAlloc(b, spec, g, false);
+      for (const g of b.gear) if (!fixedGear.has(g.name)) bestTierAlloc(b, spec, g, false);
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
       if (b.weapon && M.weaponIsTiered(b.weapon.name)) bestTierAlloc(b, spec, b.weapon, true);
 
@@ -838,8 +1148,9 @@
     // Which setup buffs this build can actually cast, from its race and class.
     const _setupCache = {};
     function setupsFor(build) {
-      const key = (build.race || '') + '|' + (build.klass || '') + '|' +
-                  (build.covenant || '') + '|' + (build.covenantRank | 0);
+      const key = [build.race || '', build.klass || '', build.covenant || '',
+                   build.covenantRank | 0, build.sub || '', build.scroll1 || '',
+                   build.scroll2 || '', build.lostScroll || ''].join('|');
       if (_setupCache[key]) return _setupCache[key];
       const table = K.SETUP_MOVES || {};
       const owned = [];
@@ -863,6 +1174,11 @@
           scan({ learns: (cov.learns || []).filter(m => (m.level || 1) <= rank) }, build.covenant);
         }
       }
+      // A scroll's move shares the scroll's name, so the scroll IS the owner.
+      if (build.sub) scan((D.classMoves || {})[build.sub], build.sub);
+      for (const n of [build.scroll1, build.scroll2])
+        if (n) scan((D.scrollMoves || {})[n], n);
+      if (build.lostScroll) scan((D.lostScrollMoves || {})[build.lostScroll], build.lostScroll);
 
       return (_setupCache[key] = owned);
     }
@@ -1031,7 +1347,8 @@
     // Aggregate the scoreable passives into the same shape traits use.
     function passiveTotals(build) {
       const { known } = passivesFor(build);
-      const out = { dmgPct: 0, critChance: 0, dr: 0, summonHpPct: 0, summonDmgPct: 0, byMoveType: [] };
+      const out = { dmgPct: 0, critChance: 0, dr: 0, summonHpPct: 0, summonDmgPct: 0,
+                    outHealPct: 0, cdCut: 0, byMoveType: [] };
       const wepType = build.weapon ? ((D.weapons || {})[build.weapon.name] || {}).type : null;
       const stance = K.hpStance ? K.hpStance(build.klass, build.race) : null;
       const agreeUp = (K.HP_GATE_UPTIME || {}).agree ?? 0.8;
@@ -1376,10 +1693,21 @@
     // the builder de-duplicates by name, so a second copy of the same shard adds
     // nothing there — and with 14 shards for 7 slots, distinct is the stronger
     // choice anyway.
+    // Every shard in the game is damage, lifesteal or energy. NONE of them
+    // touches healing, block or incoming damage — so for a healer there is
+    // genuinely nothing here, and the honest greedy answer is an empty socket.
+    //
+    // An empty socket is still the wrong ANSWER, because the slots are free and
+    // you would obviously fill them in game. So: take everything that really
+    // helps, then fill what is left with the best of the rest and record that
+    // this is what happened, so the write-up can say "nothing here moves this
+    // build's numbers" instead of implying seven measured upgrades.
     function pickShards(build, spec) {
       const names = Object.keys(D.shardItems || {});
       const slots = (K.SHARD_SLOTS || 7);
       build.shards = [];
+      build.shardsInert = 0;
+
       for (let i = 0; i < slots; i++) {
         let bestName = null, bestScore = evaluate(build, spec).score;
         for (const name of names) {
@@ -1387,10 +1715,26 @@
           build.shards.push(name);
           const sc = evaluate(build, spec).score;
           build.shards.pop();
-          if (sc > bestScore + 1e-9) { bestScore = sc; bestName = name; }
+          if (improves(sc, bestScore)) { bestScore = sc; bestName = name; }
         }
-        if (!bestName) break;          // nothing left that helps
+        if (!bestName) break;          // nothing left that MEASURABLY helps
         build.shards.push(bestName);
+      }
+
+      // Free slots, filled by the ordinary damage ranking. Radiant before
+      // Prismatic, since R is the better roll wherever both exist.
+      if (build.shards.length < slots) {
+        const rest = names
+          .filter(n => !build.shards.includes(n))
+          .sort((a, b) => {
+            const va = (D.shardItems[a] || {}).rVal ?? (D.shardItems[a] || {}).pVal ?? 0;
+            const vb = (D.shardItems[b] || {}).rVal ?? (D.shardItems[b] || {}).pVal ?? 0;
+            return vb - va;
+          });
+        while (build.shards.length < slots && rest.length) {
+          build.shards.push(rest.shift());
+          build.shardsInert++;
+        }
       }
     }
 
@@ -1419,7 +1763,7 @@
             s.ref.traits.push({ id, tier: 2 });
             const sc = evaluate(build, spec).score;
             s.ref.traits.pop();
-            if (sc > bestScore + 1e-9) { bestScore = sc; bestId = id; }
+            if (improves(sc, bestScore)) { bestScore = sc; bestId = id; }
           }
           if (bestId) s.ref.traits.push({ id: bestId, tier: 2 });
         }
@@ -1783,7 +2127,7 @@
              pickCorruption, pickCovenant,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
              masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
-             passivesFor, setupsFor,
+             passivesFor, setupsFor, healMovesFor,
              masteryAbilityTotals, classesForLevel };
   }
 
