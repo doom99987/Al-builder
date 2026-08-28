@@ -214,9 +214,8 @@ its empty box so the four rows don't jump.
 Reference data and stat maths are two different things here. Gear base stats,
 gear/artifact/weapon tier values and the crit rework **do** feed the damage
 calculator through the stat rows. The following are recorded and displayed but compute
-nothing: the 25 gear traits, the stat milestones, `block-dr`/`nrg-chance`/
-`initiative`, Corruption Forms, the Corrupt Power gears' spend effects, and the
-new races' and enchants' passives. Wiring any of them up depends on the §12
+nothing: the stat milestones, Corruption Forms, the Corrupt Power gears' spend
+effects, and the new races' and enchants' passives. Wiring any of them up depends on the §12
 damage-formula rewrite, which is not implemented — the calculator still uses the
 old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat` with
 `DRMultiplier = 100 / (100 + Reduc)`.
@@ -224,6 +223,28 @@ old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat` with
 `races` entries for **Arborivia and Calvariae carry placeholder zero stat
 blocks** — the changelog documents their passives and actives in full but never
 publishes base stats. Builds using them under-count until the real numbers land.
+
+#### Gear traits
+
+`TRAIT_APPLIES_TO` (`js/builder.js`) lists the traits the page applies to a
+readout, and it is currently four: **Conduit** to `nrg-chance`, **Fortunate** to
+`crit-chance`, **Preemptive** to `initiative` and **Vital** to max HP.
+`equippedTraitTotals()` is the one place they are summed, honouring the trait
+table's own `noStack` / `cap` / `gearOnly` rules; fixed gear and locked slots
+contribute nothing. Everything else is planning-only — Riposte needs a block,
+Cleave a wounded target, Overflow raises a max energy the page does not track —
+and the editor now dims those and says so in the tooltip.
+
+**Devastating is deliberately excluded.** It looks like it belongs on the
+crit-damage readout, but it was reported as doing nothing in game and that was
+never settled, so the page does not apply it while `knowledge.js` still scores
+it. Settle the in-game behaviour before changing either.
+
+`model.js` mirrors the four in `TRAIT_SITE_APPLIES` and applies them **inside**
+`derived()`, not as an overlay; `traitTotals()` then skips them so nothing is
+counted twice. A test asserts the two lists are identical, because a divergence
+is otherwise invisible outside a browser. `verify.js` randomises traits, so the
+four are diffed against the real page on every run.
 
 ### Corruption Forms
 

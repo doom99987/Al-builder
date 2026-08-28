@@ -249,12 +249,14 @@
       const rows = [];
       const byId = {};
       for (const a of c.traits.active) {
-        if (!byId[a.id]) byId[a.id] = { name: a.name, copies: 0, total: a.total, when: a.when };
+        if (!byId[a.id]) byId[a.id] = { name: a.name, copies: 0, total: a.total,
+                                        when: a.when, onSite: !!a.onSite };
         byId[a.id].copies = a.copies;
       }
       for (const t of Object.values(byId)) {
         rows.push([t.name + (t.copies > 1 ? ' ×' + t.copies : ''),
-                   t.total + (t.when ? '  — only ' + t.when : '')]);
+                   t.total + (t.when ? '  — only ' + t.when : '') +
+                   (t.onSite ? '  (also shown on the site)' : '')]);
       }
       for (const u of c.traits.unmodelled) {
         rows.push([u.name + '  (not scored)', u.note || '']);
@@ -752,11 +754,15 @@
     }
 
     // ── caveats ─────────────────────────────────────────────────────────────
-    if (c.traits && c.traits.active.length) {
+    // Only worth saying when a trait the SITE cannot show is contributing.
+    // Conduit, Fortunate, Preemptive and Vital are on the page now, so a build
+    // carrying only those has nothing to warn about.
+    if (c.traits && c.traits.active.some(a => !a.onSite)) {
       L.push({ h: 'Note', body:
-        'The site does not compute trait effects — it stores and displays traits but no stat on ' +
-        'arcanelineagebuilder.com includes them. The crit chance, HP and damage above DO include ' +
-        'them, so the linked build will show lower numbers than these. The build itself is identical.' });
+        'The site applies four traits — Conduit, Fortunate, Preemptive and Vital — and the linked ' +
+        'build will show those. It has no readout for the others (they need a block, a wounded ' +
+        'target, a dodge), so the damage and survivability figures above include trait effects the ' +
+        'page cannot display. The build itself is identical.' });
     }
     if (result.warnings && result.warnings.length) {
       L.push({ h: 'Watch out', list: result.warnings.map(w => '**' + w.name + '** — ' + w.text) });

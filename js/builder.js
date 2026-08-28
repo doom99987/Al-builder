@@ -778,6 +778,120 @@ function resetGearInstance(i) {
   gearInstances[i] = makeGearInstance();
 }
 
+// Which traits feed a number this page actually shows, and which number.
+//
+// Everything absent from this map is real but has nowhere to land: Riposte
+// needs a successful block, Cleave needs a wounded target, Scavenger is loot.
+// Those stay planning-only and the editor now says so rather than leaving the
+// player to wonder why the panel did not move.
+//
+// Devastating is deliberately NOT here. It reads like it belongs - "critical
+// hits deal additional damage" against a crit-dmg readout - but the site owner
+// has tested it in game repeatedly and it does nothing. Wiring it up would put
+// a number on the page that the game does not honour, which is worse than
+// leaving it planning-only. Add it here if it is ever fixed.
+const TRAIT_APPLIES_TO = {
+  conduit:    "nrg-chance",   // "chance to gain an extra energy at the start of
+                              // your turn" IS what nrg-chance measures
+  fortunate:  "crit-chance",  // flat crit chance
+  preemptive: "initiative",   // flat initiative
+  vital:      "end",          // percentage max health, so it lands on the HP readout
+};
+
+// Plain English for one trait: which readout it feeds, or why it feeds none.
+const _TRAIT_READOUT_LABEL = {
+  "nrg-chance": "NRG chance", "crit-chance": "crit chance",
+  "initiative": "initiative", "end": "max HP",
+};
+function _traitReachNote(id) {
+  const target = TRAIT_APPLIES_TO[id];
+  if (target) return "Applied to the " + (_TRAIT_READOUT_LABEL[target] || target) + " readout.";
+  if (id === "devastating") {
+    return "Planning only \u2014 tested in game as non-functional, so it is not " +
+           "added to crit damage here.";
+  }
+  return "Planning only \u2014 situational, with no readout on this page to land on.";
+}
+
+// What the equipped traits add up to right now.
+//
+// Traits used to be display-only: the picker stored them, the tier stepper
+// showed each one's value, and not a single number on the page moved. This is
+// the one place that turns them into totals, shared by updatePecents() and the
+// editor for the same reason gearStatContributions() is shared - two
+// independent sums drift the moment anything changes.
+//
+// Stacking rules come from the trait table itself: `noStack` means extra copies
+// are worth nothing and the best one wins, `cap` limits the total across every
+// copy, and `gearOnly` traits cannot sit on an artifact. Locked slots and fixed
+// gear contribute nothing, matching exactly what the editor lets you set.
+function equippedTraitTotals() {
+  const per = {};
+  const collect = (inst, cfg) => {
+    if (!inst) return;
+    for (let i = 0; i < cfg.unlocked; i++) {
+      const t = inst.traits[i];
+      if (!t || !t.id) continue;
+      const def = gearTraits[t.id];
+      if (!def) continue;
+      if (!cfg.allowGearOnly && def.gearOnly) continue;
+      (per[t.id] = per[t.id] || []).push(t.tier >= 2 ? def.t2 : def.t1);
+    }
+  };
+  _gearSlotIds.forEach((id, slot) => {
+    const name = document.getElementById(id)?.value || "";
+    if (!name || !gearHasTiers(name)) return;   // a fixed gear rolls no traits
+    collect(gearInstances[slot], SPEC_GEAR);
+  });
+  if (document.getElementById("artifact-picker")?.value) {
+    collect(artifactInstance, SPEC_ARTIFACT);
+  }
+
+  const out = {};
+  Object.entries(per).forEach(([id, vals]) => {
+    const def = gearTraits[id];
+    let total = def.noStack ? Math.max.apply(null, vals) : vals.reduce((a, b) => a + b, 0);
+    if (def.cap != null) total = Math.min(def.cap, total);
+    out[id] = { total, copies: vals.length, capped: def.cap != null && total === def.cap };
+  });
+  return out;
+}
+
+// One trait's current contribution, or 0 when it is not equipped.
+function traitBonus(totals, id) {
+  return id && totals && totals[id] ? totals[id].total : 0;
+}
+
+// Everything the equipped traits add to one readout, with the parts kept so the
+// tooltip can name them. A number that moves without saying why reads as a bug,
+// which is how this whole area got reported in the first place.
+function _traitBonusFor(totals, stat) {
+  const parts = [];
+  let total = 0;
+  Object.entries(TRAIT_APPLIES_TO).forEach(([id, target]) => {
+    if (target !== stat) return;
+    const v = traitBonus(totals, id);
+    if (!v) return;
+    total += v;
+    const def = gearTraits[id];
+    parts.push((def && def.name || id) + " +" + v + (def && def.unit === "%" ? "%" : "") +
+               (totals[id].copies > 1 ? " (x" + totals[id].copies + ")" : "") +
+               (totals[id].capped ? ", at cap" : ""));
+  });
+  return { total, parts };
+}
+
+// Append the trait parts to a readout's tooltip, keeping whatever the markup
+// already said. The original is stashed on the element the first time through,
+// so repeated passes never stack copies of the same sentence.
+function _setTraitTitle(el, tb) {
+  if (!el) return;
+  if (el.dataset.baseTitle == null) el.dataset.baseTitle = el.title || "";
+  const base = el.dataset.baseTitle;
+  el.title = tb.parts.length ? (base ? base + "\n" : "") + "Traits: " + tb.parts.join(", ")
+                             : base;
+}
+
 // What each equipped gear contributes to the stats: the item's own stat block
 // plus the tier points allocated to that particular copy.
 //
@@ -977,6 +1091,9 @@ function updatePecents() {
   const lvlStatBonus = levelStatBonus(lvl);
 
   const masteryStats = getMasteryStatBonuses();
+  // Equipped traits, totalled once for the whole pass. See TRAIT_APPLIES_TO for
+  // which of them reach a readout and why the rest do not.
+  const traitTot = equippedTraitTotals();
   const coagNailActive = hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"];
   const coagNailBonus = coagNailActive ? coagNailStacks * 1.5 : 0;
   const lckRow = _pctCache.lckInput;
@@ -1019,7 +1136,12 @@ function updatePecents() {
     // updatePecents() runs at load.
     const IDENTITY_SOURCE = { "block-dr": "str", "nrg-chance": "arc", "initiative": "spd" };
     if (IDENTITY_SOURCE[stat]) {
-      valEl.textContent = calcPercentage(stat, _statVals[IDENTITY_SOURCE[stat]] ?? 0);
+      // Traits add on top of the identity formula rather than inside it, so the
+      // "10% of another stat" rule stays a single readable line.
+      const tb = _traitBonusFor(traitTot, stat);
+      const idv = parseFloat(calcPercentage(stat, _statVals[IDENTITY_SOURCE[stat]] ?? 0));
+      valEl.textContent = (idv + tb.total).toFixed(1);
+      _setTraitTitle(el, tb);
       return;
     }
     // Combined pct for this stat: innate + armour. Applied only to (invested + race base + level bonus).
@@ -1054,7 +1176,11 @@ function updatePecents() {
     } else if (stat === "end") {
       const hpBase = parseFloat(base);
       const flatHP = (soulTreeBonuses.endFlat ?? 0) + (armour.endFlat ?? 0) + (gearStatBonuses.endFlat ?? 0);
-      const hpPct = (armourPct.end ?? 0) + (gearPct.end ?? 0);
+      // Vital is "increases your maximum health", so it joins the other health
+      // percentages rather than the Endurance stat itself.
+      const _vitalTb = _traitBonusFor(traitTot, "end");
+      const hpPct = (armourPct.end ?? 0) + (gearPct.end ?? 0) + _vitalTb.total;
+      _setTraitTitle(el, _vitalTb);
       display = (hpBase * (1 + hpPct / 100) + flatHP).toFixed(1);
       if (_pctCache.artifactPicker?.value === "Paranoxian Crux") {
         const fullHP = parseFloat(display);
@@ -1082,6 +1208,11 @@ function updatePecents() {
     }
     if (stat === "crit-chance" && tearBloodCrystalActive) {
       display = (parseFloat(display) + 5).toFixed(1);
+    }
+    if (stat === "crit-chance") {
+      const tb = _traitBonusFor(traitTot, "crit-chance");
+      if (tb.total) display = (parseFloat(display) + tb.total).toFixed(1);
+      _setTraitTitle(el, tb);
     }
     if (stat === "crit-chance" && racePicker.value === "Vydeer (1%)" && dmgBonusActive["passive:Crit Buildup"] && vydeerCritStacks > 0) {
       display = (parseFloat(display) + vydeerCritStacks * 1.5).toFixed(1);
@@ -2361,7 +2492,8 @@ function _gtRenderTraitRow(box, inst, c, redraw) {
     sel.value = inst.traits[i] ? inst.traits[i].id : "";
     if (inst.traits[i]) {
       const d = gearTraits[inst.traits[i].id];
-      if (d) sel.title = d.name + " — " + d.desc + (d.cap ? "  (cap " + d.cap + "%)" : "");
+      if (d) sel.title = d.name + " — " + d.desc + (d.cap ? "  (cap " + d.cap + "%)" : "") +
+                         "\n" + _traitReachNote(inst.traits[i].id);
     }
     sel.addEventListener("change", () => { specSetTrait(inst, i, sel.value, c); redraw(); });
     cell.appendChild(sel);
@@ -2370,10 +2502,15 @@ function _gtRenderTraitRow(box, inst, c, redraw) {
       const t = inst.traits[i];
       cell.appendChild(_gtBtn("−", "gt-mini", "Lower trait tier", () => { specSetTraitTier(inst, i, t.tier - 1); redraw(); }, t.tier <= 1));
       const tn = document.createElement("span");
-      tn.className = "gt-trait-tier";
+      // A dot marks a trait that moves a number on the panel. Without it the
+      // only way to tell a live trait from a planning-only one was to equip it
+      // and watch for a readout that never changed.
+      const live = !!TRAIT_APPLIES_TO[t.id];
+      tn.className = "gt-trait-tier" + (live ? " gt-trait-live" : " gt-trait-plan");
       // Tier plus what it actually grants, so the number means something
       // without opening the Info tab.
-      tn.textContent = "T" + t.tier + " " + traitValue(t.id, t.tier);
+      tn.textContent = "T" + t.tier + " " + traitValue(t.id, t.tier) + (live ? " \u2022" : "");
+      tn.title = _traitReachNote(t.id);
       cell.appendChild(tn);
       cell.appendChild(_gtBtn("+", "gt-mini", "Raise trait tier", () => { specSetTraitTier(inst, i, t.tier + 1); redraw(); }, t.tier >= MAX_TRAIT_TIER));
     }

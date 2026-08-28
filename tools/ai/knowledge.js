@@ -614,11 +614,20 @@
   };
 
   // ── TRAITS ────────────────────────────────────────────────────────────────
-  // IMPORTANT: the site tracks traits for share links and display but does NOT
-  // apply them to any stat or damage number (traitValue is display-only,
-  // builder.js:2309). So everything here is an OVERLAY the engine computes on
-  // top of the site's maths. Numbers derived from it will not match what
+  // The site applies FOUR of these itself (builder.js TRAIT_APPLIES_TO):
+  // Conduit to NRG chance, Fortunate to crit chance, Preemptive to Initiative
+  // and Vital to max HP. Those are computed inside model.js derived() and the
+  // page agrees with them.
+  //
+  // Everything else here is still an OVERLAY the engine computes on top of the
+  // site's maths, because the site has no readout for it - Riposte needs a
+  // block, Cleave needs a wounded target, Overflow raises a max energy the page
+  // does not track. Numbers derived from those will not match what
   // arcanelineagebuilder.com shows, and the explanation says so.
+  //
+  // Devastating is deliberately NOT applied by either. It reads like it belongs
+  // on the crit-damage readout, but the site owner has tested it in game
+  // repeatedly and it does nothing. See its entry below.
   //
   //   kind        what it feeds
   //   ---------------------------------------------------------------
@@ -633,11 +642,21 @@
   // `modelled: false` means the effect is real but not scoreable here — it is
   // still listed so the build can mention it rather than pretend it is nothing.
   const TRAITS = {
-    fortunate:   { kind: 'critChance', modelled: true },
+    // Applied by the site itself, so these are in derived() and NOT added again
+    // as an overlay. Kept here so the write-up can still name them.
+    fortunate:   { kind: 'critChance', modelled: true, onSite: true },
+    vital:       { kind: 'hpPct',      modelled: true, onSite: true },
+    preemptive:  { kind: 'initiative', modelled: true, onSite: true },
+    conduit:     { kind: 'nrgChance',  modelled: true, onSite: true,
+                   note: 'shown on the page as NRG chance; no archetype scores energy chance yet' },
+
+    // LEFT AS IT WAS, deliberately. It was reported as doing nothing in game,
+    // and the site does not wire it to the crit-damage readout for that reason
+    // - but the report was withdrawn before it was confirmed, so the engine
+    // keeps scoring it rather than silently devaluing every crit build on an
+    // unresolved question. Settle the in-game behaviour before changing this.
     devastating: { kind: 'critDmgPct', modelled: true },
-    vital:       { kind: 'hpPct',      modelled: true },
     overflow:    { kind: 'energyCap',  modelled: true },
-    preemptive:  { kind: 'initiative', modelled: true },
     heavyHand:   { kind: 'dmgPct',     modelled: true,  when: 'cost>=2',
                    note: 'only on skills costing 2 or more energy' },
     stalwart:    { kind: 'dr',         modelled: true,  when: 'above half health' },
@@ -657,7 +676,6 @@
     convalescent: { modelled: false, note: 'requires taking no damage that turn' },
     lifebound:    { modelled: false, note: 'recovers a share of damage taken' },
     channeling:   { modelled: false, note: 'requires a successful block' },
-    conduit:      { modelled: false, note: 'chance-based energy gain' },
     attuned:      { modelled: false, note: 'chance-based energy refund' },
     resonant:     { modelled: false, note: 'first skill each fight costs one less' },
     windfall:     { modelled: false, note: 'requires a kill' },
