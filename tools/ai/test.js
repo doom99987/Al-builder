@@ -2050,6 +2050,107 @@ describe('the healer build the numbers used to miss', () => {
   });
 });
 
+describe('traits reach the numbers', () => {
+  const M = engine.model;
+
+  // A build with real gear in every slot, so traits have somewhere legal to sit.
+  const withTraits = (gearTraits, artTraits) => {
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Dullahan (1%)';
+    b.gear = ['Forest Charm', 'Crystal Sphere', 'Gelat Band', 'Magma Charm']
+      .map((name, i) => ({ name, tier: 6, alloc: {}, traits: (gearTraits || [])[i] || [] }));
+    b.artifact = { name: 'Stellian Core', tier: 6, alloc: {}, traits: artTraits || [] };
+    return b;
+  };
+  const T2 = id => ({ id, tier: 2 });
+
+  it('the site and the model agree on WHICH traits are applied', () => {
+    // The single most dangerous drift in this change. builder.js applies four
+    // traits itself and model.js must apply exactly the same four - one extra on
+    // either side and every build reports a figure the page will not show, with
+    // nothing but verify.js in a browser to catch it.
+    const src = fs.readFileSync(path.join(__dirname, '../../js/builder.js'), 'utf8');
+    const block = /const TRAIT_APPLIES_TO = \{([\s\S]*?)\n\};/.exec(src);
+    ok(block, 'builder.js no longer declares TRAIT_APPLIES_TO');
+    const onSite = new Set();
+    for (const m of block[1].matchAll(/^\s*(\w+):\s*"([\w-]+)"/gm)) onSite.add(m[1]);
+
+    const msrc = fs.readFileSync(path.join(__dirname, 'model.js'), 'utf8');
+    const mblock = /const TRAIT_SITE_APPLIES = \{([\s\S]*?)\n    \};/.exec(msrc);
+    ok(mblock, 'model.js no longer declares TRAIT_SITE_APPLIES');
+    const inModel = new Set();
+    for (const m of mblock[1].matchAll(/^\s*(\w+):\s*'(\w+)'/gm)) inModel.add(m[1]);
+
+    eq([...inModel].sort().join(','), [...onSite].sort().join(','),
+       'the site and the model disagree about which traits the page applies');
+    eq(onSite.size, 4, 'expected exactly four site-applied traits');
+  });
+
+  it('Conduit raises NRG chance, and caps', () => {
+    const base = M.derived(withTraits()).nrgChance;
+    const one  = M.derived(withTraits([[T2('conduit')]])).nrgChance;
+    eq(Math.round((one - base) * 10) / 10, 10, 'Conduit T2 is +10% NRG chance');
+
+    // Six T2 copies is 60 raw against a cap of 40 - the exact reason the cap
+    // lives in the trait table rather than in whoever happens to read it.
+    const many = M.derived(withTraits([
+      [T2('conduit'), T2('conduit')], [T2('conduit'), T2('conduit')],
+      [T2('conduit'), T2('conduit')], [],
+    ])).nrgChance;
+    eq(Math.round((many - base) * 10) / 10, 40, 'Conduit stacked past its 40% cap');
+  });
+
+  it('Fortunate, Preemptive and Vital reach their own readouts', () => {
+    const b0 = M.derived(withTraits());
+    eq(Math.round((M.derived(withTraits([[T2('fortunate')]])).critChance - b0.critChance) * 10) / 10, 4,
+       'Fortunate T2 is +4 crit chance');
+    eq(Math.round((M.derived(withTraits([[T2('preemptive')]])).initiative - b0.initiative) * 10) / 10, 3,
+       'Preemptive T2 is +3 initiative');
+    const vital = M.derived(withTraits([[T2('vital')]])).hp;
+    ok(vital > b0.hp, 'Vital T2 did not raise max HP');
+  });
+
+  it('an applied trait is not also counted as an overlay', () => {
+    // Counting it in both places is silent: the number simply comes out too big
+    // and nothing on the page can be pointed at to prove it wrong.
+    const tt = M.traitTotals(withTraits([[T2('vital'), T2('fortunate')],
+                                         [T2('preemptive'), T2('conduit')]]), K);
+    eq(tt.hpPct, 0, 'Vital was added to the overlay as well as to derived()');
+    eq(tt.critChance, 0, 'Fortunate was added twice');
+    eq(tt.initiative, 0, 'Preemptive was added twice');
+    // Still named, or the write-up would stop mentioning them entirely.
+    const named = tt.active.map(a => a.id).sort().join(',');
+    eq(named, 'conduit,fortunate,preemptive,vital', 'applied traits vanished from the write-up');
+    ok(tt.active.every(a => a.onSite), 'applied traits are not flagged as on-site');
+  });
+
+  it('an overlay trait still works, and still says the site cannot show it', () => {
+    const tt = M.traitTotals(withTraits([[T2('stalwart')]]), K);
+    eq(tt.dr, 8, 'Stalwart T2 stopped contributing damage reduction');
+    ok(!tt.active.find(a => a.id === 'stalwart').onSite,
+       'Stalwart was marked as shown on the site, which has no readout for it');
+  });
+
+  it('a fixed gear grants no traits, on either side', () => {
+    // Narthana's Leaf rolls no tier and no traits. The editor clears them; a
+    // share link could still carry them, and both sides must ignore them.
+    const b = withTraits();
+    b.gear[0] = { name: "Narthana's Leaf", tier: 0, alloc: {}, traits: [T2('conduit')] };
+    eq(M.siteTraitTotals(b).nrgChance, 0, 'a fixed gear granted a trait');
+  });
+
+  it('Devastating is applied by neither side, and that is deliberate', () => {
+    // Reported as non-functional in game. The site does not wire it to the
+    // crit-damage readout; the engine still SCORES it, because that report was
+    // never confirmed. If either of those changes, it should change knowingly.
+    const src = fs.readFileSync(path.join(__dirname, '../../js/builder.js'), 'utf8');
+    ok(!/devastating:\s*"crit-dmg"/.test(src),
+       'Devastating was wired to the crit-damage readout without settling whether it works');
+    eq(M.siteTraitTotals(withTraits([[T2('devastating')]])).critChance, 0,
+       'Devastating leaked into a site-applied readout');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
@@ -2294,10 +2395,22 @@ describe('gear has to actually do something', () => {
     // Once Narthana's Leaf and the milestones are in, the next best thing for
     // total healing output is not dying — so the healer should not be sitting
     // on the ~1% block DR it used to.
+    //
+    // The bar was 30% while Vital was an overlay that MULTIPLIED the finished HP
+    // figure. The site adds it to the same percentage bucket as armour and gear
+    // instead, and matching that changed which gear wins: the healer now takes
+    // 27% DR with 405 HP and 47.8 heal/turn, where it used to take 51% DR with
+    // 342 HP and 43.3. It scores higher on both halves of what a healer is for,
+    // so this asserts the survivability the test is really about rather than one
+    // of its two ingredients — a build can trade DR for health freely and only
+    // the product is meaningful.
     const r = healer();
-    ok(r.ctx.blockDr > 30,
+    ok(r.ctx.blockDr > 20,
        'the healer has ' + Math.round(r.ctx.blockDr) + '% damage reduction');
     ok(r.ctx.hp > 250, 'the healer is on ' + Math.round(r.ctx.hp) + ' HP');
+    const survivability = r.ctx.hp * (1 + r.ctx.blockDr / 100);
+    ok(survivability > 400,
+       'the healer only survives like ' + Math.round(survivability) + ' effective HP');
   });
 
   it('the role item wins inside the margin and loses outside it', () => {

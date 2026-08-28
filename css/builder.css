@@ -1853,6 +1853,11 @@ h2 {
   min-width: 18px;
   text-align: center;
 }
+/* A trait that actually moves a readout reads brighter, and carries a dot. The
+   rest are dimmed rather than hidden: they are still real in game, they just
+   have nothing on this page to change. */
+#page-builder .gt-trait-live { color: #9ee8b8; }
+#page-builder .gt-trait-plan { color: #8e8ea0; }
 /* The third slot exists in the game but isn't unlockable yet — shown so the
    build reads correctly, dimmed and inert so it can't be filled. */
 #page-builder .gt-trait-locked {

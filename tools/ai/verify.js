@@ -45,14 +45,38 @@
   const artsK   = Object.keys(data.artifactItems);
   const rnd = a => a[Math.floor(Math.random() * a.length)];
 
-  function randInst(maxTier) {
+  // Traits used to be hard-coded to [null,null,null] here, which meant this
+  // harness - the ONLY thing that checks model.js against the page - could not
+  // see them at all. Now that four of them move real readouts (Conduit,
+  // Fortunate, Preemptive, Vital), a difference between the two trait
+  // aggregations would have gone unnoticed indefinitely.
+  //
+  // Rolled with the same restrictions the editor enforces: `slots` positions,
+  // only the first `unlocked` of them fillable, and no gearOnly trait on an
+  // artifact. Rolling illegal ones instead would test a state the site cannot
+  // reach and report failures that mean nothing.
+  const traitIds = Object.keys(data.gearTraits || {});
+  function randTraits(cfg) {
+    const out = new Array(cfg.slots).fill(null);
+    const pool = traitIds.filter(id => cfg.allowGearOnly || !data.gearTraits[id].gearOnly);
+    for (let i = 0; i < cfg.unlocked; i++) {
+      if (Math.random() < 0.45) continue;          // an empty slot is the common case
+      out[i] = { id: rnd(pool), tier: Math.random() < 0.5 ? 1 : 2 };
+    }
+    return out;
+  }
+
+  function randInst(maxTier, traitCfg) {
     const tier = Math.floor(Math.random() * (maxTier + 1));
     const shapes = data.GEAR_TIER_SHAPES[tier];
     const si = Math.floor(Math.random() * shapes.length);
     const shape = shapes[si];
     const pool = STATS.slice().sort(() => Math.random() - 0.5);
-    return { tier, shape: si, stats: [0,1,2,3].map(i => shape[i] !== undefined ? pool[i] : ''), traits: [null,null,null] };
+    return { tier, shape: si, stats: [0,1,2,3].map(i => shape[i] !== undefined ? pool[i] : ''),
+             traits: traitCfg ? randTraits(traitCfg) : [null, null, null] };
   }
+  const TC_GEAR     = { slots: 3, unlocked: 2, allowGearOnly: true };
+  const TC_ARTIFACT = { slots: 2, unlocked: 2, allowGearOnly: false };
 
   const mism = []; let n = 0;
 
@@ -119,9 +143,10 @@
     const artEl = document.getElementById('artifact-picker');
     artEl.value = cfg.artifact; cfg.artifact = artEl.value || '';
 
-    const gI = [0,1,2,3].map(() => randInst(data.MAX_GEAR_TIER));
+    const gI = [0,1,2,3].map(() => randInst(data.MAX_GEAR_TIER, TC_GEAR));
     gI.forEach((x, i) => gearInstances[i] = x);
-    const aI = randInst(data.MAX_GEAR_TIER); Object.assign(artifactInstance, aI);
+    const aI = randInst(data.MAX_GEAR_TIER, TC_ARTIFACT); Object.assign(artifactInstance, aI);
+    // Weapons roll no traits at all (SPEC_WEAPON carries zero slots).
     const wI = randInst(data.MAX_WEAPON_TIER); Object.assign(weaponInstances[0], wI);
 
     // Class drives which mastery tree is active (getActiveMasteryData reads the
@@ -168,8 +193,13 @@
     const A = i => gearInstanceAlloc(i);
     const build = Object.assign(M.emptyBuild(), {
       level: cfg.level, race: cfg.race, armour: cfg.armour, invested: cfg.invested,
-      gear: cfg.gear.map((nm, i) => nm ? { name: nm, tier: gI[i].tier, alloc: A(gI[i]) } : null).filter(Boolean),
-      artifact: cfg.artifact ? { name: cfg.artifact, tier: aI.tier, alloc: A(aI) } : null,
+      // `name` is what lets the model skip traits on a fixed gear, exactly as
+      // the page does — drop it and Narthana's Leaf starts granting traits on
+      // one side only.
+      gear: cfg.gear.map((nm, i) => nm ? { name: nm, tier: gI[i].tier, alloc: A(gI[i]),
+                                           traits: gI[i].traits } : null).filter(Boolean),
+      artifact: cfg.artifact ? { name: cfg.artifact, tier: aI.tier, alloc: A(aI),
+                                 traits: aI.traits } : null,
       weapon:   cfg.weapon   ? { name: cfg.weapon,   tier: wI.tier, alloc: A(wI) } : null,
       mark: cfg.permuth ? 'Venia' : '', permuth: cfg.permuth,
       covenant: cfg.covenant, covenantRank: cfg.covRank,

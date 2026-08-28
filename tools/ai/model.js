@@ -324,8 +324,11 @@
       // calcPercentage() returns an already-toFixed(1) STRING for the END curve,
       // which updatePecents then parseFloats and rounds again after applying the
       // percentages. Rounding once leaves HP a tenth out on many builds.
+      // Vital is percentage max health and the page adds it to the same bucket
+      // as the armour and gear percentages (builder.js, the `end` branch).
+      const _tr = siteTraitTotals(build);
       const hpBase = round1(45 + rawEnd * 1.00248);   // calcPercentage('end', val)
-      const hpPct  = pct.end ?? 0;               // armour pct + gear pct, already summed
+      const hpPct  = (pct.end ?? 0) + _tr.hpPct; // armour pct + gear pct + Vital
       let flatHP   = (armour.endFlat ?? 0) + (gf.endFlat ?? 0);
       for (const fn of hooks.flatHP) flatHP = fn(build, flatHP, { stats: s });
       const hp = hpBase * (1 + hpPct / 100) + flatHP;
@@ -337,6 +340,9 @@
       let critChance = round1(round1(rawLuck(build, C)) + (pct['crit-chance'] ?? 0));
       const ctx = { stats: s, pct };
       for (const fn of hooks.critChance) critChance = round1(fn(build, critChance, ctx));
+      // Fortunate lands LAST on the page, after every other crit source, so it
+      // rounds the same way here.
+      if (_tr.critChance) critChance = round1(critChance + _tr.critChance);
       critChance = Math.max(0, critChance);   // a negative crit chance is not a thing
 
       const healPct = rawEnd / D.END_HEAL_DIVISOR;
@@ -353,8 +359,11 @@
         critChance: round1(critChance),
         critDmg: critMultiplier(build),
         blockDr:    round1(rawStat(build, 'str', C) * D.STAT_IDENTITY_RATIO),
-        nrgChance:  round1(rawStat(build, 'arc', C) * D.STAT_IDENTITY_RATIO),
-        initiative: round1(rawStat(build, 'spd', C) * D.STAT_IDENTITY_RATIO),
+        // Conduit and Preemptive add on top of the identity formula, after its
+        // own rounding — mirroring the page, which parses the formatted value
+        // and then adds. Rounding once instead leaves these a tenth out.
+        nrgChance:  round1(round1(rawStat(build, 'arc', C) * D.STAT_IDENTITY_RATIO) + _tr.nrgChance),
+        initiative: round1(round1(rawStat(build, 'spd', C) * D.STAT_IDENTITY_RATIO) + _tr.initiative),
         outHeal: round1(100 + (pct['out-heal'] ?? 0) + healPct),
         incHeal: round1(100 + (pct['inc-heal'] ?? 0) + healPct + saintIncHeal),
       };
@@ -548,11 +557,65 @@
     // scatter of exactly-0.1 mismatches. Round the way the page does.
     const round1 = v => parseFloat(v.toFixed(1));
 
-    // ── traits (OVERLAY — the site does not compute these) ───────────────────
-    // builder.js tracks traits for share links and shows their labels, but no
-    // stat or damage number on the site includes them. Everything below is the
-    // engine's own layer, kept out of totalStat/derived so those keep matching
-    // the site exactly. Anything using it must say the site will not agree.
+    // ── traits ───────────────────────────────────────────────────────────────
+    // FOUR of these are now computed by the site itself (builder.js
+    // TRAIT_APPLIES_TO), so they belong INSIDE derived() where they keep
+    // matching the page. The rest remain an overlay: the site stores and
+    // displays them but no number on it moves.
+    //
+    // Keeping the split explicit matters because getting it wrong is silent —
+    // count a site-applied trait in both places and every crit build reports a
+    // crit chance the page will not show.
+    const TRAIT_SITE_APPLIES = {
+      conduit:    'nrgChance',
+      fortunate:  'critChance',
+      preemptive: 'initiative',
+      vital:      'hpPct',
+    };
+
+    // Raw per-trait totals, with the table's own stacking rules. Shared by both
+    // the site-applied path and the overlay so they cannot disagree.
+    function traitRawTotals(build) {
+      const defs = D.gearTraits || {};
+      const fixed = new Set(D.FIXED_GEAR || []);
+      const per = {};
+      const collect = (slot, isArtifact) => {
+        if (!slot) return;
+        // A fixed gear rolls no traits, exactly as the editor enforces.
+        if (!isArtifact && slot.name && fixed.has(slot.name)) return;
+        for (const t of slot.traits || []) {
+          if (!t || !t.id) continue;
+          const def = defs[t.id];
+          if (!def) continue;
+          if (isArtifact && def.gearOnly) continue;
+          (per[t.id] = per[t.id] || []).push(Math.min(2, Math.max(1, t.tier | 0)));
+        }
+      };
+      (build.gear || []).forEach(g => collect(g, false));
+      collect(build.artifact, true);
+
+      const out = {};
+      for (const [id, tiers] of Object.entries(per)) {
+        const def = defs[id];
+        const per1 = tiers.map(t => (t >= 2 ? def.t2 : def.t1));
+        let total = def.noStack ? Math.max(...per1) : per1.reduce((a, b) => a + b, 0);
+        if (def.cap != null) total = Math.min(def.cap, total);
+        out[id] = { total, copies: tiers.length };
+      }
+      return out;
+    }
+
+    // Only the four the page itself applies.
+    function siteTraitTotals(build) {
+      const raw = traitRawTotals(build);
+      const out = { critChance: 0, initiative: 0, hpPct: 0, nrgChance: 0 };
+      for (const [id, kind] of Object.entries(TRAIT_SITE_APPLIES)) {
+        if (raw[id]) out[kind] += raw[id].total;
+      }
+      return out;
+    }
+
+    // ── trait overlay (the site does NOT compute these) ──────────────────────
     //
     // Aggregation rules come from the trait table itself: `noStack` means extra
     // copies are worth nothing, `cap` limits the total, and `gearOnly` traits
@@ -560,27 +623,22 @@
     function traitTotals(build, K) {
       const defs = D.gearTraits || {};
       const rules = (K && K.TRAITS) || {};
-      const copies = {};
-      const collect = (slot, isArtifact) => {
-        for (const t of (slot && slot.traits) || []) {
-          if (!t || !t.id) continue;
-          const def = defs[t.id];
-          if (!def) continue;
-          if (isArtifact && def.gearOnly) continue;   // illegal placement, ignore
-          (copies[t.id] = copies[t.id] || []).push(Math.min(2, Math.max(1, t.tier | 0)));
-        }
-      };
-      (build.gear || []).forEach(g => collect(g, false));
-      collect(build.artifact, true);
+      const raw = traitRawTotals(build);
 
       const out = { critChance: 0, critDmgPct: 0, hpPct: 0, energyCap: 0,
                     initiative: 0, dmgPct: 0, dr: 0, active: [], unmodelled: [] };
 
-      for (const [id, tiers] of Object.entries(copies)) {
+      for (const [id, agg] of Object.entries(raw)) {
         const def = defs[id], rule = rules[id] || {};
-        const per = tiers.map(t => (t >= 2 ? def.t2 : def.t1));
-        let total = def.noStack ? Math.max(...per) : per.reduce((a, b) => a + b, 0);
-        if (def.cap != null) total = Math.min(def.cap, total);
+        const total = agg.total;
+
+        // Already in derived(): counting it here too would report a figure the
+        // page does not show. Still listed as active so the write-up names it.
+        if (TRAIT_SITE_APPLIES[id]) {
+          out.active.push({ id, name: def.name, total, effective: total,
+                            copies: agg.copies, onSite: true, when: rule.when || null });
+          continue;
+        }
 
         if (rule.modelled === false || !rule.kind) {
           out.unmodelled.push({ id, name: def.name, total, note: rule.note || def.desc });
@@ -592,7 +650,7 @@
         const eff = rule.modelled === 'conditional' ? total * (rule.uptime ?? 0.5) : total;
         if (out[rule.kind] !== undefined) out[rule.kind] += eff;
         out.active.push({ id, name: def.name, total, effective: eff,
-                          copies: tiers.length, when: rule.when || null });
+                          copies: agg.copies, when: rule.when || null });
       }
       return out;
     }
@@ -648,6 +706,7 @@
     return {
       STATS, emptyBuild, data: D, register, effectiveShape,
       totalStat, allStats, derived, moveDamage, moveHealing,
+      traitRawTotals, siteTraitTotals,
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,
       shapesFor, allocForShape, traitTotals, shardTotals, energyCap, parseDamage, parseCost,
