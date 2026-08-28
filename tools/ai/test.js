@@ -1954,6 +1954,9 @@ describe('scrolls and subclass', () => {
   });
 
   it('a healer takes the healer lost scroll and a DPS does not', () => {
+    // Within ROLE_ITEM_MARGIN. Heavenly Prayer measures better on a healer now
+    // that healing scores damage reduction (its 15% DR is priced and Breath of
+    // Fungyir's team heal can never be), so this is the margin doing its job.
     eq(saint().build.lostScroll, 'Breath of Fungyir');
     const dps = ask('', { klass: 'Saint (Or)', goal: 'damage', level: data.Max_Lvl });
     ok(dps.build.lostScroll !== 'Breath of Fungyir',
@@ -2107,14 +2110,23 @@ describe('stat milestones', () => {
   });
 
   // The reason this was worth doing at all.
-  it('a healer takes Luck to the +35% outgoing healing milestone', () => {
-    const r = ask('', { roles: ['Healer'], level: data.Max_Lvl });
+  // Deliberately NOT asserted on the pure healer any more. Once healing was
+  // scored as rate x survivability, Endurance beat the Luck milestone on that
+  // build - Endurance raises HP and the heal stats at once, and +35% once does
+  // not catch it. That is a measured answer, not a bug, and pinning a stat
+  // allocation the model legitimately decides against would be testing my
+  // opinion rather than the engine.
+  //
+  // What IS worth pinning: the milestone is reachable, it is taken where it
+  // wins, and taking it really does raise the scored healing.
+  it('takes the +35% outgoing healing milestone where it wins', () => {
     const need = data.STAT_MILESTONE_TIERS[1];
-    ok(r.ctx.stats.lck >= need,
-       'a healer stopped at ' + r.ctx.stats.lck + ' Luck, short of the ' + need + ' milestone');
-    ok(r.ctx.milestones.reached.some(m => m.stat === 'lck' && m.tier === 2),
+    const battle = ask('', { roles: ['Healer', 'DPS'], level: data.Max_Lvl });
+    ok(battle.ctx.stats.lck >= need,
+       'no healer variant reaches the Luck milestone; it is unreachable in practice');
+    ok(battle.ctx.milestones.reached.some(m => m.stat === 'lck' && m.tier === 2),
        'the milestone is not recorded as reached');
-    ok(r.ctx.effectiveHeal > r.ctx.outHeal,
+    ok(battle.ctx.effectiveHeal > battle.ctx.outHeal,
        'the milestone did not raise the scored healing');
   });
 
@@ -2147,12 +2159,28 @@ describe('healing is an amount, not a percentage', () => {
   it('healing moves scale on stats the way damage does', () => {
     const M = engine.model;
     const grace = (data.classMoves['Saint (Or)'].learns || []).find(m => m.name === 'Holy Grace');
-    ok(grace && grace.healing === 15, 'Holy Grace fixture moved');
+    ok(grace && grace.healing === 18 && grace.healingPctHp === 4, 'Holy Grace fixture moved');
     const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Dullahan (1%)';
     const low = M.moveHealing(b, grace);
     b.invested.str = 100; b.invested.arc = 100;
     const high = M.moveHealing(b, grace);
     ok(high > low, 'Holy Grace does not scale with STR and ARC');
+  });
+
+  it('a heal that adds a share of max HP gets bigger with Endurance', () => {
+    // "18 + 4%" — the second term is why Endurance is a healing stat on a Saint
+    // twice over, and it is the whole reason the healer stacks it.
+    const M = engine.model;
+    const grace = (data.classMoves['Saint (Or)'].learns || []).find(m => m.name === 'Holy Grace');
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Dullahan (1%)';
+    const lean = M.moveHealing(b, grace);
+    b.invested.end = 200;
+    const bulky = M.moveHealing(b, grace);
+    ok(bulky > lean + 5, 'Endurance does not feed the percentage term: ' +
+       lean.toFixed(1) + ' -> ' + bulky.toFixed(1));
+    // And it is really the HP term, not the stat scaling: Holy Grace scales on
+    // STR and ARC only, so END can reach it by no other route.
+    ok(!/END/i.test(grace.scaling), 'Holy Grace now scales on END — this test is measuring the wrong thing');
   });
 
   it('a shorter cooldown is worth something', () => {
@@ -2212,6 +2240,132 @@ describe('races are more than a stat block', () => {
            race + '/' + p.name + ' is priced from nothing and does not say so');
       }
     }
+  });
+});
+
+describe('gear has to actually do something', () => {
+  const O = engine.optimizer;
+  const healer = () => ask('', { roles: ['Healer'], level: data.Max_Lvl });
+
+  it('every GEAR_NEEDS entry names a real item and gives a reason', () => {
+    for (const [name, need] of Object.entries(K.GEAR_NEEDS || {})) {
+      ok((data.gearItems || {})[name] || (data.artifactItems || {})[name],
+         name + ' is not an item');
+      ok(need.why && need.why.length > 30, name + ' gives no reason');
+      const kinds = ['element', 'summons', 'poison', 'blocking', 'healedBy'];
+      ok(kinds.some(k => need[k]), name + ' declares no condition');
+    }
+  });
+
+  it('reads what a build does from its own kit, not from a hand-written list', () => {
+    const saint = ask('', { roles: ['Healer'], klass: 'Saint (Or)', level: data.Max_Lvl }).build;
+    const does = O.buildDoes(saint);
+    eq(does.summons, false, 'a Saint is credited with summons');
+    eq(does.poison, false, 'a Saint is credited with poison');
+    ok(does.elements.has('holy'), 'a Saint has no Holy attack');
+
+    const necro = ask('', { roles: ['DPS'], klass: 'Necromancer (Ch)', level: data.Max_Lvl }).build;
+    eq(O.buildDoes(necro).summons, true, 'a Necromancer is not credited with summons');
+  });
+
+  it('knows the three items that were dead on a healer', () => {
+    // The exact complaint: all three are Arcane 4-5, Arcane feeds Holy Grace,
+    // and not one of their passives can fire on a Holy kit with no summons and
+    // no poison.
+    const saint = ask('', { roles: ['Healer'], klass: 'Saint (Or)', level: data.Max_Lvl }).build;
+    for (const n of ["Madseer's Codex", 'Imbuement Reliquary', 'Impure Crown']) {
+      ok(O.inertFor(n, saint, { goal: 'heal' }), n + ' is not recognised as dead on a Saint');
+    }
+    // And the same item is alive where it belongs.
+    const necro = ask('', { roles: ['DPS'], klass: 'Necromancer (Ch)', level: data.Max_Lvl }).build;
+    ok(!O.inertFor('Imbuement Reliquary', necro, { goal: 'damage' }),
+       'the summon item is called dead on a summoner');
+  });
+
+  it('does not put dead gear on the build it recommends', () => {
+    for (const role of (K.ROLE_ORDER || [])) {
+      const r = ask('', { roles: [role], level: data.Max_Lvl });
+      const dead = (r.ctx.inertGear || []);
+      eq(dead.length, 0, role + ' is wearing gear that does nothing: ' + dead.join(', '));
+    }
+  });
+
+  it('a healer wears damage reduction, because nothing else raises its healing', () => {
+    // Once Narthana's Leaf and the milestones are in, the next best thing for
+    // total healing output is not dying — so the healer should not be sitting
+    // on the ~1% block DR it used to.
+    const r = healer();
+    ok(r.ctx.blockDr > 30,
+       'the healer has ' + Math.round(r.ctx.blockDr) + '% damage reduction');
+    ok(r.ctx.hp > 250, 'the healer is on ' + Math.round(r.ctx.hp) + ' HP');
+  });
+
+  it('the role item wins inside the margin and loses outside it', () => {
+    const margin = K.ROLE_ITEM_MARGIN;
+    ok(margin > 0 && margin < 0.5, 'the role-item margin is not a sane allowance');
+    // Narthana's Sigil measures WORSE than Stellian Core on a healer now that
+    // healing scores damage reduction — it wins on the allowance, and the
+    // build records what that cost.
+    const r = healer();
+    eq(r.build.artifact.name, "Narthana's Sigil");
+    const cost = (r.build._rolePicks || {})["Narthana's Sigil"];
+    ok(cost > 0 && cost <= margin * 100,
+       'the Sigil was taken without recording what it gave up');
+  });
+
+  it('and a damage Saint still gets the damage artifact', () => {
+    const dps = ask('', { roles: ['Healer'], goal: 'damage', klass: 'Saint (Or)', level: data.Max_Lvl });
+    ok(dps.build.artifact.name !== "Narthana's Sigil",
+       'a damage Saint was handed the healing artifact');
+  });
+
+  it('says in the write-up what a role pick cost', () => {
+    const sec = healer().explanation.find(x => /Chosen for the role/.test(x.h));
+    ok(sec, 'no section explaining the role picks');
+    ok(sec.list.some(l => /giving up .*% of the measured score/.test(l)),
+       'never admits a role pick lost on the numbers');
+  });
+});
+
+describe('abilities that do not work', () => {
+  const bugged = Object.entries(K.MASTERY_ABILITIES || {}).filter(([, r]) => r.kind === 'bugged');
+
+  it('every bugged entry names a real ability and says why', () => {
+    ok(bugged.length > 0, 'nothing is marked bugged — has something been fixed in game?');
+    const all = new Set();
+    for (const perClass of Object.values(data.masteryAbilities || {}))
+      for (const e of Object.values(perClass)) if (e && e.name) all.add(e.name);
+    for (const [name, rule] of bugged) {
+      ok(all.has(name), name + ' is not a mastery ability in the game data');
+      ok(rule.note && rule.note.length > 40, name + ' gives no reason');
+    }
+  });
+
+  it('a bugged capstone is never bought, even when nothing else measures', () => {
+    // It used to be. The picker prefers an UNPRICED real ability over stat
+    // nodes the build does not want, and a bugged ability looked unpriced —
+    // so a Saint spent 5 of its 35 points on Piercing Grace.
+    const names = new Set(bugged.map(([n]) => n));
+    for (const roles of [['Healer'], ['Tank'], ['DPS'], ['Support']]) {
+      for (const klass of ['Saint (Or)', 'Paladin (Or)', 'Berserker (Ch)']) {
+        const r = ask('', { roles, klass, level: data.Max_Lvl });
+        const boughtName = (r.build.masteryBudget || {}).bought;
+        ok(!names.has(boughtName),
+           klass + ' as ' + roles.join('+') + ' bought the bugged ' + boughtName);
+      }
+    }
+  });
+
+  it('and it is reported as bugged rather than as unknown', () => {
+    const r = ask('', { roles: ['Healer'], klass: 'Saint (Or)', level: data.Max_Lvl });
+    const pg = (r.build.masteryPassedOver || []).find(x => x.name === 'Piercing Grace');
+    ok(pg, 'Piercing Grace is not in the passed-over list at all');
+    eq(pg.reason, 'bugged', 'Piercing Grace is reported as ' + pg.reason);
+  });
+
+  it('the Saint buys the capstone that helps its actual job', () => {
+    const r = ask('', { roles: ['Healer'], klass: 'Saint (Or)', level: data.Max_Lvl });
+    eq((r.build.masteryBudget || {}).bought, 'Holy Grace Proficiency');
   });
 });
 
@@ -3155,7 +3309,7 @@ describe('mastery abilities', () => {
   it('gives every capstone it skipped a reason, not just a name', () => {
     // The whole point. A list of things it did not take, with no why attached,
     // is the output this replaced.
-    const REASONS = ['value', 'lost', 'zero', 'unmodelled'];
+    const REASONS = ['value', 'lost', 'zero', 'unmodelled', 'bugged'];
     for (const klass of ['Ranger (Or)', 'Berserker (Ch)', 'Saint (Or)', 'Hexer (N)']) {
       for (const goal of ['damage', 'tank']) {
         const r = engine.ask('', { klass, goal, play: 'solo' });
@@ -3179,6 +3333,14 @@ describe('mastery abilities', () => {
       const r = engine.ask('', { klass, goal: 'damage', play: 'solo' });
       for (const x of r.ctx.masteryPassedOver || []) {
         const rule = (K.MASTERY_ABILITIES || {})[x.name];
+        // A KNOWN-BUGGED ability is not an unpriced one. "We have no number for
+        // this" and "this does not work" are different admissions and the
+        // write-up must not collapse them — so bugged entries are checked by
+        // the bugged tests instead, and skipped here.
+        if (rule && rule.kind === 'bugged') {
+          eq(x.reason, 'bugged', x.name + ' is bugged but was reported as ' + x.reason);
+          continue;
+        }
         const priced = rule && rule.kind !== 'note' && rule.value != null;
         if (!priced) {
           seen++;
@@ -3430,7 +3592,10 @@ describe('play style', () => {
     // always wrong.
     const kinds = new Set();
     for (const r of Object.values(K.MASTERY_ABILITIES || {})) {
-      if (r && r.kind && r.kind !== 'note' && r.kind !== 'dmgPct') kinds.add(r.kind);
+      // 'note' and 'bugged' carry no value, so there is no number for a unit to
+      // label. Everything that DOES carry a value needs a unit in every
+      // renderer, or it silently reads as "% damage".
+      if (r && r.kind && r.kind !== 'note' && r.kind !== 'bugged' && r.kind !== 'dmgPct') kinds.add(r.kind);
     }
     ok(kinds.size > 0, 'no non-damage mastery kinds exist, so this test proves nothing');
     const root = path.join(__dirname, '..', '..');

@@ -531,10 +531,16 @@
       if (!move || move.healing == null || move.healing === 'N/A') return 0;
       const base = parseFloat(move.healing);
       if (!isFinite(base)) return 0;
-      const s = derived(build).stats;
+      const d = derived(build);
       let contrib = 0;
-      for (const [stat, div] of scaleTerms(String(move.scaling || ''))) contrib += s[stat] / div;
-      return base * (1 + contrib);
+      for (const [stat, div] of scaleTerms(String(move.scaling || ''))) contrib += d.stats[stat] / div;
+      // Some heals carry a slice of your own max HP on top of the scaled base -
+      // Holy Grace is "18 + 4%". That term is why Endurance is a HEALING stat on
+      // a Saint twice over: once through the END/4 heal percentage, and again
+      // because the heal itself is a fraction of the health it just bought.
+      const pctHp = parseFloat(move.healingPctHp);
+      const flat = isFinite(pctHp) ? (d.hp * pctHp / 100) : 0;
+      return base * (1 + contrib) + flat;
     }
 
     // The site prints these with toFixed(1). toFixed and Math.round disagree on

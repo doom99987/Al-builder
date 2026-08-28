@@ -4093,6 +4093,15 @@ function getOutHealMult() {
   const el = document.querySelector('.percent-item[data-stat="out-heal"] .percent-val');
   return el ? (parseFloat(el.textContent) || 100) / 100 : 1;
 }
+// Max HP for heals that add a share of it — Holy Grace is "18 + 4%".
+// Read off the same percent panel the heal multipliers come from, so it can
+// never drift from what the page is showing. With Paranoxian Crux the cell
+// reads "X (Y Shield)" and parseFloat takes the current-HP half, which is the
+// right number to heal a fraction of anyway.
+function getMaxHp() {
+  const el = document.querySelector('.percent-item[data-stat="end"] .percent-val');
+  return el ? (parseFloat(el.textContent) || 0) : 0;
+}
 function getIncHealMult() {
   const el = document.querySelector('.percent-item[data-stat="inc-heal"] .percent-val');
   return el ? (parseFloat(el.textContent) || 100) / 100 : 1;
@@ -4108,6 +4117,11 @@ function toggleHealDetail(rowEl, idx, forceOpen = false) {
   const m = healCalcMoveList[idx];
   const scalings = parseScaling(m.scaling);
   const baseHeal = +m.healing;
+  // Some heals add a share of your own max HP on top of the scaled base —
+  // Holy Grace is "18 + 4%". Added AFTER the stat scaling, because the
+  // percentage is of your health rather than of the base.
+  const pctHp = parseFloat(m.healingPctHp);
+  const hpPart = isFinite(pctHp) ? getMaxHp() * pctHp / 100 : 0;
 
   let statLine = "";
   let scaledHeal = baseHeal;
@@ -4123,6 +4137,12 @@ function toggleHealDetail(rowEl, idx, forceOpen = false) {
     statLine = `${baseHeal}(1 + ${partsStr}) = <b>${scaledHeal.toFixed(1)}</b>`;
   } else {
     statLine = `Base heal: <b>${baseHeal}</b>`;
+  }
+
+  if (hpPart) {
+    scaledHeal += hpPart;
+    statLine += ` &nbsp;+&nbsp; ${pctHp}% of ${Math.round(getMaxHp())} max HP ` +
+                `(${hpPart.toFixed(1)}) = <b>${scaledHeal.toFixed(1)}</b>`;
   }
 
   const outMult = getOutHealMult();
