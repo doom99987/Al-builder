@@ -213,9 +213,21 @@
     }
 
     if (!spec.goal) {
+      // A named class is a named role, and it outranks both of the guesses
+      // below. "saint build" is a request for a healer; the stat focus in "full
+      // arcane saint" says HOW, not WHAT, and it still steers the allocation
+      // whatever the goal ends up being (optimize.js weights statFocus directly).
+      const role = K.classRole ? K.classRole(spec.klass) : null;
+      if (role) {
+        spec.goal = role.goal;
+        spec.classRole = role;
+        spec.assumptions.push('No goal stated, so this is built for what the class is FOR — ' +
+          K.ARCHETYPES[role.goal].label.toLowerCase() + '. ' + spec.klass + ' gets the role ' +
+          'because ' + role.why + '. Add "damage", "crit" or any other goal word to override it.');
+      }
       // A stat focus implies a goal even with no goal word: "full arcane" reads
       // as a damage build, "all endurance" as a tank.
-      if (spec.statFocus.includes('end'))      { spec.goal = 'tank';   spec.assumptions.push('Read "endurance" as wanting survivability.'); }
+      else if (spec.statFocus.includes('end')) { spec.goal = 'tank';   spec.assumptions.push('Read "endurance" as wanting survivability.'); }
       else if (spec.statFocus.includes('lck')) { spec.goal = 'crit';   spec.assumptions.push('Read "luck" as wanting crits — Luck is Crit Chance 1:1.'); }
       else if (spec.statFocus.length)          { spec.goal = 'damage'; spec.assumptions.push('Read a stat focus with no stated goal as a damage build.'); }
       else {

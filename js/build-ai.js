@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 33;
+  const ENGINE_V = 34;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -747,11 +747,16 @@
     L.push('<b>Built for:</b> ' + esc(goalLabel) +
            (spec.minmax ? ' (min-maxed — deliberately specialised)' : ''));
 
+    // A healer's headline number is not its damage. Added only when the build is
+    // actually built to heal, so a damage build's line stays short — and it is
+    // the number that answers "did it really maximise the healing?".
+    const healsForALiving = /^(heal|party)$/.test(spec.goal);
     L.push('<b>Numbers:</b> ' + Math.round(ctx.bestHit) + ' expected damage on ' +
            esc((ctx.bestMove && ctx.bestMove.name) || 'its best move') +
            ' · ' + n1(ctx.hp) + ' HP · ' + n1(ctx.critChance) + '% crit' +
            (ctx.critTier ? ' (tier ' + ctx.critTier + ', every hit crits)' : '') +
-           ' · ' + ctx.energyCap + ' max energy');
+           ' · ' + ctx.energyCap + ' max energy' +
+           (healsForALiving ? ' · ' + n1(ctx.outHeal) + '% outgoing healing' : ''));
 
     // The opening rotation, if the build has one — it is the most actionable
     // thing in the whole summary.
