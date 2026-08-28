@@ -143,6 +143,7 @@
                 (data.MASTERY_TOTAL_POINTS || 35) + ' points  ·  ' + (b.masteryShards || 0) + ' echo shards']);
     }
     if (b.mark)    kit.push(['Mark', b.mark + (b.permuth ? ' — Permuth on ' + b.permuth.toUpperCase() : '')]);
+    if (b.covenant) kit.push(['Covenant', b.covenant + '  (rank ' + (b.covenantRank || 1) + ')']);
     if (b.corruption) kit.push(['Corruption', b.corruption]);
     L.push({ h: 'Build', table: kit });
 
@@ -321,6 +322,72 @@
       }
     }
 
+    // ── covenant ────────────────────────────────────────────────────────────
+    // A covenant hands out no stats at all, so for as long as the engine scored
+    // builds on their stat blocks it had no reason to pick one and left the slot
+    // empty on every build it ever produced. What a covenant gives is a rank 20
+    // blessing, a passive or two, and sometimes a move.
+    if (result.covenant && result.covenant.best) {
+      const cv = result.covenant;
+      const lines = ['**' + cv.best.name + '** (rank ' + cv.rank + ') — ' + cv.best.why];
+      for (const alt of cv.all) {
+        if (alt.name === cv.best.name) continue;
+        lines.push('*' + alt.name + '* — ' + alt.why);
+      }
+      L.push({ h: 'Covenant', list: lines });
+
+      const learns = ((data.covenantMoves || {})[cv.best.name] || {}).learns || [];
+      if (learns.length) {
+        L.push({ h: 'What ' + cv.best.name + ' gives you', table: learns.map(mv => {
+          const kind = mv.type === 'Active'
+            ? 'Active' + (mv.cost != null ? ', ' + mv.cost + ' energy' : '') +
+              (mv.cooldown != null ? ', ' + mv.cooldown + ' turn cd' : '') +
+              (mv.damage != null ? ', ' + mv.damage + ' dmg' : '') +
+              (mv.scaling && mv.scaling !== 'N/A' ? ' ' + mv.scaling : '')
+            : 'Passive';
+          return ['Rank ' + mv.level + '  ' + mv.name,
+                  kind + (mv.effect ? '  — ' + String(mv.effect).replace(/\s+/g, ' ') : '')];
+        }) });
+      }
+
+      const how = cv.decidedBy === 'locked'
+        ? 'You locked this one, so nothing was searched. The others are listed above with what ' +
+          'they would have given you instead.'
+        : cv.decidedBy === 'measured'
+        ? 'This one changed the numbers: it is not a preference, it scored higher with the same ' +
+          'gear and the same stats.'
+        : (cv.tied === cv.all.length ? 'All ' + cv.all.length : 'The top ' + (cv.tied || 2)) +
+          ' scored the SAME. A covenant grants no stats, and nothing that separated them ' +
+          'CHANGED a number on this build — the covenant attacks ARE measured, they are just not ' +
+          'this kit\'s best move. So this one was chosen on what it does rather than on a ' +
+          'measurement: treat it as a recommendation, not a result.';
+      const notes = [how,
+        'Rank ' + cv.rank + ' is assumed, the same way max gear tier is assumed. Below rank 20 ' +
+        'you have fewer of these: each ability lists the rank it unlocks at.'];
+      if (cv.best.unpriced && cv.best.unpriced.length) {
+        L.push({ h: 'What the covenant gives that is not in the numbers',
+                 body: notes.join('  '),
+                 list: cv.best.unpriced.map(u => '**' + u[0] + '** — ' + u[1]) });
+      } else {
+        L.push({ h: 'About that covenant', body: notes.join('  ') });
+      }
+    }
+
+    // ── fighting hurt ───────────────────────────────────────────────────────
+    // When a build is committed to low HP, that decision reprices items in both
+    // directions and it would be unreadable if the write-up did not say so.
+    if (c.hpStance && c.hpStance.committed) {
+      const st = c.hpStance;
+      const lines = st.sources.map(sr => '**' + sr.owner + ' — ' + sr.passive + ':** ' + sr.why + '.');
+      const gates = (c.gearPassives ? c.gearPassives.active : []).filter(a => a.hpGate);
+      for (const g of gates) lines.push('**' + g.name + ':** ' + g.hpGate.why);
+      lines.push('The uptimes this changes are assumptions, not measurements: an item its owner ' +
+                 'is built around is counted at 80%, one working against the build at 5%.');
+      L.push({ h: 'This build fights hurt', body:
+        'It is built to sit BELOW half health, which is where its own passives pay out. That ' +
+        'reprices anything gated on an HP threshold — in both directions.', list: lines });
+    }
+
     // ── corruption ──────────────────────────────────────────────────────────
     if (result.corruption) {
       const cor = result.corruption;
@@ -425,7 +492,8 @@
                                   : a.kind === 'hpPct' ? '% HP' : '% damage') +
                    (a.effective !== a.value
                      ? '  — counted as ' + n1(a.effective) + ', it is conditional' : '  — always on') +
-                   (a.note ? '.  ' + a.note : '')]) });
+                   (a.note ? '.  ' + a.note : '') +
+                   (a.hpGate ? '  ' + a.hpGate.why : '')]) });
       }
       if (gp.unmodelled.length) {
         L.push({ h: 'Gear passives NOT counted', body:

@@ -1005,8 +1005,11 @@ describe('random and flavour', () => {
 
   it('SETUP_MOVES name real moves on the race or class that owns them', () => {
     for (const [name, def] of Object.entries(K.SETUP_MOVES || {})) {
+      // Three kinds of owner now: a race, a class, or a covenant. A covenant's
+      // moves are gated on RANK rather than level, but the field is the same one.
       const src = def.owner
-        ? ((data.raceMoves || {})[def.owner] || (data.classMoves || {})[def.owner])
+        ? ((data.raceMoves || {})[def.owner] || (data.classMoves || {})[def.owner] ||
+           (data.covenantMoves || {})[def.owner])
         : null;
       ok(src, name + ' names an unknown owner: ' + def.owner);
       ok((src.learns || []).some(m => m.name === name && m.type === 'Active'),
@@ -1069,13 +1072,29 @@ describe('random and flavour', () => {
     // buffs cover magic/holy/fire/nature/ice/dark only, so a kit whose best move
     // is Physical must see no burst gain at all. Checking the regex alone let a
     // mutation that removed the gate pass.
+    // Church of Raphion is pinned because it is the one covenant with no attack
+    // in it. Left to choose, the engine takes Cult of Thanasius and its Dark
+    // Death Curtain becomes the biggest prepared hit a physical class has — the
+    // gate ADMITS dark, so the premise "this kit is entirely physical" would be
+    // false and the test would be measuring nothing.
     for (const klass of ['Lancer (N)', 'Brawler (N)']) {
-      const r = engine.ask('', { race: 'Corvolus (3%)', klass, goal: 'burst' });
+      const r = engine.ask('', { race: 'Corvolus (3%)', klass, goal: 'burst',
+                                 covenant: 'Church of Raphion' });
       const mv = r.ctx.burstMove || r.ctx.bestMove;
       eq(String(mv && mv.moveType), 'Physical', klass + ' best move is not Physical — pick another');
       eq(Math.round(r.ctx.bestBurst), Math.round(r.ctx.bestHit),
          klass + ' gained burst from an element-gated buff it cannot use');
     }
+
+    // And the finding that broke it, kept as a test of its own: a physical class
+    // whose race buffs magic elements really does prefer the covenant's Dark
+    // attack for its opener. If that stops being true, something changed.
+    const dark = engine.ask('', { race: 'Corvolus (3%)', klass: 'Lancer (N)', goal: 'burst',
+                                  covenant: 'Cult of Thanasius' });
+    eq(String((dark.ctx.burstMove || {}).name), 'Death Curtain',
+       'a Corvolus Lancer no longer opens on the covenant move');
+    ok(dark.ctx.bestBurst > dark.ctx.bestHit,
+       'the element-gated buff paid nothing on a move its gate admits');
   });
 
   it('explains the rotation whenever there is one', () => {
@@ -1364,6 +1383,302 @@ describe('mastery reaches the move', () => {
     const raw = [].concat(cm.learns || [], cm.innatePassives || [])
                   .find(m => m && m.name === 'Flowing Dance');
     eq(raw.scaling, 'STR/75 + SPD/75', 'the shared game data was mutated to ' + raw.scaling);
+  });
+});
+
+describe('covenants', () => {
+  it('always picks one, on every goal', () => {
+    // The whole point. A covenant grants no stats, so for as long as the engine
+    // scored builds on their stat blocks it had no reason to choose and left the
+    // slot empty on every build it has ever produced.
+    for (const goal of Object.keys(K.ARCHETYPES)) {
+      for (const play of ['solo', 'team']) {
+        const r = engine.ask('', { goal, play, dmg: 'average' });
+        ok(r.build.covenant, goal + '/' + play + ' has no covenant');
+        ok((data.covenantItems || {})[r.build.covenant],
+           goal + '/' + play + ' picked "' + r.build.covenant + '", which is not a covenant');
+        eq(r.build.covenantRank, K.COVENANT_ASSUMED_RANK,
+           goal + '/' + play + ' is not at the assumed rank');
+      }
+    }
+  });
+
+  it('leaves the slot empty below the level it unlocks at', () => {
+    // Covenants require level 10. Handing a level 8 build one is telling
+    // somebody to equip a thing the game will not let them equip.
+    const min = K.COVENANT_MIN_LEVEL;
+    ok(min > 1, 'no covenant level gate');
+    const r = engine.ask('', { level: min - 1, goal: 'damage' });
+    eq(r.build.covenant, '', 'a level ' + (min - 1) + ' build was given a covenant');
+    const ok10 = engine.ask('', { level: min, goal: 'damage' });
+    ok(ok10.build.covenant, 'a level ' + min + ' build was not given one');
+  });
+
+  it('honours a locked covenant', () => {
+    for (const name of Object.keys(data.covenantItems || {})) {
+      const r = engine.ask('', { goal: 'damage', covenant: name });
+      eq(r.build.covenant, name, 'locked covenant ignored');
+      eq(r.covenant.decidedBy, 'locked', 'a locked covenant is not reported as locked');
+    }
+  });
+
+  it('names the covenant that can actually host the boss it is built for', () => {
+    // Church of Raphion rank 20 grants the ability to teleport to and host
+    // Seraphon; Cult of Thanasius does the same for Arkhaia. Building to kill
+    // one of those and recommending the wrong covenant is a build you cannot
+    // start the fight with.
+    for (const [boss, want] of Object.entries(K.COVENANT_BOSS_HOST || {})) {
+      ok((data.encounterKinds || {})[boss], boss + ' is not an encounter in the data');
+      ok((data.covenantItems || {})[want], want + ' is not a covenant');
+      const r = engine.ask('', { goal: 'damage', boss });
+      eq(r.build.covenant, want, 'building for ' + boss + ' did not pick ' + want);
+    }
+  });
+
+  it('gives the healer the one covenant the site itself scores', () => {
+    // Way of Life's Lifebound is the single entry in covenantBonuses, so this is
+    // a MEASURED win rather than a preference — and it must be measured, or the
+    // covenant's own +15% outgoing healing is not reaching the numbers.
+    const r = engine.ask('', { goal: 'heal', play: 'team', dmg: 'average' });
+    eq(r.build.covenant, 'Way of Life', 'the healer was not given Way of Life');
+    eq(r.covenant.decidedBy, 'measured', 'Way of Life won on preference, not on the numbers');
+  });
+
+  it('actually applies the covenant bonus to the site-facing numbers', () => {
+    // The bonus lives in the site's covenantBonuses and is applied by
+    // updatePecents. If model.js does not apply it too, the engine and the page
+    // disagree the moment a build carries a covenant — and the ONLY way to catch
+    // that here is to compare a build with it against the same build without.
+    const M = require('./model.js').Model(data);
+    const b = M.emptyBuild();
+    b.level = 50; b.race = 'Estella (24%)'; b.klass = 'Saint (Or)';
+    b.invested = { str: 0, arc: 0, end: 100, spd: 0, lck: 0 };
+    const without = M.derived(b).outHeal;
+    b.covenant = 'Way of Life'; b.covenantRank = 20;
+    const with20 = M.derived(b).outHeal;
+    eq(Math.round(with20 - without), 15, 'Way of Life rank 20 did not add its 15% outgoing healing');
+    // And the rank gate is a gate, not decoration.
+    b.covenantRank = 4;
+    eq(Math.round(M.derived(b).outHeal), Math.round(without),
+       'the rank 5 bonus paid out at rank 4');
+  });
+
+  it('puts the covenant attacks in the kit, gated on rank', () => {
+    const O = require('./optimize.js');
+    ok(typeof O.Optimizer === 'function', 'no Optimizer');
+    const M = require('./model.js').Model(data);
+    const opt = O.Optimizer(M, K);
+    // Death Curtain unlocks at rank 10 and Soul Absorb at rank 1.
+    const r1  = opt.covenantMovesFor('Cult of Thanasius', 1).map(m => m.name);
+    const r20 = opt.covenantMovesFor('Cult of Thanasius', 20).map(m => m.name);
+    ok(r1.indexOf('Soul Absorb') !== -1, 'Soul Absorb missing at rank 1');
+    ok(r1.indexOf('Death Curtain') === -1, 'Death Curtain available at rank 1');
+    ok(r20.indexOf('Death Curtain') !== -1, 'Death Curtain missing at rank 20');
+    // Only attacks: Lesser Heal and Bless carry no damage and are not moves the
+    // damage search should be ranking.
+    const heal = opt.covenantMovesFor('Way of Life', 20).map(m => m.name);
+    ok(heal.indexOf('Lesser Heal') === -1, 'a healing move got into the damage kit');
+  });
+
+  it('lets a covenant move be the best move when it really is', () => {
+    const r = engine.ask('', { klass: 'Saint (Or)', goal: 'damage',
+                               covenant: 'Cult of Thanasius' });
+    const names = r.ctx.moves.map(m => m.name);
+    ok(names.indexOf('Death Curtain') !== -1, 'Death Curtain is not in the kit');
+  });
+
+  it('counts the covenant passives as passives', () => {
+    const r = engine.ask('', { goal: 'damage', covenant: 'Blades of the World' });
+    const all = r.ctx.passiveList;
+    const names = [...all.known, ...all.unknown].map(p => p.name);
+    ok(names.indexOf('Blessing of Survival') !== -1,
+       'the rank 20 blessing is not reported anywhere');
+    ok([...all.known, ...all.unknown].some(p => p.owner === 'Blades of the World'),
+       'covenant passives are not attributed to the covenant');
+  });
+
+  it('every covenant explains itself, and says what is not counted', () => {
+    for (const [name, def] of Object.entries(K.COVENANTS || {})) {
+      ok((data.covenantItems || {})[name], name + ' is not a covenant in the data');
+      ok(typeof def.fit === 'function', name + ' has no fit()');
+      ok(def.blurb && def.blurb.length > 20, name + ' has no blurb');
+      ok((def.unpriced || []).length, name + ' lists nothing as not counted');
+      for (const [what, why] of def.unpriced) {
+        ok(why && why.length > 40, name + ' / ' + what + ' has no real explanation');
+      }
+    }
+    // And every covenant in the data has an entry, so adding one cannot leave a
+    // silent hole the way the artifacts did.
+    for (const name of Object.keys(data.covenantItems || {})) {
+      ok((K.COVENANTS || {})[name], name + ' has no knowledge entry');
+    }
+  });
+
+  it('writes the covenant into the share link', () => {
+    // There is no unpack() to round-trip through, so this checks the only thing
+    // that can be checked from here: the bits MOVE. If pack() ignored the
+    // covenant, a build with one and the same build without would encode
+    // identically — which is exactly how a slot goes missing from a share link
+    // without anybody noticing.
+    const r = engine.ask('', { goal: 'damage' });
+    ok(r.build.covenant, 'no covenant to encode');
+    const bare = Object.assign({}, r.build, { covenant: '', covenantRank: 1 });
+    ok(Share.packBlob(data, r.build) !== Share.packBlob(data, bare),
+       'the covenant is not written into the share link');
+    const other = Object.assign({}, r.build, { covenantRank: 3 });
+    ok(Share.packBlob(data, r.build) !== Share.packBlob(data, other),
+       'the covenant RANK is not written into the share link');
+    // And the way back in, which is the path the builder actually uses.
+    const b = Share.fromState(data, { cov: 'Way of Life', covR: 12 });
+    eq(b.covenant, 'Way of Life', 'fromState drops the covenant');
+    eq(b.covenantRank, 12, 'fromState drops the covenant rank');
+  });
+
+  it('explains the covenant in the write-up', () => {
+    const r = engine.ask('', { goal: 'damage' });
+    const sec = r.explanation.find(x => x.h === 'Covenant');
+    ok(sec && (sec.list || []).length === 4, 'the covenant section does not compare all four');
+    const build = r.explanation.find(x => x.h === 'Build');
+    ok((build.table || []).some(row => row[0] === 'Covenant'),
+       'the build table does not name the covenant');
+
+    // The full ladder, rank by rank. Without it the covenant Actives that carry
+    // no damage figure — Bless, Lesser Heal — appear NOWHERE: they are in
+    // neither the move pool nor the passive list, and 'some give moves' is half
+    // the reason to pick one covenant over another.
+    const kit = r.explanation.find(x => /^What .+ gives you$/.test(x.h || ''));
+    ok(kit, 'the covenant kit is never listed');
+    const learns = (data.covenantMoves || {})[r.build.covenant].learns;
+    eq((kit.table || []).length, learns.length, 'the covenant kit is listed incompletely');
+    ok(kit.table.every(row => /^Rank \d+/.test(row[0])),
+       'the kit does not say which rank unlocks what');
+
+    // Every covenant Active with a cost has to show it, or the ladder reads as a
+    // list of free abilities.
+    for (const mv of learns.filter(m => m.type === 'Active' && m.cost != null)) {
+      const row = kit.table.find(rw => rw[0].indexOf(mv.name) !== -1);
+      ok(row && row[1].indexOf(mv.cost + ' energy') !== -1,
+         mv.name + ' is listed without its energy cost');
+    }
+  });
+});
+
+describe('fighting hurt', () => {
+  const LOW = Object.keys(K.HP_STANCE || {});
+
+  it('knows which classes want to be hurt, and they are real classes', () => {
+    ok(LOW.length >= 4, 'HP_STANCE is suspiciously short');
+    for (const klass of LOW) {
+      ok((data.classMoves || {})[klass], klass + ' is not a class');
+      const def = K.HP_STANCE[klass];
+      eq(def.side, 'low', klass + ' has an unexpected stance');
+      // The passive it names has to exist, or the reason given is fiction.
+      const src = data.classMoves[klass];
+      const all = [...(src.learns || []), ...(src.innatePassives || [])];
+      ok(all.some(m => m.name === def.passive),
+         klass + ' has no passive called ' + def.passive);
+      ok(def.why && def.why.length > 20, klass + ' gives no reason');
+    }
+  });
+
+  it('every HP-gated item is a real item and names its threshold', () => {
+    for (const [name, g] of Object.entries(K.HP_GATED || {})) {
+      const known = (data.artifactItems || {})[name] || (data.gearItems || {})[name];
+      ok(known, name + ' is neither a gear nor an artifact');
+      ok(g.needs === 'low' || g.needs === 'high', name + ' has no side');
+      ok(g.threshold > 0 && g.threshold <= 100, name + ' has no threshold');
+      // The threshold must actually appear in the game's own text for the item,
+      // or the gate is something somebody made up.
+      const text = String((data.itemPassives || {})[name] || '') +
+        ((data.artifactMoves || {})[name] ? (data.artifactMoves[name].learns || [])
+          .map(m => m.effect || '').join(' ') : '');
+      ok(text.indexOf(String(g.threshold)) !== -1,
+         name + ': the game text never mentions ' + g.threshold + '%');
+    }
+  });
+
+  it('does not give a low-HP class an artifact that needs high HP', () => {
+    // The complaint this came from: Stellian Core only works above 95% max HP,
+    // and a Berserker is deliberately dropping under 50% to stack Bloodlust.
+    for (const klass of LOW) {
+      for (const goal of ['damage', 'burst', 'crit']) {
+        const r = engine.ask('', { klass, goal, dmg: 'average' });
+        const art = r.build.artifact && r.build.artifact.name;
+        ok(art !== 'Stellian Core',
+           klass + '/' + goal + ' was given Stellian Core, which needs 95% HP');
+      }
+    }
+  });
+
+  it('still gives it to a class that has no reason to get hurt', () => {
+    // The other half. A rule that just banned Stellian Core everywhere would
+    // pass the test above and be wrong.
+    const neutral = ['Lancer (N)', 'Paladin (Or)'].filter(k => (data.classMoves || {})[k]);
+    ok(neutral.length, 'no neutral classes to check against');
+    let taken = 0;
+    for (const klass of neutral) {
+      const r = engine.ask('', { klass, goal: 'damage', dmg: 'average' });
+      if ((r.build.artifact || {}).name === 'Stellian Core') taken++;
+    }
+    ok(taken > 0, 'Stellian Core is now never chosen by anyone — the gate is a ban, not a gate');
+  });
+
+  it('prices a gate in both directions, not just against', () => {
+    const stanceLow  = K.hpStance('Berserker (Ch)', 'Dullahan (1%)');
+    const stanceNone = K.hpStance('Lancer (N)',     'Dullahan (1%)');
+    ok(stanceLow.committed && !stanceNone.committed, 'stance detection is wrong');
+
+    const high = K.hpGateFor('Stellian Core', stanceLow, 0.35);
+    const low  = K.hpGateFor('Molten Carapace', stanceLow, 0.25);
+    ok(high && !high.agrees, 'Stellian Core does not conflict with a low-HP build');
+    ok(low && low.agrees, 'Molten Carapace does not agree with a low-HP build');
+    ok(low.uptime > 0.25, 'agreeing with the stance did not raise the uptime');
+    ok(high.uptime < 0.35, 'conflicting with the stance did not lower the uptime');
+    // Nothing at all happens to a build with no stance.
+    eq(K.hpGateFor('Stellian Core', stanceNone, 0.35), null,
+       'a neutral build had its artifact repriced anyway');
+    // Both reasons have to be readable, since they are printed verbatim.
+    for (const g of [high, low]) ok(g.why.length > 60, 'an HP gate gives no real reason');
+  });
+
+  it('counts the passives that are the reason for the stance', () => {
+    // Bloodlust, Bloody Berserker and Bruiser were all in the "not counted"
+    // list. Downgrading Stellian Core for a Berserker while still not counting
+    // what a Berserker gets for being hurt would be half an answer.
+    const cases = [['Berserker (Ch)', 'Bloodlust'], ['Impaler (Ch)', 'Bloody Berserker'],
+                   ['Brawler (N)', 'Bruiser']];
+    for (const [klass, passive] of cases) {
+      const r = engine.ask('', { klass, goal: 'damage', dmg: 'average' });
+      ok(r.ctx.passiveList.known.some(p => p.name === passive),
+         passive + ' is still not counted for ' + klass);
+    }
+  });
+
+  it('lifts a race passive only when the class is committed too', () => {
+    // Estella's Hyper Rage is "below 50% health only" as well, but a race is an
+    // incentive and a class is a commitment. Reading a whole play pattern out of
+    // a race choice would be inventing something the data does not say.
+    const M = require('./model.js').Model(data);
+    const O = require('./optimize.js').Optimizer(M, K);
+    const mk = klass => {
+      const b = M.emptyBuild();
+      b.level = 50; b.race = 'Estella (24%)'; b.klass = klass;
+      return O.evaluate(b, { goal: 'damage', play: 'solo', dmg: 'average' });
+    };
+    const committed = mk('Berserker (Ch)').passives.dmgPct;
+    const neutral   = mk('Lancer (N)').passives.dmgPct;
+    // Both carry Hyper Rage; only the Berserker should be counting it in full.
+    const rage = K.PASSIVES['Estella (24%)'].find(p => p.name === 'Hyper Rage');
+    ok(rage.hpGate === 'low', 'Hyper Rage is not marked as an HP-gated passive');
+    ok(committed > neutral, 'the committed build does not value Hyper Rage more');
+  });
+
+  it('says so in the write-up', () => {
+    const r = engine.ask('', { klass: 'Berserker (Ch)', goal: 'damage', dmg: 'average' });
+    const sec = r.explanation.find(x => x.h === 'This build fights hurt');
+    ok(sec, 'a build that deliberately sits below half health never mentions it');
+    ok(/assumption/i.test((sec.list || []).join(' ')),
+       'the repriced uptimes are not flagged as assumptions');
   });
 });
 
@@ -2735,6 +3050,31 @@ describe('selection bias', () => {
     }
     ok((picks['Primordial'] || 0) > (picks['Dragon'] || 0),
        'Dragon is still being chosen over Primordial: ' + JSON.stringify(picks));
+  });
+
+  it('does not hand every build the same covenant', () => {
+    // The audit that caught Stellian Core winning 36 of 36 artifact slots. A
+    // covenant grants no stats, so the fit table decides a good share of these
+    // rolls — which is exactly the situation where one hand-written score can
+    // quietly become the answer to every question.
+    const picks = {}, how = {};
+    for (let i = 0; i < 24; i++) {
+      const r = engine.ask('', { random: true, play: 'solo' });
+      const c = r.build.covenant || '(none)';
+      picks[c] = (picks[c] || 0) + 1;
+      const d = (r.covenant && r.covenant.decidedBy) || '?';
+      how[d] = (how[d] || 0) + 1;
+    }
+    ok(!picks['(none)'], 'some random rolls came back with no covenant at all');
+    ok(Object.keys(picks).length >= 2,
+       'every random roll got the same covenant: ' + JSON.stringify(picks));
+    // And the measured path has to be alive. If covenantBonuses stopped reaching
+    // model.js, or the covenant attacks stopped reaching the move pool, every
+    // roll would fall through to the fit table and this would read 100% fit —
+    // which looks perfectly healthy from the outside.
+    ok((how.measured || 0) > 0,
+       'no roll was decided by measurement, so nothing a covenant gives is ' +
+       'reaching the numbers: ' + JSON.stringify(how));
   });
 
   it('never picks a base class once superclasses are available', () => {

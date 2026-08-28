@@ -261,6 +261,7 @@
     if (o.race)   { spec.race = o.race;   spec.locked.race = o.race;   drop(/^No race named/); }
     if (o.armour) { spec.armour = o.armour; spec.locked.armour = o.armour; }
     if (o.enchant){ spec.enchant = o.enchant; spec.locked.enchant = o.enchant; }
+    if (o.covenant){ spec.covenant = o.covenant; spec.locked.covenant = o.covenant; }
 
     if (o.weaponName) {
       spec.weaponName = o.weaponName;

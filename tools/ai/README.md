@@ -771,6 +771,71 @@ The AI and the builder read the same mechanics text but are deliberately
 separate: knowledge.js models what a form is worth so a build can be *explained*,
 and the calculator lets you turn each piece on and *check* it.
 
+## Covenants
+
+`covenantItems` is four **empty objects**. A covenant grants no stats at all, so
+for as long as the engine scored builds on their stat blocks it had no reason to
+choose one, and left the slot blank on every build it ever produced. What a
+covenant actually gives lives in `covenantMoves`, which was not even extracted.
+
+Three separate things had to change before the slot could be filled honestly:
+
+- `covenantMoves` is extracted, and its **attacks join the move pool**, gated on
+  rank the same way the site gates them. Cult of Thanasius's Death Curtain is a
+  `6x2` scaling on `STR/75 + ARC/75` — a real move, not a footnote. Its
+  *passives* join `passivesFor` and Holy Light joins `SETUP_MOVES` as the first
+  `dr` setup, which needed a new branch in the setup loop: it was found, listed
+  in the rotation, and silently worth nothing.
+- `covenantBonuses` reaches `pctSources` in **model.js**. There is one entry in
+  the table — Way of Life's +15% outgoing healing from rank 5 — and the site
+  applies it in `updatePecents`. It was missing from the model for exactly as
+  long as the engine never chose a covenant, which is the most comfortable kind
+  of bug.
+- `COVENANTS` in knowledge.js carries a `fit(ctx, spec)` per covenant, the same
+  shape `CORRUPTION` uses. It is only ever a **tie-break**, capped at a 5% swing,
+  so it cannot overturn a measured gap.
+
+The write-up says which of the two decided it. `decidedBy: 'measured'` means the
+covenant changed the numbers; `'fit'` means all four scored identically and it
+was chosen on what it does. Those are very different claims and conflating them
+would be the whole problem with a table of hand-written scores.
+
+Rank **20 is assumed**, the same way max gear tier is. Below level 10 the slot is
+left empty, because that is when the game unlocks it.
+
+Two bosses cannot be *hosted* without the matching rank 20 blessing — Seraphon
+needs Church of Raphion, Arkhaia needs Cult of Thanasius — so naming either as
+the target boss decides the covenant. `COVENANT_BOSS_HOST` holds that pair, and
+a test checks both names still exist in `encounterKinds`.
+
+## Builds that fight hurt
+
+Four classes have passives that pay you for being **injured**: Berserker's
+Bloodlust, Impaler's Bloody Berserker, Brawler's Bruiser, Darkwraith's Spirit
+Wraith. One artifact pays you only for being **untouched**: Stellian Core, which
+"only activates when you are above 95% of your Max HP".
+
+Pricing both at a fixed uptime is wrong in both directions at once, and the
+engine handed Stellian Core to a Berserker on every roll.
+
+`HP_STANCE` declares which classes are committed to fighting below half health
+and quotes the passive that says so. `HP_GATED` declares which items care and
+on which side of the threshold. When the two conflict the item is counted at 5%
+uptime instead of its table value; when they agree — Molten Carapace's "+30%
+defence below 40% HP" — it is counted at 80%. **Both figures are assumptions**
+and are labelled as such in the write-up.
+
+Only a **class** sets the stance. Estella's Hyper Rage is "below 50% health only"
+as well, but a race is an incentive and a class is a commitment: reading a whole
+play pattern out of a race choice would be inventing something the data does not
+say. Its uptime is lifted only when the class is committed too.
+
+The passives that justify the stance are now priced rather than listed under
+"not counted", because downgrading Stellian Core for a Berserker while still
+ignoring what a Berserker gets for being hurt is half an answer. The numbers are
+the ones the game text states, read at the 50% HP the stance assumes; Bloodlust's
+further +40% below 30% is still not counted, and says so.
+
 ## What it does not model
 
 Being explicit here matters more than the feature list, because a confident
@@ -785,6 +850,9 @@ wrong answer is worse than an admitted gap:
   mastery proficiencies that add hits are not.
 - **Most class and race passives.** The ones in `PASSIVES` are counted; every
   build lists the rest explicitly under "Passives NOT counted".
+- **Shield HP.** Nothing here has a notion of it, which is why Paranoxian Crux's
+  whole rewrite of your health bar is reported and not scored, and why Church of
+  Raphion's Holy Light is counted for its 5% damage reduction and not its shield.
 - **The defensive half of every corruption form.** Blasphemy's Shield and
   lifesteal, Tyranny's Mandate shield and party damage reduction, Heresy's
   Daybreak — all listed per form under "Not counted", none of it scored.

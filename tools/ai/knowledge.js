@@ -97,6 +97,11 @@
   const ALIASES = {
     // classes
     'necro': 'Necromancer (Ch)', 'zerk': 'Berserker (Ch)', 'berserk': 'Berserker (Ch)',
+    // Alias lookup is an EXACT token match, so 'zerk' does not cover 'zerker',
+    // and 'zerker' is too far from 'berserker' for the fuzzy path to reach it.
+    // The misspellings are here because people type them, not to be charitable.
+    'zerker': 'Berserker (Ch)', 'berzerker': 'Berserker (Ch)',
+    'bezerker': 'Berserker (Ch)', 'bezerk': 'Berserker (Ch)',
     'pally': 'Paladin (Or)', 'pal': 'Paladin (Or)',
     'sin': 'Assassin (Ch)', 'assa': 'Assassin (Ch)',
     'bd': 'Blade Dancer (N)', 'dancer': 'Blade Dancer (N)',
@@ -335,12 +340,48 @@
       { name: 'Vampiric Crits', kind: 'note', note: 'heals 15% of crit damage' },
     ],
     'Estella (24%)': [
-      { name: 'Hyper Rage', kind: 'dmgPct', value: 25, uptime: 0.35,
+      // Lifted to the stance uptime only when the CLASS is also built to fight
+      // hurt. On anything else it stays at the cautious 0.35.
+      { name: 'Hyper Rage', kind: 'dmgPct', value: 25, uptime: 0.35, hpGate: 'low',
         note: 'below 50% health only' },
     ],
     'Dullahan (1%)': [
       { name: 'Bonus Stat Points', kind: 'points', value: 3,
         note: '+3 stat points every 10 levels — already in the point budget' },
+    ],
+
+    // The low-HP classes. Every one of these was in the "not counted" list until
+    // now, which meant the engine could see that Stellian Core wanted high HP
+    // and had no idea anything wanted the opposite. `hpGate: 'low'` marks a
+    // passive that only pays while the build is fighting hurt.
+    //
+    // All three numbers below are the ones the game text states, read at the
+    // 50% HP the stance assumes. None of them is a guess about the mechanic;
+    // the guess is that the build actually gets to 50% and stays there.
+    'Berserker (Ch)': [
+      { name: 'Bloodlust', kind: 'dmgPct', value: 65, uptime: 0.5, hpGate: 'low',
+        note: '+10% damage per stack from being hit below 50% HP, capped at +65%. Counted at ' +
+              'half, because it RAMPS - you have none of it on turn one. The further permanent ' +
+              '+40% below 30% HP is NOT counted at all.' },
+    ],
+    'Impaler (Ch)': [
+      { name: 'Bloody Berserker', kind: 'dmgPct', value: 50, uptime: 1, hpGate: 'low',
+        note: '+1% damage per 1% of HP missing. At the 50% HP this stance assumes that is ' +
+              'exactly +50%, which is arithmetic rather than an estimate. At 25% HP it is +75%.' },
+      { name: 'Deranged Fighter', kind: 'note',
+        note: '+1% incoming healing per unique status effect on you. Not counted: it depends ' +
+              'entirely on what the enemy is doing to you.' },
+    ],
+    'Brawler (N)': [
+      { name: 'Bruiser', kind: 'dr', value: 10, uptime: 1, hpGate: 'low',
+        note: '10% damage reduction under 50% max HP. The +30% Speed it also grants is NOT ' +
+              'counted - it is a percentage of Speed, and nothing here converts that to a score.' },
+    ],
+    'Darkwraith (Ch)': [
+      { name: 'Spirit Wraith', kind: 'note',
+        note: 'Under 50% HP your summons gain 6% lifesteal, paid to YOU rather than to them. ' +
+              'Not counted: it is sustain rather than damage, and it depends on how much your ' +
+              'summons are actually landing.' },
     ],
 
     // Weapon-training passives. `whenWeapon` pays only while the matching weapon
@@ -564,6 +605,15 @@
       owner: 'Vastayan (9%)', cost: 4, cd: 18, duration: 4, reliability: 1,
       kind: 'summonDmgPct', value: 50,
       note: '+15% to all stats and +50% summon damage for 4 turns, then 27.5% self-damage and a heavy stun',
+    },
+    // A COVENANT move rather than a race or class one. setupsFor scans the
+    // covenant's learns with the covenant as the owner, so the only new thing
+    // here is the owner name.
+    'Holy Light': {
+      owner: 'Church of Raphion', cost: 2, cd: 5, duration: 4, reliability: 1,
+      kind: 'dr', value: 5,
+      note: 'a 5% damage-reduction buff, a 0.5% regen for 4 turns and a 20 HP shield scaling on ' +
+            'END/100 - counted at duration over cooldown, and NOT charged for the turn it costs',
     },
     // A Ranger's own stance rather than a race move. setupsFor scans class moves
     // with the class as the owner, so this needs no new machinery.
@@ -1023,6 +1073,240 @@
       note: 'When you heal 270 HP it deals damage and heals your allies for the same amount. ' +
             'Not counted: the amount is written as "X (scales on level)" and never stated. On ' +
             'a healer in a party it is doing real work these numbers miss.',
+    },
+  };
+
+  // ── HP STANCE ─────────────────────────────────────────────────────────────
+  // Where a build wants to sit on its own health bar, and which items care.
+  //
+  // Four classes have passives that pay you for being HURT, and one artifact
+  // pays you only for being untouched. Pricing both at a fixed uptime is wrong
+  // in both directions at once: Stellian Core's "above 95% of your Max HP" is
+  // worth almost nothing to a Berserker who is deliberately dropping under 50%
+  // to stack Bloodlust, and Molten Carapace's "below 40% HP" is worth far more
+  // to that same build than to anything else. The engine used to hand Stellian
+  // Core to a Berserker on all 36 rolls.
+  //
+  // Only a CLASS sets the stance. A race can want the same thing - Estella's
+  // Hyper Rage is "below 50% health only" - but a race is an incentive and a
+  // class is a commitment, and inferring a whole play pattern from a race would
+  // be reading far more into it than it says.
+  const HP_STANCE = {
+    'Berserker (Ch)': { side: 'low', passive: 'Bloodlust',
+      why: 'stacks 10% damage each time it is hit below 50% HP, to a 65% cap, and a further ' +
+           'permanent 40% below 30%' },
+    'Impaler (Ch)': { side: 'low', passive: 'Bloody Berserker',
+      why: '1% damage for every 1% of HP missing, up to 100% at 1 HP' },
+    'Brawler (N)': { side: 'low', passive: 'Bruiser',
+      why: '10% DR and 30% Speed while under 50% max HP, lost the moment you heal above it' },
+    'Darkwraith (Ch)': { side: 'low', passive: 'Spirit Wraith',
+      why: 'summons gain 6% lifesteal that is paid to you, and only while you are under 50% HP' },
+  };
+
+  // Items whose passive is gated on an HP threshold, and which side of it.
+  const HP_GATED = {
+    'Stellian Core':   { needs: 'high', threshold: 95, text: 'only above 95% of max HP' },
+    'Molten Carapace': { needs: 'low',  threshold: 40, text: 'only below 40% HP' },
+  };
+
+  // Both figures are assumptions, and are labelled as such wherever they are
+  // used. `agree` is not 1: even a build committed to fighting hurt spends the
+  // first turns at full health. `conflict` is not 0: you do start the fight
+  // topped up, and one opening turn is worth something.
+  const HP_GATE_UPTIME = { agree: 0.8, conflict: 0.05 };
+
+  // What a build's stance is, and why. `committed` is the thing that matters:
+  // it is true only when the CLASS is built to fight hurt.
+  function hpStance(klass, race) {
+    const cls = HP_STANCE[klass];
+    const sources = [];
+    if (cls) sources.push({ owner: klass, passive: cls.passive, why: cls.why });
+    // Recorded either way, so the write-up can say "and your race wants this too".
+    if (race === 'Estella (24%)') {
+      sources.push({ owner: race, passive: 'Hyper Rage', why: '25% damage below 50% health' });
+    }
+    return { side: cls ? cls.side : null, committed: !!cls, sources };
+  }
+
+  // The uptime an HP-gated passive really gets on THIS build, and a sentence
+  // saying why it is not the number written in the table.
+  function hpGateFor(name, stance, declared) {
+    const gate = HP_GATED[name];
+    if (!gate || !stance || !stance.committed) return null;
+    const agrees = gate.needs === stance.side;
+    const uptime = agrees ? HP_GATE_UPTIME.agree : HP_GATE_UPTIME.conflict;
+    const who = stance.sources[0];
+    return {
+      uptime, agrees, declared,
+      why: agrees
+        ? name + ' is gated ' + gate.text + ', and ' + who.owner + ' is built to fight there (' +
+          who.passive + ': ' + who.why + '). Counted at ' + Math.round(uptime * 100) +
+          '% uptime instead of the ' + Math.round((declared ?? 1) * 100) + '% a neutral build gets.'
+        : name + ' is gated ' + gate.text + ', which is the opposite of what ' + who.owner +
+          ' wants (' + who.passive + ': ' + who.why + '). Counted at ' + Math.round(uptime * 100) +
+          '% uptime instead of ' + Math.round((declared ?? 1) * 100) + '%: you are there for the ' +
+          'opening turn and then actively leaving.',
+    };
+  }
+
+  // ── COVENANTS ─────────────────────────────────────────────────────────────
+  // Four covenants, unlocked at level 10 and ranked 1-20. `covenantItems` is
+  // four EMPTY objects, so a covenant hands out no stats whatsoever: the only
+  // thing that moves the site's own numbers is covenantBonuses, which has a
+  // single entry in it. Everything else a covenant gives is an ABILITY - a
+  // passive or a move - which is exactly why the slot was left blank on every
+  // build the engine has ever produced. Nothing it could measure ever changed.
+  //
+  // `fit` mirrors CORRUPTION's shape: context in, a score and a reason out. It
+  // is only ever a TIE-BREAK (see pickCovenant), so it cannot overturn a real
+  // measured gap - Way of Life's outgoing healing still wins on a healer
+  // whatever the prose here says.
+  const COVENANT_MIN_LEVEL = 10;
+  // The engine builds the finished article everywhere else - max gear tier, max
+  // weapon tier - so it assumes max covenant rank and states the assumption.
+  // Rank matters more here than tier does anywhere: rank 20 is the whole reason
+  // to commit to one covenant rather than dabble in it, and every build is
+  // written for somebody who has got there.
+  const COVENANT_ASSUMED_RANK = 20;
+  // Two bosses you cannot HOST without the matching rank 20 blessing. Joining
+  // somebody else's fight is still possible, so this is a strong steer with a
+  // stated reason rather than a hard rule.
+  const COVENANT_BOSS_HOST = {
+    'Seraphon': 'Church of Raphion',
+    'Arkhaia':  'Cult of Thanasius',
+  };
+
+  const COVENANTS = {
+    'Cult of Thanasius': {
+      blurb: 'The damage covenant: a real attack, an execute, and energy off kills.',
+      fit: (c, spec) => {
+        const bits = [];
+        let score = 40;
+        if ((spec && spec.boss) === 'Arkhaia') {
+          bits.push('rank 20 is what lets you teleport to and HOST Arkhaia at all - without it ' +
+                    'you are waiting on somebody else to open the fight');
+          score += 60;
+        }
+        if (/damage|burst|crit|status/.test(c.goal || '')) {
+          score += 25;
+          bits.push('Death Curtain is a 6x2 Dark attack scaling on STR/75 AND ARC/75, which is a ' +
+                    'real move in a damage rotation rather than a footnote');
+        } else {
+          bits.push('Death Curtain is measured above alongside the rest of your kit');
+        }
+        const st = c.stats || {};
+        if (st.str && st.arc && Math.min(st.str, st.arc) >= 0.4 * Math.max(st.str, st.arc)) {
+          score += 10;
+          bits.push('it scales on both Strength and Arcane, and this build carries both');
+        }
+        bits.push('Soul Absorb outright executes anything under 5% max HP (2.5% on a boss) from ' +
+                  'rank 1, and Internal Corruption refunds 2 energy per kill from rank 5');
+        return { score, why: bits.join('; ') + '.' };
+      },
+      unpriced: [
+        ['Internal Corruption (r5)',
+         '+2 energy every time you kill something, +1 when a summon gets the kill. Not counted: ' +
+         'nothing here models a fight running long enough to bank kills.'],
+        ['Dark Inversion (r15)',
+         'Dark and Hex attacks deal 10% less to you, and any hit over 20% of your max HP gives 1 ' +
+         'energy. Not counted: the DR figure above is block damage reduction, which is not ' +
+         'element-gated, and folding an element-specific number into it would overstate it ' +
+         'against everything that is not Dark or Hex.'],
+        ['Arkhaia (r20)',
+         'Grants the ability to teleport to and host Arkhaia. Not a number, but it decides ' +
+         'whether you can start the fight at all.'],
+      ],
+    },
+    'Church of Raphion': {
+      blurb: 'The support covenant: cleanse, a damage-reduction buff and a shield.',
+      fit: (c, spec) => {
+        const bits = [];
+        let score = 30;
+        if ((spec && spec.boss) === 'Seraphon') {
+          bits.push('rank 20 is what lets you teleport to and HOST Seraphon at all - without it ' +
+                    'you are waiting on somebody else to open the fight');
+          score += 60;
+        }
+        if (/tank|heal|party/.test(c.goal || '')) {
+          score += 30;
+          bits.push('Holy Light is a 5% DR buff, a 4 turn regen and a 20 HP shield scaling on ' +
+                    'END/100 - which is what this build is already trying to do');
+        }
+        if ((spec && spec.play) === 'team') {
+          score += 15;
+          bits.push('Bless cleanses a teammate and heals them 2% per debuff removed, and ' +
+                    'Spreading Grace hands an ally +1 energy off your meditation');
+        } else {
+          bits.push('most of what it gives points at other people, which is worth much less alone');
+        }
+        return { score, why: bits.join('; ') + '.' };
+      },
+      unpriced: [
+        ['Supporting Light (r5)',
+         'Buffing a target recovers some of your HP and grants damage reduction for 2 turns. ' +
+         'Not counted: neither amount is ever stated.'],
+        ['Spreading Grace (r15)',
+         'Meditating gives one ally +1 energy, and being hit mid-meditation bursts healing across ' +
+         'the team. Not counted: the heal has no number and the energy goes to somebody else.'],
+        ['Seraphon (r20)',
+         'Grants the ability to teleport to and host Seraphon. Not a number, but it decides ' +
+         'whether you can start the fight at all.'],
+      ],
+    },
+    'Way of Life': {
+      blurb: 'The healer covenant, and the only one whose bonus the site itself counts.',
+      fit: c => {
+        const bits = ['Lifebound is a flat +15% outgoing healing from rank 5, and it is the ONE ' +
+                      'covenant bonus the site scores itself - the healing number above already ' +
+                      'includes it'];
+        let score = 25;
+        if (/heal|party|tank/.test(c.goal || '')) {
+          score += 45;
+          bits.push('Lesser Heal scales on outgoing healing, so the two compound');
+        } else {
+          bits.push('outgoing healing does nothing for what this build is being scored on');
+        }
+        return { score, why: bits.join('; ') + '.' };
+      },
+      unpriced: [
+        ['Graced One (r15)',
+         'Lesser Heal heals for more. Not counted: how much more is never stated.'],
+        ['Blessing of Life (r20)',
+         'Doubles ALL passive regen in a fight, plus 1% every 3s out of combat. Not counted: ' +
+         'passive regen is not modelled here at all.'],
+        ['Gatherer (r1)',
+         'A chance at double ingredients when collecting. Nothing to do with a fight.'],
+      ],
+    },
+    'Blades of the World': {
+      blurb: 'The gold covenant. One attack, one death save, and the rest is economy.',
+      fit: c => {
+        const bits = ['Gilded Strike is a 12 base Holy attack on STR/75, counted above with the ' +
+                      'rest of your kit - its GOLD effect does nothing on a boss, but the damage ' +
+                      'still lands'];
+        let score = 20;
+        if (/tank/.test(c.goal || '')) {
+          score += 15;
+          bits.push('Blessing of Survival at rank 20 is a Mulligan: reaching 0 HP leaves you ' +
+                    'alive on 0.1 HP for one more turn, which is worth the grind on a build ' +
+                    'whose job is not dying');
+        } else {
+          bits.push('Blessing of Survival at rank 20 is a Mulligan - one extra turn at 0.1 HP');
+        }
+        bits.push('everything else is gold, merchant prices and questboard access, which no build ' +
+                  'score can see');
+        return { score, why: bits.join('; ') + '.' };
+      },
+      unpriced: [
+        ['Blessing of Survival (r20)',
+         'Reaching 0 HP leaves you alive at 0.1 HP for one more turn. Not counted: it is worth a ' +
+         'great deal on a solo boss attempt and nothing at all on a fight you were never going to ' +
+         'lose, and this engine cannot tell those two apart.'],
+        ['Avarice (r15)',
+         '+30% gold and roughly 30% off the mysterious merchant. Real money, no combat effect.'],
+        ['Mercenary (r1)',
+         '+50% from guild requests and triple potion rewards. Economy, not combat.'],
+      ],
     },
   };
 
@@ -1758,6 +2042,8 @@
            BOSS_TACTICS, BOSS_PENALTIES, BOSS_SOLO_MIN_SPEED, STATUS_WORDS,
            bossProfile, debuffLoad, statusLoad, PROCS, procStatusGain,
            ARTIFACT_ABILITIES,
+           COVENANTS, COVENANT_MIN_LEVEL, COVENANT_ASSUMED_RANK, COVENANT_BOSS_HOST,
+           HP_STANCE, HP_GATED, HP_GATE_UPTIME, hpStance, hpGateFor,
            ENERGY, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
