@@ -2151,6 +2151,34 @@ describe('traits reach the numbers', () => {
   });
 });
 
+describe('the shared gear editor is styled wherever it renders', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('no gear-spec rule is scoped to the builder page', () => {
+    // The bug: all 39 of these lived under #page-builder, and js/bank.js renders
+    // the SAME editor through window._gearSpecRender inside the bank modal - so
+    // the bank copy got no styling at all and collapsed into a column of
+    // unstyled selects. Scoping them to the component instead is the fix, and
+    // this fails the moment someone adds a rule the old way.
+    for (const f of ['css/builder.css', 'css/mobile.css']) {
+      const bad = read(f).split(String.fromCharCode(10))
+        .map((line, i) => ({ line: line.trim(), n: i + 1 }))
+        .filter(x => x.line.indexOf('#page-builder .gt-') !== -1);
+      eq(bad.length, 0, f + ' scopes gear-editor rules to the page: ' +
+         bad.map(x => f + ':' + x.n + ' ' + x.line).join(' | '));
+    }
+  });
+
+  it('the editor tags its own root so those rules can find it', () => {
+    const js = read('js/builder.js');
+    ok(js.indexOf('box.classList.add("gear-spec")') !== -1,
+       'renderGearSpec no longer adds the .gear-spec class its styles are scoped to');
+    ok(read('css/builder.css').indexOf('.gear-spec .gt-') !== -1,
+       'builder.css has no .gear-spec rules to apply');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
@@ -3984,7 +4012,12 @@ describe('cache busting', () => {
 // ── 8. performance ──────────────────────────────────────────────────────────
 describe('performance', () => {
   it('answers a request well inside budget', () => {
-    const BUDGET_MS = 400;   // generous; typical is ~60ms
+    // Measured ~260ms per request in-suite as of the trait work; it was
+    // ~60ms when this was written and the engine has grown scrolls, subclasses,
+    // milestones, healing and roles since. The budget is left at 400 deliberately -
+    // there is real headroom left and raising it to silence a flake would throw that
+    // away - but expect this to trip on a loaded machine before it trips on a bug.
+    const BUDGET_MS = 400;
     const t0 = Date.now();
     for (const q of REQUESTS) ask(q);
     const avg = (Date.now() - t0) / REQUESTS.length;
