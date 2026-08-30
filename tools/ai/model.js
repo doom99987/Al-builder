@@ -573,9 +573,23 @@
       vital:      'hpPct',
     };
 
+    // derived() is the hottest function in the search and calls this on every
+    // candidate, so the no-traits case returns a shared empty rather than
+    // building two objects to throw away. Most calls are that case: traits are
+    // assigned in a pass of their own, after the stat and gear search is done.
+    const NO_TRAITS = Object.freeze({});
+    const NO_SITE_TRAITS = Object.freeze({ critChance: 0, initiative: 0, hpPct: 0, nrgChance: 0 });
+
+    function _hasAnyTrait(build) {
+      for (const g of build.gear || []) if (g && g.traits && g.traits.length) return true;
+      const a = build.artifact && build.artifact.traits;
+      return !!(a && a.length);
+    }
+
     // Raw per-trait totals, with the table's own stacking rules. Shared by both
     // the site-applied path and the overlay so they cannot disagree.
     function traitRawTotals(build) {
+      if (!_hasAnyTrait(build)) return NO_TRAITS;
       const defs = D.gearTraits || {};
       const fixed = new Set(D.FIXED_GEAR || []);
       const per = {};
@@ -608,6 +622,7 @@
     // Only the four the page itself applies.
     function siteTraitTotals(build) {
       const raw = traitRawTotals(build);
+      if (raw === NO_TRAITS) return NO_SITE_TRAITS;
       const out = { critChance: 0, initiative: 0, hpPct: 0, nrgChance: 0 };
       for (const [id, kind] of Object.entries(TRAIT_SITE_APPLIES)) {
         if (raw[id]) out[kind] += raw[id].total;

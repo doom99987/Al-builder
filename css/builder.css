@@ -1734,7 +1734,7 @@ h2 {
 }
 /* Fixed gears keep their trait slots but never roll a tier. Labelled rather than
    blank so the missing stepper reads as intentional. */
-#page-builder .gt-untiered {
+.gear-spec .gt-untiered {
   font-size: 10px;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -1742,12 +1742,17 @@ h2 {
   padding: 1px 0;
 }
 
-#page-builder .gt-tier-row {
+/* Everything below is scoped to .gear-spec, NOT #page-builder. renderGearSpec()
+   is shared: the builder drives its four gear slots, its artifact slot and its
+   weapon slots through it, and js/bank.js renders the same editor inside the
+   bank modal via window._gearSpecRender. Scoping these to the page left the
+   bank copy completely unstyled. Keep new rules on .gear-spec. */
+.gear-spec .gt-tier-row {
   display: flex;
   align-items: center;
   gap: 4px;
 }
-#page-builder .gt-tier-lbl {
+.gear-spec .gt-tier-lbl {
   font-size: 12px;
   font-weight: 600;
   color: #c9b8f0;
@@ -1755,16 +1760,16 @@ h2 {
   text-align: center;
   letter-spacing: 0.5px;
 }
-#page-builder .gt-left {
+.gear-spec .gt-left {
   font-size: 11px;
   color: #7a7a7a;
   margin-left: 2px;
   letter-spacing: 0.3px;
 }
-#page-builder .gt-left-done { color: #5f9f6f; }
+.gear-spec .gt-left-done { color: #5f9f6f; }
 
-#page-builder .gt-step,
-#page-builder .gt-mini {
+.gear-spec .gt-step,
+.gear-spec .gt-mini {
   background: #16161c;
   border: 1px solid #383844;
   color: #b9b9c8;
@@ -1774,26 +1779,26 @@ h2 {
   padding: 0;
   font-size: 12px;
 }
-#page-builder .gt-step { width: 20px; height: 20px; }
-#page-builder .gt-mini { width: 16px; height: 16px; font-size: 11px; }
-#page-builder .gt-step:hover:not(:disabled),
-#page-builder .gt-mini:hover:not(:disabled) {
+.gear-spec .gt-step { width: 20px; height: 20px; }
+.gear-spec .gt-mini { width: 16px; height: 16px; font-size: 11px; }
+.gear-spec .gt-step:hover:not(:disabled),
+.gear-spec .gt-mini:hover:not(:disabled) {
   background: #23232e;
   border-color: #5a4f88;
   color: #d8d0f0;
 }
-#page-builder .gt-step:disabled,
-#page-builder .gt-mini:disabled {
+.gear-spec .gt-step:disabled,
+.gear-spec .gt-mini:disabled {
   opacity: 0.3;
   cursor: default;
 }
 
-#page-builder .gt-alloc-row {
+.gear-spec .gt-alloc-row {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 6px;
 }
-#page-builder .gt-alloc {
+.gear-spec .gt-alloc {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -1802,29 +1807,29 @@ h2 {
   border-radius: 3px;
   padding: 1px 3px;
 }
-#page-builder .gt-alloc-lbl {
+.gear-spec .gt-alloc-lbl {
   font-size: 10px;
   color: #8a8a99;
   letter-spacing: 0.5px;
   margin-right: 1px;
 }
-#page-builder .gt-alloc-n {
+.gear-spec .gt-alloc-n {
   font-size: 11px;
   color: #6a6a78;
   min-width: 10px;
   text-align: center;
 }
-#page-builder .gt-alloc-n.gt-alloc-on {
+.gear-spec .gt-alloc-n.gt-alloc-on {
   color: #b9a4f0;
   font-weight: 600;
 }
 
-#page-builder .gt-trait-row {
+.gear-spec .gt-trait-row {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
 }
-#page-builder .gt-trait {
+.gear-spec .gt-trait {
   display: flex;
   align-items: center;
   gap: 3px;
@@ -1833,7 +1838,7 @@ h2 {
   border-radius: 3px;
   padding: 2px 4px;
 }
-#page-builder .gt-trait-pick {
+.gear-spec .gt-trait-pick {
   background: #1a1a1a;
   border: 1px solid #383844;
   color: #c8c8d4;
@@ -1843,11 +1848,11 @@ h2 {
   min-width: 92px;
   cursor: pointer;
 }
-#page-builder .gt-trait-pick:disabled {
+.gear-spec .gt-trait-pick:disabled {
   opacity: 0.5;
   cursor: default;
 }
-#page-builder .gt-trait-tier {
+.gear-spec .gt-trait-tier {
   font-size: 11px;
   color: #c9b8f0;
   min-width: 18px;
@@ -1856,16 +1861,16 @@ h2 {
 /* A trait that actually moves a readout reads brighter, and carries a dot. The
    rest are dimmed rather than hidden: they are still real in game, they just
    have nothing on this page to change. */
-#page-builder .gt-trait-live { color: #9ee8b8; }
-#page-builder .gt-trait-plan { color: #8e8ea0; }
+.gear-spec .gt-trait-live { color: #9ee8b8; }
+.gear-spec .gt-trait-plan { color: #8e8ea0; }
 /* The third slot exists in the game but isn't unlockable yet — shown so the
    build reads correctly, dimmed and inert so it can't be filled. */
-#page-builder .gt-trait-locked {
+.gear-spec .gt-trait-locked {
   border-style: dashed;
   border-color: #33333d;
   opacity: 0.55;
 }
-#page-builder .gt-trait-lock {
+.gear-spec .gt-trait-lock {
   font-size: 10px;
   color: #6a6a78;
   letter-spacing: 0.6px;
@@ -1875,7 +1880,7 @@ h2 {
 
 /* Tier shape (Mono / Duo / Quad) and the per-position stat pickers. A tier
    grants fixed values; you choose which stat receives each one. */
-#page-builder .gt-shape-pick {
+.gear-spec .gt-shape-pick {
   background: #1a1a1a;
   border: 1px solid #383844;
   color: #c8c8d4;
@@ -1885,12 +1890,12 @@ h2 {
   cursor: pointer;
   max-width: 84px;
 }
-#page-builder .gt-shape-fixed {
+.gear-spec .gt-shape-fixed {
   font-size: 11px;
   color: #8a8a99;
   letter-spacing: 0.3px;
 }
-#page-builder .gt-stat-pick {
+.gear-spec .gt-stat-pick {
   background: #1a1a1a;
   border: 1px solid #383844;
   color: #c8c8d4;
@@ -1901,9 +1906,9 @@ h2 {
 }
 /* With traits populated each slot needs a full row — a select plus a tier
    stepper does not fit beside another one in a 180px column. */
-#page-builder .gt-trait { flex: 1 1 100%; }
-#page-builder .gt-trait-pick { flex: 1 1 auto; min-width: 0; }
-#page-builder .gt-trait-locked { flex: 0 0 auto; }
+.gear-spec .gt-trait { flex: 1 1 100%; }
+.gear-spec .gt-trait-pick { flex: 1 1 auto; min-width: 0; }
+.gear-spec .gt-trait-locked { flex: 0 0 auto; }
 
 /* ⓘ next to a picker label — jumps to that item's panel on the Info tab.
    Sized to sit on the label baseline without changing the row's height. */

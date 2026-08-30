@@ -2357,6 +2357,11 @@ function renderGearSpec(box, inst, onChange, cfg) {
   const c = cfg || SPEC_GEAR;
   const redraw = () => { renderGearSpec(box, inst, onChange, c); onChange && onChange(); };
   box.innerHTML = "";
+  // The editor's styles used to be scoped to #page-builder, which meant the
+  // bank - which renders this exact component through window._gearSpecRender -
+  // got none of them and collapsed into a column of unstyled selects. The class
+  // travels with the component, so it is styled wherever it is rendered.
+  box.classList.add("gear-spec");
 
   const shapes    = gearShapesFor(inst.tier);
   const vals      = gearShapeValues(inst);
