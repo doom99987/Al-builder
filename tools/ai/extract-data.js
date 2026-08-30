@@ -57,7 +57,7 @@ const WANTED = [
   ]],
   ['js/builder.js', 'scalar', [
     'LEVEL_STAT_BONUS_EVERY', 'POINTS_PER_LEVEL', 'Max_Lvl', 'Min_Lvl',
-    'CRIT_DMG_BASE', 'STAT_IDENTITY_RATIO', 'END_HEAL_DIVISOR',
+    'CRIT_DMG_BASE', 'STAT_IDENTITY_RATIO', 'END_HEAL_DIVISOR', 'LUCK_CRIT_RATIO',
     'MASTERY_TOTAL_POINTS', 'MAX_WEAPON_TIER', 'CORRUPTION_MAX_PHASE',
   ]],
   // Captured as source and run below, not shipped. Re-implementing the site's

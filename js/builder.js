@@ -426,11 +426,16 @@ const statMilestones = {
 //   Arcane    — 10% of ARC as a chance for a bonus energy each turn
 //   Speed     — 10% of SPD as Initiative (turn order, highest first)
 //   Endurance — +1 MaxHP per END, and END/4 to both healing stats
-//   Luck      — Crit Chance 1:1, and no longer touches Crit Damage
+//   Luck      — Crit Chance at half rate (2 Luck = 1%), no Crit Damage
 const STAT_IDENTITY_RATIO = 0.10;   // STR block DR, ARC energy chance, SPD initiative
 const END_HEAL_DIVISOR    = 4;
 // Crit Damage is now a flat base multiplier; a higher crit tier adds +1 to it.
 const CRIT_DMG_BASE       = 2;
+// Luck buys Crit Chance at HALF rate - 2 Luck for 1%. Named rather than inlined
+// because the build AI has to invert it: snapping a build onto the 100 / 200 /
+// 300 crit thresholds means knowing what a missing percent costs in Luck, and a
+// hard-coded 1:1 there undershoots every threshold silently.
+const LUCK_CRIT_RATIO     = 0.5;
 
 // § STAT FORMULAS
 // Converts a raw stat total into its displayed percentage value.
@@ -448,10 +453,10 @@ function calcPercentage(stat, val){
     arc:           v => v * 1.65,
     end:           v => 45 + v * 1.00248, //finalized
     spd:           v => v * 2,
-    // Reworked (§9): Luck grants Crit Chance 1:1, and Crit Damage is a flat 2x
-    // base that Luck no longer scales — each higher crit tier adds +1 instead.
-    // Crit Fatigue no longer exists.
-    "crit-chance": v => v,
+    // Reworked (§9): Luck grants Crit Chance at LUCK_CRIT_RATIO, and Crit Damage
+    // is a flat 2x base that Luck no longer scales — each higher crit tier adds
+    // +1 instead. Crit Fatigue no longer exists.
+    "crit-chance": v => v * LUCK_CRIT_RATIO,
     "crit-dmg":    () => CRIT_DMG_BASE,
     "out-heal":    () => 100,
     "inc-heal":    () => 100,
@@ -1097,11 +1102,11 @@ function updatePecents() {
   const coagNailActive = hasGearEquipped("Coagulated Finger Nail") && dmgBonusActive["passive:Coagulated Finger Nail"];
   const coagNailBonus = coagNailActive ? coagNailStacks * 1.5 : 0;
   const lckRow = _pctCache.lckInput;
-  // Crit Chance reads Luck 1:1 (§9), so this has to be the SAME total the Luck
+  // Crit Chance reads Luck (§9), so this has to be the SAME total the Luck
   // stat row shows — gear base stats, gear/artifact/weapon tier points and the
   // armour's flat Luck included. Leaving them out silently capped crit builds:
-  // 45 tier points of Luck through Permuth is 63 crit chance, the difference
-  // between a guaranteed orange crit and a guaranteed red one.
+  // 45 tier points of Luck through Permuth is 31.5 crit chance at the current
+  // ratio - a third of the way to the next crit tier, dropped on the floor.
   let totalLck = (lckRow ? +lckRow.value : 0) + (raceBase.lck ?? 0) + (masteryStats.lck ?? 0)
                + (gearStatBonuses.lck ?? 0) + (armour.lck ?? 0) + lvlStatBonus + crystalStarStacks * 10;
   if (coagNailActive) totalLck += coagNailBonus;

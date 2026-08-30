@@ -337,7 +337,10 @@
       // (Stultus, Frozen Diadem, the Vastic proc, Stellian Core…) is applied with
       // its own toFixed(1). So round after the base and after each hook, not once
       // at the end.
-      let critChance = round1(round1(rawLuck(build, C)) + (pct['crit-chance'] ?? 0));
+      // calcPercentage() multiplies by the ratio and THEN formats to one decimal,
+      // so the rounding has to wrap the product, not the Luck total.
+      let critChance = round1(round1(rawLuck(build, C) * D.LUCK_CRIT_RATIO)
+                              + (pct['crit-chance'] ?? 0));
       const ctx = { stats: s, pct };
       for (const fn of hooks.critChance) critChance = round1(fn(build, critChance, ctx));
       // Fortunate lands LAST on the page, after every other crit source, so it
