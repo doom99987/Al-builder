@@ -909,8 +909,12 @@
       for (const target of [100, 200, 300]) {
         const cur = evaluate(build, spec);
         if (cur.critChance >= target) continue;
-        const need = Math.ceil(target - cur.critChance);
-        // Luck is crit chance 1:1 before multipliers, so `need` is an upper bound.
+        // Luck buys crit chance at LUCK_CRIT_RATIO, so a missing percent costs
+        // 1/ratio Luck points. Reading this as 1:1 does not fail loudly - the
+        // snap just lands short of every threshold and crit builds quietly stop
+        // being found.
+        const perLuck = D.LUCK_CRIT_RATIO || 1;
+        const need = Math.ceil((target - cur.critChance) / perLuck);
         for (const donor of STATS.filter(s => s !== 'lck').sort((a, b) => build.invested[b] - build.invested[a])) {
           const take = Math.min(need, Math.max(0, build.invested[donor]));
           if (!take) continue;

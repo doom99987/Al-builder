@@ -1798,11 +1798,21 @@ describe('class roles', () => {
        'a Saint heals no better for being built as a healer: ' +
        saintRole.ctx.outHeal + ' vs ' + saintOld.ctx.outHeal);
 
+    // Measured on survivability, not raw HP. The 1.5x-health bar held while the
+    // balanced default was pouring points into Luck for crit; at half-rate crit
+    // it spends them on Endurance instead and comes out at 475 HP, so a
+    // health-only comparison now reads as "the tank is barely tougher" when it
+    // is 78% block DR against 53%. Health and mitigation trade freely - only
+    // their product says whether the tank build is doing its job.
     const citRole = ask('citadel build');
     const citOld  = ask('citadel build', { goal: K.DEFAULT_GOAL });
-    ok(citRole.ctx.hp > citOld.ctx.hp * 1.5,
-       'a Citadel is no tougher for being built as a tank: ' +
+    const tough = r => r.ctx.hp * (1 + r.ctx.blockDr / 100);
+    ok(citRole.ctx.hp > citOld.ctx.hp,
+       'a Citadel has no more health for being built as a tank: ' +
        Math.round(citRole.ctx.hp) + ' vs ' + Math.round(citOld.ctx.hp));
+    ok(tough(citRole) > tough(citOld) * 1.25,
+       'a Citadel is no tougher for being built as a tank: ' +
+       Math.round(tough(citRole)) + ' vs ' + Math.round(tough(citOld)) + ' effective HP');
   });
 
   it('a role build still has enough health to be worth playing', () => {
@@ -2179,6 +2189,49 @@ describe('the shared gear editor is styled wherever it renders', () => {
   });
 });
 
+describe('Luck buys crit chance at half rate', () => {
+  const M = engine.model;
+
+  it('the constant survives extraction from the site', () => {
+    // The engine reads this out of ai-data.json. If extract-data.js stops
+    // carrying it, D.LUCK_CRIT_RATIO goes undefined, the model multiplies by
+    // NaN and every crit figure becomes NaN - loud, but only if something asks.
+    eq(data.LUCK_CRIT_RATIO, 0.5, 'LUCK_CRIT_RATIO did not reach the engine');
+    const src = fs.readFileSync(path.join(__dirname, '../../js/builder.js'), 'utf8');
+    ok(src.indexOf('const LUCK_CRIT_RATIO     = 0.5;') !== -1,
+       'the site and ai-data.json disagree about the crit ratio');
+    ok(src.indexOf('"crit-chance": v => v * LUCK_CRIT_RATIO,') !== -1,
+       'calcPercentage no longer applies the ratio');
+  });
+
+  it('crit chance is half the Luck total, not all of it', () => {
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Wizard'; b.race = 'Nisse (20%)';
+    for (const lck of [0, 20, 50, 100, 150]) {
+      b.invested = { str: 0, arc: 0, end: 0, spd: 0, lck };
+      const want = Math.round(M.rawLuck(b) * data.LUCK_CRIT_RATIO * 10) / 10;
+      eq(M.derived(b).critChance, want,
+         'at ' + lck + ' invested Luck the model does not halve');
+    }
+  });
+
+  it('the optimiser inverts the ratio when snapping to a crit tier', () => {
+    // Read as 1:1 this fails silently: the snap moves half the Luck it needs,
+    // lands short of 100 every time, the real scorer rejects the move and crit
+    // builds simply stop reaching tier 1. Nothing errors.
+    const src = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
+    ok(src.indexOf('Math.ceil((target - cur.critChance) / perLuck)') !== -1,
+       'the crit snap no longer divides by the Luck-to-crit ratio');
+  });
+
+  it('a crit build can still be pushed over a tier threshold', () => {
+    const r = ask('crit wizard');
+    ok(r.ctx.critChance >= 100,
+       'a crit build tops out at ' + Math.round(r.ctx.critChance) + '% and never tiers up');
+    eq(M.critTier(r.ctx.critChance) >= 1, true, 'crit tier never reached 1');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
@@ -2249,14 +2302,27 @@ describe('stat milestones', () => {
   // What IS worth pinning: the milestone is reachable, it is taken where it
   // wins, and taking it really does raise the scored healing.
   it('takes the +35% outgoing healing milestone where it wins', () => {
+    // WHICH variant wins it is the engine's call, not mine. This used to name
+    // Healer+DPS, and that stopped being true the moment Luck went to half-rate
+    // crit: the DPS half no longer wants Luck for its own sake, so it no longer
+    // carries the build most of the way to 60 for free. Support still does,
+    // because it wants Luck anyway. Searching for the winner rather than naming
+    // one keeps this about the mechanism instead of my guess at the meta.
     const need = data.STAT_MILESTONE_TIERS[1];
-    const battle = ask('', { roles: ['Healer', 'DPS'], level: data.Max_Lvl });
-    ok(battle.ctx.stats.lck >= need,
-       'no healer variant reaches the Luck milestone; it is unreachable in practice');
-    ok(battle.ctx.milestones.reached.some(m => m.stat === 'lck' && m.tier === 2),
-       'the milestone is not recorded as reached');
-    ok(battle.ctx.effectiveHeal > battle.ctx.outHeal,
-       'the milestone did not raise the scored healing');
+    const variants = [['Healer'], ['Healer', 'DPS'], ['Healer', 'Support'],
+                      ['Healer', 'Tank'], ['Support']];
+    const tried = variants.map(roles => ({ roles, r: ask('', { roles, level: data.Max_Lvl }) }));
+    const hits = tried.filter(x => x.r.ctx.stats.lck >= need);
+    ok(hits.length, 'no healing variant reaches the Luck milestone; it is ' +
+       'unreachable in practice: ' +
+       tried.map(x => x.roles.join('+') + ' ' + x.r.ctx.stats.lck).join(', '));
+    for (const h of hits) {
+      ok(h.r.ctx.milestones.reached.some(m => m.stat === 'lck' && m.tier === 2),
+         h.roles.join('+') + ' is at Luck ' + h.r.ctx.stats.lck +
+         ' but the milestone is not recorded as reached');
+      ok(h.r.ctx.effectiveHeal > h.r.ctx.outHeal,
+         h.roles.join('+') + ' took the milestone without it raising the scored healing');
+    }
   });
 
   it('the reported healing stays what the site would show', () => {
