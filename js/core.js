@@ -46,30 +46,77 @@ const IS_MOBILE = ('ontouchstart' in window) || window.matchMedia('(pointer: coa
 
 // Sanitize build-summary HTML — XSS prevention, shared by builder.js and builds.js.
 // Summaries are stored as user-supplied HTML (shared links / DB rows can contain other
-// users' content), so we whitelist only safe tags: <span style="color:..."> and <br>.
-// Everything else is unwrapped to plain text. Parsing uses DOMParser because its
-// document is inert — no scripts run and no images load (unlike innerHTML on a
-// detached div, where <img onerror> handlers still fire during parsing).
+// users' content), so only a fixed set of tags survives and everything else is
+// unwrapped to its text. Parsing uses DOMParser because its document is inert —
+// no scripts run and no images load (unlike innerHTML on a detached div, where
+// <img onerror> handlers still fire during parsing).
+//
+// The whitelist has to match what the WRITERS actually emit, and for a long time
+// it did not. It allowed <span style="color"> and <br> and nothing else, while:
+//
+//   • contenteditable wraps each line in a <div> when you press Enter, so every
+//     line break was thrown away the moment a summary was saved and a carefully
+//     laid out build note came back as one run-on paragraph;
+//   • execCommand('foreColor') emits <font color="..."> unless styleWithCSS is
+//     on, so colours survived or vanished depending on which form the browser
+//     happened to produce — which is why some words kept their colour and
+//     others, in the same summary, did not;
+//   • the build AI writes <b> throughout its generated summaries (build-ai.js),
+//     so every one of them lost its emphasis on load.
+//
+// Tags are recreated here rather than reused, so no attribute crosses over
+// except a colour, and that colour is laundered through safeColour().
 window._sanitizeSummHtml = function (html) {
   if (!html) return '';
   const root = new DOMParser().parseFromString(String(html), 'text/html').body;
+
+  // Assigning through the CSSOM is what makes an arbitrary attribute value safe:
+  // the browser parses it as a single property value and drops anything it
+  // cannot, so "red; background:url(javascript:...)" cannot break out into a
+  // second declaration. Reading it back turns an invalid colour into no colour.
+  const safeColour = value => {
+    if (!value) return '';
+    const probe = document.createElement('span');
+    probe.style.color = String(value);
+    return probe.style.color;
+  };
+
+  // Structure worth keeping, and inline emphasis worth keeping. Neither carries
+  // an attribute, so both are safe to recreate by tag name alone.
+  const BLOCK  = { DIV: 'div', P: 'p' };
+  const INLINE = { B: 'b', STRONG: 'strong', I: 'i', EM: 'em', U: 'u' };
+
   function clean(node) {
     const frag = document.createDocumentFragment();
     node.childNodes.forEach(child => {
       if (child.nodeType === Node.TEXT_NODE) {
         frag.appendChild(document.createTextNode(child.textContent));
-      } else if (child.nodeType === Node.ELEMENT_NODE) {
-        if (child.tagName === 'BR') {
-          frag.appendChild(document.createElement('br'));
-        } else if (child.tagName === 'SPAN') {
-          const span = document.createElement('span');
-          const color = child.style.color;
-          if (color) span.style.color = color;
-          span.appendChild(clean(child));
-          frag.appendChild(span);
-        } else {
-          frag.appendChild(clean(child));
-        }
+        return;
+      }
+      if (child.nodeType !== Node.ELEMENT_NODE) return;
+      const tag = child.tagName;
+
+      if (tag === 'BR') {
+        frag.appendChild(document.createElement('br'));
+      } else if (BLOCK[tag]) {
+        const block = document.createElement(BLOCK[tag]);
+        const colour = safeColour(child.style && child.style.color);
+        if (colour) block.style.color = colour;
+        block.appendChild(clean(child));
+        frag.appendChild(block);
+      } else if (tag === 'SPAN' || tag === 'FONT') {
+        const span = document.createElement('span');
+        const colour = safeColour((child.style && child.style.color) ||
+                                  child.getAttribute('color'));
+        if (colour) span.style.color = colour;
+        span.appendChild(clean(child));
+        frag.appendChild(span);
+      } else if (INLINE[tag]) {
+        const el = document.createElement(INLINE[tag]);
+        el.appendChild(clean(child));
+        frag.appendChild(el);
+      } else {
+        frag.appendChild(clean(child));
       }
     });
     return frag;

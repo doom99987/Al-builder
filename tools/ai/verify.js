@@ -361,10 +361,65 @@
   console.log('share links: ' + shareChecked + ' checked, ' + shareBad.length + ' bad');
   if (shareBad.length) shareBad.slice(0, 8).forEach(m => console.log('  ' + m));
 
+  // ── build-summary sanitizer ───────────────────────────────────────────────
+  // Lives here rather than in test.js because it needs DOMParser and a real
+  // CSSOM. It shipped whitelisting less than the editors emit, so saving a
+  // summary silently destroyed it: contenteditable's per-line <div> was
+  // unwrapped (every line break gone), execCommand's <font color> was unwrapped
+  // (colours gone, but only the ones the browser happened to emit that way) and
+  // the build AI's <b> was unwrapped too.
+  //
+  // Each case is a round trip: what a writer produces must survive, and nothing
+  // executable may.
+  const summBad = [];
+  let summChecked = 0;
+  if (typeof window._sanitizeSummHtml === 'function') {
+    const S = window._sanitizeSummHtml;
+    const keep = (label, input, mustMatch) => {
+      summChecked++;
+      const out = S(input);
+      if (!mustMatch.test(out)) summBad.push(label + ': ' + out);
+      // Sanitizing twice must equal sanitizing once - a summary goes through
+      // this on every single load, so a non-idempotent rule would erode it.
+      if (S(out) !== out) summBad.push(label + ' is not idempotent: ' + S(out));
+    };
+    const kill = (label, input, mustNotMatch) => {
+      summChecked++;
+      const out = S(input);
+      if (mustNotMatch.test(out)) summBad.push('UNSAFE ' + label + ': ' + out);
+    };
+
+    keep('contenteditable line breaks',
+         'one<div>two</div><div>three</div>', /<div>two<\/div><div>three<\/div>/);
+    keep('font colour becomes a span',
+         '<font color="#ff55dd">x</font>', /<span style="color: rgb\(255, 85, 221\);">x<\/span>/);
+    keep('span colour survives',
+         '<span style="color: rgb(1, 2, 3);">x</span>', /color: rgb\(1, 2, 3\)/);
+    keep('AI bold survives', '<b>Built for:</b> dmg', /<b>Built for:<\/b>/);
+    keep('br survives', 'a<br>b', /a<br>b/);
+
+    kill('script', 'ok<script>alert(1)<\/script>', /<script/i);
+    kill('img onerror', 'ok<img src=x onerror="alert(1)">', /<img|onerror/i);
+    kill('event handler on a kept tag',
+         '<div onclick="alert(1)" style="color:red">x</div>', /onclick/i);
+    kill('colour breakout via attribute',
+         '<font color="red;background:url(javascript:alert(1))">x</font>', /background|javascript/i);
+    kill('colour breakout via style',
+         '<span style="color:red;background:url(javascript:alert(1))">x</span>', /background|javascript/i);
+    kill('anchor', '<a href="javascript:alert(1)">c</a>', /<a |href/i);
+    kill('iframe', '<iframe src="javascript:alert(1)"></iframe>ok', /<iframe/i);
+    kill('style tag', '<style>body{display:none}</style>ok', /<style/i);
+  } else {
+    summBad.push('window._sanitizeSummHtml is not defined');
+  }
+  console.log('summary sanitizer: ' + summChecked + ' checked, ' + summBad.length + ' bad');
+  if (summBad.length) summBad.forEach(m => console.log('  ' + m));
+
   console.log('comparisons: ' + n + '   mismatches: ' + mism.length);
   if (mism.length) console.table(mism.slice(0, 10).map(m => ({ stat: m.stat, real: m.real, model: m.mine })));
   else if (!shareBad.length) console.log('%cmodel agrees with builder.js, and share links round-trip', 'color:#3c3');
   return { comparisons: n, mismatches: mism.length, detail: mism,
            shareChecked, shareBad,
-           dmgChecked, dmgBad };
+           dmgChecked, dmgBad,
+           summChecked, summBad };
 })();

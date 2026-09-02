@@ -166,7 +166,8 @@
   }
 
   // Sanitize build summary HTML — XSS prevention. Shared implementation lives in
-  // core.js (window._sanitizeSummHtml): whitelists <span style="color:..."> and <br>,
+  // core.js (window._sanitizeSummHtml): whitelists block structure (div/p),
+  // colour (span/font), inline emphasis (b/strong/i/em/u) and <br>,
   // unwraps everything else to plain text. Runs before injecting into innerHTML.
   function _sanitizeSumm(html) {
     return window._sanitizeSummHtml ? window._sanitizeSummHtml(html) : _esc(html);

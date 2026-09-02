@@ -802,7 +802,8 @@
   //
   // loadBuildState runs this through _sanitizeSummHtml, so it sticks to <b> and
   // <br>: anything fancier is liable to be stripped and there is no reason to
-  // find out the hard way.
+  // find out the hard way. (Both are whitelisted now — <b> was NOT, until the
+  // sanitizer was fixed, so every generated summary quietly lost its emphasis.)
   function summaryHtmlFor(res, ctx, spec) {
     const n1 = v => (Math.round(v * 10) / 10).toLocaleString();
     const L = [];

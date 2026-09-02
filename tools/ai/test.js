@@ -2272,6 +2272,59 @@ describe('a mastery node id is a position, not an identity', () => {
   });
 });
 
+describe('the build summary keeps the shape it was written in', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  // The sanitizer itself needs DOMParser and a real CSSOM, so its behaviour is
+  // verified in tools/ai/verify.js. What is worth guarding from here is that the
+  // whitelist still covers every tag the writers emit - it shrank once and the
+  // result was silent: summaries saved fine and came back as a run-on paragraph.
+  it('the whitelist covers what every writer emits', () => {
+    const core = read('js/core.js');
+    for (const [tag, why] of [
+      ['DIV',  'contenteditable wraps each line in a div on Enter'],
+      ['P',    'pasted content arrives as paragraphs'],
+      ['FONT', "execCommand('foreColor') emits <font color> without styleWithCSS"],
+      ['SPAN', 'the colour picker with styleWithCSS on'],
+      ['B',    'the build AI writes <b> throughout its summaries'],
+    ]) {
+      ok(core.indexOf(tag) !== -1,
+         '_sanitizeSummHtml no longer handles <' + tag.toLowerCase() + '> — ' + why);
+    }
+    ok(/safeColour/.test(core), 'the colour laundering step is gone');
+  });
+
+  it('the AI still writes only tags the sanitizer keeps', () => {
+    // If the generator learns a new tag, it has to be whitelisted in the same
+    // change or the emphasis vanishes the first time a build is loaded.
+    // Scoped to summaryHtmlFor(). The rest of build-ai.js renders the PANEL,
+    // which is real DOM and quite reasonably uses <label>, <input> and the
+    // rest - none of that goes anywhere near the sanitizer.
+    const ai = read('js/build-ai.js');
+    const from = ai.indexOf('function summaryHtmlFor');
+    ok(from !== -1, 'summaryHtmlFor is gone - this guard needs repointing');
+    const body = ai.slice(from, ai.indexOf(String.fromCharCode(10) + '  }', from));
+    const used = new Set();
+    const m = body.match(/'<\/?([a-z]+)>'/g) || [];
+    for (const t of m) used.add(t.replace(/[^a-z]/g, '').toUpperCase());
+    const allowed = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'BR', 'DIV', 'P', 'SPAN', 'FONT']);
+    for (const t of used) {
+      ok(allowed.has(t), 'build-ai.js emits <' + t.toLowerCase() +
+         '> which _sanitizeSummHtml will strip');
+    }
+  });
+
+  it('the one-line card flattens the structure it now preserves', () => {
+    // Preserving blocks broke the builds-list teaser, which is nowrap + ellipsis
+    // and only works on one line. Fixed in CSS for that view rather than by
+    // throwing the structure away at save time.
+    const css = read('css/builds.css');
+    ok(/\.blds-card-summary div,[\s\S]{0,60}display: inline/.test(css),
+       'the builds card no longer flattens preserved summary blocks');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
