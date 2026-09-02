@@ -312,6 +312,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A stored summary keeps its line structure now (see _sanitizeSummHtml in
+   core.js), but this card is a one-line teaser and the ellipsis above only
+   works on one line. Flatten the blocks for THIS view rather than throwing
+   the structure away at save time, which is the bug that started all this. */
+.blds-card-summary div,
+.blds-card-summary p { display: inline; }
+/* Every block but the first needs a separator, not just ones that follow
+   another block - contenteditable leaves the first line as a bare text node,
+   so `div + div` misses the join between line one and line two. */
+.blds-card-summary div:not(:first-child)::before,
+.blds-card-summary p:not(:first-child)::before { content: " "; }
+.blds-card-summary br { display: none; }
 .blds-card-meta {
   display: flex;
   align-items: center;
