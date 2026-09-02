@@ -5145,8 +5145,19 @@ function collectDmgBonusPassives() {
     }
   }
 
-  // Runic Shield (Warrior rm1) — Holy-only stacking block buff, bypasses parseDmgBonus
-  if (baseClass === "Warrior" && masteryState["rm1"]) {
+  // Runic Shield — Holy-only stacking block buff, bypasses parseDmgBonus.
+  //
+  // Gated on the ACTIVE tree owning this node, not on the base class. `rm1`
+  // is a POSITION in a mastery tree, not an identity: it is Runic Shield in
+  // the Warrior tree, Parry Master in Blade Dancer's and Intense Rage in
+  // Berserker's. Checking `baseClass === "Warrior"` handed the buff to all
+  // three, so a Berserker who took Intense Rage was shown Runic Shield and
+  // given 10% Holy damage it does not have. Paladin is the only Warrior
+  // super with no tree of its own, so it inherits the Warrior tree and is
+  // the only one this should reach - but naming Paladin here would break
+  // again the day it gets its own tree. Ask the tree instead, exactly as
+  // the Looter check above does.
+  if (masteryState["rm1"] && getActiveMasteryData()?.nodes?.rm1?.name === "Runic Shield") {
     const rsKey = "mastery:Runic Shield";
     if (!seen.has(rsKey)) {
       seen.add(rsKey);

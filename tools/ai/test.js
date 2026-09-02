@@ -2232,6 +2232,46 @@ describe('Luck buys crit chance at half rate', () => {
   });
 });
 
+describe('a mastery node id is a position, not an identity', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('rm1 means something different in each Warrior tree', () => {
+    // This is the fact that makes base-class gating wrong, and it is data rather
+    // than code - so it is asserted here, where a future data change that makes
+    // the gate look harmless again will be caught.
+    const trees = data.masteryClassData || {};
+    const name = k => ((trees[k] || {}).nodes || {}).rm1 &&
+                      ((trees[k] || {}).nodes || {}).rm1.name;
+    eq(name('Warrior'), 'Runic Shield');
+    eq(name('Blade Dancer (N)'), 'Parry Master');
+    eq(name('Berserker (Ch)'), 'Intense Rage');
+    // Paladin has no tree of its own, which is why it inherits Runic Shield.
+    eq(trees['Paladin (Or)'], undefined,
+       'Paladin has its own mastery tree now - the Runic Shield gate needs rechecking');
+    eq((data.classes.Warrior || []).join(','), 'Paladin (Or),Blade Dancer (N),Berserker (Ch)');
+  });
+
+  it('the Runic Shield buff asks the tree, not the base class', () => {
+    // The bug: `baseClass === "Warrior" && masteryState["rm1"]` handed the buff
+    // to all three Warrior supers, so a Berserker who took Intense Rage was
+    // shown Runic Shield and given 10% Holy damage it does not have. Verified
+    // on the page after the fix: Paladin offers it, Blade Dancer and Berserker
+    // do not, and the Block Stacks stepper follows it.
+    const src = read('js/builder.js');
+    ok(src.indexOf('if (masteryState["rm1"] && getActiveMasteryData()?.nodes?.rm1?.name === "Runic Shield")') !== -1,
+       'the Runic Shield gate no longer checks which tree owns rm1');
+    ok(src.indexOf('if (baseClass === "Warrior" && masteryState["rm1"])') === -1,
+       'the base-class Runic Shield gate is back');
+  });
+
+  it('the engine keys mastery abilities by class, so it never had this bug', () => {
+    const ma = data.masteryAbilities || {};
+    eq((ma['Warrior'] || {}).rm1.name, 'Runic Shield');
+    eq((ma['Berserker (Ch)'] || {}).rm1.name, 'Intense Rage');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
