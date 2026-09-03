@@ -4504,7 +4504,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     // Stab (Physical)
     const _stabEffType  = getEffectiveMoveType("Physical");
     const _stabRaw      = 5 * (1 + _arcVal / 75);
-    const _stabActMult  = getActiveDmgMult(_stabEffType);
+    const _stabActMult  = getActiveDmgMult(_stabEffType, dcEnergyAfter(m));
     const _stabArmPct   = getArmourDmgTypePct(_stabEffType);
     const _stabArmMult  = 1 + _stabArmPct / 100;
     const _stabDarkMult = getShardOfBlightMult(_stabEffType);
@@ -4515,7 +4515,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     // Arrows (Poison)
     const _arrEffType   = getEffectiveMoveType("Poison");
     const _arrRaw       = 10 * (1 + _arcVal / 70 + _spdVal / 100);
-    const _arrActMult   = getActiveDmgMult(_arrEffType);
+    const _arrActMult   = getActiveDmgMult(_arrEffType, dcEnergyAfter(m));
     const _arrArmPct    = getArmourDmgTypePct(_arrEffType);
     const _arrArmMult   = 1 + _arrArmPct / 100;
     const _arrDarkMult  = getShardOfBlightMult(_arrEffType);
@@ -4579,7 +4579,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
 
   if (!scalings) {
     const effectiveMoveType = getEffectiveMoveType(m.moveType);
-    const activeMult        = getActiveDmgMult(effectiveMoveType);
+    const activeMult        = getActiveDmgMult(effectiveMoveType, dcEnergyAfter(m));
     const energyBonus       = getEnergyBonusPct(m);
     const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
     const darkMult          = getShardOfBlightMult(effectiveMoveType);
@@ -4697,7 +4697,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   }
 
   const effectiveMoveType = getEffectiveMoveType(m.moveType);
-  const activeMult        = getActiveDmgMult(effectiveMoveType);
+  const activeMult        = getActiveDmgMult(effectiveMoveType, dcEnergyAfter(m));
   const energyBonus       = getEnergyBonusPct(m);
   const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
   const darkMult          = getShardOfBlightMult(effectiveMoveType);
@@ -5145,6 +5145,27 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Corealloy weapons — "Grants a 5% damage buff per Energy", which
+  // parseDmgBonus deliberately drops as a per-energy bonus. Energy Manipulator
+  // got an explicit entry when that filter went in; this one never did, so the
+  // buff was excluded and then never re-added — invisible in the panel and
+  // missing from every damage figure underneath it.
+  //
+  // The headline number is what you are HOLDING, because that is what the panel
+  // can show without knowing which move you are about to use. Per move,
+  // getActiveDmgMult() subtracts that move's cost, because the passive says the
+  // buff is "calculated after Energy consumption of moves".
+  const _corealloyNames = Object.keys((mainWeaponSeries || {}).Corealloy || {});
+  if (_corealloyNames.indexOf(weaponMain) !== -1 || _corealloyNames.indexOf(weaponOff) !== -1) {
+    const caKey = "passive:Corealloy";
+    if (!seen.has(caKey)) {
+      seen.add(caKey);
+      rawEntries.push({ key: caKey, name: "Corealloy", bonus: COREALLOY_PCT_PER_ENERGY * energyCount,
+                        kind: "passive",
+                        desc: "5% damage buff per Energy, counted after the move's cost is paid." });
+    }
+  }
+
   // Runic Shield — Holy-only stacking block buff, bypasses parseDmgBonus.
   //
   // Gated on the ACTIVE tree owning this node, not on the base class. `rm1`
@@ -5283,7 +5304,21 @@ function collectDmgBonusPassives() {
   return merged;
 }
 
-function getActiveDmgMult(moveType = null) {
+// Corealloy grants this much damage per point of energy.
+const COREALLOY_PCT_PER_ENERGY = 5;
+
+// Energy left AFTER paying for a move — what Corealloy actually scales on.
+// Costs are numbers except for one "3+X", which parseInt reads as 3; the X is a
+// variable spend the calculator has no value for either way.
+function dcEnergyAfter(m) {
+  const cost = m && m.cost !== undefined ? (parseInt(m.cost, 10) || 0) : 0;
+  return Math.max(0, energyCount - cost);
+}
+
+// `energyAfter` is the energy remaining once the move being priced has been
+// paid for. Left null by callers that are not pricing one specific move, in
+// which case Corealloy falls back to what is currently held.
+function getActiveDmgMult(moveType = null, energyAfter = null) {
   // Passives that only apply to specific move types
   const _affinityRestricted = {
     "Affinity Mastery":  ["Holy", "Magic"],
@@ -5304,6 +5339,13 @@ function getActiveDmgMult(moveType = null) {
     else if (p.name === "Verdant Archer")        { mult *= (1 + (p.bonus / 100) * verdantArcherStacks); return; }
     else if (p.name === "Runic Shield")          { if (!moveType || moveType === "Holy") mult *= (1 + 0.10 * runicShieldStacks); return; }
     else if (p.name === "Energy Manipulator")    { const _emB = Math.min(22.5, 3.75 * energyCount); if (_emB > 0) mult *= (1 + _emB / 100); return; }
+    // Energy Manipulator is explicitly "based on your current energy, not the
+    // energy you had before casting a move" (its mastery text). Corealloy is the
+    // opposite - "calculated after Energy consumption" - so the two read the
+    // pool at different moments and must not share a number.
+    else if (p.name === "Corealloy")             { const _caE = energyAfter != null ? energyAfter : energyCount;
+                                                   const _caB = COREALLOY_PCT_PER_ENERGY * _caE;
+                                                   if (_caB > 0) mult *= (1 + _caB / 100); return; }
     else if (p.name === "Bloodlust")             { mult *= (1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100); return; }
     else if (p.name === "Frost Stacks")          { mult *= (1 + 0.20 * boreasStacks); return; }
     else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
