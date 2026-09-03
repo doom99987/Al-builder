@@ -5516,8 +5516,21 @@ document.addEventListener('pointerdown', e => {
   if (!_dcTooltip.contains(e.target)) hideDcTooltip();
 }, { capture: true });
 
+// Base maximum energy. Not in any data table, so it is stated here once: the
+// game's own Energy Manipulator text ("+3.75% dmg per energy, up to 22.5% at 6
+// energy") puts the normal ceiling at 6, since 22.5 / 3.75 = 6.
+const DC_BASE_ENERGY = 6;
+
+// What the energy stepper is actually allowed to reach. Overflow is "increases
+// your maximum energy" - +1 at T1, +2 at T2, and it does not stack, so the
+// ceiling is 8. It was hard-coded to 6 here, so equipping Overflow raised a
+// number the damage calculator would not let you enter.
+function dcMaxEnergy() {
+  return DC_BASE_ENERGY + traitBonus(equippedTraitTotals(), 'overflow');
+}
+
 function changeEnergy(delta) {
-  energyCount = Math.min(6, Math.max(0, energyCount + delta));
+  energyCount = Math.min(dcMaxEnergy(), Math.max(0, energyCount + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -5716,13 +5729,23 @@ function renderDmgBonusSection() {
 
   const hasCrystalStar = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Crystalized Star");
 
-  // Energy counter — always shown
-  let html = `<div class="dc-energy-section">
+  // Energy counter — always shown.
+  //
+  // Clamped on RENDER as well as on click: taking Overflow off while the
+  // counter is sitting at 8 would otherwise leave a value the build can no
+  // longer reach, quietly feeding two phantom energy into every damage figure
+  // below until the next click.
+  const _dcEnergyMax = dcMaxEnergy();
+  if (energyCount > _dcEnergyMax) energyCount = _dcEnergyMax;
+  const _dcEnergyTitle = _dcEnergyMax > DC_BASE_ENERGY
+    ? `Max ${_dcEnergyMax} — ${DC_BASE_ENERGY} base +${_dcEnergyMax - DC_BASE_ENERGY} from Overflow`
+    : `Max ${_dcEnergyMax}`;
+  let html = `<div class="dc-energy-section" title="${_dcEnergyTitle}">
     <span class="dc-energy-label">Energy</span>
     <div class="dc-energy-counter">
-      <button class="dc-energy-btn" onclick="changeEnergy(-1)">−</button>
+      <button class="dc-energy-btn" onclick="changeEnergy(-1)"${energyCount <= 0 ? ' disabled' : ''}>−</button>
       <span class="dc-energy-val" id="dc-energy-val">${energyCount}</span>
-      <button class="dc-energy-btn" onclick="changeEnergy(1)">+</button>
+      <button class="dc-energy-btn" onclick="changeEnergy(1)"${energyCount >= _dcEnergyMax ? ' disabled' : ''}>+</button>
     </div>
   </div>
   <div class="dc-rage-slider-row" style="margin-bottom:6px">
