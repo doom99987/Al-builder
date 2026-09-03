@@ -604,7 +604,11 @@
   // Overflow trait raising the cap by 1-2 is worth far more to that build than
   // its "+1 max energy" wording suggests.
   const ENERGY = {
-    base: 5,                       // ← assumption; correct if the game says otherwise
+    // Was 5, on the note below that it was a guess. It is 6, and the site's own
+    // data proves it: Energy Manipulator reads "+3.75% dmg per energy you
+    // currently have (up to 22.5% at 6 energy)", and 22.5 / 3.75 = 6. The
+    // damage calculator independently pins its stepper to the same number.
+    base: 6,
     // Moves whose damage scales with energy spent. `perEnergy` is the fraction
     // gained per energy consumed past `freeEnergy`.
     scalingMoves: {

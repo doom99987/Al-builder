@@ -2325,6 +2325,55 @@ describe('the build summary keeps the shape it was written in', () => {
   });
 });
 
+describe('Overflow raises the energy you can actually spend', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('the engine and the site agree on the base energy cap', () => {
+    // The engine assumed 5, with a note saying it was a guess. The site's own
+    // Energy Manipulator text settles it - "up to 22.5% at 6 energy", and
+    // 22.5 / 3.75 = 6. Two independent statements of the same number now, so
+    // changing either has to face the other.
+    eq(K.ENERGY.base, 6, 'the engine no longer assumes a base energy of 6');
+    const b = read('js/builder.js');
+    ok(b.indexOf('const DC_BASE_ENERGY = 6;') !== -1,
+       'the damage calculator no longer bases its energy stepper on 6');
+    ok(/up to 22\.5% at 6 energy/.test(b),
+       'the Energy Manipulator text that justifies 6 has changed - recheck the base');
+  });
+
+  it('the damage calculator asks Overflow for its ceiling', () => {
+    // Hard-coded to 6, so equipping Overflow raised a maximum the calculator
+    // would not let you enter: the trait said 8, the stepper stopped at 6.
+    const b = read('js/builder.js');
+    ok(b.indexOf("DC_BASE_ENERGY + traitBonus(equippedTraitTotals(), 'overflow')") !== -1,
+       'dcMaxEnergy no longer reads the Overflow trait');
+    ok(b.indexOf('Math.min(dcMaxEnergy(), Math.max(0, energyCount + delta))') !== -1,
+       'changeEnergy no longer clamps to the computed ceiling');
+    ok(b.indexOf('if (energyCount > _dcEnergyMax) energyCount = _dcEnergyMax;') !== -1,
+       'removing Overflow can leave a stale over-cap energy feeding the damage figures');
+  });
+
+  it('Overflow is worth +1 and +2, and does not stack', () => {
+    const o = data.gearTraits.overflow;
+    eq(o.t1, 1); eq(o.t2, 2);
+    eq(o.noStack, true, 'Overflow stacks now - the ceiling of 8 is wrong');
+    eq(o.gearOnly, true, 'Overflow can sit on an artifact now - recheck the ceiling');
+
+    // The engine has to price it the same way the stepper caps it, or a build
+    // is scored on energy the calculator will not let you enter.
+    const M = engine.model;
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Wizard'; b.race = 'Nisse (20%)';
+    b.gear = [{ name: 'Forest Charm', tier: 6, alloc: {}, traits: [] }];
+    eq(M.energyCap(b, K), 6, 'a build with no Overflow is not on the base cap');
+    b.gear[0].traits = [{ id: 'overflow', tier: 2 }];
+    eq(M.energyCap(b, K), 8, 'Overflow T2 does not reach 8 in the engine');
+    b.gear[0].traits = [{ id: 'overflow', tier: 2 }, { id: 'overflow', tier: 2 }];
+    eq(M.energyCap(b, K), 8, 'Overflow stacked past its noStack rule');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
