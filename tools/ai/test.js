@@ -2435,6 +2435,54 @@ describe('per-energy weapon buffs reach the damage calculator', () => {
   });
 });
 
+describe("Dullahan's bonus points", () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+  const M = engine.model;
+
+  it('the site, the engine and the passive note all agree on the rate', () => {
+    // Three copies of one number, and it just changed from 3 to 1. At the old
+    // rate this was 45 points at level 50 - a third of the whole budget again -
+    // so a stale copy would have the AI allocating points the page cannot fit,
+    // silently, with every stat total off by a different amount.
+    eq(data.DULLAHAN_POINTS_PER_10_LEVELS, 1, 'the engine has the wrong rate');
+    ok(read('js/builder.js').indexOf('const DULLAHAN_POINTS_PER_10_LEVELS = 1;') !== -1,
+       'the site has the wrong rate');
+    const p = (K.PASSIVES['Dullahan (1%)'] || []).find(x => x.kind === 'points');
+    ok(p, 'Dullahan no longer declares its bonus points');
+    eq(p.value, data.DULLAHAN_POINTS_PER_10_LEVELS,
+       'the passive note disagrees with the rate the budget actually uses');
+  });
+
+  it('is five points at max level, not fifteen', () => {
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl;
+    b.race = 'Dullahan (1%)';
+    const dulla = M.pointBudget(b);
+    b.race = 'Estella (24%)';
+    const other = M.pointBudget(b);
+    eq(other, data.Max_Lvl * data.POINTS_PER_LEVEL, 'the base budget moved');
+    eq(dulla - other, 5, 'Dullahan is not on five bonus points at max level');
+    // And it accrues per bracket, not all at once.
+    b.race = 'Dullahan (1%)'; b.level = 25;
+    eq(M.pointBudget(b) - 25 * data.POINTS_PER_LEVEL, 2,
+       'the bonus does not accrue every ' + data.LEVEL_STAT_BONUS_EVERY + ' levels');
+    b.level = 9;
+    eq(M.pointBudget(b) - 9 * data.POINTS_PER_LEVEL, 0,
+       'the bonus arrives before the first bracket is complete');
+  });
+
+  it('the engine reads the rate rather than repeating it', () => {
+    // A literal 3 was hard-coded in pointBudget. Reading it from the data means
+    // the next balance change only has to touch the site.
+    const m = read('tools/ai/model.js');
+    ok(m.indexOf('D.DULLAHAN_POINTS_PER_10_LEVELS') !== -1,
+       'model.js no longer reads the rate from the site');
+    ok(!/Math\.floor\(lvl \/ 10\) \* 3/.test(m),
+       'the hard-coded rate is back in pointBudget');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;

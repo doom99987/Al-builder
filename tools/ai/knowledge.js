@@ -736,8 +736,10 @@
         note: 'below 50% health only' },
     ],
     'Dullahan (1%)': [
-      { name: 'Bonus Stat Points', kind: 'points', value: 3,
-        note: '+3 stat points every 10 levels — already in the point budget' },
+      { name: 'Bonus Stat Points', kind: 'points', value: 1,
+        note: '+1 stat point every 10 levels, five at max level — already in the ' +
+              'point budget. Was +3 (45 points at level 50); the change is most of ' +
+              'the reason Dullahan was the default answer to almost everything.' },
     ],
 
     // Two races whose innate passives have NO effect text in the game data at

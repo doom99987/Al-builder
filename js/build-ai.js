@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 38;
+  const ENGINE_V = 39;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
