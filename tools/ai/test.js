@@ -2483,6 +2483,51 @@ describe("Dullahan's bonus points", () => {
   });
 });
 
+describe('status buffs follow the damage type actually dealt', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('nothing asks for a status multiplier with the written move type', () => {
+    // Fractured is Physical/Magic only. Wicked Crown turns Physical moves into
+    // Dark ones, and seven call sites were passing the type the move is WRITTEN
+    // as rather than the type it deals - so a converted move kept a 35% buff it
+    // should have lost. Nothing errors when this is wrong; the number is just
+    // too big.
+    const b = read('js/builder.js');
+    const calls = b.split(String.fromCharCode(10))
+      .map((line, i) => ({ line: line.trim(), n: i + 1 }))
+      .filter(x => x.line.indexOf('getStatusMultiplier(') !== -1)
+      .filter(x => x.line.indexOf('function getStatusMultiplier') === -1)
+      .filter(x => x.line.slice(0, 2) !== '//');
+    ok(calls.length >= 7, 'expected at least seven call sites, found ' + calls.length);
+    for (const c of calls) {
+      ok(!/getStatusMultiplier\(m\.moveType/.test(c.line),
+         'builder.js:' + c.n + ' asks with the written move type: ' + c.line);
+      ok(!/getStatusMultiplier\("/.test(c.line),
+         'builder.js:' + c.n + ' hard-codes a move type instead of using the effective one: ' + c.line);
+    }
+  });
+
+  it('the Fractured rule is written exactly once', () => {
+    // It used to exist twice - once in getStatusMultiplier covering Physical AND
+    // Magic, and once hand-rolled in the multi-hit path covering only Physical.
+    // Two copies of a rule is how they drift.
+    const b = read('js/builder.js');
+    const hits = b.split(String.fromCharCode(10))
+      .filter(line => line.indexOf('statusEffectsActive.fractured') !== -1);
+    eq(hits.length, 1,
+       'the Fractured rule appears ' + hits.length + ' times; a second copy will drift from the first');
+    ok(/moveType === "Physical" \|\| moveType === "Magic"/.test(hits[0]),
+       'the one Fractured rule no longer covers both Physical and Magic');
+  });
+
+  it('the multi-hit path asks for the rule instead of repeating it', () => {
+    const b = read('js/builder.js');
+    ok(b.indexOf('getStatusMultiplier(effectiveMoveType, { skipVulnerable: true })') !== -1,
+       'the hit-2-3 branch no longer reuses getStatusMultiplier');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
