@@ -77,12 +77,16 @@
     const clampLvl = lvl => Math.min(D.Max_Lvl, Math.max(D.Min_Lvl, lvl || D.Min_Lvl));
     const levelStatBonus = lvl => Math.floor(clampLvl(lvl) / D.LEVEL_STAT_BONUS_EVERY);
 
-    // Total stat points available to spend. Dullahan's +3 per 10 levels is the
-    // only racial exception in the builder.
+    // Total stat points available to spend. Dullahan's bonus point every 10
+    // levels is the only racial exception in the builder. The rate is read from
+    // the site rather than repeated here — it changed from 3 to 1, and a stale
+    // copy would let the engine allocate 10 points the page cannot fit.
     function pointBudget(build) {
       const lvl = clampLvl(build.level);
+      const per = D.DULLAHAN_POINTS_PER_10_LEVELS ?? 0;
       return lvl * D.POINTS_PER_LEVEL
-           + (build.race === 'Dullahan (1%)' ? Math.floor(lvl / 10) * 3 : 0);
+           + (build.race === 'Dullahan (1%)'
+                ? Math.floor(lvl / D.LEVEL_STAT_BONUS_EVERY) * per : 0);
     }
 
     const raceBase = build => D.races[build.race] || { str: 0, arc: 0, end: 0, spd: 0, lck: 0 };
