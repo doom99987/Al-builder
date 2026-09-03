@@ -2374,6 +2374,67 @@ describe('Overflow raises the energy you can actually spend', () => {
   });
 });
 
+describe('per-energy weapon buffs reach the damage calculator', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('Corealloy still says the thing that gets it filtered out', () => {
+    // parseDmgBonus drops anything matching /per energy/ on purpose, because a
+    // per-energy buff is not a flat percentage. That filter is correct; what was
+    // missing is the explicit entry that puts the buff back. If the game ever
+    // rewords this passive the filter may stop matching and the explicit entry
+    // would then double-count it, so both halves are pinned here.
+    const p = (data.itemPassives || {})['Corealloy'];
+    ok(p, 'Corealloy is no longer in itemPassives');
+    ok(/per energy/i.test(JSON.stringify(p)),
+       'Corealloy no longer says "per Energy" - parseDmgBonus will stop filtering it ' +
+       'and the explicit entry in collectDmgBonusPassives will double-count');
+    const b = read('js/builder.js');
+    ok(b.indexOf('if (/\\bper\\s+energy\\b/i.test(text)) return null;') !== -1,
+       'the per-energy filter is gone');
+    eq(Object.keys((data.mainWeaponSeries || {}).Corealloy || {}).length, 3,
+       'the Corealloy weapon series changed size');
+  });
+
+  it('the calculator puts the buff back', () => {
+    const b = read('js/builder.js');
+    ok(b.indexOf('const COREALLOY_PCT_PER_ENERGY = 5;') !== -1,
+       'the Corealloy rate is gone');
+    ok(b.indexOf('rawEntries.push({ key: caKey, name: "Corealloy"') !== -1,
+       'Corealloy has no explicit DMG BONUS entry, so it is filtered out and never re-added');
+  });
+
+  it('every move-pricing call passes the energy left after the move', () => {
+    // Corealloy is "calculated after Energy consumption of moves", so a call
+    // that prices one move has to say what that move costs. A new call site
+    // added without it would not error - it would just quietly overstate the
+    // damage by 5% per point of that move's cost.
+    const b = read('js/builder.js');
+    const calls = b.split(String.fromCharCode(10))
+      .map((line, i) => ({ line: line.trim(), n: i + 1 }))
+      .filter(x => x.line.indexOf('getActiveDmgMult(') !== -1)
+      .filter(x => x.line.indexOf('function getActiveDmgMult') === -1)
+      // Comments talk about it too; only real calls have to carry the argument.
+      .filter(x => x.line.slice(0, 2) !== '//');
+    ok(calls.length >= 4, 'expected at least four call sites, found ' + calls.length);
+    for (const c of calls) {
+      ok(/getActiveDmgMult\([^)]*,/.test(c.line),
+         'builder.js:' + c.n + ' prices a move without passing the energy left after it: ' + c.line);
+    }
+  });
+
+  it('Energy Manipulator and Corealloy read the pool at different moments', () => {
+    // Energy Manipulator is explicitly "based on your current energy, not the
+    // energy you had before casting a move". Corealloy is the opposite. Sharing
+    // one number between them would be wrong for one of the two.
+    const b = read('js/builder.js');
+    ok(b.indexOf('Math.min(22.5, 3.75 * energyCount)') !== -1,
+       'Energy Manipulator no longer reads current energy');
+    ok(b.indexOf('energyAfter != null ? energyAfter : energyCount') !== -1,
+       'Corealloy no longer prefers the after-cost energy');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
