@@ -4538,7 +4538,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (_stabTotalMult > 1) _stingFormula += ` × ${_stabTotalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_stabFinal.toFixed(1)}</b>`;
 
     // Status / boss mults on stab
-    const { mult: _stabSMult, label: _stabSLabel } = getStatusMultiplier("Physical");
+    const { mult: _stabSMult, label: _stabSLabel } = getStatusMultiplier(_stabEffType);
     if (_stabSMult !== 1) _stingFormula += ` × ${_stabSMult.toFixed(2)} <span class="dc-bonus-tag">[${_stabSLabel}]</span> = <b>${(_stabFinal * _stabSMult).toFixed(1)}</b>`;
     const _stabFinalS = _stabFinal * _stabSMult;
     const { mult: _stabBMult, label: _stabBLabel } = getBossResMult(_stabEffType);
@@ -4547,7 +4547,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
 
     _stingFormula += `<br><span class="dc-avg-line">Arrows (Poison): 10(1 + ARC(${_arcVal})/70 + SPD(${_spdVal})/100) = <b>${_arrRaw.toFixed(1)}</b>`;
     if (_arrTotalMult > 1) _stingFormula += ` × ${_arrTotalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_arrFinal.toFixed(1)}</b>`;
-    const { mult: _arrSMult, label: _arrSLabel } = getStatusMultiplier("Poison");
+    const { mult: _arrSMult, label: _arrSLabel } = getStatusMultiplier(_arrEffType);
     if (_arrSMult !== 1) _stingFormula += ` × ${_arrSMult.toFixed(2)} <span class="dc-bonus-tag">[${_arrSLabel}]</span> = <b>${(_arrFinal * _arrSMult).toFixed(1)}</b>`;
     const _arrFinalS = _arrFinal * _arrSMult;
     const { mult: _arrBMult, label: _arrBLabel } = getBossResMult(_arrEffType);
@@ -4615,7 +4615,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
         ? `${baseDmgNum} × ${hitCount} hits = <b>${currentDmg}</b>`
         : `Base damage: <b>${baseDmgNum}</b>`;
     }
-    const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
+    const { mult: sMult, label: sLabel } = getStatusMultiplier(effectiveMoveType);
     if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
     const _finalDmg0 = sMult !== 1 ? currentDmg * sMult : currentDmg;
     const { mult: bMult0, label: bLabel0 } = getBossResMult(effectiveMoveType);
@@ -4733,11 +4733,9 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const h23Vuln = h23Raw * totalMult * 1.20; // Vulnerable guaranteed from hit 1
 
     // Status mults — hits 2-3 already have Vulnerable baked in, so exclude it for their extra status calc
-    const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
-    let h23ExtraMult = 1;
-    const h23ExtraLabels = [];
-    if (statusEffectsActive.hexed) { h23ExtraMult *= 2.00; h23ExtraLabels.push("Hexed ×2"); }
-    if (statusEffectsActive.fractured && effectiveMoveType === "Physical") { h23ExtraMult *= 1.35; h23ExtraLabels.push("Frac ×1.35"); }
+    const { mult: sMult, label: sLabel } = getStatusMultiplier(effectiveMoveType);
+    const { mult: h23ExtraMult, label: h23ExtraLabel } =
+      getStatusMultiplier(effectiveMoveType, { skipVulnerable: true });
 
     const h1Final   = h1      * sMult;
     const h23Final  = h23Vuln * h23ExtraMult;
@@ -4751,7 +4749,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     formula += `<br><span class="dc-avg-line">Hits 2–3: 3.6(1 + STR(${strVal})/90) = <b>${h23Raw.toFixed(1)}</b>`;
     if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} = <b>${(h23Raw * totalMult).toFixed(1)}</b>`;
     formula += ` × 1.20 <span class="dc-bonus-tag">[Vuln from hit 1]</span> = <b>${h23Vuln.toFixed(1)}</b>`;
-    if (h23ExtraMult !== 1) formula += ` × ${h23ExtraMult.toFixed(2)} <span class="dc-bonus-tag">[${h23ExtraLabels.join(", ")}]</span> = <b>${h23Final.toFixed(1)}</b>`;
+    if (h23ExtraMult !== 1) formula += ` × ${h23ExtraMult.toFixed(2)} <span class="dc-bonus-tag">[${h23ExtraLabel}]</span> = <b>${h23Final.toFixed(1)}</b>`;
     formula += ` each</span>`;
 
     formula += `<br><span class="dc-avg-line">Total: ${h1Final.toFixed(1)} + ${h23Final.toFixed(1)} × 2 = <b>${(h1Final + h23Final * 2).toFixed(1)}</b>`;
@@ -4786,7 +4784,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const _dHitStrs = _dMults.map((r, i) => `${_dLabels[i]}: <b>${(_dBase * r).toFixed(1)}</b>`);
     const _dTotal = _dMults.reduce((s, r) => s + _dBase * r, 0);
     formula += `<br><span class="dc-avg-line">4 hits — ${_dHitStrs.join(' | ')} = <b>${_dTotal.toFixed(1)}</b></span>`;
-    const { mult: _dsMult, label: _dsLabel } = getStatusMultiplier(m.moveType);
+    const { mult: _dsMult, label: _dsLabel } = getStatusMultiplier(effectiveMoveType);
     const _dCurDmg = _dsMult !== 1 ? _dTotal * _dsMult : _dTotal;
     if (_dsMult !== 1) formula += ` × ${_dsMult.toFixed(2)} <span class="dc-bonus-tag">[${_dsLabel}]</span> = <b>${_dCurDmg.toFixed(1)}</b>`;
     const { mult: _dbMult, label: _dbLabel } = getBossResMult(effectiveMoveType);
@@ -4850,7 +4848,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   if (m.name === "Rending Barrage") {
     const _rbExtraRaw   = 13.5 * (1 + totalContrib);
     const _rbExtraMult  = _rbExtraRaw * totalMult;
-    const { mult: _rbSMult } = getStatusMultiplier(m.moveType);
+    const { mult: _rbSMult } = getStatusMultiplier(effectiveMoveType);
     const { mult: _rbBMult } = getBossResMult(effectiveMoveType);
     const _rbExtraFinal = _rbExtraMult * _rbSMult * _rbBMult;
     const _rbLS         = _rbExtraFinal * 0.075;
@@ -4860,7 +4858,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     formula += ` + <b>${_rbLS.toFixed(1)}</b> HP LS <span class="dc-bonus-tag">[7.5%]</span></span>`;
   }
 
-  const { mult: sMult, label: sLabel } = getStatusMultiplier(m.moveType);
+  const { mult: sMult, label: sLabel } = getStatusMultiplier(effectiveMoveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
   const { mult: bMult, label: bLabel } = getBossResMult(effectiveMoveType);
@@ -5738,10 +5736,21 @@ function setIvoryStacks(val) {
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
-function getStatusMultiplier(moveType) {
+// Which statuses raise the damage of a move of THIS type. `moveType` must be
+// the EFFECTIVE type - the one the move actually deals damage as - not the type
+// it is written as. Wicked Crown turns Physical moves into Dark ones, and
+// Fractured is Physical/Magic only, so asking with the written type applied a
+// 35% buff to Dark damage that should not have had it.
+//
+// `skipVulnerable` is for multi-hit moves whose later hits already have
+// Vulnerable baked in. It exists so that path can ASK for the rule instead of
+// re-implementing it: the hand-rolled copy that used to live in the hit-2-3
+// branch had drifted, applying Fractured to Physical but not to Magic.
+function getStatusMultiplier(moveType, opts) {
+  const skipVulnerable = !!(opts && opts.skipVulnerable);
   let mult = 1;
   const labels = [];
-  if (statusEffectsActive.vulnerable) { mult *= 1.20; labels.push("Vuln ×1.20"); }
+  if (!skipVulnerable && statusEffectsActive.vulnerable) { mult *= 1.20; labels.push("Vuln ×1.20"); }
   if (statusEffectsActive.hexed)      { mult *= 2.00; labels.push("Hexed ×2"); }
   if (statusEffectsActive.fractured && (moveType === "Physical" || moveType === "Magic")) {
     mult *= 1.35; labels.push("Frac ×1.35");
