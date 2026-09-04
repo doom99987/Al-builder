@@ -965,6 +965,10 @@
   color: #444;
   margin-right: 2px;
 }
+/* A tier that no longer exists, still shown because a saved run is sitting on
+   it. Dimmed rather than hidden: taking the button away would strand that run
+   on a tier it could not reselect. */
+.pt-tier-legacy { opacity: 0.55; font-style: italic; }
 .pt-tier-btn {
   background: #111;
   border: 1px solid #252525;

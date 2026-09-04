@@ -2587,6 +2587,31 @@ describe('Self Destruct is priced like every other move', () => {
   });
 });
 
+describe('Venia and Petent stop at Tier 3', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('the cap is stated once and the tier bars are not hard-coded', () => {
+    const e = read('js/encyclopedia.js');
+    ok(e.indexOf('const MARK_TIER_CAP = 3;') !== -1, 'the tier cap is gone');
+    const hard = e.split(String.fromCharCode(10))
+      .filter(l => l.indexOf('[1, 2, 3, 4, 5].forEach') !== -1);
+    eq(hard.length, 0, 'a tracker still hard-codes tiers 1-5: ' + hard.join(' | '));
+  });
+
+  it('a run that was above the cap keeps its tiers permanently', () => {
+    // Keying the buttons off the CURRENT tier made it a one-way door - a Tier 5
+    // run that clicked down to Tier 2 could never get back. The tab records a
+    // high-water mark instead, so the extra buttons survive both the click and
+    // a reload.
+    const e = read('js/encyclopedia.js');
+    ok(e.indexOf('function markTierTop(tab)') !== -1, 'the high-water rule is gone');
+    ok(/tab\.legacyTop = tier/.test(e), 'the high-water mark is never recorded');
+    ok(/vtSaveMeta\(meta\)/.test(e) && /ptSaveMeta\(meta\)/.test(e),
+       'the high-water mark is never persisted, so it is lost on reload');
+  });
+});
+
 describe('the avoid list', () => {
   it('is honoured everywhere a name can appear', () => {
     const O = engine.optimizer;
