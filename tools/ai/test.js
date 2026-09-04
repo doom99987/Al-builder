@@ -2416,7 +2416,10 @@ describe('per-energy weapon buffs reach the damage calculator', () => {
       .filter(x => x.line.indexOf('function getActiveDmgMult') === -1)
       // Comments talk about it too; only real calls have to carry the argument.
       .filter(x => x.line.slice(0, 2) !== '//');
-    ok(calls.length >= 4, 'expected at least four call sites, found ' + calls.length);
+    // The floor only guards against the filter matching nothing and passing
+    // vacuously. It was four; extracting getOutsideDmgMult folded two of the
+    // call sites into one, so three is the honest number now.
+    ok(calls.length >= 3, 'expected at least three call sites, found ' + calls.length);
     for (const c of calls) {
       ok(/getActiveDmgMult\([^)]*,/.test(c.line),
          'builder.js:' + c.n + ' prices a move without passing the energy left after it: ' + c.line);
@@ -2525,6 +2528,62 @@ describe('status buffs follow the damage type actually dealt', () => {
     const b = read('js/builder.js');
     ok(b.indexOf('getStatusMultiplier(effectiveMoveType, { skipVulnerable: true })') !== -1,
        'the hit-2-3 branch no longer reuses getStatusMultiplier');
+  });
+});
+
+describe('Self Destruct is priced like every other move', () => {
+  const root = path.resolve(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('the outside-multiplier chain is written once', () => {
+    // It used to be spelled out inline in toggleDmgDetail and nowhere else, so
+    // Self Destruct - which is rendered somewhere else entirely - simply printed
+    // its base number. A second copy of a seven-term product is not something
+    // anyone will keep in sync by hand.
+    const b = read('js/builder.js');
+    ok(b.indexOf('function getOutsideDmgMult(m) {') !== -1,
+       'the outside-multiplier chain is no longer a shared function');
+    const lists = b.split(String.fromCharCode(10))
+      .filter(l => /activeMult \* energyMult \* armourMult/.test(l));
+    eq(lists.length, 1,
+       'the multiplier chain is spelled out ' + lists.length + ' times; copies drift');
+  });
+
+  it('the damage curve is written once', () => {
+    // Two slider handlers each carried their own copy of the fitted constants.
+    const b = read('js/builder.js');
+    const hits = b.split(String.fromCharCode(10)).filter(l => l.indexOf('110.59717') !== -1);
+    eq(hits.length, 1, 'the Self Destruct curve appears ' + hits.length + ' times');
+    ok(/function selfDestructBase\(hpPct\)/.test(b), 'the curve has no named home');
+  });
+
+  it('the box runs the full chain, not just the base', () => {
+    const b = read('js/builder.js');
+    const from = b.indexOf('function renderSelfDestruct');
+    ok(from !== -1, 'renderSelfDestruct is gone');
+    const body = b.slice(from, b.indexOf(String.fromCharCode(10) + '}', from));
+    for (const [call, why] of [
+      ['getOutsideDmgMult',       'the DMG BONUS toggles, armour and enchant'],
+      ['getStatusMultiplier',     'Vulnerable, Hexed and Fractured'],
+      ['getBossResMult',          'boss resistances'],
+      ['getCritDmgMultEffective', 'crits'],
+    ]) {
+      ok(body.indexOf(call) !== -1,
+         'Self Destruct no longer applies ' + why + ' (' + call + ' is not called)');
+    }
+  });
+
+  it('the helpers it needs are reachable from outside toggleDmgDetail', () => {
+    // All three were nested inside it, which is the mechanical reason Self
+    // Destruct could not reuse the maths and grew a hard-coded number instead.
+    const b = read('js/builder.js');
+    for (const fn of ['getCritDmgMultEffective', 'getEnergyBonusPct', 'buildBonusTag']) {
+      const decls = b.split(String.fromCharCode(10))
+        .filter(l => l.indexOf('function ' + fn) !== -1);
+      eq(decls.length, 1, fn + ' is declared ' + decls.length + ' times');
+      eq(decls[0].slice(0, 8), 'function',
+         fn + ' is nested again; nothing outside its parent can call it');
+    }
   });
 });
 
