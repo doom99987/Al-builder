@@ -5172,19 +5172,48 @@
   function vtGetTier(meta)       { return vtActiveTab(meta).tier || 1; }
   function vtSetTier(meta, tier) { vtActiveTab(meta).tier = tier; }
 
+  // Venia and Petent stop at Tier 3 now. A run someone already set to 4 or 5
+  // keeps those buttons, so their saved tab does not lose the tier it is on and
+  // become unselectable - the cap applies to what a NEW run can climb to, not
+  // retroactively to work already done.
+  const MARK_TIER_CAP = 3;
+
+  // Tying the button list to the tier the run is CURRENTLY on made it a one-way
+  // door: a Tier 5 run that clicked down to Tier 2 to check something could
+  // never get back, because 4 and 5 stopped being drawn. The tab remembers its
+  // own high-water mark instead, written once, the first time it is seen above
+  // the cap.
+  function markTierTop(tab) {
+    if (!tab) return MARK_TIER_CAP;
+    const tier = tab.tier || 1;
+    if (tier > MARK_TIER_CAP && (tab.legacyTop || 0) < tier) tab.legacyTop = tier;
+    return Math.max(MARK_TIER_CAP, tab.legacyTop || 0);
+  }
+
+  function markTierButtons(top) {
+    const out = [];
+    for (let t = 1; t <= top; t++) out.push(t);
+    return out;
+  }
+
   function vtRenderTier() {
     const el = _vtDoc.getElementById('venia-tracker-tier');
     if (!el) return;
     const meta = vtGetMeta();
     const tier = vtGetTier(meta);
+    const before = vtActiveTab(meta).legacyTop || 0;
+    const top = markTierTop(vtActiveTab(meta));
+    if ((vtActiveTab(meta).legacyTop || 0) !== before) vtSaveMeta(meta);
     el.innerHTML = '';
     const label = _vtDoc.createElement('span');
     label.className = 'pt-tier-label';
     label.textContent = 'Tier:';
     el.appendChild(label);
-    [1, 2, 3, 4, 5].forEach(t => {
+    markTierButtons(top).forEach(t => {
       const btn = _vtDoc.createElement('button');
-      btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '');
+      btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '')
+                    + (t > MARK_TIER_CAP ? ' pt-tier-legacy' : '');
+      if (t > MARK_TIER_CAP) btn.title = 'Tier ' + t + ' no longer exists — kept because this run is on it';
       btn.textContent = `Tier ${t}`;
       btn.addEventListener('click', () => {
         const m = vtGetMeta(); vtSetTier(m, t); vtSaveMeta(m); vtRender();
@@ -5533,14 +5562,19 @@
     if (!el) return;
     const meta = ptGetMeta();
     const tier = ptGetTier(meta);
+    const before = ptActiveTab(meta).legacyTop || 0;
+    const top = markTierTop(ptActiveTab(meta));
+    if ((ptActiveTab(meta).legacyTop || 0) !== before) ptSaveMeta(meta);
     el.innerHTML = '';
     const label = _ptDoc.createElement('span');
     label.className = 'pt-tier-label';
     label.textContent = 'Tier:';
     el.appendChild(label);
-    [1, 2, 3, 4, 5].forEach(t => {
+    markTierButtons(top).forEach(t => {
       const btn = _ptDoc.createElement('button');
-      btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '');
+      btn.className = 'pt-tier-btn' + (tier === t ? ' pt-tier-active' : '')
+                    + (t > MARK_TIER_CAP ? ' pt-tier-legacy' : '');
+      if (t > MARK_TIER_CAP) btn.title = 'Tier ' + t + ' no longer exists — kept because this run is on it';
       btn.textContent = `Tier ${t}`;
       btn.addEventListener('click', () => {
         const m = ptGetMeta(); ptSetTier(m, t); ptSaveMeta(m); ptRender();
