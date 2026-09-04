@@ -1975,7 +1975,7 @@ function renderGearInfo() {
               <div style="display:flex;align-items:center;gap:8px">
                 <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">Summon HP</span>
                 <input type="range" min="0" max="100" value="90" style="flex:1;accent-color:#7755cc;cursor:pointer"
-                  oninput="(function(s){var pct=s.value/100;var dmg=-110.59717*pct+220.07394;s.parentNode.querySelector('.sd-hp-pct').textContent=s.value+'%';s.parentNode.parentNode.querySelector('.sd-dmg').textContent='≈ '+dmg.toFixed(1)})(this)">
+                  oninput="(function(s){s.parentNode.querySelector('.sd-hp-pct').textContent=s.value+'%';s.parentNode.parentNode.querySelector('.sd-dmg').textContent='≈ '+selfDestructBase(+s.value).toFixed(1)})(this)">
                 <span class="sd-hp-pct" style="font-size:12px;font-weight:600;color:#aaa;width:34px;text-align:right;flex-shrink:0">90%</span>
               </div>
               <div style="display:flex;align-items:center;gap:8px">
@@ -4235,6 +4235,10 @@ function getTotalStat(statKey) {
 }
 
 function recalcOpenDetails() {
+  // Self Destruct is not a .dc-detail, so it was never caught by this sweep.
+  // Without it, toggling Fractured updated every move on the page except the
+  // one whose whole display is a computed number.
+  refreshSelfDestructBoxes();
   document.querySelectorAll(".dc-detail").forEach(detail => {
     if (detail.style.display === "none") return;
     const rowEl = detail.previousElementSibling;
@@ -4469,12 +4473,6 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const m = dmgCalcMoveList[idx];
   const scalings = parseScaling(m.scaling);
 
-  // Overcore (Darkwraith rm1): at max darkcores, crit mult is squared
-  const getCritDmgMultEffective = () => {
-    const base = getCritDmgMult();
-    if (base === null) return null;
-    return overcoreActive ? base * base : base;
-  };
 
   // Move-specific crit chance bonus (e.g. Dark Smite +25%, or +50% with Dark Smite Proficiency lm2)
   const moveCritBonus = (() => {
@@ -4573,35 +4571,17 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
-  // Energy bonus for energy-scaling moves
-  function getEnergyBonusPct(move) {
-    if (!move.energyScaling || energyCount <= 0) return 0;
-    const extra = Math.max(0, energyCount - move.energyScaling.past);
-    return extra * move.energyScaling.perEnergy;
-  }
-
-  function buildBonusTag(activeMult, energyMult) {
-    if (activeMult > 1 && energyMult > 1)
-      return `[×${activeMult.toFixed(2)} bonus, ×${energyMult.toFixed(2)} energy (${energyCount}E)]`;
-    if (energyMult > 1)
-      return `[×${energyMult.toFixed(2)} energy (${energyCount}E)]`;
-    return `[×${activeMult.toFixed(2)} bonus]`;
-  }
-
   if (!scalings) {
-    const effectiveMoveType = getEffectiveMoveType(m.moveType);
-    const activeMult        = getActiveDmgMult(effectiveMoveType, dcEnergyAfter(m));
-    const energyBonus       = getEnergyBonusPct(m);
-    const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
-    const darkMult          = getShardOfBlightMult(effectiveMoveType);
-    const blizzardMult      = getBlizzardMult(effectiveMoveType);
-    const enchantMult       = getEnchantMult();
-    const energyMult        = 1 + energyBonus / 100;
-    const armourMult        = 1 + armourDmgPct / 100;
-    const darkBeastMult     = (m.slot === "Darkbeast" && darkCoreCount > 0)
-      ? 1 + 0.05 * darkCoreCount + (darkCoreCount >= 6 ? 0.5 : 0)
-      : 1;
-    const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult * darkBeastMult;
+    const _o                = getOutsideDmgMult(m);
+    const effectiveMoveType = _o.effectiveMoveType;
+    const activeMult        = _o.activeMult;
+    const armourMult        = _o.armourMult;
+    const darkMult          = _o.darkMult;
+    const blizzardMult      = _o.blizzardMult;
+    const enchantMult       = _o.enchantMult;
+    const darkBeastMult     = _o.darkBeastMult;
+    const energyMult        = _o.energyMult;
+    const totalMult         = _o.total;
     const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
     let formula; let currentDmg;
     if (totalMult > 1) {
@@ -4707,19 +4687,16 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
-  const effectiveMoveType = getEffectiveMoveType(m.moveType);
-  const activeMult        = getActiveDmgMult(effectiveMoveType, dcEnergyAfter(m));
-  const energyBonus       = getEnergyBonusPct(m);
-  const armourDmgPct      = getArmourDmgTypePct(effectiveMoveType);
-  const darkMult          = getShardOfBlightMult(effectiveMoveType);
-  const blizzardMult      = getBlizzardMult(effectiveMoveType);
-  const enchantMult       = getEnchantMult();
-  const energyMult        = 1 + energyBonus / 100;
-  const armourMult        = 1 + armourDmgPct / 100;
-  const darkBeastMult     = (m.slot === "Darkbeast" && darkCoreCount > 0)
-    ? 1 + 0.05 * darkCoreCount + (darkCoreCount >= 6 ? 0.5 : 0)
-    : 1;
-  const totalMult         = activeMult * energyMult * armourMult * darkMult * blizzardMult * enchantMult * darkBeastMult;
+  const _out              = getOutsideDmgMult(m);
+  const effectiveMoveType = _out.effectiveMoveType;
+  const activeMult        = _out.activeMult;
+  const armourMult        = _out.armourMult;
+  const darkMult          = _out.darkMult;
+  const blizzardMult      = _out.blizzardMult;
+  const enchantMult       = _out.enchantMult;
+  const darkBeastMult     = _out.darkBeastMult;
+  const energyMult        = _out.energyMult;
+  const totalMult         = _out.total;
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
@@ -5746,6 +5723,118 @@ function setIvoryStacks(val) {
 // Vulnerable baked in. It exists so that path can ASK for the rule instead of
 // re-implementing it: the hand-rolled copy that used to live in the hit-2-3
 // branch had drifted, applying Fractured to Physical but not to Magic.
+// These three used to live inside toggleDmgDetail(), which meant no other part
+// of the calculator could reach them — the reason Self Destruct grew its own
+// hard-coded number instead of running the same maths. They close over nothing
+// but module-level state, so nesting them bought nothing.
+
+// Overcore (Darkwraith rm1): at max darkcores, crit mult is squared.
+function getCritDmgMultEffective() {
+  const base = getCritDmgMult();
+  if (base === null) return null;
+  return overcoreActive ? base * base : base;
+}
+
+// Energy bonus for energy-scaling moves.
+function getEnergyBonusPct(move) {
+  if (!move.energyScaling || energyCount <= 0) return 0;
+  const extra = Math.max(0, energyCount - move.energyScaling.past);
+  return extra * move.energyScaling.perEnergy;
+}
+
+function buildBonusTag(activeMult, energyMult) {
+  if (activeMult > 1 && energyMult > 1)
+    return `[×${activeMult.toFixed(2)} bonus, ×${energyMult.toFixed(2)} energy (${energyCount}E)]`;
+  if (energyMult > 1)
+    return `[×${energyMult.toFixed(2)} energy (${energyCount}E)]`;
+  return `[×${activeMult.toFixed(2)} bonus]`;
+}
+
+// Every multiplier that reaches a move from OUTSIDE its own damage formula:
+// the DMG BONUS toggles, energy scaling, armour damage-type %, Shard of Blight,
+// Blizzard, the enchant and Dark Cores.
+//
+// Extracted so Self Destruct can apply the same set. It used to apply none of
+// them - it printed its base number and stopped - and re-listing the chain at a
+// second call site is exactly how the Fractured rule drifted.
+function getOutsideDmgMult(m) {
+  const effectiveMoveType = getEffectiveMoveType(m.moveType);
+  const activeMult    = getActiveDmgMult(effectiveMoveType, dcEnergyAfter(m));
+  const energyMult    = 1 + getEnergyBonusPct(m) / 100;
+  const armourMult    = 1 + getArmourDmgTypePct(effectiveMoveType) / 100;
+  const darkMult      = getShardOfBlightMult(effectiveMoveType);
+  const blizzardMult  = getBlizzardMult(effectiveMoveType);
+  const enchantMult   = getEnchantMult();
+  const darkBeastMult = (m.slot === "Darkbeast" && darkCoreCount > 0)
+    ? 1 + 0.05 * darkCoreCount + (darkCoreCount >= 6 ? 0.5 : 0)
+    : 1;
+  return {
+    effectiveMoveType, activeMult, energyMult, armourMult,
+    darkMult, blizzardMult, enchantMult, darkBeastMult,
+    total: activeMult * energyMult * armourMult * darkMult *
+           blizzardMult * enchantMult * darkBeastMult,
+  };
+}
+
+// Self Destruct's own damage, before anything outside it applies. Fitted from
+// in-game measurements against the summon's remaining HP; named here rather
+// than inlined into two slider handlers so the curve has one home.
+function selfDestructBase(hpPct) {
+  return -110.59717 * (hpPct / 100) + 220.07394;
+}
+
+// Redraw one Self Destruct box. Reads the slider, runs the base through the
+// same chain every other move gets, and shows the working.
+function renderSelfDestruct(slider) {
+  const box = slider.closest(".sd-box");
+  if (!box) return;
+  const pct = Math.max(0, Math.min(100, +slider.value || 0));
+  const pctEl = box.querySelector(".sd-hp-pct");
+  if (pctEl) pctEl.textContent = pct + "%";
+
+  // Self Destruct is Physical and costs 2. `slot` matters: a Darkbeast's blast
+  // takes the Dark Core bonus like the rest of that summon's kit.
+  const m = { name: "Self Destruct", moveType: "Physical", cost: 2,
+              slot: box.dataset.slot || "" };
+
+  const base = selfDestructBase(pct);
+  const out  = getOutsideDmgMult(m);
+  const afterBonus = base * out.total;
+
+  const { mult: sMult, label: sLabel } = getStatusMultiplier(out.effectiveMoveType);
+  const afterStatus = afterBonus * sMult;
+  const { mult: bMult, label: bLabel } = getBossResMult(out.effectiveMoveType);
+  const afterRes = afterStatus * bMult;
+  const critMult = getCritDmgMultEffective();
+
+  const typeTag = out.effectiveMoveType !== m.moveType
+    ? `<span class="dc-bonus-tag">[Physical &rarr; ${out.effectiveMoveType}]</span> ` : "";
+  let html = `${typeTag}<b>${base.toFixed(1)}</b>`;
+  if (out.total !== 1) {
+    html += ` &times; ${out.total.toFixed(2)} <span class="dc-bonus-tag">` +
+            `${buildBonusTag(out.activeMult, out.energyMult)}</span> = <b>${afterBonus.toFixed(1)}</b>`;
+  }
+  if (sMult !== 1) {
+    html += `<br>&times; ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span>` +
+            ` = <b>${afterStatus.toFixed(1)}</b>`;
+  }
+  if (bMult !== 1) {
+    html += `<br>&times; ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span>` +
+            ` = <b>${afterRes.toFixed(1)}</b>`;
+  }
+  if (critMult !== null) {
+    html += `<br><span class="dc-crit-line">All crits: <b>${afterRes.toFixed(1)}</b> &times; ` +
+            `${critMult.toFixed(2)}x = <b>${(afterRes * critMult).toFixed(1)}</b></span>`;
+  }
+  const dmgEl = box.querySelector(".sd-dmg");
+  if (dmgEl) dmgEl.innerHTML = html;
+}
+
+// Refresh every Self Destruct box on the page.
+function refreshSelfDestructBoxes() {
+  document.querySelectorAll(".sd-box input[type=range]").forEach(renderSelfDestruct);
+}
+
 function getStatusMultiplier(moveType, opts) {
   const skipVulnerable = !!(opts && opts.skipVulnerable);
   let mult = 1;
@@ -7004,17 +7093,17 @@ function renderDmgCalc() {
         }
       });
       if (hasIH) {
-        html += `<div style="margin-top:8px;padding:10px 12px;background:#0e0e16;border:1px solid #2a2a3a;border-radius:6px;display:flex;flex-direction:column;gap:8px">
+        html += `<div class="sd-box" data-slot="${slotName}" style="margin-top:8px;padding:10px 12px;background:#0e0e16;border:1px solid #2a2a3a;border-radius:6px;display:flex;flex-direction:column;gap:8px">
           <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#555">Self Destruct</div>
           <div style="display:flex;align-items:center;gap:8px">
             <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">${slotName} HP</span>
             <input type="range" min="0" max="100" value="90" style="flex:1;accent-color:#cc4444;cursor:pointer"
-              oninput="(function(s){var pct=s.value/100;var dmg=-110.59717*pct+220.07394;s.parentNode.querySelector('.sd-hp-pct').textContent=s.value+'%';s.parentNode.parentNode.querySelector('.sd-dmg').textContent='≈ '+dmg.toFixed(1)})(this)">
+              oninput="renderSelfDestruct(this)">
             <span class="sd-hp-pct" style="font-size:12px;font-weight:600;color:#aaa;width:34px;text-align:right;flex-shrink:0">90%</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:11px;color:#666;width:72px;flex-shrink:0">Damage</span>
-            <span class="sd-dmg" style="font-size:14px;font-weight:700;color:#cc4444">≈ 121.5</span>
+          <div style="display:flex;align-items:flex-start;gap:8px">
+            <span style="font-size:11px;color:#666;width:72px;flex-shrink:0;padding-top:2px">Damage</span>
+            <span class="sd-dmg" style="font-size:13px;font-weight:700;color:#cc4444;line-height:1.6"></span>
           </div>
         </div>`;
       }
@@ -7025,6 +7114,9 @@ function renderDmgCalc() {
   html += `</div>`;
   container.innerHTML = html;
   renderDmgBonusSection();
+  // The boxes carry no server-rendered number any more - they are drawn from
+  // the live build, so they have to be drawn once the markup is in the page.
+  refreshSelfDestructBoxes();
 }
 
 racePicker.addEventListener("change", renderMoves);
