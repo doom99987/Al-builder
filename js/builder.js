@@ -1000,6 +1000,12 @@ function updatePoints() {
 }
 
 let permuthStat = ''; // chosen stat for Permuth (Venia mark) +40% buff: 'str'|'arc'|'end'|'spd'|'lck'|''
+// Ages Pages: 50 Corrupt Power spent -> +45 crit for one attack instead of
+// the standing +5. Declared HERE rather than beside luckyHornsSpend because
+// updatePecents() reads it and runs once at load, while a `let` further down
+// the file is still in its temporal dead zone - the same trap the crit-stat
+// comment below already warns about for dmgBonusActive.
+let agesPagesSpend = false;
 
 // Ivory enchant: "Gaining energy increases all your stats by 4% for 3 turns."
 // No hard cap in game; realistically 12-16 stacks.
@@ -1224,6 +1230,11 @@ function updatePecents() {
     }
     if (stat === "crit-chance" && tearBloodCrystalActive) {
       display = (parseFloat(display) + 5).toFixed(1);
+    }
+    // Ages Pages' spend raises +5 to +45, so only the difference is added here;
+    // the standing +5 is already in the total via gearPctBonuses.
+    if (stat === "crit-chance" && agesPagesSpend && hasGearEquipped("Ages Pages")) {
+      display = (parseFloat(display) + 40).toFixed(1);
     }
     if (stat === "crit-chance") {
       const tb = _traitBonusFor(traitTot, "crit-chance");
@@ -2208,6 +2219,15 @@ document.addEventListener("click", e => {
 // Percentage bonuses granted by gear items (e.g. crit-chance, energy)
 const gearPctBonuses = {
   "Crystal Sphere":  { "crit-chance": 5 },
+  // The always-on half of Ages Pages. The other half - 50 Corrupt Power for
+  // +45 on one attack - is a combat state, so it lives on the toggle below
+  // rather than in the build's standing numbers.
+  //
+  // Deliberately here and NOT in the Dmg Bonus panel: that panel models damage
+  // percentages, and +5 CRIT CHANCE listed there would be applied as +5% damage
+  // (see the Withered Grove note beside Lucky Horns). Crit chance has its own
+  // path, which is the one Crystal Sphere already uses.
+  "Ages Pages":      { "crit-chance": 5 },
   "Narthana's Leaf": { "out-heal": 75, "end": -25 },
 };
 
@@ -4046,6 +4066,8 @@ let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
+// agesPagesSpend lives up beside permuthStat, not here: updatePecents()
+// reads it and runs at load, long before this line executes.
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
 let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); on proc the hit deals +35% dmg
@@ -5694,6 +5716,11 @@ function toggleTearBloodCrystal() {
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
+function toggleAgesPagesSpend() {
+  agesPagesSpend = !agesPagesSpend;
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+
 function toggleShardCondition(key) {
   shardToggleActive[key] = !shardToggleActive[key];
   renderDmgBonusSection(); recalcOpenDetails();
@@ -5941,6 +5968,15 @@ function renderDmgBonusSection() {
   } else {
     if (frozenDiademColdActive) { frozenDiademColdActive = false; updatePecents(); }
     if (frozenDiademIceActive)  { frozenDiademIceActive  = false; updatePecents(); }
+  }
+
+  if (hasGearEquipped("Ages Pages")) {
+    html += `<div class="dc-energy-section">
+      <span class="dc-energy-label">Ages Pages <span style="color:#aaa;font-size:11px">(spend 50 Corrupt Power: +5 &rarr; +45 crit)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${agesPagesSpend ? " dc-bonus-on" : ""}" onclick="toggleAgesPagesSpend()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${agesPagesSpend ? "✓" : ""}</div>
+    </div>`;
+  } else if (agesPagesSpend) {
+    agesPagesSpend = false; updatePecents();
   }
 
   const hasTearBloodCrystal = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Tear Blood Crystal");

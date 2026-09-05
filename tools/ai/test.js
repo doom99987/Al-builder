@@ -3731,17 +3731,31 @@ describe('Ivory stat multiplier', () => {
     // down the moment the page loaded — js/builder.js runs a lot of setup at
     // module scope, and a const/let read before its declaration executes throws
     // instead of reading undefined.
-    const watched = ['UNRELEASED_GEAR', 'ivoryNrgStacks', 'luckyHornsSpend', 'corruptionBuffsActive'];
+    // agesPagesSpend joined this list by crashing the builder the same way:
+    // declared beside luckyHornsSpend, read by updatePecents at load.
+    const watched = ['UNRELEASED_GEAR', 'ivoryNrgStacks', 'luckyHornsSpend',
+                     'corruptionBuffsActive', 'agesPagesSpend'];
     for (const name of watched) {
       const declRe = new RegExp('(?:const|let)\\s+' + name + '\\b');
       const decl = src.search(declRe);
       if (decl === -1) continue;                        // renamed or removed
       // The first mention of the name anywhere that is not the declaration.
+      //
+      // Mentions inside comments do not run, so they cannot throw. Counting
+      // them made this fire on a comment that explained WHY a binding had been
+      // moved — the guard objecting to its own documentation. Line comments and
+      // block-comment continuation lines are skipped; anything else, including
+      // a trailing // after real code, still counts.
+      const inComment = i => {
+        const lineStart = src.lastIndexOf(String.fromCharCode(10), i) + 1;
+        const before = src.slice(lineStart, i);
+        const trimmed = before.replace(/^\s+/, '');
+        return trimmed.slice(0, 2) === '//' || trimmed.slice(0, 1) === '*';
+      };
       const all = [];
       const useRe = new RegExp('\\b' + name + '\\b', 'g');
       let m;
-      while ((m = useRe.exec(src)) !== null) all.push(m.index);
-      const firstUse = all.find(i => i !== decl + src.slice(decl).search(new RegExp('\\b' + name + '\\b')));
+      while ((m = useRe.exec(src)) !== null) if (!inComment(m.index)) all.push(m.index);
       const earliest = all.length ? all[0] : -1;
       ok(earliest === -1 || earliest >= decl,
          name + ' is first mentioned at char ' + earliest + ' but declared at ' + decl +
