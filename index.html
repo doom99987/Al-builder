@@ -1976,7 +1976,36 @@
         }
       });
   }
-  window.addEventListener('load', () => setTimeout(initPresence, 900));
+  // Was `load` + a fixed 900ms. `load` waits for every image and font on the
+  // page, so the counter did not even START connecting until well after the
+  // page looked ready, and only then did the channel subscribe and sync — which
+  // is why it took seconds to appear.
+  //
+  // Now: start at DOMContentLoaded and poll for the Supabase client instead of
+  // guessing how long it takes to arrive. The 900ms was only ever standing in
+  // for "is _sbClient there yet".
+  (function startPresenceWhenReady() {
+    // You are online the moment you are looking at the page, so replace the
+    // placeholder dash with 1 right now and let the first sync correct it
+    // upward. Done HERE rather than inside initPresence so it does not wait on
+    // Supabase at all — a dash sitting there while a socket connects is the
+    // slowness being reported, and it reads as broken rather than loading.
+    const el0 = document.getElementById('stat-online');
+    if (el0 && /^\s*[—-]?\s*$/.test(el0.textContent)) {
+      el0.innerHTML = '<span class="home-stat-dot"></span>1';
+    }
+    let waited = 0;
+    const tick = () => {
+      if (window._sbClient) { initPresence(); return; }
+      waited += 100;
+      if (waited < 15000) setTimeout(tick, 100);   // give up rather than spin forever
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', tick);
+    } else {
+      tick();
+    }
+  })();
 
   function switchQteTab(name) {
     if (typeof window._onFistQteHide === 'function') window._onFistQteHide();
