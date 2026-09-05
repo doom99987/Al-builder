@@ -1958,6 +1958,29 @@
 
   // ── Online presence counter ───────────────────────────────
   let _presenceChannel = null;
+  let _presenceTries = 0;
+
+  // The channel used to be subscribed once and never looked at again. If that
+  // subscribe failed — a dropped socket, a sleeping laptop, a network that
+  // blocks websockets — it went to 'errored' and stayed there, and the counter
+  // sat on whatever it last showed with nothing trying to fix it. Combined with
+  // the optimistic 1 below, that reads as a counter permanently stuck on 1.
+  //
+  // Supabase retries the underlying socket on its own; it does not re-join the
+  // CHANNEL for us, which is the part that carries presence.
+  function schedulePresenceRetry() {
+    if (_presenceTries >= 6) return;                 // ~2 minutes, then leave it alone
+    const wait = Math.min(30000, 2000 * Math.pow(2, _presenceTries));
+    _presenceTries++;
+    setTimeout(() => {
+      const sb = window._sbClient;
+      if (!sb || !_presenceChannel) return;
+      try { sb.removeChannel(_presenceChannel); } catch (e) { /* already gone */ }
+      _presenceChannel = null;
+      initPresence();
+    }, wait);
+  }
+
   function initPresence() {
     const sb = window._sbClient;
     if (!sb || _presenceChannel) return;
@@ -1968,14 +1991,29 @@
       .on('presence', { event: 'sync' }, () => {
         const count = Object.keys(_presenceChannel.presenceState()).length;
         const el = document.getElementById('stat-online');
-        if (el) el.innerHTML = `<span class="home-stat-dot"></span>${count}`;
+        // A sync that reports nobody is a sync that has not settled yet — never
+        // paint 0, because you are looking at the page.
+        if (el && count > 0) el.innerHTML = `<span class="home-stat-dot"></span>${count}`;
       })
       .subscribe(async status => {
         if (status === 'SUBSCRIBED') {
+          _presenceTries = 0;                        // a good join clears the backoff
           await _presenceChannel.track({ t: Date.now() });
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          schedulePresenceRetry();
         }
       });
   }
+
+  // Coming back to a backgrounded tab is the common case for a dead channel:
+  // the socket was closed while the laptop slept. Re-check on the way in.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (_presenceChannel && _presenceChannel.state !== 'joined') {
+      _presenceTries = 0;
+      schedulePresenceRetry();
+    }
+  });
   // Was `load` + a fixed 900ms. `load` waits for every image and font on the
   // page, so the counter did not even START connecting until well after the
   // page looked ready, and only then did the channel subscribe and sync — which
