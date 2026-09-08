@@ -1959,12 +1959,14 @@
   // ── Online presence counter ───────────────────────────────
   let _presenceChannel = null;
   let _presenceTries   = 0;     // consecutive short-lived or failed joins
-  let _presenceJoins   = 0;     // joins attempted this page-load (hard ceiling)
+  let _presenceJoins   = 0;     // joins attempted in the current budget window
+  let _presenceJoinsAt = 0;     // when that window opened
   let _presenceUpAt    = 0;     // when the current join succeeded; 0 when down
   let _presenceRetryT  = null;  // pending retry, so two are never queued
 
   const PRESENCE_MAX_TRIES = 6;      // consecutive backoff steps, then give up
-  const PRESENCE_MAX_JOINS = 20;     // absolute ceiling per page-load
+  const PRESENCE_MAX_JOINS = 20;     // joins allowed per budget window
+  const PRESENCE_JOIN_WINDOW_MS = 3600000;  // and the window itself
   const PRESENCE_STABLE_MS = 60000;  // a join must hold this long to count as good
 
   // The channel used to be subscribed once and never looked at again. If that
@@ -1991,10 +1993,23 @@
   // 2s, 4s, 8s, 16s, 32s, 30s and then stops; a genuinely long-lived connection
   // that drops once still gets a fresh set of fast retries. PRESENCE_MAX_JOINS
   // is the backstop that no reset path can talk its way past.
+  // The ceiling bounds a flapping client, but it was originally per-page-load
+  // and only ever counted up. A tab left open all day reconnects legitimately
+  // after every sleep/wake, so it burned all 20 and then went quiet for good
+  // with no way back — the counter would simply stop updating and stay stopped.
+  // The budget now refills once an hour: still far too tight for a client
+  // rejoining every 3 seconds, comfortably loose for a long, healthy session.
+  function presenceBudgetOk() {
+    const t = Date.now();
+    if (!_presenceJoinsAt) _presenceJoinsAt = t;
+    if (t - _presenceJoinsAt > PRESENCE_JOIN_WINDOW_MS) { _presenceJoins = 0; _presenceJoinsAt = t; }
+    return _presenceJoins < PRESENCE_MAX_JOINS;
+  }
+
   function schedulePresenceRetry() {
     if (_presenceRetryT) return;                        // one in flight is enough
     if (_presenceTries >= PRESENCE_MAX_TRIES) return;
-    if (_presenceJoins >= PRESENCE_MAX_JOINS) return;
+    if (!presenceBudgetOk()) return;
     // A hidden tab still costs everyone else a diff on every rejoin, and nobody
     // is reading the counter. Wait for visibilitychange to bring us back.
     if (document.visibilityState !== 'visible') return;
@@ -2014,7 +2029,7 @@
   function initPresence() {
     const sb = window._sbClient;
     if (!sb || _presenceChannel) return;
-    if (_presenceJoins >= PRESENCE_MAX_JOINS) return;
+    if (!presenceBudgetOk()) return;
     _presenceJoins++;
     const fp = localStorage.getItem('alb_visitor') ||
       (() => { const v = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('alb_visitor', v); return v; })();
@@ -2056,10 +2071,25 @@
   // stops that becoming a loop for someone who flips tabs on a bad connection.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
-    if (_presenceChannel && _presenceChannel.state !== 'joined') {
+    // pagehide can leave us with no channel at all; rejoin from scratch.
+    if (!_presenceChannel) { _presenceTries = 0; initPresence(); return; }
+    if (_presenceChannel.state !== 'joined') {
       _presenceTries = 0;
       schedulePresenceRetry();
     }
+  });
+
+  // Nothing ever left the channel. A phone that backgrounds the tab FREEZES it
+  // rather than closing it, so the socket lingered until Realtime's heartbeat
+  // timeout reaped it — every frozen tab still counted against peak concurrent
+  // connections, which is the quota actually being exceeded. Leaving on the way
+  // out also spares every other visitor the diff when the server finally
+  // notices. `pagehide` rather than `unload`: it is the one that fires on iOS.
+  window.addEventListener('pagehide', () => {
+    const sb = window._sbClient;
+    if (_presenceRetryT) { clearTimeout(_presenceRetryT); _presenceRetryT = null; }
+    try { if (sb && _presenceChannel) sb.removeChannel(_presenceChannel); } catch (e) { /* already gone */ }
+    _presenceChannel = null;
   });
   // Was `load` + a fixed 900ms. `load` waits for every image and font on the
   // page, so the counter did not even START connecting until well after the
@@ -2090,6 +2120,79 @@
     } else {
       tick();
     }
+  })();
+
+  // ── New-version banner ────────────────────────────────────────────────
+  // Bump SITE_VERSION and version.json TOGETHER when you ship something that
+  // already-open tabs need to pick up. tools/ai/test.js fails if they drift.
+  //
+  // Why this exists: a presence bug once shipped and every open tab kept
+  // running the broken build for hours, because nothing on the page knew what
+  // version it was and nothing was listening for an instruction. There was no
+  // way to reach those tabs. This is that missing lever.
+  //
+  // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
+  // an unsaved build, and reloading it out from under someone would destroy
+  // their work. Offer the reload; let them pick the moment.
+  const SITE_VERSION    = '2026-09-08.1';
+  const VERSION_POLL_MS = 600000;   // 10 minutes
+
+  (function watchSiteVersion() {
+    let _shown = false, _dismissed = false, _timer = null;
+
+    function showVersionBanner() {
+      if (_shown || _dismissed || document.getElementById('ver-banner')) return;
+      _shown = true;
+      const bar = document.createElement('div');
+      bar.id = 'ver-banner';
+      bar.setAttribute('role', 'status');
+      bar.style.cssText =
+        'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:99999;' +
+        'display:flex;align-items:center;gap:12px;background:#1b1b1b;border:1px solid #3a3a3a;' +
+        'border-radius:8px;padding:10px 14px;color:#ddd;font-size:13px;' +
+        'box-shadow:0 6px 24px rgba(0,0,0,.5);max-width:calc(100vw - 24px);';
+
+      const msg = document.createElement('span');
+      msg.textContent = 'A new version of AL Builder is available.';
+
+      const btn = document.createElement('button');
+      btn.textContent = 'Reload';
+      btn.style.cssText = 'background:#7a60dd;border:none;border-radius:5px;color:#fff;' +
+                          'padding:6px 12px;font-size:13px;cursor:pointer;';
+      btn.onclick = () => location.reload();
+
+      const x = document.createElement('button');
+      x.textContent = '\u00d7';
+      x.setAttribute('aria-label', 'Dismiss');
+      x.style.cssText = 'background:none;border:none;color:#888;font-size:18px;' +
+                        'line-height:1;cursor:pointer;padding:0 2px;';
+      x.onclick = () => { _dismissed = true; bar.remove(); };
+
+      bar.appendChild(msg); bar.appendChild(btn); bar.appendChild(x);
+      document.body.appendChild(bar);
+    }
+
+    async function checkVersion() {
+      if (_shown || _dismissed) return;
+      if (document.visibilityState !== 'visible') return;   // nobody is looking
+      try {
+        // Same-origin, served by GitHub Pages. Costs no Supabase egress at all,
+        // which is the point — this must not become the thing it guards against.
+        const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) return;
+        const v = (await r.json()).version;
+        if (v && v !== SITE_VERSION) {
+          showVersionBanner();
+          if (_timer) { clearInterval(_timer); _timer = null; }
+        }
+      } catch (e) { /* offline, or Pages hiccup — just try again next tick */ }
+    }
+
+    _timer = setInterval(checkVersion, VERSION_POLL_MS);
+    // A tab reopened after days should find out on focus, not ten minutes later.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkVersion();
+    });
   })();
 
   function switchQteTab(name) {
