@@ -398,6 +398,10 @@
   // ---- helpers ----
   const _E = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function esc(s) { return String(s).replace(/[&<>"']/g, c => _E[c]); }
+  // esc maps ' to &#39;, which is right for text and ordinary attributes but
+  // useless inside a JS string in an inline handler: the HTML parser decodes the
+  // entity back to a quote before the JS parser runs. Strip, then escape.
+  function escAttrJs(s) { return esc(String(s == null ? '' : s).replace(/['"\\]/g, '')); }
 
   function avatarColor(name) {
     const p = ['#5544cc','#2266bb','#1e8c6e','#b05a10','#aa2266','#993333','#1a6699'];
@@ -417,8 +421,10 @@
   // Click attributes that open a player's profile/report popup (omit if no id).
   function orbAttrs(userId, name) {
     if (!userId || !window._openUserProfile) return '';
-    const safe = String(name || '').replace(/['"\\]/g, '');
-    return `data-orb="1" title="View profile" onclick="window._openUserProfile({userId:'${userId}',username:'${safe}'})"`;
+    // Both values land in a JS string inside an HTML attribute. Stripping the
+    // quotes was half of it; the value was then never HTML-escaped, and userId
+    // was interpolated raw. escAttrJs does both halves in the right order.
+    return `data-orb="1" title="View profile" onclick="window._openUserProfile({userId:'${escAttrJs(userId)}',username:'${escAttrJs(name)}'})"`;
   }
 
   function timeAgo(d) {
@@ -569,7 +575,7 @@
         <div class="trd-card-items">${itemsHtml}</div>
         ${lfHtml ? `<div class="trd-card-lf-block"><span class="${l.type === 'buying' ? 'trd-gv-label' : 'trd-lf-label'}">${l.type === 'buying' ? 'GV' : 'LF'}</span><div class="trd-card-items">${lfHtml}</div></div>` : ''}
         ${l.description?.trim() ? `<div class="trd-card-desc">${esc(l.description)}</div>` : ''}
-        ${!own ? `<button class="trd-msg-btn" onclick="window._trdMessage('${esc(l.user_id)}','${esc(l.username)}','${esc(l.id)}')">💬 Accept Offer</button>` : ''}
+        ${!own ? `<button class="trd-msg-btn" onclick="window._trdMessage('${escAttrJs(l.user_id)}','${escAttrJs(l.username)}','${escAttrJs(l.id)}')">💬 Accept Offer</button>` : ''}
       </div>`;
     }).join('');
   }
@@ -638,7 +644,7 @@
             <textarea id="trd-post-desc" class="trd-input trd-textarea" placeholder="Optional details..." maxlength="300"></textarea>
           </div>
           <div id="trd-post-err" class="trd-form-err"></div>
-          <button class="trd-submit-btn" onclick="window._trdSubmitEdit('${esc(listingId)}')">Save Changes</button>
+          <button class="trd-submit-btn" onclick="window._trdSubmitEdit('${escAttrJs(listingId)}')">Save Changes</button>
         </div>
       </div>`;
     document.body.appendChild(m);
@@ -1259,7 +1265,7 @@
       return;
     }
     body.innerHTML = partyHtml + _dmConvs.map(c => `
-      <div class="dm-conv-item" onclick="window._dmOpenThread('${esc(c.other_id)}','${esc(c.other_name)}')">
+      <div class="dm-conv-item" onclick="window._dmOpenThread('${escAttrJs(c.other_id)}','${escAttrJs(c.other_name)}')">
         ${mkAvatar(c.other_name, c.other_avatar, 36, orbAttrs(c.other_id, c.other_name))}
         <div class="dm-conv-info">
           <div class="dm-conv-name">${esc(c.other_name)}</div>
@@ -1268,7 +1274,7 @@
         <div class="dm-conv-right">
           <div class="dm-conv-time">${timeAgo(c.last_time)}</div>
           ${c.unread > 0 ? `<div class="dm-conv-unread">${c.unread}</div>` : ''}
-          <button class="dm-conv-del" title="Delete conversation" onclick="event.stopPropagation();window._dmDeleteConv('${esc(c.other_id)}')">&#128465;</button>
+          <button class="dm-conv-del" title="Delete conversation" onclick="event.stopPropagation();window._dmDeleteConv('${escAttrJs(c.other_id)}')">&#128465;</button>
         </div>
       </div>`).join('');
   }
@@ -1519,19 +1525,19 @@
       const isClosePrompt     = n.meta?.type === 'trade_close_prompt' && n.meta?.listing_id;
       const alreadyClosed     = n.meta?._closed === true;
       const clickAttr = isTradeAccepted
-        ? `onclick="window._notifOpenDm('${esc(n.meta.sender_id)}','${esc(n.meta.sender_username)}')" style="cursor:pointer"`
+        ? `onclick="window._notifOpenDm('${escAttrJs(n.meta.sender_id)}','${escAttrJs(n.meta.sender_username)}')" style="cursor:pointer"`
         : '';
       return `
         <div class="notif-item${n.read ? '' : ' notif-new'}${isTradeAccepted ? ' notif-item--clickable' : ''}" data-nid="${esc(n.id)}" ${clickAttr}>
-          <button class="notif-del-btn" onclick="event.stopPropagation();window._notifDelete('${esc(n.id)}')" title="Dismiss">✕</button>
+          <button class="notif-del-btn" onclick="event.stopPropagation();window._notifDelete('${escAttrJs(n.id)}')" title="Dismiss">✕</button>
           <div class="notif-item-title">${esc(n.title)}</div>
           ${n.body ? `<div class="notif-item-body">${esc(n.body)}</div>` : ''}
           ${window._notifExtra ? window._notifExtra(n) : ''}
           ${isTradeAccepted ? `<div class="notif-item-action-hint">Tap to open chat →</div>` : ''}
           ${isClosePrompt && !alreadyClosed ? `
             <div class="notif-actions">
-              <button class="notif-action-btn notif-action-btn--accept" onclick="window._trdCloseFromNotif('${esc(n.meta.listing_id)}','${esc(n.id)}',this)">Yes, close it</button>
-              <button class="notif-action-btn notif-action-btn--decline" onclick="window._trdDismissClosePrompt('${esc(n.id)}',this)">Keep it open</button>
+              <button class="notif-action-btn notif-action-btn--accept" onclick="window._trdCloseFromNotif('${escAttrJs(n.meta.listing_id)}','${escAttrJs(n.id)}',this)">Yes, close it</button>
+              <button class="notif-action-btn notif-action-btn--decline" onclick="window._trdDismissClosePrompt('${escAttrJs(n.id)}',this)">Keep it open</button>
             </div>` : ''}
           ${isClosePrompt && alreadyClosed ? `<div class="notif-action-result notif-accepted">Listing closed.</div>` : ''}
           <div class="notif-item-time">${timeAgo(n.created_at)}</div>

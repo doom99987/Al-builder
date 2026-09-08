@@ -1628,8 +1628,8 @@
       `<div class="sb-admin-ban-row" data-ban="${esc(b.username)}">
         <span>${esc(b.username)}</span>
         <div style="display:flex;gap:6px">
-          <button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(b.username)}')">Unban</button>
-          <button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${esc(b.username)}')">🔒 Perma Ban</button>
+          <button class="sb-admin-unban-btn" onclick="window._unbanUser('${escAttrJs(b.username)}')">Unban</button>
+          <button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${escAttrJs(b.username)}')">🔒 Perma Ban</button>
         </div>
       </div>`
     ).join('');
@@ -1660,7 +1660,7 @@
     list.id = 'sb-admin-results';
     list.className = 'sb-admin-results';
     list.innerHTML = profiles.map(p =>
-      `<div class="sb-admin-result-row" onclick="window._adminSelectUser('${esc(p.id)}')">
+      `<div class="sb-admin-result-row" onclick="window._adminSelectUser('${escAttrJs(p.id)}')">
         ${renderAvatar(p.username, null, 22)}
         <span>${esc(p.username)}</span>
       </div>`
@@ -1998,7 +1998,7 @@
           ${lf !== '—' ? `<span class="sb-admin-listing-lf">LF: ${esc(lf)}</span>` : ''}
           <span class="sb-admin-listing-age">${age}</span>
         </div>
-        <button class="sb-admin-del-listing-btn" onclick="window._adminDeleteListing('${esc(l.id)}')">🗑</button>
+        <button class="sb-admin-del-listing-btn" onclick="window._adminDeleteListing('${escAttrJs(l.id)}')">🗑</button>
       </div>`;
     }).join('');
   }
@@ -2097,7 +2097,7 @@
       const div = document.createElement('div');
       div.className = 'sb-admin-ban-row';
       div.dataset.ban = username;
-      div.innerHTML = `<span>${esc(username)}</span><div style="display:flex;gap:6px"><button class="sb-admin-unban-btn" onclick="window._unbanUser('${esc(username)}')">Unban</button><button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${esc(username)}',null)">🔒 Perma Ban</button></div>`;
+      div.innerHTML = `<span>${esc(username)}</span><div style="display:flex;gap:6px"><button class="sb-admin-unban-btn" onclick="window._unbanUser('${escAttrJs(username)}')">Unban</button><button class="sb-admin-perma-btn" onclick="window._adminPermaBanUser('${escAttrJs(username)}',null)">🔒 Perma Ban</button></div>`;
       rowsEl.appendChild(div);
     } else if (action === 'remove') {
       rowsEl.querySelector(`[data-ban="${username}"]`)?.remove();

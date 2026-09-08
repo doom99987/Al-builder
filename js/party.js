@@ -25,7 +25,12 @@
   const sb = window._sbClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: 'implicit' } });
 
   // ── helpers ───────────────────────────────────────────────
-  const esc    = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc    = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // For a value interpolated into a JS string inside an inline handler. Escaping
+  // alone cannot protect that position: the HTML parser decodes entities BEFORE
+  // the JS parser sees the attribute, so &#39; becomes a real quote and closes
+  // the string. Strip the quote characters first, then escape.
+  const escAttrJs = s => esc(String(s ?? '').replace(/['"\\]/g, ''));
   const uid    = () => window._sbGetUserId?.()  ?? null;
   const uname  = () => window._sbGetUsername?.() ?? null;
   const authed = () => !!uid();
@@ -48,8 +53,10 @@
   // Click attributes that open a player's profile/report popup (omit if no id).
   function orbAttrs(userId, name) {
     if (!userId || !window._openUserProfile) return '';
-    const safe = String(name || '').replace(/['"\\]/g, '');
-    return `data-orb="1" title="View profile" onclick="window._openUserProfile({userId:'${userId}',username:'${safe}'})"`;
+    // Both values land in a JS string inside an HTML attribute. Stripping the
+    // quotes was half of it; the value was then never HTML-escaped, and userId
+    // was interpolated raw. escAttrJs does both halves in the right order.
+    return `data-orb="1" title="View profile" onclick="window._openUserProfile({userId:'${escAttrJs(userId)}',username:'${escAttrJs(name)}'})"`;
   }
 
   // Basic profanity guard — reuse trades.js filter if available
@@ -389,8 +396,8 @@
     const isMine    = p.host_id === myId;
     const isPrivate = !!p.is_private;
     const closeOrLeave = isMine
-      ? `<button class="party-close-btn" onclick="window._partyCloseFromCard('${esc(p.id)}')">Close Party</button>`
-      : `<button class="party-close-btn" onclick="window._partyLeaveFromCard('${esc(p.id)}')">Leave Party</button>`;
+      ? `<button class="party-close-btn" onclick="window._partyCloseFromCard('${escAttrJs(p.id)}')">Close Party</button>`
+      : `<button class="party-close-btn" onclick="window._partyLeaveFromCard('${escAttrJs(p.id)}')">Leave Party</button>`;
 
     return `<div class="party-banner${isPrivate ? ' party-banner--private' : ''}">
       <div class="party-banner-boss">${esc(p.boss)}${isPrivate ? ' <span class="party-private-badge">🔒 Private</span>' : ''}</div>
@@ -408,8 +415,8 @@
         </div>
       </div>
       <div class="party-banner-actions">
-        <button class="party-open-btn party-open-btn--wide" onclick="window._partyOpenPanel('${esc(p.id)}')">Open Chat</button>
-        ${isMine ? `<button class="party-share-btn" onclick="window._partyCopyInvite('${esc(p.id)}', this)" title="Copy invite link">🔗 Share Link</button>` : ''}
+        <button class="party-open-btn party-open-btn--wide" onclick="window._partyOpenPanel('${escAttrJs(p.id)}')">Open Chat</button>
+        ${isMine ? `<button class="party-share-btn" onclick="window._partyCopyInvite('${escAttrJs(p.id)}', this)" title="Copy invite link">🔗 Share Link</button>` : ''}
         ${closeOrLeave}
       </div>
     </div>`;
@@ -425,7 +432,7 @@
       actionBtn = `<button class="party-join-btn" disabled>Leave your party first</button>`;
     } else {
       actionBtn = `<button class="party-join-btn${isFull ? ' party-join-btn--full' : ''}"
-        onclick="window._partyJoin('${esc(p.id)}')" ${isFull ? 'disabled' : ''}>
+        onclick="window._partyJoin('${escAttrJs(p.id)}')" ${isFull ? 'disabled' : ''}>
         ${isFull ? 'Full' : 'Request to Join'}</button>`;
     }
 
@@ -444,8 +451,8 @@
       </div>
       <div class="party-card-actions">
         ${actionBtn}
-        <button class="party-profile-btn" onclick="window._partyViewProfile('${esc(p.host_id)}','${esc(p.host_name)}')">Profile</button>
-        ${isAdmin ? `<button class="party-admin-remove-btn" onclick="window._partyAdminRemove('${esc(p.id)}')" title="Remove listing (admin)">✕</button>` : ''}
+        <button class="party-profile-btn" onclick="window._partyViewProfile('${escAttrJs(p.host_id)}','${escAttrJs(p.host_name)}')">Profile</button>
+        ${isAdmin ? `<button class="party-admin-remove-btn" onclick="window._partyAdminRemove('${escAttrJs(p.id)}')" title="Remove listing (admin)">✕</button>` : ''}
       </div>
       <div class="party-card-age">${timeAgo(p.created_at)}</div>
     </div>`;
@@ -639,7 +646,7 @@
   window._notifExtra = function (n) {
     if (!n.meta) return '';
     if (n.meta.type === 'party_join') {
-      const rid = esc(n.meta.request_id);
+      const rid = escAttrJs(n.meta.request_id);
       const st  = n.meta.status;
       if (st === 'accepted') return `<div class="notif-action-result notif-accepted">✓ Accepted</div>`;
       if (st === 'rejected' && n.meta.already_joined) return `<div class="notif-action-result notif-rejected">Already in a party</div>`;
