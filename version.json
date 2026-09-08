@@ -1,0 +1,4 @@
+{
+  "version": "2026-09-08.1",
+  "note": "Bump this whenever you deploy something already-open tabs should pick up. SITE_VERSION in index.html must match — tools/ai/test.js fails if they disagree. Format is YYYY-MM-DD.N so a stale value is obvious at a glance."
+}
