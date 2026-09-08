@@ -4444,6 +4444,54 @@ describe('cache busting', () => {
        'lazy loads are not version-stamped');
   });
 
+  // version.json is what already-open tabs poll to learn they are stale. If it
+  // disagrees with the SITE_VERSION baked into the page, either every tab
+  // believes it is out of date forever (banner that never goes away) or none of
+  // them ever notice a real deploy. Both failures are silent in a browser, so
+  // catch them here.
+  // An inline handler puts its value in TWO nested parsers: HTML decodes the
+  // attribute, then JS parses the string. esc() only handles the outer one, and
+  // the entity it produces for an apostrophe is decoded back into a real quote
+  // before JS ever sees it — so esc() inside a handler is not protection, it
+  // only looks like it. Usernames, host names and notification meta all reach
+  // these sinks and are all client-written. escAttrJs strips the quote
+  // characters first, then escapes, which is the only order that works.
+  it('inline handlers escape with escAttrJs, never plain esc', () => {
+    const FILES = ['js/party.js', 'js/trades.js', 'js/sb.js',
+                   'js/builds.js', 'js/matchmaking.js'];
+    const HANDLER = /on(?:click|change|input|keydown|keyup|submit|focus|blur|mouseover)="[^"\r\n]*"/g;
+    const bad = [];
+    for (const f of FILES) {
+      const src = readRoot(f);
+      let m;
+      HANDLER.lastIndex = 0;
+      while ((m = HANDLER.exec(src)) !== null) {
+        // '${escAttrJs(' does not match '${esc(' — the char after esc is 'A'.
+        if (m[0].indexOf('${esc(') !== -1 || m[0].indexOf('${_esc(') !== -1) {
+          bad.push(f + '  ' + m[0].slice(0, 88));
+        }
+      }
+    }
+    eq(bad.length, 0,
+       'inline handler(s) using the plain escaper:\n  ' + bad.join('\n  '));
+  });
+
+  it('version.json and index.html agree on the site version', () => {
+    const raw = readRoot('version.json');
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e) { ok(false, 'version.json is not valid JSON: ' + e.message); }
+    ok(parsed && typeof parsed.version === 'string' && parsed.version,
+       'version.json has no version string');
+
+    const html = readRoot('index.html');
+    const m = /const SITE_VERSION\s*=\s*'([^']+)'/.exec(html);
+    ok(m, 'no SITE_VERSION constant in index.html');
+    eq(m[1], parsed.version,
+       'index.html is on ' + m[1] + ' but version.json says ' + parsed.version +
+       ' — bump both together');
+  });
+
   it('the standalone page and the panel agree on the engine version', () => {
     const m1 = /const ENGINE_V = (\d+);/.exec(readRoot('js/build-ai.js'));
     ok(m1, 'could not read ENGINE_V');
