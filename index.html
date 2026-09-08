@@ -1958,7 +1958,14 @@
 
   // ── Online presence counter ───────────────────────────────
   let _presenceChannel = null;
-  let _presenceTries = 0;
+  let _presenceTries   = 0;     // consecutive short-lived or failed joins
+  let _presenceJoins   = 0;     // joins attempted this page-load (hard ceiling)
+  let _presenceUpAt    = 0;     // when the current join succeeded; 0 when down
+  let _presenceRetryT  = null;  // pending retry, so two are never queued
+
+  const PRESENCE_MAX_TRIES = 6;      // consecutive backoff steps, then give up
+  const PRESENCE_MAX_JOINS = 20;     // absolute ceiling per page-load
+  const PRESENCE_STABLE_MS = 60000;  // a join must hold this long to count as good
 
   // The channel used to be subscribed once and never looked at again. If that
   // subscribe failed — a dropped socket, a sleeping laptop, a network that
@@ -1968,11 +1975,34 @@
   //
   // Supabase retries the underlying socket on its own; it does not re-join the
   // CHANNEL for us, which is the part that carries presence.
+  //
+  // That retry then had the opposite failure. `_presenceTries` was cleared on
+  // every SUBSCRIBED, so a client that could CONNECT but not STAY connected
+  // never reached the cap: it looped connect -> track -> drop -> wait 2s ->
+  // connect, indefinitely. Every cycle re-downloaded the entire presence state
+  // AND broadcast a presence_diff to every other visitor on the site, so the
+  // cost scaled as (flapping clients x all clients). Measured on the live site:
+  // presence metas grew 312 -> 490 in 30 seconds against only 13 new visitors,
+  // and one key gained a meta every ~3 seconds. That is how a decorative
+  // counter became the single largest source of egress on the project.
+  //
+  // The backoff is now cleared on FAILURE instead, and only when the join that
+  // just ended actually lasted PRESENCE_STABLE_MS. A flapping client escalates
+  // 2s, 4s, 8s, 16s, 32s, 30s and then stops; a genuinely long-lived connection
+  // that drops once still gets a fresh set of fast retries. PRESENCE_MAX_JOINS
+  // is the backstop that no reset path can talk its way past.
   function schedulePresenceRetry() {
-    if (_presenceTries >= 6) return;                 // ~2 minutes, then leave it alone
+    if (_presenceRetryT) return;                        // one in flight is enough
+    if (_presenceTries >= PRESENCE_MAX_TRIES) return;
+    if (_presenceJoins >= PRESENCE_MAX_JOINS) return;
+    // A hidden tab still costs everyone else a diff on every rejoin, and nobody
+    // is reading the counter. Wait for visibilitychange to bring us back.
+    if (document.visibilityState !== 'visible') return;
+
     const wait = Math.min(30000, 2000 * Math.pow(2, _presenceTries));
     _presenceTries++;
-    setTimeout(() => {
+    _presenceRetryT = setTimeout(() => {
+      _presenceRetryT = null;
       const sb = window._sbClient;
       if (!sb || !_presenceChannel) return;
       try { sb.removeChannel(_presenceChannel); } catch (e) { /* already gone */ }
@@ -1984,22 +2014,35 @@
   function initPresence() {
     const sb = window._sbClient;
     if (!sb || _presenceChannel) return;
+    if (_presenceJoins >= PRESENCE_MAX_JOINS) return;
+    _presenceJoins++;
     const fp = localStorage.getItem('alb_visitor') ||
       (() => { const v = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('alb_visitor', v); return v; })();
-    _presenceChannel = sb.channel('alb-online', { config: { presence: { key: fp } } });
-    _presenceChannel
+    // Held locally as well as globally: a retry replaces _presenceChannel, and
+    // the old channel's callbacks can still fire afterwards. Comparing against
+    // `ch` keeps a superseded channel from painting the counter or resetting
+    // the backoff on the live one's behalf.
+    const ch = sb.channel('alb-online', { config: { presence: { key: fp } } });
+    _presenceChannel = ch;
+    ch
       .on('presence', { event: 'sync' }, () => {
-        const count = Object.keys(_presenceChannel.presenceState()).length;
+        if (_presenceChannel !== ch) return;
+        const count = Object.keys(ch.presenceState()).length;
         const el = document.getElementById('stat-online');
         // A sync that reports nobody is a sync that has not settled yet — never
         // paint 0, because you are looking at the page.
         if (el && count > 0) el.innerHTML = `<span class="home-stat-dot"></span>${count}`;
       })
       .subscribe(async status => {
+        if (_presenceChannel !== ch) return;
         if (status === 'SUBSCRIBED') {
-          _presenceTries = 0;                        // a good join clears the backoff
-          await _presenceChannel.track({ t: Date.now() });
+          _presenceUpAt = Date.now();
+          await ch.track({ t: Date.now() });
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          // Only a join that actually HELD earns a clean slate. Clearing here
+          // rather than on SUBSCRIBED is the whole fix.
+          if (_presenceUpAt && Date.now() - _presenceUpAt >= PRESENCE_STABLE_MS) _presenceTries = 0;
+          _presenceUpAt = 0;
           schedulePresenceRetry();
         }
       });
@@ -2007,6 +2050,10 @@
 
   // Coming back to a backgrounded tab is the common case for a dead channel:
   // the socket was closed while the laptop slept. Re-check on the way in.
+  //
+  // This still clears the backoff, because focusing a tab is a deliberate user
+  // action and a slept laptop deserves fast retries. PRESENCE_MAX_JOINS is what
+  // stops that becoming a loop for someone who flips tabs on a bad connection.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
     if (_presenceChannel && _presenceChannel.state !== 'joined') {
