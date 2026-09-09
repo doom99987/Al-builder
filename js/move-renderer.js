@@ -169,6 +169,9 @@ function covenantPassivesHtml(data, rank) {
 }
 
 function renderMoves() {
+  // loadBuildState drives the pickers with synthetic 'change' events and each
+  // handler re-renders this panel; it renders everything once itself at the end.
+  if (window._albLoadingBuild) return;
   const container = document.getElementById("moves-content");
   const raceName     = racePicker.value;
   const baseClass    = classPicker.value;
