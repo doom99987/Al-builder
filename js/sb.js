@@ -259,6 +259,17 @@
   sb.auth.onAuthStateChange((_event, session) => {
     if (_event === 'PASSWORD_RECOVERY') return; // handled inside openSetNewPasswordModal
     if (_authLock) return;
+    // supabase-js refreshes the access token roughly hourly and fires this with
+    // the same user. Running the full login path for it made every open tab
+    // re-fetch its profile and tester flag and — via the alb-auth-changed
+    // dispatch below — re-download the whole bank and saved-builds jsonb blobs,
+    // once an hour, to arrive at exactly the state it already had. Take the new
+    // handle and stop. Anything that genuinely changed the user still falls
+    // through, because the id comparison fails.
+    if (_event === 'TOKEN_REFRESHED' && currentUser && session?.user?.id === currentUser.id) {
+      currentUser = session.user;
+      return;
+    }
     currentUser = session?.user ?? null;
     if (currentUser) {
       const username = currentUser.user_metadata?.username
@@ -402,8 +413,18 @@
   // DURING a run (streak 1, 2, 3 …), so the same session must cover all of
   // them. Consuming it after the first submission made every later (higher)
   // score get dropped, freezing leaderboard entries at the first new high.
+  const _lastSubmitted = {};   // qteType -> last score actually sent, see below
   async function submitScore(qteType, score) {
     if (!currentUser || !score) return;
+    // Every new high arrives here twice: the trainer calls _sbSubmitScore
+    // directly (js/qte.js:35 and 23 siblings) and the Storage.setItem hook in
+    // js/core.js:211 fires again for the same localStorage write. Identical
+    // (type, score), and each one costs an RPC plus a select plus a conditional
+    // upsert. Dropping either caller would be fragile - comp mode only has the
+    // explicit call, since the hook's /^alb:([a-z]+)-hs$/ does not match
+    // 'fist-comp' - so dedupe here instead, where both paths meet.
+    if (_lastSubmitted[qteType] === score) return;
+    _lastSubmitted[qteType] = score;
     const sessionId = _sessionIds[qteType] ?? null;
     if (!sessionId) { console.warn('[sb] submitScore: no valid session for', qteType, '— score not saved'); return; }
     const { error } = await sb.rpc('submit_score', {
@@ -417,6 +438,7 @@
     if (error) {
       console.error('[sb] submitScore error', qteType, score, error.message);
       // Session likely rejected/expired server-side — re-arm so the next high can submit
+      delete _lastSubmitted[qteType];   // a failed submit must stay retryable
       delete _sessionIds[qteType];
       startQteSession(qteType);
       return;
@@ -1362,7 +1384,15 @@
   const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)', 'yarthul-new': "Yar'Thul (New)" };
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
-  async function loadAllLeaderboards(mode, platform) {
+  // switchPage calls this on every visit to the Leaderboards tab, and it is the
+  // only page that costs an anonymous visitor anything: measured 22.3 KB per
+  // nav (leaderboard 14.7 + profiles 6.0 + records 1.2 + ban tables 0.4),
+  // identical on every revisit. A short TTL keeps the tab feeling live while
+  // making tab-flipping free. The Refresh button bypasses it.
+  const ALL_LB_TTL_MS = 60000;
+  let _allLbLast = { key: '', at: 0 };
+
+  async function loadAllLeaderboards(mode, platform, force) {
     const grid = document.getElementById('all-lb-grid');
     if (!grid) return;
 
@@ -1374,6 +1404,13 @@
     // Resolve platform from arg or module state
     if (platform !== undefined) _allLbPlatform = platform;
     const plat = _allLbPlatform;
+
+    // Serve the rendered grid again if nothing about the request changed and it
+    // is still fresh. grid.children guards the case where a previous attempt
+    // failed and left only the error paragraph behind.
+    const _lbKey = mode + '|' + plat;
+    if (!force && _allLbLast.key === _lbKey && grid.children.length
+        && Date.now() - _allLbLast.at < ALL_LB_TTL_MS) return;
 
     const suffix = mode === 'comp' ? '-comp' : '';
 
@@ -1461,6 +1498,7 @@
           </table>
         </div>`;
     }).join('');
+    _allLbLast = { key: _lbKey, at: Date.now() };
     } catch (e) {
       console.error('[sb] loadAllLeaderboards error', e);
       grid.innerHTML = '<p class="sb-empty">Failed to load leaderboards. Please refresh.</p>';
@@ -2178,6 +2216,8 @@
   window._confirmDeleteAccount = confirmDeleteAccount;
   window._showConsentFromSettings = () => window._showChatConsentModal?.(() => openSettings());
   window._loadAllLeaderboards  = loadAllLeaderboards;
+  // The Refresh button means "I want it now", so it forces past the TTL.
+  window._lbRefresh            = () => loadAllLeaderboards(null, undefined, true);
   window._openAdminPanel         = openAdminPanel;
   window._adminSwitchTab         = adminSwitchTab;
   window._adminLoadListings      = adminLoadListings;
