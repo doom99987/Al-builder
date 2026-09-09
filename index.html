@@ -1956,162 +1956,108 @@
   // Load stats on initial home page visit (sb.js may not be ready yet, so defer slightly)
   window.addEventListener('load', () => setTimeout(loadHomeStats, 800));
 
-  // ── Online presence counter ───────────────────────────────
-  let _presenceChannel = null;
-  let _presenceTries   = 0;     // consecutive short-lived or failed joins
-  let _presenceJoins   = 0;     // joins attempted in the current budget window
-  let _presenceJoinsAt = 0;     // when that window opened
-  let _presenceUpAt    = 0;     // when the current join succeeded; 0 when down
-  let _presenceRetryT  = null;  // pending retry, so two are never queued
+  // ── Online counter ────────────────────────────────
+  // This was a Supabase Realtime presence channel that every visitor joined,
+  // logged in or not. Presence fans out: each join and leave sends a diff to
+  // EVERY connected client, so the event rate and the recipient count both grow
+  // with N and the cost grows with N squared.
+  //
+  // Measured on the live site by hooking the websocket, 09 Sep 2026: 355 bytes
+  // per diff, ~31 diffs/min per client, 0.67 MB/hour each at 93 concurrent.
+  // That billed 12.256 GB in a single day - 99.6% of all project egress, with
+  // PostgREST at 43 MB and Storage at 184 KB for comparison - to display one
+  // number. It also held a websocket per anonymous visitor against the
+  // 200-concurrent cap the project was over.
+  //
+  // The heartbeat below is O(N): a client says "I am here" once a minute and
+  // gets a count back, and its cost does not depend on how many others are
+  // online. Needs supabase/online-heartbeat.sql to have been run; until then
+  // the rpc errors and the counter simply keeps its optimistic 1.
+  const ONLINE_POLL_MS  = 60000;   // steady state
+  const ONLINE_RETRY_MS = 15000;   // first retry after a failure
+  const ONLINE_MAX_RETRY_MS = 300000;  // ...doubling to five minutes
+  let _onlineTimer    = null;
+  let _onlineInFlight = false;
+  let _onlineFails    = 0;         // consecutive failures, drives the backoff
 
-  const PRESENCE_MAX_TRIES = 6;      // consecutive backoff steps, then give up
-  const PRESENCE_MAX_JOINS = 20;     // joins allowed per budget window
-  const PRESENCE_JOIN_WINDOW_MS = 3600000;  // and the window itself
-  const PRESENCE_STABLE_MS = 60000;  // a join must hold this long to count as good
-
-  // The channel used to be subscribed once and never looked at again. If that
-  // subscribe failed — a dropped socket, a sleeping laptop, a network that
-  // blocks websockets — it went to 'errored' and stayed there, and the counter
-  // sat on whatever it last showed with nothing trying to fix it. Combined with
-  // the optimistic 1 below, that reads as a counter permanently stuck on 1.
-  //
-  // Supabase retries the underlying socket on its own; it does not re-join the
-  // CHANNEL for us, which is the part that carries presence.
-  //
-  // That retry then had the opposite failure. `_presenceTries` was cleared on
-  // every SUBSCRIBED, so a client that could CONNECT but not STAY connected
-  // never reached the cap: it looped connect -> track -> drop -> wait 2s ->
-  // connect, indefinitely. Every cycle re-downloaded the entire presence state
-  // AND broadcast a presence_diff to every other visitor on the site, so the
-  // cost scaled as (flapping clients x all clients). Measured on the live site:
-  // presence metas grew 312 -> 490 in 30 seconds against only 13 new visitors,
-  // and one key gained a meta every ~3 seconds. That is how a decorative
-  // counter became the single largest source of egress on the project.
-  //
-  // The backoff is now cleared on FAILURE instead, and only when the join that
-  // just ended actually lasted PRESENCE_STABLE_MS. A flapping client escalates
-  // 2s, 4s, 8s, 16s, 32s, 30s and then stops; a genuinely long-lived connection
-  // that drops once still gets a fresh set of fast retries. PRESENCE_MAX_JOINS
-  // is the backstop that no reset path can talk its way past.
-  // The ceiling bounds a flapping client, but it was originally per-page-load
-  // and only ever counted up. A tab left open all day reconnects legitimately
-  // after every sleep/wake, so it burned all 20 and then went quiet for good
-  // with no way back — the counter would simply stop updating and stay stopped.
-  // The budget now refills once an hour: still far too tight for a client
-  // rejoining every 3 seconds, comfortably loose for a long, healthy session.
-  function presenceBudgetOk() {
-    const t = Date.now();
-    if (!_presenceJoinsAt) _presenceJoinsAt = t;
-    if (t - _presenceJoinsAt > PRESENCE_JOIN_WINDOW_MS) { _presenceJoins = 0; _presenceJoinsAt = t; }
-    return _presenceJoins < PRESENCE_MAX_JOINS;
+  function onlineFingerprint() {
+    let v = null;
+    try { v = localStorage.getItem('alb_visitor'); } catch (e) { /* blocked */ }
+    if (!v) {
+      v = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      try { localStorage.setItem('alb_visitor', v); } catch (e) { /* private mode */ }
+    }
+    return v;
   }
 
-  function schedulePresenceRetry() {
-    if (_presenceRetryT) return;                        // one in flight is enough
-    if (_presenceTries >= PRESENCE_MAX_TRIES) return;
-    if (!presenceBudgetOk()) return;
-    // A hidden tab still costs everyone else a diff on every rejoin, and nobody
-    // is reading the counter. Wait for visibilitychange to bring us back.
+  function paintOnline(count) {
+    const el = document.getElementById('stat-online');
+    // Never paint 0: you are looking at the page, so 0 can only mean the count
+    // has not settled yet. Leave whatever is showing.
+    if (el && count > 0) el.innerHTML = `<span class="home-stat-dot"></span>${count}`;
+  }
+
+  function scheduleOnline(ms) {
+    clearTimeout(_onlineTimer);
+    _onlineTimer = setTimeout(pingOnline, ms);
+  }
+
+  async function pingOnline() {
+    const sb = window._sbClient;
+    if (!sb || _onlineInFlight) return;
+    // A hidden tab stops heartbeating, so it drops out of the count after the
+    // server's 90s window. That is the honest answer for "online now", and it
+    // means a wall of forgotten tabs costs nothing. visibilitychange below
+    // restarts it, so there is deliberately no reschedule on this path.
     if (document.visibilityState !== 'visible') return;
 
-    const wait = Math.min(30000, 2000 * Math.pow(2, _presenceTries));
-    _presenceTries++;
-    _presenceRetryT = setTimeout(() => {
-      _presenceRetryT = null;
-      const sb = window._sbClient;
-      if (!sb || !_presenceChannel) return;
-      try { sb.removeChannel(_presenceChannel); } catch (e) { /* already gone */ }
-      _presenceChannel = null;
-      initPresence();
-    }, wait);
+    _onlineInFlight = true;
+    let ok = false;
+    try {
+      const { data, error } = await sb.rpc('ping_online', { p_fp: onlineFingerprint() });
+      if (!error && typeof data === 'number') { paintOnline(data); ok = true; }
+    } catch (e) { /* offline, or the function is not deployed yet */ }
+    _onlineInFlight = false;
+    if (ok) {
+      _onlineFails = 0;
+      scheduleOnline(ONLINE_POLL_MS);
+    } else {
+      // Not every failure is transient. The likeliest one is that
+      // online-heartbeat.sql has not been run yet, and no amount of retrying
+      // every 15s fixes that - it just has every visitor generating failed
+      // requests, whose error bodies are billed like any other response.
+      // Doubling to five minutes keeps a genuine blip recovering quickly while
+      // making a persistent outage cost almost nothing.
+      _onlineFails++;
+      scheduleOnline(Math.min(ONLINE_MAX_RETRY_MS,
+                              ONLINE_RETRY_MS * Math.pow(2, _onlineFails - 1)));
+    }
   }
 
-  function initPresence() {
-    const sb = window._sbClient;
-    if (!sb || _presenceChannel) return;
-    if (!presenceBudgetOk()) return;
-    _presenceJoins++;
-    const fp = localStorage.getItem('alb_visitor') ||
-      (() => { const v = 'fp_' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('alb_visitor', v); return v; })();
-    // Held locally as well as globally: a retry replaces _presenceChannel, and
-    // the old channel's callbacks can still fire afterwards. Comparing against
-    // `ch` keeps a superseded channel from painting the counter or resetting
-    // the backoff on the live one's behalf.
-    const ch = sb.channel('alb-online', { config: { presence: { key: fp } } });
-    _presenceChannel = ch;
-    ch
-      .on('presence', { event: 'sync' }, () => {
-        if (_presenceChannel !== ch) return;
-        const count = Object.keys(ch.presenceState()).length;
-        const el = document.getElementById('stat-online');
-        // A sync that reports nobody is a sync that has not settled yet — never
-        // paint 0, because you are looking at the page.
-        if (el && count > 0) el.innerHTML = `<span class="home-stat-dot"></span>${count}`;
-      })
-      .subscribe(async status => {
-        if (_presenceChannel !== ch) return;
-        if (status === 'SUBSCRIBED') {
-          _presenceUpAt = Date.now();
-          await ch.track({ t: Date.now() });
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          // Only a join that actually HELD earns a clean slate. Clearing here
-          // rather than on SUBSCRIBED is the whole fix.
-          if (_presenceUpAt && Date.now() - _presenceUpAt >= PRESENCE_STABLE_MS) _presenceTries = 0;
-          _presenceUpAt = 0;
-          schedulePresenceRetry();
-        }
-      });
-  }
-
-  // Coming back to a backgrounded tab is the common case for a dead channel:
-  // the socket was closed while the laptop slept. Re-check on the way in.
-  //
-  // This still clears the backoff, because focusing a tab is a deliberate user
-  // action and a slept laptop deserves fast retries. PRESENCE_MAX_JOINS is what
-  // stops that becoming a loop for someone who flips tabs on a bad connection.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
-    // pagehide can leave us with no channel at all; rejoin from scratch.
-    if (!_presenceChannel) { _presenceTries = 0; initPresence(); return; }
-    if (_presenceChannel.state !== 'joined') {
-      _presenceTries = 0;
-      schedulePresenceRetry();
-    }
+    // Coming back to the tab is deliberate, so try once straight away even if
+    // the backoff had stretched out while it was hidden.
+    _onlineFails = 0;
+    pingOnline();
   });
 
-  // Nothing ever left the channel. A phone that backgrounds the tab FREEZES it
-  // rather than closing it, so the socket lingered until Realtime's heartbeat
-  // timeout reaped it — every frozen tab still counted against peak concurrent
-  // connections, which is the quota actually being exceeded. Leaving on the way
-  // out also spares every other visitor the diff when the server finally
-  // notices. `pagehide` rather than `unload`: it is the one that fires on iOS.
   window.addEventListener('pagehide', () => {
-    const sb = window._sbClient;
-    if (_presenceRetryT) { clearTimeout(_presenceRetryT); _presenceRetryT = null; }
-    try { if (sb && _presenceChannel) sb.removeChannel(_presenceChannel); } catch (e) { /* already gone */ }
-    _presenceChannel = null;
+    clearTimeout(_onlineTimer);
+    _onlineTimer = null;
   });
-  // Was `load` + a fixed 900ms. `load` waits for every image and font on the
-  // page, so the counter did not even START connecting until well after the
-  // page looked ready, and only then did the channel subscribe and sync — which
-  // is why it took seconds to appear.
-  //
-  // Now: start at DOMContentLoaded and poll for the Supabase client instead of
-  // guessing how long it takes to arrive. The 900ms was only ever standing in
-  // for "is _sbClient there yet".
-  (function startPresenceWhenReady() {
+
+  (function startOnlineCounter() {
     // You are online the moment you are looking at the page, so replace the
-    // placeholder dash with 1 right now and let the first sync correct it
-    // upward. Done HERE rather than inside initPresence so it does not wait on
-    // Supabase at all — a dash sitting there while a socket connects is the
-    // slowness being reported, and it reads as broken rather than loading.
+    // placeholder dash straight away rather than leaving a blank slot for a
+    // round trip - an empty stat reads as broken, not as loading.
     const el0 = document.getElementById('stat-online');
     if (el0 && /^\s*[—-]?\s*$/.test(el0.textContent)) {
       el0.innerHTML = '<span class="home-stat-dot"></span>1';
     }
     let waited = 0;
     const tick = () => {
-      if (window._sbClient) { initPresence(); return; }
+      if (window._sbClient) { pingOnline(); return; }
       waited += 100;
       if (waited < 15000) setTimeout(tick, 100);   // give up rather than spin forever
     };
@@ -2134,7 +2080,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-08.1';
+  const SITE_VERSION    = '2026-09-09.1';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
