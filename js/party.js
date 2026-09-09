@@ -1142,6 +1142,20 @@
     return { partyId: _myPartyId, boss: p.boss, size: p.party_size };
   };
 
+  // sb.js dispatches alb-auth-changed on login, logout and session restore.
+  // Only closePartyPanel removed the chat channel, so signing out while a party
+  // panel was open left 'party-chat-<id>' joined: a logged-out visitor kept a
+  // realtime connection and its 30s heartbeat against a party they were no
+  // longer in, and the socket could never idle-disconnect. That connection
+  // counts against the 200-concurrent cap like any other.
+  window.addEventListener('alb-auth-changed', () => {
+    if (uid()) return;                 // login or refresh, nothing to tear down
+    if (_chatSub) { try { sb.removeChannel(_chatSub); } catch (_) {} _chatSub = null; }
+    _currentPartyId = null;
+    _myPartyId      = null;
+    _myPartyData    = null;
+  });
+
   // Called from DM panel party entry click
   window._partyOpenFromMessages = function () {
     window.switchPage?.('lf-party');
