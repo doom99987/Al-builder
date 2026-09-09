@@ -4484,6 +4484,49 @@ describe('cache busting', () => {
   // two read receipts. Both transports are kept on purpose (either can be the
   // one that survives), so the dedupe is what stops the duplicate, and both
   // must go through the one handler or the conversation-list refresh regresses.
+  // The online counter used a Realtime presence channel every visitor joined.
+  // Presence fans out to all N subscribers on every join and leave, so cost
+  // grows with N squared: measured at 355 bytes per diff and ~31 diffs/min per
+  // client, which billed 12.256 GB in one day - 99.6% of all project egress -
+  // for a decorative number, and held a websocket per anonymous visitor against
+  // the 200-connection cap. Reintroducing presence here would silently restore
+  // a quadratic bill, so this guards the shape rather than the behaviour.
+  it('the online counter uses the heartbeat RPC, not a realtime channel', () => {
+    const html = readRoot('index.html');
+
+    ok(html.indexOf("sb.rpc('ping_online'") !== -1, 'the heartbeat rpc call is gone');
+    ok(html.indexOf('const ONLINE_POLL_MS  = 60000;') !== -1,
+       'the poll interval changed - check it is still deliberate');
+
+    // No presence machinery anywhere in the page.
+    for (const gone of ["channel('alb-online'", 'presenceState(', 'initPresence',
+                        'schedulePresenceRetry', '_presenceChannel']) {
+      ok(html.indexOf(gone) === -1,
+         'presence machinery is back in index.html: ' + gone);
+    }
+
+    // A hidden tab must not heartbeat, or a wall of forgotten tabs costs money
+    // for a number nobody is reading.
+    const at = html.indexOf('async function pingOnline()');
+    ok(at !== -1, 'pingOnline is gone');
+    ok(html.slice(at, at + 900).indexOf("document.visibilityState !== 'visible'") !== -1,
+       'pingOnline no longer skips hidden tabs');
+
+    // A flat retry would have every visitor hammering a function that does not
+    // exist yet, and error bodies are billed like any other response.
+    ok(html.indexOf('const ONLINE_MAX_RETRY_MS = 300000;') !== -1,
+       'the failure backoff cap is gone');
+    ok(html.indexOf('ONLINE_RETRY_MS * Math.pow(2, _onlineFails - 1)') !== -1,
+       'failed pings no longer back off');
+
+    // The SQL the client depends on has to be in the repo.
+    const sql = readRoot('supabase/online-heartbeat.sql');
+    ok(/create or replace function ping_online\(p_fp text\)/.test(sql),
+       'ping_online is not defined in supabase/online-heartbeat.sql');
+    ok(sql.indexOf('grant execute on function ping_online(text) to anon, authenticated;') !== -1,
+       'anon can no longer call ping_online - logged-out visitors are most of the count');
+  });
+
   it('the DM popup deduplicates messages arriving on both transports', () => {
     const h = readRoot('html/dm-popup.html');
     ok(h.indexOf('function handleIncomingDm(m)') !== -1,
