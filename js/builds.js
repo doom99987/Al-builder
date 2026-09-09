@@ -10,6 +10,7 @@
   let _likedSet    = new Set();
   let _sortMode    = 'likes';
   let _searchQuery = '';
+  let _searchT     = null;  // debounce handle for the search box
   let _classFilter = 'all';
   let _loaded      = false;
   let _filterOpen  = false;
@@ -111,7 +112,7 @@
       .filter(row => !deleted.has(row.id))
       .map(row => {
         const peek = _peekBlob(row.payload.d);
-        return {
+        const b = {
           id:           row.id,
           build_code:   row.id,
           build_name:   row.payload._displayName || row.payload.n || 'Untitled',
@@ -123,6 +124,16 @@
           likes:        counts[row.id] || 0,
           created_at:   row.created_at
         };
+        // Derived once here rather than per render. _render runs on every
+        // keystroke, class chip and sort toggle, and none of these three change
+        // between renders: the sanitiser builds a whole DOMParser document per
+        // summary, the sort allocated two Date objects per comparison, and the
+        // search lowercased all four fields per build per character.
+        b._summHtml = b.build_summary ? _sanitizeSumm(b.build_summary) : '';
+        b._ts       = Date.parse(b.created_at) || 0;
+        b._hay      = [b.build_name, b.build_summary, b.submitted_by, b.sup]
+                        .map(v => (v || '').toLowerCase());
+        return b;
       });
   }
 
@@ -191,7 +202,7 @@
             <div class="blds-card-name">${_esc(b.build_name)}</div>
             ${clsBadge}
           </div>
-          ${b.build_summary ? `<div class="blds-card-summary">${_sanitizeSumm(b.build_summary)}</div>` : ''}
+          ${b._summHtml ? `<div class="blds-card-summary">${b._summHtml}</div>` : ''}
           <div class="blds-card-meta">
             <span class="blds-card-by">by ${_esc(b.submitted_by)}</span>
             <span class="blds-card-dot">·</span>
@@ -216,15 +227,12 @@
     if (_classFilter !== 'all') builds = builds.filter(b => b.sup === _classFilter);
     if (_searchQuery) {
       const q = _searchQuery.toLowerCase();
-      builds = builds.filter(b =>
-        (b.build_name    || '').toLowerCase().includes(q) ||
-        (b.build_summary || '').toLowerCase().includes(q) ||
-        (b.submitted_by  || '').toLowerCase().includes(q) ||
-        (b.sup           || '').toLowerCase().includes(q)
-      );
+      // Still four separate fields, not one joined string: joining them would
+      // let a query match across a field boundary and change what matches.
+      builds = builds.filter(b => b._hay.some(h => h.includes(q)));
     }
     builds.sort((a, b) => _sortMode === 'newest'
-      ? new Date(b.created_at) - new Date(a.created_at)
+      ? b._ts - a._ts
       : (b.likes || 0) - (a.likes || 0)
     );
     if (!builds.length) {
@@ -266,7 +274,14 @@
     _render();
   };
 
-  window._buildsSearch = function (q) { _searchQuery = q; _render(); };
+  // Typing a 6-letter query rebuilt the entire list six times. The query is
+  // stored immediately so any other render in flight uses it; only the redraw
+  // waits.
+  window._buildsSearch = function (q) {
+    _searchQuery = q;
+    clearTimeout(_searchT);
+    _searchT = setTimeout(_render, 120);
+  };
 
   window._buildsSetClass = function (value, btn) {
     _classFilter = value;

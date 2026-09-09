@@ -5899,6 +5899,9 @@ function setPlayerHp(val) {
 
 
 function renderDmgBonusSection() {
+  // loadBuildState drives the pickers with synthetic 'change' events and each
+  // handler re-renders this panel; it renders everything once itself at the end.
+  if (window._albLoadingBuild) return;
   const container = document.getElementById("dmg-bonus-section");
   if (!container) return;
 
@@ -6972,6 +6975,9 @@ const MOVE_TYPE_COLORS = {
 };
 
 function renderDmgCalc() {
+  // loadBuildState drives the pickers with synthetic 'change' events and each
+  // handler re-renders this panel; it renders everything once itself at the end.
+  if (window._albLoadingBuild) return;
   const container = document.getElementById("dmg-calc-moves");
   if (!container) return;
 
@@ -7938,6 +7944,9 @@ function hasMasteryActiveChild(id) {
 }
 
 function renderMasteryInfoSection() {
+  // loadBuildState drives the pickers with synthetic 'change' events and each
+  // handler re-renders this panel; it renders everything once itself at the end.
+  if (window._albLoadingBuild) return;
   const section = document.getElementById("mastery-info-section");
   const content = document.getElementById("mastery-info-content");
   if (!section || !content) return;
@@ -8189,6 +8198,9 @@ function scaleMasteryTree() {
 }
 
 function renderMastery() {
+  // loadBuildState drives the pickers with synthetic 'change' events and each
+  // handler re-renders this panel; it renders everything once itself at the end.
+  if (window._albLoadingBuild) return;
   const container = document.getElementById("mastery-tree-container");
   if (!container) return;
 
@@ -8943,6 +8955,15 @@ async function _loadById(id) {
 function loadBuildState(state) {
   if (!state || state.v !== 1) return;
 
+  // Suppress the render cascade the synthetic 'change' events below would
+  // otherwise cause - the "Final renders" block at the end draws each panel
+  // once. try/finally rather than a plain assignment because a throw in here
+  // leaving the flag set would suppress every later render too, which is a
+  // worse failure than the throw. The body is deliberately not re-indented,
+  // to keep the diff readable.
+  window._albLoadingBuild = true;
+  try {
+
   // Reset spent so stale values don't cause negative clamping when stats are re-loaded
   spent = 0;
 
@@ -9110,6 +9131,8 @@ function loadBuildState(state) {
   ssbProcChance = 35;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
   Object.keys(shardToggleActive).forEach(k => { shardToggleActive[k] = false; });
+
+  } finally { window._albLoadingBuild = false; }
 
   // Final renders
   updatePoints();
