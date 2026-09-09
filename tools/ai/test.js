@@ -4456,6 +4456,182 @@ describe('cache busting', () => {
   // only looks like it. Usernames, host names and notification meta all reach
   // these sinks and are all client-written. escAttrJs strips the quote
   // characters first, then escapes, which is the only order that works.
+  // loadBuildState drives the pickers with synthetic 'change' events, so every
+  // render reachable from a picker handler runs once per event and is then
+  // thrown away by the "Final renders" block. Measured at 17x for
+  // renderDmgBonusSection alone. The flag is what keeps that at 1x; if a guard
+  // is dropped, nothing fails visibly - the page just gets slow again.
+  // A new QTE high reaches submitScore twice: the trainer calls _sbSubmitScore
+  // directly and the Storage.setItem hook in core.js fires for the same write.
+  // Comp mode only has the explicit call, because the hook's regex does not
+  // match 'fist-comp', so neither caller can simply be deleted - the dedupe has
+  // to live in submitScore, and it has to release on failure or a rejected
+  // session would make the score permanently unsubmittable.
+  // _render is called on every keystroke, class chip and sort toggle. If these
+  // derived fields go back to being computed inside it, the cost returns as a
+  // per-character DOMParser sanitise of every summary - invisible in a test
+  // that only checks output, which is why this checks the shape instead.
+  // bkPull used to take a boolean `force`, and bkSync passed isNewOwner - true
+  // for a first sign-in on a browser AND for switching accounts. That single
+  // conflation caused three data bugs: a first claim replaced the bank the user
+  // had built while logged out; a swap to an account with no bank fell through
+  // and uploaded the PREVIOUS user's slots under the new id; and an empty
+  // server bank was read as "no data", so deleting every slot never reached
+  // another device. All three are silent - nothing errors, data just moves or
+  // vanishes - so there is no way to notice a regression except here.
+  // The popup receives each inbound DM twice - forwarded from the main window
+  // and from its own subscription - so it showed a duplicate bubble and sent
+  // two read receipts. Both transports are kept on purpose (either can be the
+  // one that survives), so the dedupe is what stops the duplicate, and both
+  // must go through the one handler or the conversation-list refresh regresses.
+  it('the DM popup deduplicates messages arriving on both transports', () => {
+    const h = readRoot('html/dm-popup.html');
+    ok(h.indexOf('function handleIncomingDm(m)') !== -1,
+       'the shared inbound-DM handler is gone');
+    ok(h.indexOf('function _firstSighting(id)') !== -1, 'the dedupe is gone');
+    ok(h.indexOf("if (e.data?.type === 'new-msg') handleIncomingDm(e.data.msg);") !== -1,
+       'the BroadcastChannel path no longer routes through the shared handler');
+    ok(h.indexOf('}, p => handleIncomingDm(p.new))') !== -1,
+       'the postgres_changes path no longer routes through the shared handler');
+    // The duplicate bubble came from an inbound transport appending directly.
+    // appendMsg legitimately appears four times (its definition, rendering a
+    // loaded thread, handleIncomingDm, and the optimistic append after you send
+    // one), so counting them proves nothing - what matters is that neither
+    // transport handler appends on its own.
+    const sm = h.indexOf('function subscribeMsgs(');
+    ok(sm !== -1, 'subscribeMsgs not found');
+    ok(h.slice(sm, sm + 700).indexOf('appendMsg(') === -1,
+       'subscribeMsgs appends directly again - that is the duplicate bubble');
+    const bc = h.indexOf('bc.onmessage');
+    ok(bc !== -1, 'the BroadcastChannel handler is gone');
+    ok(h.slice(bc, bc + 500).indexOf('appendMsg(') === -1,
+       'the BroadcastChannel handler appends directly again');
+  });
+
+  it('bank sync distinguishes a first claim from an account swap', () => {
+    const b = readRoot('js/bank.js');
+
+    ok(b.indexOf("const accountSwap = isNewOwner && !!meta.owner;") !== -1,
+       'bkSync no longer separates an account swap from a first claim');
+    ok(b.indexOf("const mode = !isNewOwner ? 'normal' : (accountSwap ? 'swap' : 'claim');") !== -1,
+       'the three reconcile modes are gone');
+    ok(b.indexOf('bkPull(client, uid, mode)') !== -1,
+       'bkSync passes something other than the mode to bkPull');
+    ok(/async function bkPull\(client, uid, mode\)/.test(b),
+       'bkPull went back to a boolean force');
+
+    // A swap to an account with no bank must clear, never carry across.
+    ok(b.indexOf("if (mode === 'swap') { bkResetLocal(uid); return true; }") !== -1,
+       "an account swap with no server row no longer clears the previous user's slots");
+    ok(b.indexOf('function bkResetLocal(uid)') !== -1, 'bkResetLocal is gone');
+
+    // A first claim must never replace local work outright.
+    ok(b.indexOf("if (mode === 'claim')") !== -1, 'the first-claim branch is gone');
+    ok(b.indexOf('const untouched = meta.tabs.length === 1') !== -1,
+       'the first-claim branch no longer checks whether local work exists');
+
+    // The early return that made deletions unsyncable must stay gone.
+    ok(b.indexOf('if (!serverSlots.length) return false;') === -1,
+       'the empty-server-bank early return is back - deletions will not propagate');
+
+    // Replacing with an empty bank must not index into an empty array.
+    ok(b.indexOf("if (!meta.tabs.length) meta.tabs = [{ id: 'bk1', name: 'Slot 1', data: { items: [] } }];") !== -1,
+       'an empty server bank would throw on meta.tabs[0]');
+  });
+
+  it('the Builds list derives summary, date and search text once', () => {
+    const b = readRoot('js/builds.js');
+    ok(b.indexOf('b._summHtml = b.build_summary ? _sanitizeSumm(b.build_summary) : \'\';') !== -1,
+       'the summary is no longer sanitised at fetch time');
+    ok(b.indexOf('b._ts       = Date.parse(b.created_at) || 0;') !== -1,
+       'created_at is no longer parsed at fetch time');
+    ok(b.indexOf('builds.filter(b => b._hay.some(h => h.includes(q)))') !== -1,
+       'the search no longer uses the precomputed haystack');
+    ok(b.indexOf('? b._ts - a._ts') !== -1,
+       'the sort comparator allocates Date objects again');
+    // The card must read the cached HTML, not re-sanitise.
+    const at = b.indexOf('blds-card-summary');
+    ok(at !== -1 && b.slice(at - 40, at + 80).indexOf('_summHtml') !== -1,
+       'the card re-sanitises instead of using _summHtml');
+    ok(/_searchT = setTimeout\(_render, \d+\)/.test(b),
+       'the Builds search is no longer debounced');
+  });
+
+  it('a QTE high is submitted once, and a failed submit stays retryable', () => {
+    const sb = readRoot('js/sb.js');
+    const at = sb.indexOf('async function submitScore(');
+    ok(at !== -1, 'submitScore not found');
+    const body = sb.slice(at, at + 2200);
+    ok(body.indexOf('if (_lastSubmitted[qteType] === score) return;') !== -1,
+       'submitScore no longer dedupes the double-submit');
+    ok(body.indexOf('delete _lastSubmitted[qteType];') !== -1,
+       'a failed submit no longer clears the dedupe - the score would be stuck');
+    // Both callers must still exist; the fix is the dedupe, not removing one.
+    ok(readRoot('js/core.js').indexOf('window._sbSubmitScore(m[1]') !== -1,
+       'the core.js setItem hook is gone - comp scores are fine but this changes behaviour');
+  });
+
+  // supabase-js fires TOKEN_REFRESHED roughly hourly with the same user. The
+  // full login path re-fetches the profile and tester flag and dispatches
+  // alb-auth-changed, which makes bank.js and saved-builds.js re-download their
+  // whole jsonb blobs - once an hour, per open tab, to reach the state they
+  // already had.
+  it('a token refresh does not re-run the login path', () => {
+    const sb = readRoot('js/sb.js');
+    ok(sb.indexOf("if (_event === 'TOKEN_REFRESHED' && currentUser && session?.user?.id === currentUser.id)") !== -1,
+       'TOKEN_REFRESHED no longer short-circuits');
+  });
+
+  // switchPage calls loadAllLeaderboards on every visit to the tab. Measured at
+  // 22.3 KB per nav, identical every time; with the TTL a revisit costs 0.
+  // The Refresh button has to keep working, so it forces past the cache.
+  it('the leaderboards tab is memoised and Refresh still bypasses it', () => {
+    const sb = readRoot('js/sb.js');
+    ok(/async function loadAllLeaderboards\(mode, platform, force\)/.test(sb),
+       'loadAllLeaderboards lost its force parameter');
+    ok(sb.indexOf('if (!force && _allLbLast.key === _lbKey && grid.children.length') !== -1,
+       'the leaderboards TTL check is gone');
+    ok(sb.indexOf('window._lbRefresh') !== -1, '_lbRefresh is no longer exposed');
+    // If the button went back to the plain loader it would hit the TTL and do
+    // nothing, which looks exactly like a broken button.
+    const html = readRoot('index.html');
+    ok(html.indexOf('onclick="window._lbRefresh()"') !== -1,
+       'the Refresh button no longer forces past the TTL');
+  });
+
+  // Only closePartyPanel removed the chat channel, so signing out with a panel
+  // open left party-chat-<id> joined for a logged-out visitor - a realtime
+  // connection and a 30s heartbeat against the 200-concurrent cap.
+  it('party chat is released on logout', () => {
+    const p = readRoot('js/party.js');
+    const at = p.indexOf("window.addEventListener('alb-auth-changed'");
+    ok(at !== -1, 'party.js no longer tears down on alb-auth-changed');
+    const body = p.slice(at, at + 500);
+    ok(body.indexOf('if (uid()) return;') !== -1,
+       'the teardown no longer distinguishes logout from login/refresh');
+    ok(body.indexOf('removeChannel(_chatSub)') !== -1,
+       'the teardown no longer removes the chat channel');
+  });
+
+  it('the loadBuildState render cascade stays suppressed', () => {
+    const b = readRoot('js/builder.js');
+    const mr = readRoot('js/move-renderer.js');
+
+    ok(b.indexOf('window._albLoadingBuild = true;') !== -1,
+       'loadBuildState no longer sets _albLoadingBuild');
+    ok(b.indexOf('} finally { window._albLoadingBuild = false; }') !== -1,
+       'the flag is no longer cleared in a finally - a throw would strand it');
+
+    const GUARD = 'if (window._albLoadingBuild) return;';
+    ok(mr.indexOf(GUARD) !== -1, 'renderMoves lost its guard');
+    for (const fn of ['renderDmgBonusSection', 'renderDmgCalc',
+                      'renderMastery', 'renderMasteryInfoSection']) {
+      const at = b.indexOf('function ' + fn + '(');
+      ok(at !== -1, fn + ' not found');
+      ok(b.slice(at, at + 400).indexOf(GUARD) !== -1, fn + ' lost its guard');
+    }
+  });
+
   it('inline handlers escape with escAttrJs, never plain esc', () => {
     const FILES = ['js/party.js', 'js/trades.js', 'js/sb.js',
                    'js/builds.js', 'js/matchmaking.js'];

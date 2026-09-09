@@ -472,19 +472,9 @@
     bkRender();
   }
 
-  // Adopt the account's server bank when it is newer than what this browser
-  // last synced (always when `force` — fresh browser or account switch).
-  // Returns true when the server copy replaced local data.
-  async function bkPull(client, uid, force) {
-    const { data, error } = await client.from('player_vaults_full')
-      .select('slots, updated_at').eq('user_id', uid).maybeSingle();
-    if (error) { console.warn('Bank pull failed:', error.message); return false; }
-    if (!data) { await bkPullPublicLegacy(client, uid); return false; }
-    const serverSlots = (Array.isArray(data.slots) ? data.slots : [])
-      .filter(s => s && typeof s.name === 'string' && Array.isArray(s.items));
-    if (!serverSlots.length) return false;
-    const meta = bkGetMeta();
-    if (!force && meta.syncedAt && new Date(data.updated_at) <= new Date(meta.syncedAt)) return false;
+  // Replace this browser's tabs with the account's. Keeps the active tab
+  // selected by NAME, since the ids are regenerated on every pull.
+  function bkApplyServerSlots(meta, serverSlots, uid, updatedAt) {
     const prevActiveName = bkActiveTab(meta).name;
     meta.tabs = serverSlots.map((s, i) => ({
       id: 'bk' + Date.now() + '_' + i,
@@ -492,12 +482,77 @@
       data: { items: s.items },
       public: !!s.public,
     }));
+    // An account with no slots is a real state now (see mode 'swap' and the
+    // deletion case below), and the old code would have thrown on meta.tabs[0].
+    if (!meta.tabs.length) meta.tabs = [{ id: 'bk1', name: 'Slot 1', data: { items: [] } }];
     meta.activeTab = (meta.tabs.find(t => t.name === prevActiveName) || meta.tabs[0]).id;
     meta.owner = uid;
-    meta.syncedAt = data.updated_at;
+    meta.syncedAt = updatedAt;
     localStorage.setItem(BK_KEY, JSON.stringify(meta));
     _bkLastSynced = JSON.stringify(bkAllSlots(meta));
     bkRender();
+  }
+
+  // Signing in to a different account must not carry the previous account's
+  // slots across - not into the UI, and above all not into the upload below.
+  function bkResetLocal(uid) {
+    const meta = { tabs: [{ id: 'bk1', name: 'Slot 1', data: { items: [] } }],
+                   activeTab: 'bk1', owner: uid };
+    localStorage.setItem(BK_KEY, JSON.stringify(meta));
+    _bkLastSynced = JSON.stringify(bkAllSlots(meta));
+    localStorage.removeItem(BK_DIRTY_KEY);
+    bkRender();
+  }
+
+  // Reconcile this browser's bank with the account's.
+  //   'normal' - same account as last time; adopt only a strictly newer server copy
+  //   'claim'  - first account to claim this browser's bank; never lose local work
+  //   'swap'   - different account; local belongs to the previous user, drop it
+  // Returns true when the server copy replaced local data (caller must not push).
+  async function bkPull(client, uid, mode) {
+    const { data, error } = await client.from('player_vaults_full')
+      .select('slots, updated_at').eq('user_id', uid).maybeSingle();
+    if (error) { console.warn('Bank pull failed:', error.message); return false; }
+
+    if (!data) {
+      // No row for this account at all.
+      if (mode === 'swap') { bkResetLocal(uid); return true; }
+      await bkPullPublicLegacy(client, uid);
+      return false;
+    }
+
+    const serverSlots = (Array.isArray(data.slots) ? data.slots : [])
+      .filter(s => s && typeof s.name === 'string' && Array.isArray(s.items));
+    const meta = bkGetMeta();
+
+    if (mode === 'claim') {
+      // The local tabs are the user's own work from before they signed in.
+      // If they never touched the bank, take the account's copy outright;
+      // otherwise keep everything local and adopt any slot name they lack, then
+      // return false so the merged result gets pushed back up.
+      const untouched = meta.tabs.length === 1 && !(meta.tabs[0].data?.items || []).length;
+      if (untouched) { bkApplyServerSlots(meta, serverSlots, uid, data.updated_at); return true; }
+      const have = new Set(meta.tabs.map(t => t.name));
+      serverSlots.forEach((sl, i) => {
+        if (have.has(sl.name)) return;   // same name twice is unusable in the tab bar
+        meta.tabs.push({ id: 'bk' + Date.now() + '_m' + i, name: sl.name,
+                         data: { items: sl.items }, public: !!sl.public });
+      });
+      meta.owner = uid;
+      delete meta.syncedAt;              // local now differs from the server
+      localStorage.setItem(BK_KEY, JSON.stringify(meta));
+      _bkLastSynced = null;
+      bkRender();
+      return false;
+    }
+
+    // 'normal': only a strictly newer server copy wins. An empty server bank is
+    // no longer short-circuited here, so deleting every slot on one device now
+    // reaches the others instead of being overwritten by their stale copy.
+    if (mode !== 'swap' && meta.syncedAt &&
+        new Date(data.updated_at) <= new Date(meta.syncedAt)) return false;
+
+    bkApplyServerSlots(meta, serverSlots, uid, data.updated_at);
     return true;
   }
 
@@ -507,7 +562,11 @@
     if (!client || !uid) return;
     try {
       let meta = bkGetMeta();
-      const isNewOwner = meta.owner !== uid;
+      const isNewOwner  = meta.owner !== uid;
+      // A browser that has never been claimed is NOT the same thing as one
+      // switching accounts, and conflating them is what lost people's banks.
+      const accountSwap = isNewOwner && !!meta.owner;
+      const mode = !isNewOwner ? 'normal' : (accountSwap ? 'swap' : 'claim');
       if (meta.owner && isNewOwner) {
         // Different account than the one this data belongs to: never publish
         // or upload the previous user's slots under the new login.
@@ -523,7 +582,7 @@
       // Pull first unless this browser holds unpushed edits (dirty → push wins).
       const dirty = !!localStorage.getItem(BK_DIRTY_KEY);
       if (isNewOwner || _bkPulledUid !== uid || !dirty) {
-        const adopted = await bkPull(client, uid, isNewOwner);
+        const adopted = await bkPull(client, uid, mode);
         _bkPulledUid = uid;
         if (adopted) { localStorage.removeItem(BK_DIRTY_KEY); return; }
         meta = bkGetMeta();
