@@ -4496,6 +4496,36 @@ describe('cache busting', () => {
   // way to find out whether anyone was in one was to join it and wait.
   // Measured: 52 queue rows against 7 matches ever. The counts are what make
   // that navigable, and the heartbeat is what makes the counts true.
+  // supabase-js query builders are lazy: `sb.from(t).delete().eq(...)` with no
+  // await and no .then() builds a request and never sends it. Verified in the
+  // live console - the bare form produced zero network requests. Every write
+  // that is not awaited must therefore end in .then(), and this is invisible
+  // otherwise: the code reads correctly and silently does nothing.
+  it('every fire-and-forget supabase write actually dispatches', () => {
+    const FILES = ['js/matchmaking.js', 'js/party.js', 'js/sb.js', 'js/trades.js',
+                   'js/bank.js', 'js/builds.js', 'js/saved-builds.js', 'html/dm-popup.html'];
+    const WRITE = /(?:sb|client|_sbClient)\s*\.\s*(?:from\([^)]*\)\s*\.\s*(?:delete|update|insert|upsert)|rpc)\s*\(/g;
+    const bad = [];
+    for (const f of FILES) {
+      const src = readRoot(f);
+      WRITE.lastIndex = 0;
+      let m;
+      while ((m = WRITE.exec(src)) !== null) {
+        const before = src.slice(Math.max(0, m.index - 260), m.index);
+        // Awaited, returned, assigned, or inside a Promise.all/array all settle it.
+        if (/\bawait\s*$|\breturn\s*$|=\s*$|\[\s*$|,\s*$/.test(before)) continue;
+        // Otherwise the chain has to end in .then() before the statement does.
+        const after = src.slice(m.index, m.index + 420);
+        const stmt = after.split(';')[0];
+        if (stmt.indexOf('.then(') === -1) {
+          bad.push(f + '  ' + stmt.replace(/\s+/g, ' ').slice(0, 92));
+        }
+      }
+    }
+    eq(bad.length, 0,
+       'supabase write(s) that are built but never sent:\n  ' + bad.join('\n  '));
+  });
+
   it('the matchmaking queue shows counts and heartbeats while queued', () => {
     const mm = readRoot('js/matchmaking.js');
 
