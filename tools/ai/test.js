@@ -4561,13 +4561,166 @@ describe('cache busting', () => {
   // matchmaking.js and .css are cache-stamped in index.html. Shipping a change
   // without bumping the stamp means returning visitors keep the old file, which
   // looks exactly like the change not working.
+  // Disconnecting loses the match - but the survivor does not get to say so.
+  // "My opponent vanished, give me the win" is the cheapest forgery in the game:
+  // it needs no round log and no accomplice. The only thing that makes it
+  // checkable is a timestamp the OTHER player wrote, which is what the per-match
+  // heartbeat is for.
+  it('a disconnect loss is verified by the server, not claimed by the survivor', () => {
+    const mm = readRoot('js/matchmaking.js');
+
+    // The survivor asks; it does not award itself the match.
+    ok(mm.indexOf("sb.rpc('mm_report_disconnect'") !== -1,
+       'the disconnect path no longer goes through mm_report_disconnect');
+    const dc = mm.indexOf('async function tryClaimDisconnect');
+    ok(dc !== -1, 'tryClaimDisconnect is gone');
+    const body = mm.slice(dc, mm.indexOf('function resolveLocally'));
+    ok(body.indexOf('mm_apply_result') === -1,
+       'the disconnect path claims a win via mm_apply_result again - the server refuses that');
+
+    // Without the ping, every opponent looks permanently dead.
+    ok(mm.indexOf("sb.rpc('mm_match_ping'") !== -1, 'the per-match heartbeat is gone');
+    ok(/const MM_PING_MS\s*=\s*\d+;/.test(mm), 'the match ping interval is gone');
+    const em = mm.indexOf('function enterMatch(');
+    ok(em !== -1 && mm.slice(em, em + 900).indexOf('startMatchPing()') !== -1,
+       'entering a match no longer starts the heartbeat');
+    const td = mm.indexOf('function teardownMatch(');
+    ok(td !== -1 && mm.slice(td, td + 400).indexOf('stopMatchPing()') !== -1,
+       'leaving a match no longer stops the heartbeat');
+
+    // A tab close concedes via mm_abandon_match, but the 'abandon' broadcast
+    // does not survive the unload - so the survivor learns it from the RPC's
+    // return value. Treating that as "nothing happened" reported no result for
+    // a match they had won.
+    ok(body.indexOf('showMatchOverlay(winner') !== -1,
+       'the disconnect path ignores the winner the server reports back');
+  });
+
+  // Postgres grants EXECUTE on a new function to PUBLIC by default, so
+  // `grant execute ... to authenticated` restricts nothing - it re-states a
+  // privilege anon already has. Probing the live database as an anonymous
+  // visitor, every matchmaking RPC answered except the two that happened to
+  // carry a revoke. Pair every function with one.
+  it('every database function is revoked from public', () => {
+    const FILES = ['matchmaking.sql', 'matchmaking-queue-fix.sql', 'matchmaking-hardening.sql',
+                   'online-heartbeat.sql', 'reports.sql', 'testers.sql', 'rpc-anon-lockout.sql'];
+    // Names that some file in the set revokes from public. A function may be
+    // defined in one file and locked down in another (that is what
+    // rpc-anon-lockout.sql is), so collect across the whole set first.
+    const revoked = new Set();
+    const defined = new Map();
+    for (const f of FILES) {
+      let src;
+      try { src = readRoot('supabase/' + f); } catch (_) { continue; }
+      let m;
+      const REVOKE = /revoke\s+all\s+on\s+function\s+(?:public\.)?([a-z_]+)\s*\([^)]*\)\s*from\s+([^;]+);/gi;
+      while ((m = REVOKE.exec(src)) !== null) {
+        if (/\bpublic\b/.test(m[2])) revoked.add(m[1].toLowerCase());
+      }
+      const DEF = /create\s+(?:or\s+replace\s+)?function\s+(?:public\.)?([a-z_]+)\s*\(/gi;
+      while ((m = DEF.exec(src)) !== null) {
+        if (!defined.has(m[1].toLowerCase())) defined.set(m[1].toLowerCase(), f);
+      }
+    }
+    const naked = [...defined.entries()].filter(([n]) => !revoked.has(n));
+    eq(naked.length, 0,
+       'function(s) never revoked from public - anon can call these:\n  ' +
+       naked.map(([n, f]) => n + '()  (defined in supabase/' + f + ')').join('\n  '));
+  });
+
+  // auth.uid() is NULL for an anonymous caller, and `NULL <> x` is NULL, not
+  // TRUE - so `if me <> m.p1_id and me <> m.p2_id then return` does not fire and
+  // the function runs on with me = NULL. In mm_apply_result that skipped every
+  // rule gated on `winner = me` and let an anonymous caller name the winner of
+  // any live ranked match.
+  it('every function that reads auth.uid() refuses a null caller', () => {
+    const sql = readRoot('supabase/rpc-anon-lockout.sql');
+    for (const fn of ['mm_match_ping', 'mm_apply_result', 'mm_report_disconnect', 'mm_abandon_match']) {
+      const i = sql.indexOf('create or replace function ' + fn + '(');
+      ok(i !== -1, fn + ' is not defined in supabase/rpc-anon-lockout.sql');
+      const body = sql.slice(i, sql.indexOf('$$;', i));
+      ok(/if me is null then (return|raise)/.test(body),
+         fn + ' no longer refuses a null auth.uid() - its participant check silently passes for anon');
+    }
+    // mm_create_match already had the guard; keep it.
+    const qf = readRoot('supabase/matchmaking-queue-fix.sql');
+    ok(qf.indexOf("if me is null then raise exception 'not authenticated'; end if;") !== -1,
+       'mm_create_match no longer refuses a null auth.uid()');
+  });
+
+  // `started` gates onOppPresenceLeave. It used to be set only inside
+  // maybeStartMatch, which is `if (isHost ...)`, so every GUEST had it false for
+  // the whole match and could never report a disconnect - and their only way out
+  // of a frozen arena was Leave, which concedes to the player who dropped.
+  // Host is just the smaller uuid, so this silently disabled the feature for
+  // half of all players.
+  it('both players can report a disconnect, not just the host', () => {
+    const mm = readRoot('js/matchmaking.js');
+
+    // doRoundStart is the one path both sides run.
+    const drs = mm.indexOf('function doRoundStart(');
+    ok(drs !== -1, 'doRoundStart is gone');
+    ok(mm.slice(drs, drs + 700).indexOf('started = true') !== -1,
+       'doRoundStart no longer sets started - guests cannot report a disconnect');
+
+    // If the only assignment is behind an isHost check we are back where we started.
+    const hostOnly = /if \(isHost && !started && oppReady\) \{ started = true;/.test(mm);
+    const bothSides = mm.slice(drs, drs + 700).indexOf('started = true') !== -1;
+    ok(bothSides || !hostOnly, 'started is still only ever set on the host');
+
+    // Leaving while chasing the opponent's disconnect must not concede to them.
+    const td = mm.indexOf('function teardownMatch(');
+    const tdBody = mm.slice(td, td + 900);
+    ok(tdBody.indexOf('_wasChasing') !== -1,
+       'leaving during a disconnect chase concedes the match to the player who left');
+  });
+
+  it('the disconnect RPCs exist and check what they claim to check', () => {
+    const sql = readRoot('supabase/matchmaking-hardening.sql');
+
+    ok(/create or replace function mm_match_ping\(match uuid\)/.test(sql),
+       'mm_match_ping is not defined');
+    ok(sql.indexOf('add column if not exists p1_seen_at timestamptz') !== -1 &&
+       sql.indexOf('add column if not exists p2_seen_at timestamptz') !== -1,
+       'the per-match liveness columns are gone');
+
+    // Settlement is split out so mm_report_disconnect can award a win without
+    // impersonating the host. If anyone could call it directly, every rule above
+    // it would be bypassable in one RPC.
+    ok(/create or replace function mm_settle\(/.test(sql), 'mm_settle is not defined');
+    ok(sql.indexOf('revoke all on function mm_settle(uuid, uuid, jsonb) from anon, authenticated;') !== -1,
+       'mm_settle is callable by clients - that bypasses every check in this file');
+
+    const dc = sql.indexOf('create or replace function mm_report_disconnect');
+    ok(dc !== -1, 'mm_report_disconnect is not defined');
+    const body = sql.slice(dc, sql.indexOf('grant execute on function mm_report_disconnect'));
+    // The three things that stop this being a free win.
+    ok(body.indexOf('if opp_seen is null then return null; end if;') !== -1,
+       'a never-pinged opponent is treated as dead - every old client becomes free RR');
+    ok(/if opp_seen > now\(\) - interval '30 seconds' then return null; end if;/.test(body),
+       'the staleness window is gone - a live opponent could be claimed as disconnected');
+    ok(/if m\.created_at > now\(\) - interval '20 seconds' then return null; end if;/.test(body),
+       'the minimum match age is gone');
+    ok(body.indexOf('if m.status = \'done\' then return m.winner_id; end if;') !== -1,
+       'an already-settled match reports nothing back, so a won match ends as "no result"');
+
+    // Rule (1) has to exempt concessions, or mm_abandon_match cannot work at
+    // all - it awards the win to the OTHER player, so its caller is the loser.
+    const ar = sql.indexOf('create or replace function mm_apply_result');
+    const arBody = sql.slice(ar, sql.indexOf('grant execute on function mm_apply_result'));
+    ok(arBody.indexOf('if winner = me and me <> host then') !== -1,
+       'the host-only rule no longer exempts concessions - abandoning would raise');
+    ok(arBody.indexOf("if m.mode = 'ranked' and winner = me then") !== -1,
+       'the round-log rule no longer exempts concessions - a host could not abandon');
+  });
+
   it('the matchmaking assets are version-stamped past their last change', () => {
     const html = readRoot('index.html');
     const js  = /js\/matchmaking\.js\?v=(\d+)/.exec(html);
     const css = /css\/matchmaking\.css\?v=(\d+)/.exec(html);
     ok(js,  'matchmaking.js is not version-stamped');
     ok(css, 'matchmaking.css is not version-stamped');
-    ok(+js[1]  >= 10, 'matchmaking.js stamp is behind the queue-counts change (v' + js[1] + ')');
+    ok(+js[1]  >= 12, 'matchmaking.js stamp is behind the disconnect change (v' + js[1] + ')');
     ok(+css[1] >= 8,  'matchmaking.css stamp is behind the badge styles (v' + css[1] + ')');
   });
 
