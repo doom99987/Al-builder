@@ -30,6 +30,14 @@
   // inside that window, and a closed tab falls out of it within a minute.
   const MM_COUNTS_MS    = 20000;  // home screen refresh
   const MM_HEARTBEAT_MS = 25000;  // "still here" while queued
+
+  // Disconnecting loses the match. The server will not take the survivor's word
+  // for it, so both players stamp a per-match heartbeat and mm_report_disconnect
+  // checks the other one has gone stale (30s server-side) before awarding.
+  const MM_PING_MS      = 10000;  // "still in this match"
+  const MM_DC_FIRST_MS  = 8000;   // grace before the first claim - they may reconnect
+  const MM_DC_EVERY_MS  = 6000;   // then poll, because the server window is 30s
+  const MM_DC_GIVEUP_MS = 90000;  // stop asking and just end it locally
   let _mmCounts      = {};
   let _mmCountsAt    = 0;         // when they were last fetched
   let _mmCountsTimer = null;
@@ -140,6 +148,7 @@
   let isBot = false, botTimer = null, botTarget = 0, botDifficulty = 'medium';  // practice-vs-bot mode
   let myReported = 0, lastProgressSent = 0;
   let timerTick = null, hostTimeoutT = null, failAdjT = null, oppGoneT = null;
+  let _matchPing = null, _dcSince = 0;
   let roundLog = [];             // host-recorded per-round scores -> persisted for reports
 
   // ── Small helpers ───────────────────────────────────────────────────────────
@@ -320,6 +329,22 @@
     if (_mmHeartbeat) { clearInterval(_mmHeartbeat); _mmHeartbeat = null; }
   }
 
+  // Per-match liveness. This is the whole basis of a verifiable disconnect
+  // loss: without a stamp the other player wrote, "they vanished, give me the
+  // win" is unfalsifiable and is the cheapest forgery in the game.
+  function startMatchPing() {
+    stopMatchPing();
+    const ping = () => {
+      if (!sb || view !== 'match' || !matchId || isBot || matchResolved) { stopMatchPing(); return; }
+      try { sb.rpc('mm_match_ping', { match: matchId }).then(() => {}, () => {}); } catch (_) {}
+    };
+    ping();   // stamp now, not one interval from now - a 3s match would have no stamp at all
+    _matchPing = setInterval(ping, MM_PING_MS);
+  }
+  function stopMatchPing() {
+    if (_matchPing) { clearInterval(_matchPing); _matchPing = null; }
+  }
+
   function renderSearching(qte) {
     root().innerHTML = `<div class="mm-center">
       <div class="mm-panel mm-searching">
@@ -448,6 +473,8 @@
 
     view = 'match'; matchId = id; isHost = host; opp = opponent;
     roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; matchResolved = false; started = false; oppReady = false; roundLog = [];
+    isBot = false;
+    startMatchPing();
 
     renderArena();
     mountQte(curQte);
@@ -471,7 +498,7 @@
       .on('presence', { event: 'sync' }, () => {
         const st = matchChan.presenceState();
         if (st[me.id] && st[opp.id]) { oppReady = true; maybeStartMatch(); } // presence backup for the ready handshake
-        if (st[opp.id] && oppGoneT) { clearTimeout(oppGoneT); oppGoneT = null; }
+        if (st[opp.id] && oppGoneT) { clearTimeout(oppGoneT); oppGoneT = null; _dcSince = 0; }
       })
       .subscribe(async status => {
         if (status === 'SUBSCRIBED') {
@@ -641,6 +668,11 @@
 
   function doRoundStart(round, startedAt) {
     if (window._qteGuard) window._qteGuard.reset(); // clean slate for macro detection each round
+    // Both sides run this - the host arrives via sendRoundStart, the guest via
+    // the 'round-start' broadcast - so it is the one point where BOTH players
+    // know the match is live. maybeStartMatch is host-only, which left every
+    // guest with started=false and no way to report a disconnect.
+    started = true;
     roundNo = round; roundActive = true; roundResolved = false;
     fails = {}; streaks[me.id] = 0; streaks[opp.id] = 0; myReported = 0; lastProgressSent = 0;
     deadline = startedAt + ROUND_MS;
@@ -732,6 +764,7 @@
   function endMatch(winnerId) {
     if (matchResolved) return;
     matchResolved = true; roundActive = false;
+    stopMatchPing();
     clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); clearInterval(botTimer);
     if (window._qteMatch) window._qteMatch.active = false;
     stopLocalQte();
@@ -794,25 +827,71 @@
   function onOppAbandon() {
     if (matchResolved) return;
     matchResolved = true;
+    stopMatchPing();
     clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT);
     if (window._qteMatch) window._qteMatch.active = false;
     stopLocalQte();
     showMatchOverlay(me.id, 'Opponent left');
   }
+  // The opponent's socket dropped. They lose - but the server decides that, not
+  // us: mm_report_disconnect returns true only once THEIR heartbeat has gone
+  // stale. So this polls rather than claims, and a player who is still there
+  // (a tab that backgrounded, a two-second network blip) simply never matches
+  // the condition and the match carries on.
   function onOppPresenceLeave() {
-    if (matchResolved || !started) return;
+    if (matchResolved || !started || isBot) return;
+    if (_dcSince) return;                 // already chasing this one
+    _dcSince = Date.now();
     clearTimeout(oppGoneT);
-    oppGoneT = setTimeout(() => {
-      if (matchResolved) return;
-      const st = matchChan && matchChan.presenceState();
-      if (st && st[opp.id]) return; // came back
-      matchResolved = true;
-      clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT);
-      if (window._qteMatch) window._qteMatch.active = false;
-      stopLocalQte();
-      sb.rpc('mm_apply_result', { match: matchId, winner: me.id }).then(() => refreshMyRR());
-      showMatchOverlay(me.id, 'Opponent disconnected');
-    }, 5000);
+    oppGoneT = setTimeout(tryClaimDisconnect, MM_DC_FIRST_MS);
+  }
+
+  async function tryClaimDisconnect() {
+    oppGoneT = null;
+    if (matchResolved || !matchId || !sb) { _dcSince = 0; return; }
+    const st = matchChan && matchChan.presenceState();
+    if (st && opp && st[opp.id]) { _dcSince = 0; return; }   // came back
+
+    // Returns the winner, or null if the server cannot yet tell. A winner may
+    // come back on the very first try because the opponent's beforeunload got
+    // its concession in - their 'abandon' broadcast does not survive an unload,
+    // so this is often how we find out we won.
+    let winner = null;
+    try {
+      const { data, error } = await sb.rpc('mm_report_disconnect', { match: matchId });
+      if (!error && typeof data === 'string') winner = data;
+    } catch (_) { /* RPC not deployed yet - fall through to the local end below */ }
+    if (matchResolved) { _dcSince = 0; return; }
+
+    if (winner) {
+      _dcSince = 0;
+      resolveLocally();
+      refreshMyRR().catch(() => {});
+      showMatchOverlay(winner, winner === me.id ? 'Opponent disconnected' : 'Match ended');
+      return;
+    }
+
+    // Not yet: either their last stamp is still inside the server's window, or
+    // the match is too young, or they are on a client old enough not to stamp
+    // at all. Keep asking until it stops being worth waiting for.
+    if (Date.now() - _dcSince < MM_DC_GIVEUP_MS) {
+      oppGoneT = setTimeout(tryClaimDisconnect, MM_DC_EVERY_MS);
+      return;
+    }
+    // Gave up. End it here rather than stranding the player in a dead arena;
+    // nobody's RR moves, because nothing was ever proven.
+    _dcSince = 0;
+    resolveLocally();
+    showMatchOverlay(null, 'Opponent disconnected — no result recorded');
+  }
+
+  // Stop the clocks and the QTE without reporting anything.
+  function resolveLocally() {
+    matchResolved = true; roundActive = false;
+    clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT);
+    stopMatchPing();
+    if (window._qteMatch) window._qteMatch.active = false;
+    stopLocalQte();
   }
 
   // ── UI updates ──────────────────────────────────────────────────────────────
@@ -845,12 +924,13 @@
   function showMatchOverlay(winnerId, note) {
     const o = $('mm-overlay'); if (!o) return;
     const won = winnerId === me.id;
+    const noResult = winnerId == null;   // nothing was settled - do not claim otherwise
     let rrLine = '';
-    if (mode === 'ranked') rrLine = `<div class="mm-overlay-sub">${won ? 'RR gained' : 'RR adjusted'} — see your new rank in the menu.</div>`;
-    o.className = 'mm-overlay ' + (won ? 'win' : 'lose');
+    if (mode === 'ranked' && !noResult) rrLine = `<div class="mm-overlay-sub">${won ? 'RR gained' : 'RR adjusted'} — see your new rank in the menu.</div>`;
+    o.className = 'mm-overlay ' + (noResult ? 'draw' : won ? 'win' : 'lose');
     const canReport = opp && opp.id && opp.id !== '__bot__' && !isBot;
     o.innerHTML = `<div class="mm-overlay-card">
-      <div class="mm-overlay-big">${won ? 'Victory!' : 'Defeat'}</div>
+      <div class="mm-overlay-big">${noResult ? 'Match ended' : won ? 'Victory!' : 'Defeat'}</div>
       ${note ? `<div class="mm-overlay-sub">${esc(note)}</div>` : ''}
       ${rrLine}
       <button class="mm-btn mm-btn-primary" id="mm-back-btn">Back to menu</button>
@@ -865,8 +945,14 @@
 
   // ── Teardown ────────────────────────────────────────────────────────────────
   function teardownMatch(abandon) {
+    const _wasChasing = _dcSince > 0;
+    stopMatchPing(); _dcSince = 0;
     clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); clearTimeout(oppGoneT); clearInterval(botTimer);
-    if (abandon && !isBot && matchId && !matchResolved) {
+    // `_dcSince` means the OPPONENT dropped and we are waiting on the server to
+    // confirm it. Conceding here would hand the match to the player who left,
+    // which is precisely backwards. Their row stays active and the 60s liveness
+    // window closes it.
+    if (abandon && !isBot && matchId && !matchResolved && !_wasChasing) {
       // Built and never sent without .then() - this is the path that runs when
       // you navigate away from a match, so it is the one that mattered most.
       try { sb.rpc('mm_abandon_match', { match: matchId }).then(() => {}, () => {}); } catch (_) {}
