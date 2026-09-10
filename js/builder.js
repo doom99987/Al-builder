@@ -3777,8 +3777,7 @@ function isLostScrollHidden(name) {
 
 function clearRestrictedScrolls() {
   [
-    { picker: scroll1Picker,    hidden: isScrollHidden },
-    { picker: scroll2Picker,    hidden: isScrollHidden },
+    ...scrollPickers.map(picker => ({ picker, hidden: isScrollHidden })),
     { picker: lostScrollPicker, hidden: isLostScrollHidden },
   ].forEach(({ picker, hidden }) => {
     if (picker.value && hidden(picker.value)) {
@@ -3797,18 +3796,23 @@ buildSimpleDropdown(lostScrollPicker, Object.keys(lostScrollItems), () => { rend
 
 const scroll1Picker = document.getElementById("scroll-1");
 const scroll2Picker = document.getElementById("scroll-2");
-buildSimpleDropdown(scroll1Picker, Object.keys(scrollItems), () => {
-  if (scroll1Picker.value && scroll1Picker.value === scroll2Picker.value) {
-    setPickerDisplay(scroll2Picker, '');
-  }
-  renderMoves(); updatePecents();
-}, null, isScrollHidden);
-buildSimpleDropdown(scroll2Picker, Object.keys(scrollItems), () => {
-  if (scroll2Picker.value && scroll2Picker.value === scroll1Picker.value) {
-    setPickerDisplay(scroll1Picker, '');
-  }
-  renderMoves(); updatePecents();
-}, null, isScrollHidden);
+const scroll3Picker = document.getElementById("scroll-3");
+const scroll4Picker = document.getElementById("scroll-4");
+// Everything scroll-related iterates this rather than naming slots, so a fifth
+// slot is one entry here plus one block of markup.
+const scrollPickers = [scroll1Picker, scroll2Picker, scroll3Picker, scroll4Picker];
+scrollPickers.forEach(pk => {
+  buildSimpleDropdown(pk, Object.keys(scrollItems), () => {
+    // The same scroll cannot occupy two slots. This was a pairwise check
+    // between the only two slots there were; with four it has to sweep.
+    if (pk.value) {
+      scrollPickers.forEach(other => {
+        if (other !== pk && other.value === pk.value) setPickerDisplay(other, '');
+      });
+    }
+    renderMoves(); updatePecents();
+  }, null, isScrollHidden);
+});
 
 // --- Covenants ---
 // To add a covenant: "Name": { learns: [...] }
@@ -4066,6 +4070,18 @@ let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
+let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> +40 flat instead of +5
+
+// Crystalline Spike is the only source of flat damage in the game so far, but
+// this is deliberately a general accessor rather than an inline check: a second
+// source would otherwise have to find and patch every damage path again.
+// Returns damage added to the SCALED base, so it rides every multiplier -
+// buffs, statuses, boss modifiers and crits - rather than being tacked on at
+// the end where it would be worth almost nothing.
+function getFlatDmgBonus() {
+  if (!hasGearEquipped("Crystalline Spike")) return 0;
+  return crystallineSpikeSpend ? 40 : 5;
+}
 // agesPagesSpend lives up beside permuthStat, not here: updatePecents()
 // reads it and runs at load, long before this line executes.
 let crusherStacks = 1; // 1-3: Crusher buff stacks (+7% each)
@@ -4660,10 +4676,13 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     }
     if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) {
       const _frostAoeMult = activeMult * bMult0;
-      const _frostAoe = 10 * _frostAoeMult;
-      formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): 10`;
+      // Flat damage lands on the proc's base too, so it scales with the same
+      // buffs rather than being a bare 10.
+      const _frostAoeBase = 10 + getFlatDmgBonus();
+      const _frostAoe = _frostAoeBase * _frostAoeMult;
+      formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): ${_frostAoeBase}`;
       if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
-      else formula += ` = <b>10</b>`;
+      else formula += ` = <b>${_frostAoeBase}</b>`;
       formula += `</span>`;
     }
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
@@ -4698,14 +4717,16 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     return { label, val, scaling, contrib: val / scaling };
   });
   const totalContrib = statParts.reduce((sum, p) => sum + p.contrib, 0);
-  const dmgPerHit = baseDmgNum * (1 + totalContrib);
+  const _flatDmg  = getFlatDmgBonus();
+  const dmgPerHit = baseDmgNum * (1 + totalContrib) + _flatDmg;
   const totalDmg  = dmgPerHit * hitCount;
 
   // Parry Counter: no damage buffs, no crit — output raw formula and exit
   if (m.name === "Parry Counter") {
     const _pcScalingStr = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
     const _pcNote = `<span class="dc-bonus-tag" style="color:#777">[No dmg buffs · Cannot crit]</span>`;
-    detail.innerHTML = `<div class="dc-calc">${baseDmgNum}(1 + ${_pcScalingStr}) = <b>${dmgPerHit.toFixed(1)}</b> ${_pcNote}</div>`;
+    const _pcFlat = _flatDmg ? ` + ${_flatDmg}` : "";
+    detail.innerHTML = `<div class="dc-calc">${baseDmgNum}(1 + ${_pcScalingStr})${_pcFlat} = <b>${dmgPerHit.toFixed(1)}</b> ${_pcNote}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
@@ -4721,7 +4742,8 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const totalMult         = _out.total;
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
-  let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr}) = <b>${dmgPerHit.toFixed(1)}</b>`;
+  const flatStr = _flatDmg ? ` + ${_flatDmg} <span class="dc-bonus-tag">[flat]</span>` : "";
+  let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr})${flatStr} = <b>${dmgPerHit.toFixed(1)}</b>`;
 
   // Crucible (Citadel (Or) 1st Learn): 3-hit — hit 1 (9 base STR/65), hits 2-3 (3.6 base STR/90 + forced Vulnerable ×1.20)
   if (m.name === "Crucible" && superPicker.value === "Citadel (Or)") {
@@ -4900,10 +4922,13 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   }
   if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) {
     const _frostAoeMult = activeMult * bMult;
-    const _frostAoe = 10 * _frostAoeMult;
-    formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): 10`;
+    // Flat damage lands on the proc's base too, so it scales with the same
+    // buffs rather than being a bare 10.
+    const _frostAoeBase = 10 + getFlatDmgBonus();
+    const _frostAoe = _frostAoeBase * _frostAoeMult;
+    formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): ${_frostAoeBase}`;
     if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
-    else formula += ` = <b>10</b>`;
+    else formula += ` = <b>${_frostAoeBase}</b>`;
     formula += `</span>`;
   }
 
@@ -4985,8 +5010,7 @@ function collectDmgBonusPassives() {
   const covenantName = covenantPicker.value;
   const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
   const lostScrollName = lostScrollPicker.value;
-  const scroll1Name    = scroll1Picker.value;
-  const scroll2Name    = scroll2Picker.value;
+  const scrollNames    = scrollPickers.map(pk => pk.value);
 
   const allData = [
     raceName       ? raceMoves[raceName]               : null,
@@ -4999,8 +5023,7 @@ function collectDmgBonusPassives() {
     weaponOff      ? weaponMoves[weaponOff]            : null,
     covenantName   ? covenantMoves[covenantName]       : null,
     lostScrollName ? lostScrollMoves[lostScrollName]   : null,
-    scroll1Name    ? scrollMoves[scroll1Name]          : null,
-    scroll2Name    ? scrollMoves[scroll2Name]          : null,
+    ...scrollNames.map(nm => (nm ? scrollMoves[nm] : null)),
     ...gearSlots.map(name => gearMoves[name] || null),
   ].filter(Boolean);
 
@@ -5716,6 +5739,11 @@ function toggleTearBloodCrystal() {
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
+function toggleCrystallineSpikeSpend() {
+  crystallineSpikeSpend = !crystallineSpikeSpend;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
 function toggleAgesPagesSpend() {
   agesPagesSpend = !agesPagesSpend;
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
@@ -5971,6 +5999,16 @@ function renderDmgBonusSection() {
   } else {
     if (frozenDiademColdActive) { frozenDiademColdActive = false; updatePecents(); }
     if (frozenDiademIceActive)  { frozenDiademIceActive  = false; updatePecents(); }
+  }
+
+  if (hasGearEquipped("Crystalline Spike")) {
+    html += `<div class="dc-energy-section">
+      <span class="dc-energy-label">Crystalline Spike <span style="color:#aaa;font-size:11px">(spend 60 Corrupt Power: +5 &rarr; +40 flat dmg)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${crystallineSpikeSpend ? " dc-bonus-on" : ""}" onclick="toggleCrystallineSpikeSpend()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${crystallineSpikeSpend ? "✓" : ""}</div>
+    </div>`;
+  } else if (crystallineSpikeSpend) {
+    // Unequipping the gear must not leave the spend silently applied.
+    crystallineSpikeSpend = false;
   }
 
   if (hasGearEquipped("Ages Pages")) {
@@ -7003,13 +7041,11 @@ function renderDmgCalc() {
   const covenantData   = covenantName ? covenantMoves[covenantName]  : null;
   const lostScrollName = lostScrollPicker.value;
   const lostScrollData = lostScrollName ? lostScrollMoves[lostScrollName] : null;
-  const scroll1Name    = scroll1Picker.value;
-  const scroll1Data    = scroll1Name ? scrollMoves[scroll1Name] : null;
-  const scroll2Name    = scroll2Picker.value;
-  const scroll2Data    = scroll2Name ? scrollMoves[scroll2Name] : null;
+  const scrollNames    = scrollPickers.map(pk => pk.value);
+  const scrollDataList = scrollNames.map(nm => (nm ? scrollMoves[nm] : null));
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
-  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, scroll1Data, scroll2Data, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, markData, artifactData, weaponMainData, weaponOffData, covenantData, lostScrollData, ...scrollDataList, ...gearDataList.map(g => g.data)].filter(Boolean);
   const _sheeaClassMap = [
     { key: "Saint (Or)",        label: "Sheea (Saint)" },
     { key: "Paladin (Or)",      label: "Sheea (Paladin)" },
@@ -8564,6 +8600,8 @@ function getBuildState() {
     ls:   lostScrollPicker.value,
     sc1:  scroll1Picker.value,
     sc2:  scroll2Picker.value,
+    sc3:  scroll3Picker.value,
+    sc4:  scroll4Picker.value,
     corr: (corruptionPicker?.value || ''),
     msty: mastery,
     soul,
@@ -8785,6 +8823,11 @@ function _packState(state) {
   // lost a 40% stat buff. Appended last; old links read 0 = none, which is what
   // they meant anyway.
   bw.write(GEAR_ALLOC_STATS.indexOf(state.pStat) + 1, GEAR_STATPICK_BITS);
+  // Scroll slots 3 and 4, appended LAST. They cannot go beside sc1/sc2: the
+  // gear block is written after those, so inserting there would shift every
+  // later field and break every share link already in the wild.
+  wi(_L.sc, state.sc3 || '');
+  wi(_L.sc, state.sc4 || '');
   return bw.toB64url();
 }
 
@@ -8865,8 +8908,12 @@ function _unpackState(blob, name) {
   });
   const _pIdx = br.read(GEAR_STATPICK_BITS);
   const pStat = _pIdx > 0 ? (GEAR_ALLOC_STATS[_pIdx - 1] || '') : '';
+  // Links made before slots 3 and 4 existed simply run out of bytes here, and
+  // _BitReader yields zeros past the end, which ri() decodes as empty.
+  const sc3 = ri(_L.sc);
+  const sc4 = ri(_L.sc);
   return { v: 1, lvl, race, cls, sup, sub, str, arc, end, spd, lck,
-           mark, cov, covR, ench, art, sh, g, gi, ai, wm, wo, wti, arm, ls, sc1, sc2, corr, msty, soul, pStat, name };
+           mark, cov, covR, ench, art, sh, g, gi, ai, wm, wo, wti, arm, ls, sc1, sc2, sc3, sc4, corr, msty, soul, pStat, name };
 }
 
 const _CLOUD = 'https://jsonblob.com/api/jsonBlob';
@@ -9047,6 +9094,8 @@ function loadBuildState(state) {
   setPickerDisplay(lostScrollPicker, state.ls  || '');
   setPickerDisplay(scroll1Picker,    state.sc1 || '');
   setPickerDisplay(scroll2Picker,    state.sc2 || '');
+  setPickerDisplay(scroll3Picker,    state.sc3 || '');
+  setPickerDisplay(scroll4Picker,    state.sc4 || '');
 
   // Corruption form — unknown names fall back to none rather than being shown
   // as a form that doesn't exist.
@@ -9160,7 +9209,7 @@ if (resetBuildBtn) {
     loadBuildState({ v: 1, lvl: 1, race: '', cls: '', sup: '', sub: '',
       str: 0, arc: 0, end: 0, spd: 0, lck: 0,
       mark: '', cov: '', covR: 1, ench: '', art: '',
-      sh: [], g: [], wm: '', wo: '', arm: '', ls: '', sc1: '', sc2: '',
+      sh: [], g: [], wm: '', wo: '', arm: '', ls: '', sc1: '', sc2: '', sc3: '', sc4: '',
       msty: [], soul: {}, summ: '', summc: '#dddddd' });
     if (buildNameInput) buildNameInput.value = '';
   });

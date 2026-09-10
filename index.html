@@ -1096,6 +1096,22 @@
                 <option value="">— None —</option>
               </select>
             </div>
+            <div class="gear-slot">
+              <label class="gear-label">Scroll 3
+                <button type="button" class="info-jump" data-info-target="[data-info='scroll']" title="Show Scroll details on the Info tab" aria-label="Show Scroll details on the Info tab">&#8505;</button>
+              </label>
+              <select class="scroll-picker" id="scroll-3">
+                <option value="">&mdash; None &mdash;</option>
+              </select>
+            </div>
+            <div class="gear-slot">
+              <label class="gear-label">Scroll 4
+                <button type="button" class="info-jump" data-info-target="[data-info='scroll']" title="Show Scroll details on the Info tab" aria-label="Show Scroll details on the Info tab">&#8505;</button>
+              </label>
+              <select class="scroll-picker" id="scroll-4">
+                <option value="">&mdash; None &mdash;</option>
+              </select>
+            </div>
           </div>
 
         </div>
@@ -2080,7 +2096,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-09.1';
+  const SITE_VERSION    = '2026-09-09.2';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
