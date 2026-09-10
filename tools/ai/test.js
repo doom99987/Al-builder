@@ -4491,6 +4491,56 @@ describe('cache busting', () => {
   // for a decorative number, and held a websocket per anonymous visitor against
   // the 200-connection cap. Reintroducing presence here would silently restore
   // a quadratic bill, so this guards the shape rather than the behaviour.
+  // Pairing runs off realtime presence, so two players must be in the SAME
+  // 'mm-q-<mode>-<qte>' channel at the same moment - 24 buckets, and the only
+  // way to find out whether anyone was in one was to join it and wait.
+  // Measured: 52 queue rows against 7 matches ever. The counts are what make
+  // that navigable, and the heartbeat is what makes the counts true.
+  it('the matchmaking queue shows counts and heartbeats while queued', () => {
+    const mm = readRoot('js/matchmaking.js');
+
+    ok(mm.indexOf("sb.rpc('mm_queue_counts')") !== -1, 'the queue-counts rpc call is gone');
+    ok(mm.indexOf('function paintQueueCounts()') !== -1, 'the count painter is gone');
+    ok(mm.indexOf('function startQueueHeartbeat()') !== -1, 'the queue heartbeat is gone');
+    ok(/const MM_HEARTBEAT_MS = \d+;/.test(mm), 'the heartbeat interval is gone');
+
+    // A row that is never refreshed is how 52 of them accumulated.
+    ok(mm.indexOf("sb.from('mm_queue').update({ seen_at:") !== -1,
+       'the heartbeat no longer stamps seen_at');
+    ok(mm.indexOf('created_at: _now, seen_at: _now') !== -1,
+       'joining the queue no longer stamps seen_at, so a fresh join looks stale');
+
+    // Leaving the home screen must stop the poll, or it runs forever.
+    const sq = mm.indexOf('async function startQueue(');
+    ok(sq !== -1 && mm.slice(sq, sq + 400).indexOf('stopCountsPoll()') !== -1,
+       'entering the queue no longer stops the counts poll');
+    ok(mm.indexOf('function stopQueueHeartbeat()') !== -1, 'the heartbeat has no stop');
+
+    // The SQL the client depends on has to be in the repo.
+    const sql = readRoot('supabase/matchmaking-queue-fix.sql');
+    ok(/create or replace function mm_queue_counts\(\)/.test(sql),
+       'mm_queue_counts is not defined in supabase/matchmaking-queue-fix.sql');
+    ok(sql.indexOf('alter table mm_queue add column if not exists seen_at timestamptz;') !== -1,
+       'seen_at is not added by the migration');
+    // Stamping every existing row as new would have made all 52 stale rows
+    // look live; the backfill from created_at is what prevents that.
+    ok(sql.indexOf('update mm_queue set seen_at = created_at where seen_at is null;') !== -1,
+       'the seen_at backfill is gone - stale rows would all look fresh');
+  });
+
+  // matchmaking.js and .css are cache-stamped in index.html. Shipping a change
+  // without bumping the stamp means returning visitors keep the old file, which
+  // looks exactly like the change not working.
+  it('the matchmaking assets are version-stamped past their last change', () => {
+    const html = readRoot('index.html');
+    const js  = /js\/matchmaking\.js\?v=(\d+)/.exec(html);
+    const css = /css\/matchmaking\.css\?v=(\d+)/.exec(html);
+    ok(js,  'matchmaking.js is not version-stamped');
+    ok(css, 'matchmaking.css is not version-stamped');
+    ok(+js[1]  >= 10, 'matchmaking.js stamp is behind the queue-counts change (v' + js[1] + ')');
+    ok(+css[1] >= 8,  'matchmaking.css stamp is behind the badge styles (v' + css[1] + ')');
+  });
+
   it('the online counter uses the heartbeat RPC, not a realtime channel', () => {
     const html = readRoot('index.html');
 

@@ -25,6 +25,16 @@
     hard:   { label: 'Hard',   minT: 9, maxT: 18, minP: 430,  maxP: 780  },
   };
 
+  // Queue visibility. mm_queue_counts() returns {"unrated|dagger": 3, ...} for
+  // rows seen in the last 60s; the heartbeat below keeps a waiting player well
+  // inside that window, and a closed tab falls out of it within a minute.
+  const MM_COUNTS_MS    = 20000;  // home screen refresh
+  const MM_HEARTBEAT_MS = 25000;  // "still here" while queued
+  let _mmCounts      = {};
+  let _mmCountsAt    = 0;         // when they were last fetched
+  let _mmCountsTimer = null;
+  let _mmHeartbeat   = null;
+
   // QTE registry — panel id, start-button id, show/hide hook suffix, label, group.
   const QTES = [
     { id: 'dagger',      label: 'Dagger',  group: 'old', hook: 'Dagger'     },
@@ -164,10 +174,21 @@
   };
 
   window._mmLeavePage = function () {
+    stopCountsPoll();
     if (view === 'searching') cancelQueue();
     else if (view === 'match') teardownMatch(true);
     view = 'idle';
   };
+
+  // Best-effort: a request started here often does not survive the unload, so
+  // this is a courtesy rather than the mechanism. The 60s liveness window on
+  // the server is what actually stops a closed tab holding a queue slot.
+  window.addEventListener('pagehide', () => {
+    stopCountsPoll(); stopQueueHeartbeat();
+    if (view === 'searching' && sb && me && me.id) {
+      try { sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
+    }
+  });
 
   // ── Screens ─────────────────────────────────────────────────────────────────
   function root() { return $('mm-root'); }
@@ -216,6 +237,7 @@
         </div>
         <button class="mm-btn mm-ranks-btn" id="mm-ranks-btn" style="${mode==='ranked'?'':'display:none'}">&#9733; View Rank Ladder</button>
         <p class="mm-sub">${mode==='bot' ? 'Pick a QTE to practice against a bot.' : 'Pick a QTE to enter the queue.'}</p>
+        <div class="mm-waiting-line" id="mm-waiting-line"></div>
         <div class="mm-qte-picker">${groups}</div>
       </div></div>`;
 
@@ -223,6 +245,76 @@
     root().querySelectorAll('.mm-qte-btn').forEach(b => b.onclick = () => startQueue(b.dataset.qte));
     root().querySelectorAll('.mm-diff-btn').forEach(b => b.onclick = () => { botDifficulty = b.dataset.diff; renderHome(); });
     const rb = $('mm-ranks-btn'); if (rb) rb.onclick = showRanksModal;
+
+    paintQueueCounts();   // from cache first, so a mode toggle is instant
+    startCountsPoll();
+  }
+
+  async function refreshQueueCounts() {
+    if (!sb) return;
+    try {
+      const { data, error } = await sb.rpc('mm_queue_counts');
+      if (error || !data || typeof data !== 'object') return;
+      _mmCounts = data; _mmCountsAt = Date.now();
+      paintQueueCounts();
+    } catch (_) { /* offline, or the SQL is not deployed yet */ }
+  }
+
+  // Paints from whatever was last fetched, so switching Unrated/Ranked reflects
+  // instantly instead of waiting on a round trip.
+  function paintQueueCounts() {
+    if (view !== 'idle') return;
+    const r = root(); if (!r) return;
+    let total = 0;
+    r.querySelectorAll('.mm-qte-btn').forEach(b => {
+      const n = _mmCounts[mode + '|' + b.dataset.qte] | 0;   // 'bot' matches nothing, which is right
+      total += n;
+      b.classList.toggle('mm-qte-busy', n > 0);
+      let badge = b.querySelector('.mm-qte-count');
+      if (n > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'mm-qte-count';
+          b.appendChild(badge);
+        }
+        badge.textContent = n;
+        b.title = n === 1 ? '1 player waiting here' : n + ' players waiting here';
+      } else if (badge) {
+        badge.remove(); b.removeAttribute('title');
+      }
+    });
+    const line = $('mm-waiting-line');
+    if (!line) return;
+    if (mode === 'bot') { line.textContent = ''; return; }
+    line.textContent = total === 0
+      ? 'Nobody is queued right now — join one and others will see you waiting.'
+      : (total === 1 ? '1 player waiting' : total + ' players waiting') + ' — the numbers show where.';
+  }
+
+  function startCountsPoll() {
+    stopCountsPoll();
+    // renderHome re-runs on every mode toggle; do not fire an RPC each time.
+    if (Date.now() - _mmCountsAt > 5000) refreshQueueCounts();
+    _mmCountsTimer = setInterval(refreshQueueCounts, MM_COUNTS_MS);
+  }
+  function stopCountsPoll() {
+    if (_mmCountsTimer) { clearInterval(_mmCountsTimer); _mmCountsTimer = null; }
+  }
+
+  // A queued player has a row; without this it outlives them by however long
+  // the tab stays closed, which is how 52 of them accumulated.
+  function startQueueHeartbeat() {
+    stopQueueHeartbeat();
+    _mmHeartbeat = setInterval(() => {
+      if (!sb || view !== 'searching' || !me) { stopQueueHeartbeat(); return; }
+      try {
+        sb.from('mm_queue').update({ seen_at: new Date().toISOString() })
+          .eq('user_id', me.id).then(() => {}, () => {});
+      } catch (_) {}
+    }, MM_HEARTBEAT_MS);
+  }
+  function stopQueueHeartbeat() {
+    if (_mmHeartbeat) { clearInterval(_mmHeartbeat); _mmHeartbeat = null; }
   }
 
   function renderSearching(qte) {
@@ -248,17 +340,20 @@
   let curQte = null;
   async function startQueue(qte) {
     if (mode === 'bot') { enterBotMatch(qte); return; }
+    stopCountsPoll();   // the home screen is gone; nothing to paint
     curQte = qte; view = 'searching'; matching = false; queueStart = Date.now();
     const r = await fetchMyRating(); me.rr = r.rr; me.games = r.games;
     const snap = matchRR(me.rr, me.games); // RR used for matchmaking
     renderSearching(qte);
     // Register in the queue table (atomic pairing uses these rows).
     try {
+      const _now = new Date().toISOString();
       await sb.from('mm_queue').upsert({
         user_id: me.id, username: me.name, avatar_url: me.avatar,
-        mode, qte, rating: snap, created_at: new Date().toISOString()
+        mode, qte, rating: snap, created_at: _now, seen_at: _now
       });
     } catch (e) { /* ignore; presence still drives discovery */ }
+    startQueueHeartbeat();
 
     queueChan = sb.channel('mm-q-' + mode + '-' + qte, { config: { presence: { key: me.id } } });
     queueChan
@@ -319,6 +414,7 @@
   }
 
   function cancelQueue() {
+    stopQueueHeartbeat();
     try { sb && sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
     if (queueChan) { try { sb.removeChannel(queueChan); } catch (_) {} queueChan = null; }
     matching = false;
@@ -326,6 +422,7 @@
 
   // ── Match ───────────────────────────────────────────────────────────────────
   function enterMatch(id, opponent, host) {
+    stopQueueHeartbeat();
     if (queueChan) { try { sb.removeChannel(queueChan); } catch (_) {} queueChan = null; }
     try { sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
 
