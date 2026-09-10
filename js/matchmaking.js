@@ -186,7 +186,10 @@
   window.addEventListener('pagehide', () => {
     stopCountsPoll(); stopQueueHeartbeat();
     if (view === 'searching' && sb && me && me.id) {
-      try { sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
+      // .then() is what dispatches it at all. Delivery during unload is still
+      // not guaranteed, which is why the server's 60s liveness window is the
+      // real mechanism here and this is only a courtesy.
+      try { sb.from('mm_queue').delete().eq('user_id', me.id).then(() => {}, () => {}); } catch (_) {}
     }
   });
 
@@ -413,18 +416,35 @@
     enterMatch(newId, { id: target.id, name: target.name, avatar: target.avatar, rr: target.rr | 0, games: target.games | 0 }, true);
   }
 
-  function cancelQueue() {
+  async function cancelQueue() {
     stopQueueHeartbeat();
-    try { sb && sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
+    // Drop yourself from the cached counts immediately. The poll is on a 20s
+    // cycle and startCountsPoll deliberately will not refetch within 5s of the
+    // last one, so without this the home screen would keep showing you as
+    // waiting in the queue you just left.
+    forgetSelfInCounts();
     if (queueChan) { try { sb.removeChannel(queueChan); } catch (_) {} queueChan = null; }
     matching = false;
+    // Awaited, not fire-and-forget: the builder only issues the request when
+    // something subscribes to it.
+    try { if (sb) await sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
+  }
+
+  // Remove one from the bucket we were queued in and force the next poll to
+  // refetch, so the number is right instantly and correct shortly after.
+  function forgetSelfInCounts() {
+    if (!curQte) return;
+    const key = mode + '|' + curQte;
+    if (_mmCounts[key]) _mmCounts[key] = Math.max(0, _mmCounts[key] - 1);
+    _mmCountsAt = 0;
   }
 
   // ── Match ───────────────────────────────────────────────────────────────────
   function enterMatch(id, opponent, host) {
     stopQueueHeartbeat();
     if (queueChan) { try { sb.removeChannel(queueChan); } catch (_) {} queueChan = null; }
-    try { sb.from('mm_queue').delete().eq('user_id', me.id); } catch (_) {}
+    forgetSelfInCounts();
+    try { sb.from('mm_queue').delete().eq('user_id', me.id).then(() => {}, () => {}); } catch (_) {}
 
     view = 'match'; matchId = id; isHost = host; opp = opponent;
     roundNo = 1; wins = { [me.id]: 0, [opp.id]: 0 }; matchResolved = false; started = false; oppReady = false; roundLog = [];
@@ -847,7 +867,9 @@
   function teardownMatch(abandon) {
     clearInterval(timerTick); clearTimeout(hostTimeoutT); clearTimeout(failAdjT); clearTimeout(oppGoneT); clearInterval(botTimer);
     if (abandon && !isBot && matchId && !matchResolved) {
-      try { sb.rpc('mm_abandon_match', { match: matchId }); } catch (_) {}
+      // Built and never sent without .then() - this is the path that runs when
+      // you navigate away from a match, so it is the one that mattered most.
+      try { sb.rpc('mm_abandon_match', { match: matchId }).then(() => {}, () => {}); } catch (_) {}
       bcast('abandon', { by: me.id });
     }
     if (window._qteMatch) window._qteMatch.active = false;
@@ -874,8 +896,11 @@
   // Best-effort cleanup if the tab closes mid-search/match.
   window.addEventListener('beforeunload', () => {
     try {
-      if (view === 'searching') sb && sb.from('mm_queue').delete().eq('user_id', me.id);
-      if (view === 'match' && matchId && !matchResolved) sb && sb.rpc('mm_abandon_match', { match: matchId });
+      // Both of these were built and never sent. The abandon one matters most:
+      // it is why matches sit at status='active' with a null ended_at forever
+      // when someone closes the tab mid-match.
+      if (view === 'searching') sb && sb.from('mm_queue').delete().eq('user_id', me.id).then(() => {}, () => {});
+      if (view === 'match' && matchId && !matchResolved) sb && sb.rpc('mm_abandon_match', { match: matchId }).then(() => {}, () => {});
     } catch (_) {}
   });
 })();
