@@ -184,12 +184,11 @@ function renderMoves() {
   const covenantName = covenantPicker.value;
   const gearSlots    = ["gear-1","gear-2","gear-3","gear-4"].map(id => document.getElementById(id)?.value || "").filter(Boolean);
   const lostScrollName = lostScrollPicker.value;
-  const scroll1Name  = scroll1Picker.value;
-  const scroll2Name  = scroll2Picker.value;
+  const scrollNames  = scrollPickers.map(pk => pk.value);
   const covenantRank = Math.min(20, Math.max(1, +covenantRankInput.value || 1));
   const lvl = +lvlInput.value || 1;
 
-  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length && !lostScrollName && !scroll1Name && !scroll2Name) {
+  if (!raceName && !baseClass && !markName && !artifactName && !weaponMain && !weaponOff && !covenantName && !gearSlots.length && !lostScrollName && !scrollNames.some(Boolean)) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
     renderDmgCalc();
     return;
@@ -205,8 +204,7 @@ function renderMoves() {
   const weaponOffData  = weaponOff     ? weaponMoves[weaponOff]        : null;
   const covenantData   = covenantName  ? covenantMoves[covenantName]   : null;
   const lostScrollData = lostScrollName ? lostScrollMoves[lostScrollName] : null;
-  const scroll1Data    = scroll1Name   ? scrollMoves[scroll1Name]      : null;
-  const scroll2Data    = scroll2Name   ? scrollMoves[scroll2Name]      : null;
+  const scrollDataList = scrollNames.map(nm => (nm ? scrollMoves[nm] : null));
   const gearDataList   = gearSlots.map(name => ({ name, data: gearMoves[name] || null })).filter(g => g.data);
 
   let html = "";
@@ -290,18 +288,20 @@ function renderMoves() {
     html += `</div>`;
   }
 
-  if (scroll1Name || scroll2Name) {
+  if (scrollNames.some(Boolean)) {
     html += `<div class="moves-col" data-info="scroll">`;
-    if (scroll1Name) {
-      html += `<div class="moves-entity-label">Scroll 1</div>`;
-      html += `<h2 class="moves-race-title">${scroll1Name}</h2>`;
-      if (scroll1Data) { html += entityMovesHtml(scroll1Data, lvl); html += entityPassivesHtml(scroll1Data, lvl); }
-    }
-    if (scroll2Name) {
-      html += `<div class="moves-entity-label"${scroll1Name ? ' style="margin-top:18px"' : ''}>Scroll 2</div>`;
-      html += `<h2 class="moves-race-title">${scroll2Name}</h2>`;
-      if (scroll2Data) { html += entityMovesHtml(scroll2Data, lvl); html += entityPassivesHtml(scroll2Data, lvl); }
-    }
+    // `shown` rather than the slot index: the spacing goes above every entry
+    // after the FIRST RENDERED one, so an empty slot 1 must not leave slot 2
+    // pushed down as though something preceded it.
+    let shown = 0;
+    scrollNames.forEach((nm, i) => {
+      if (!nm) return;
+      html += `<div class="moves-entity-label"${shown ? ' style="margin-top:18px"' : ''}>Scroll ${i + 1}</div>`;
+      html += `<h2 class="moves-race-title">${nm}</h2>`;
+      const data = scrollDataList[i];
+      if (data) { html += entityMovesHtml(data, lvl); html += entityPassivesHtml(data, lvl); }
+      shown++;
+    });
     html += `</div>`;
   }
 
@@ -330,7 +330,7 @@ function renderMoves() {
   html += `</div>`; // end .moves-columns
 
   // --- Summons section ---
-  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, scroll1Data, scroll2Data, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
+  const allData = [raceData, baseData, superData, subData, artifactData, markData, weaponMainData, weaponOffData, covenantData, ...scrollDataList, lostScrollData, ...gearDataList.map(g => g.data)].filter(Boolean);
   const allSummonMoves = allData.flatMap(d => (d.learns || []).filter(isSummonMove));
   if (allSummonMoves.length) {
     const summonGroups = {};
