@@ -333,7 +333,12 @@
       const _tr = siteTraitTotals(build);
       const hpBase = round1(45 + rawEnd * 1.00248);   // calcPercentage('end', val)
       const hpPct  = (pct.end ?? 0) + _tr.hpPct; // armour pct + gear pct + Vital
-      let flatHP   = (armour.endFlat ?? 0) + (gf.endFlat ?? 0);
+      // The soul tree's health nodes are flat HP (builder.js soulTreeBonuses.endFlat).
+      let soulFlat = 0;
+      const soul = build.soul || {};
+      for (const list of Object.values(D.soulTreeData || {}))
+        for (const n of list) if (n && n.hpFlat && soul[n.id]) soulFlat += Math.min(n.maxRank || 99, soul[n.id] | 0) * n.hpFlat;
+      let flatHP   = (armour.endFlat ?? 0) + (gf.endFlat ?? 0) + soulFlat;
       for (const fn of hooks.flatHP) flatHP = fn(build, flatHP, { stats: s });
       const hp = hpBase * (1 + hpPct / 100) + flatHP;
 
@@ -414,7 +419,8 @@
     function parseDamage(raw) {
       if (raw === undefined || raw === null) return { base: 0, hits: 1 };
       const str = String(raw);
-      const multi = str.match(/^(\d+(?:\.\d+)?)\s*x\s*(\d+)$/i);
+      // "2x3" and "3.5*2" are both "base, hits" - the race moves use the star.
+      const multi = str.match(/^(\d+(?:\.\d+)?)\s*[x*]\s*(\d+)$/i);
       if (multi) return { base: +multi[1], hits: +multi[2] };
       if (/^\d+(\.\d+)?$/.test(str)) return { base: +str, hits: 1 };
       return { base: 0, hits: 1 };     // "5x(Darkcores)" and friends — unscoreable
@@ -681,25 +687,40 @@
     // of the same shard is worth nothing there — see the "Duplicate shards" trap.
     // The optimiser therefore only ever fits DISTINCT shards, which with 7 slots
     // and 14 shards is the better play regardless.
-    function shardTotals(build, K) {
+    // Copies of one FAMILY (Reversing (R) and Reversing (P) are the same family)
+    // count in full for the first two and at 25% from the third on - the site's
+    // own rule (builder.js getShardBonusEntries, drMult). It used to dedupe by
+    // exact name, which made "full Voltaic" and "5x Reversing" impossible to
+    // even express.
+    //
+    // `opts.selfStacks` / `opts.targetStacks` are how many statuses the build
+    // actually carries and applies, for the per-debuff shards; the rule's own
+    // `stacks` is the fallback.
+    function shardTotals(build, K, opts) {
       const defs = D.shardItems || {};
       const rules = (K && K.SHARDS) || {};
-      const out = { dmgPct: 0, lifesteal: 0, active: [], unmodelled: [] };
-      const seen = new Set();
+      const out = { dmgPct: 0, lifesteal: 0, active: [], unmodelled: [], families: {} };
+      const copies = {};
       for (const name of build.shards || []) {
-        if (!name || seen.has(name)) continue;      // dedup, as the builder does
-        seen.add(name);
+        if (!name) continue;
         const def = defs[name];
         if (!def) continue;
+        const family = name.replace(/ \([RP]\)$/, '');
+        copies[family] = (copies[family] || 0) + 1;
+        const drMult = copies[family] <= 2 ? 1.0 : 0.25;
+        out.families[family] = copies[family];
         const rule = rules[def.bonusType];
         const val = def.rVal != null ? def.rVal : def.pVal;
         if (!rule || rule.kind === 'note' || val == null) {
           out.unmodelled.push({ name, note: (rule && rule.note) || def.bonusType });
           continue;
         }
-        const eff = val * (rule.stacks || 1) * (rule.uptime ?? 1);
+        const stacks = def.bonusType === 'per-debuff-self'   ? ((opts && opts.selfStacks)   ?? rule.stacks ?? 1)
+                     : def.bonusType === 'per-debuff-target' ? ((opts && opts.targetStacks) ?? rule.stacks ?? 1)
+                     : (rule.stacks || 1);
+        const eff = val * stacks * (rule.uptime ?? 1) * drMult;
         if (out[rule.kind] !== undefined) out[rule.kind] += eff;
-        out.active.push({ name, value: val, effective: eff, note: rule.note });
+        out.active.push({ name, value: val, effective: eff, note: rule.note, copy: copies[family], drMult, stacks });
       }
       return out;
     }

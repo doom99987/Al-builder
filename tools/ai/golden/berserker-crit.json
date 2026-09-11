@@ -1,0 +1,27 @@
+{
+  "name": "Berserker crit - community build (owner: may be stale)",
+  "source": "site owner, community build post; marked possibly out of date",
+  "stale": true,
+  "request": {
+    "text": "berserker crit",
+    "overrides": { "klass": "Berserker (Ch)", "goal": "crit", "play": "solo", "dmg": "average", "level": 50 }
+  },
+  "expect": {
+    "class": "Berserker (Ch)",
+    "dominantStat": "lck",
+    "raceIn": ["Corvolus (3%)", "Veneri (6%)", "Boreas (1%)", "Inferion (Ob)"],
+    "gearAtLeast": { "n": 2, "of": ["Crystalline Spike", "Spiked Steel Ball", "Crystalized Star", "Blooming Eye", "Shadow Gauntlets"] },
+    "enchantIn": ["Inferno", "Cursed", "Blessed", "Ivory"],
+    "weapon": { "type": "Greatsword", "tiered": true },
+    "artifact": "Paranoxian Crux",
+    "artifactIn": ["Paranoxian Crux", "Chaos Orb"],
+    "subclass": "Bard",
+    "shards": { "Shattering": 2, "Striking": 1, "Empowering": 1 },
+    "armourIn": ["Wandering Practitioner"],
+    "mastery": { "notationIn": ["2-0-2"] },
+    "covenantIn": ["Blades of the World"],
+    "corruption": "Blasphemy"
+  },
+  "soft": ["dominantStat", "raceIn", "gearAtLeast", "enchantIn", "weapon", "artifact", "artifactIn", "subclass",
+           "shards", "armourIn", "mastery.notationIn", "covenantIn", "corruption"]
+}

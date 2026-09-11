@@ -32,6 +32,12 @@ const Share   = require('./share.js');
 const { extractAll } = require('./extract-data.js');
 
 const VERBOSE = process.argv.includes('--verbose');
+// Golden builds: `soft` expectations warn by default and fail under this flag.
+const STRICT_GOLDEN = process.argv.includes('--strict-golden');
+// `--only=<text>` runs just the groups and tests whose name contains it. The
+// whole suite is minutes long; checking that one deliberately broken guard
+// actually fails should not be.
+const ONLY = (process.argv.find(a => a.startsWith('--only=')) || '').slice('--only='.length);
 
 // ── tiny harness ────────────────────────────────────────────────────────────
 let passed = 0, failed = 0, group = '';
@@ -39,6 +45,7 @@ const failures = [];
 
 function describe(name, fn) { group = name; console.log('\n' + name); fn(); }
 function it(name, fn) {
+  if (ONLY && name.indexOf(ONLY) === -1 && group.indexOf(ONLY) === -1) return;
   try {
     fn();
     passed++;
@@ -252,8 +259,11 @@ describe('build invariants', () => {
     [r.ctx.bestHit, r.ctx.hp, r.ctx.score, r.ctx.critChance].some(v => !isFinite(v))
       ? 'non-finite stat' : null);
 
-  forEach('never fits duplicate shards', r =>
-    new Set(r.build.shards).size !== r.build.shards.length ? 'duplicate shard' : null);
+  // A shard family may be fitted more than once - the site counts the first
+  // two copies in full and the rest at 25% - but every slot still holds a real
+  // shard.
+  forEach('every shard slot holds a real shard', r =>
+    (r.build.shards || []).some(n => !data.shardItems[n]) ? 'unknown shard' : null);
 
   forEach('never fits more than 7 shards', r =>
     r.build.shards.length > 7 ? r.build.shards.length + ' shards' : null);
@@ -705,6 +715,72 @@ describe('build quality', () => {
     }
   });
 
+  it('buys every capstone that pays, not just one', () => {
+    // The capstone pass used to buy exactly one and hand the rest of the budget
+    // to stat nodes. A Saint's real build carries THREE - All For One, One For
+    // All and Cleansing Prayer - and that was unreachable by construction.
+    const r = ask('', { roles: ['Healer'], klass: 'Saint (Or)', play: 'team', level: data.Max_Lvl });
+    const b = r.build.masteryBudget;
+    ok(b.capstonesTaken >= 2, 'Saint healer took ' + b.capstonesTaken + ' capstone(s)');
+    ok(r.build.masteryNodes.indexOf('rm1') !== -1, 'One For All was not bought: ' +
+       JSON.stringify((b.capstoneOrder || []).map(c => c.name)));
+    eq((b.capstoneOrder || []).length, b.capstonesTaken, 'capstoneOrder does not list every capstone taken');
+    ok(b.getFirst && b.getFirst.value > 0, 'the first capstone to get is not a measured one');
+  });
+
+  it('prices a capstone that does several things as all of them', () => {
+    // All For One is lifesteal AND incoming healing. The incoming half is in the
+    // site's own maths (model.js), so it is listed and NOT added again.
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Estella (24%)';
+    b.masteryNodes = ['cm1'];
+    const t = O.masteryAbilityTotals(b, { play: 'solo' });
+    eq(t.lifestealPct, 20, 'All For One lifesteal');
+    eq(t.incHealPct, 0, 'incoming healing was added on top of the site\'s own +40');
+    ok(t.active.some(a => a.name === 'All For One' && a.onSite), 'the on-site half is not listed');
+    eq(t.active.filter(a => a.name === 'All For One').length, 2, 'expected two rows for All For One');
+  });
+
+  it("a capstone's healing reaches the healing figure the scorer reads", () => {
+    const r = ask('', { roles: ['Healer'], klass: 'Saint (Or)', play: 'team', level: data.Max_Lvl });
+    if (r.build.masteryNodes.indexOf('rm1') === -1) return;   // asserted above
+    ok(r.ctx.masteryAbilities.outHealPct >= 50, 'One For All outHealPct = ' + r.ctx.masteryAbilities.outHealPct);
+    ok(r.ctx.effectiveHeal > r.ctx.outHeal * 1.45,
+       'effectiveHeal ' + r.ctx.effectiveHeal + ' vs outHeal ' + r.ctx.outHeal);
+  });
+
+  it('prints the mastery tree in the community a-b-c notation', () => {
+    // a-b-c = capstones taken in red-green-blue, two available in each.
+    const b = M.emptyBuild();
+    b.masteryNodes = ['s1', 'cm1', 'rm1', 'rm2'];
+    eq(O.masteryNotation(b), '0-1-2');
+    b.masteryNodes = ['lm1', 'cm1', 'cm2'];
+    eq(O.masteryNotation(b), '1-2-0');
+    b.masteryNodes = [];
+    eq(O.masteryNotation(b), '0-0-0');
+    const r = ask('tanky build');
+    eq(r.build.masteryNotation, O.masteryNotation(r.build), 'the build does not carry its own notation');
+  });
+
+  it('lifesteal counts towards survival, and only for the survival goals', () => {
+    // Sustain is the third survival figure: effective HP plus what lifesteal
+    // returns over K.SUSTAIN.horizon turns. A damage goal must not read it.
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Estella (24%)';
+    b.invested = { str: 50, arc: 50, end: 50, spd: 0, lck: 0 };
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'tank' }, data);
+    b.masteryNodes = ['s1', 's2', 's3', 's4', 'c1', 'c2a', 'c2b', 'c3a', 'cb1', 'cm1'];
+    const c = O.evaluate(b, spec);
+    ok(c.lifesteal >= 20, 'lifesteal ' + c.lifesteal);
+    ok(c.effectiveHpSustain > c.effectiveHp, 'sustain adds nothing to effective HP');
+    const horizon = (K.SUSTAIN || {}).horizon || 6;
+    ok(Math.abs((c.effectiveHpSustain - c.effectiveHp) - c.sustainPerTurn * horizon) < 1e-6,
+       'sustain is not sustainPerTurn x horizon');
+    const flat = Object.assign({}, c, { effectiveHpSustain: c.effectiveHp });
+    ok(K.ARCHETYPES.tank.score(c) > K.ARCHETYPES.tank.score(flat), 'the tank score ignores lifesteal');
+    eq(K.ARCHETYPES.damage.score(c), K.ARCHETYPES.damage.score(flat), 'the damage score reads lifesteal');
+  });
+
   it('no class has a duplicated mastery branch stat', () => {
     // Each class's four branches should cover four different stats. Necromancer
     // shipped with blue duplicating red as Speed when it should be Endurance,
@@ -862,40 +938,36 @@ describe('random and flavour', () => {
     }
   });
 
-  it('never rolls a placeholder race', () => {
-    // There are no placeholders any more: Arborivia and Calvariae DO have zero
-    // stat blocks, but that is the point of them rather than a gap - both have
-    // full move kits and are played for those. The mechanism stays, because the
-    // next race added to the data may genuinely be unfinished.
-    //
-    // So this now tests the mechanism and the claim behind it: whatever is
-    // marked placeholder is never rolled, AND nothing is silently unfinished -
-    // every race must have either stats or a kit.
-    const placeholders = Object.entries(K.RACE_ROLES || {})
-      .filter(([, v]) => v.placeholder).map(([k]) => k);
+  it('every race has a real stat block and a kit', () => {
+    // Arborivia and Calvariae shipped as zero stat blocks and were excluded from
+    // the search as unfinished. The owner supplied their numbers, so the
+    // exclusion is gone - and this is what stops a future race from shipping as
+    // a silent zero row again.
     for (const [name, stats] of Object.entries(data.races || {})) {
-      const hasStats = Object.values(stats).some(v => v > 0);
-      const hasKit = (((data.raceMoves || {})[name] || {}).learns || []).length > 0;
-      ok(hasStats || hasKit || placeholders.indexOf(name) !== -1,
-         name + ' has neither stats nor a kit and is not marked placeholder');
-    }
-    for (let i = 0; i < 80; i++) {
-      const race = engine.ask('', { minmax: true }).build.race;
-      ok(placeholders.indexOf(race) === -1, 'rolled placeholder ' + race);
+      const total = Object.values(stats).reduce((t, v) => t + (v | 0), 0);
+      ok(total > 0, name + ' has a zero stat block');
+      ok((((data.raceMoves || {})[name] || {}).learns || []).length > 0, name + ' has no kit');
     }
   });
 
-  it('does not search placeholder races even for a named request', () => {
-    for (const q of ['max damage', 'tanky build', 'healer']) {
-      const race = ask(q).build.race;
-      ok(!((K.RACE_ROLES || {})[race] || {}).placeholder, q + ' chose placeholder ' + race);
-    }
+  it('carries the owner-supplied stat blocks for the two late races', () => {
+    // From the game, 2026-09-10. If a data refresh zeroes them again this fails
+    // loudly instead of the search quietly under-counting both races.
+    eq(JSON.stringify(data.races['Arborivia (3%)']), JSON.stringify({ str: 1, arc: 3, end: 2, lck: 3, spd: 1 }));
+    eq(JSON.stringify(data.races['Calvariae (3%)']), JSON.stringify({ str: 2, arc: 1, end: 4, lck: 2, spd: 1 }));
   });
 
-  it('still honours a placeholder race asked for by name', () => {
-    // Excluding them from the SEARCH is right; refusing an explicit request is not.
-    const r = engine.ask('', { race: 'Arborivia (3%)' });
-    eq(r.build.race, 'Arborivia (3%)');
+  it('searches every race, and a named one is still honoured', () => {
+    // `considered` is the coarse pass size, class count x race count. If any
+    // race were filtered out of the pool it would stop dividing by the number
+    // of races in the data.
+    const nRaces = Object.keys(data.races).length;
+    const r = engine.ask('max damage');
+    ok(r.considered >= nRaces && r.considered % nRaces === 0,
+       'coarse pass considered ' + r.considered + ' pairs, not a multiple of ' + nRaces + ' races');
+    for (const race of ['Arborivia (3%)', 'Calvariae (3%)']) {
+      eq(engine.ask('', { race }).build.race, race);
+    }
   });
 
   it('picks a summon race for a summon goal', () => {
@@ -1016,14 +1088,15 @@ describe('random and flavour', () => {
 
   it('SETUP_MOVES name real moves on the race or class that owns them', () => {
     for (const [name, def] of Object.entries(K.SETUP_MOVES || {})) {
-      // Five kinds of owner now: a race, a class, a covenant or either flavour of
-      // scroll. A covenant's moves are gated on RANK rather than level, and a
-      // scroll's move always shares the scroll's own name, but the field is the
-      // same one in every case.
+      // Six kinds of owner now: a race, a class, a covenant, either flavour of
+      // scroll, or a gear with an active (Divine Promise). A covenant's moves
+      // are gated on RANK rather than level, and a scroll's move always shares
+      // the scroll's own name, but the field is the same one in every case.
       const src = def.owner
         ? ((data.raceMoves || {})[def.owner] || (data.classMoves || {})[def.owner] ||
            (data.covenantMoves || {})[def.owner] || (data.scrollMoves || {})[def.owner] ||
-           (data.lostScrollMoves || {})[def.owner])
+           (data.lostScrollMoves || {})[def.owner] ||
+           ((data.gearActives || {})[def.owner] ? { learns: data.gearActives[def.owner] } : null))
         : null;
       ok(src, name + ' names an unknown owner: ' + def.owner);
       ok((src.learns || []).some(m => m.name === name && m.type === 'Active'),
@@ -1560,7 +1633,9 @@ describe('covenants', () => {
 
   it('explains the covenant in the write-up', () => {
     const r = engine.ask('', { goal: 'damage' });
-    const sec = r.explanation.find(x => x.h === 'Covenant');
+    // Two sections carry this header now: the write-up's one-liner and the
+    // detailed comparison behind it. The ladder lives in the detailed one.
+    const sec = r.explanation.filter(x => x.h === 'Covenant').find(x => (x.list || []).length);
     ok(sec && (sec.list || []).length === 4, 'the covenant section does not compare all four');
     const build = r.explanation.find(x => x.h === 'Build');
     ok((build.table || []).some(row => row[0] === 'Covenant'),
@@ -1804,22 +1879,30 @@ describe('class roles', () => {
     // health-only comparison now reads as "the tank is barely tougher" when it
     // is 78% block DR against 53%. Health and mitigation trade freely - only
     // their product says whether the tank build is doing its job.
+    //
+    // And not on raw HP at all any more: with lifesteal, self-heals and a DR
+    // cap in the survival figure, the tank trades HP for mitigation and sustain
+    // (Calvariae in Aspect of Maladaptation: 418 HP at 80% DR against 467 at
+    // 35%), so only the figure the tank score actually reads is compared.
     const citRole = ask('citadel build');
     const citOld  = ask('citadel build', { goal: K.DEFAULT_GOAL });
-    const tough = r => r.ctx.hp * (1 + r.ctx.blockDr / 100);
-    ok(citRole.ctx.hp > citOld.ctx.hp,
-       'a Citadel has no more health for being built as a tank: ' +
-       Math.round(citRole.ctx.hp) + ' vs ' + Math.round(citOld.ctx.hp));
-    ok(tough(citRole) > tough(citOld) * 1.25,
+    // The tank archetype's own score is the only complete statement of "tougher":
+    // effective HP with sustain, capped DR, incoming healing.
+    const tough = r => K.ARCHETYPES.tank.score(r.ctx);
+    ok(tough(citRole) > tough(citOld) * 1.1,
        'a Citadel is no tougher for being built as a tank: ' +
-       Math.round(tough(citRole)) + ' vs ' + Math.round(tough(citOld)) + ' effective HP');
+       Math.round(tough(citRole)) + ' vs ' + Math.round(tough(citOld)) + ' on the tank score');
   });
 
   it('a role build still has enough health to be worth playing', () => {
+    // The floor was 200 while the search scored Venia's Permuth as a permanent
+    // x1.4 on Endurance. It is scored as the 3-turn buff it is now, so the HP
+    // here is what the build actually has: a Saint healer on a perfect line
+    // (60-110 End, 110 Arc, rest Str) sits around 185.
     for (const klass of Object.keys(ROLES)) {
       const r = ask(klass + ' build');
       if (r.build.klass !== klass) continue;   // base classes resolve upward
-      ok(r.ctx.hp > 200, klass + ' defaults to a ' + r.ctx.hp + ' HP build');
+      ok(r.ctx.hp > 150, klass + ' defaults to a ' + r.ctx.hp + ' HP build');
     }
   });
 });
@@ -2035,16 +2118,24 @@ describe('the healer build the numbers used to miss', () => {
        'a damage Saint took the healing artifact');
   });
 
-  // Every shard is damage, lifesteal or energy. On a healer each one moved the
-  // score by ~7e-7 — pure floating-point dust — and the old absolute 1e-9
-  // threshold counted that as an improvement seven times over.
-  it('knows its shards do nothing, and says so', () => {
+  // Every shard is damage, lifesteal or energy. On a healer the damage ones
+  // moved the score by ~7e-7 — pure floating-point dust — and the old absolute
+  // 1e-9 threshold counted that as an improvement seven times over. Lifesteal
+  // now feeds the sustain figure the healer reads, so those two are real picks;
+  // the rest are fill, and the build has to say so.
+  it('knows which of its shards do nothing, and says so', () => {
+    // With All For One's 20% lifesteal on the build, a damage shard IS sustain,
+    // so a healer's shards can all measure. Whatever the count, the row has to
+    // tell the truth about it: the fill is admitted, and a full set of measured
+    // picks is not called fill.
     const r = heal();
-    eq(r.build.shardsInert, r.build.shards.length,
-       'some shard is claimed to help a healing build');
+    const lifesteal = r.build.shards.filter(n => ((data.shardItems[n] || {}).bonusType) === 'lifesteal');
+    ok(lifesteal.length > 0, 'a healer with lifesteal counted took no lifesteal shard');
+    ok(r.build.shardsInert >= 0 && r.build.shardsInert <= r.build.shards.length, 'inert count out of range');
     const build = r.explanation.find(x => x.h === 'Build');
     const row = build.table.find(t => t[0] === 'Shards');
-    ok(/changes a number/.test(row[1]), 'the shard row does not admit it');
+    if (r.build.shardsInert > 0) ok(/change nothing here|changes a number/.test(row[1]), 'the shard row does not admit the fill: ' + row[1]);
+    else ok(!/change nothing here|changes a number/.test(row[1]), 'the shard row calls measured picks fill: ' + row[1]);
   });
 
   it('a damage build has shards that really do help', () => {
@@ -2225,10 +2316,25 @@ describe('Luck buys crit chance at half rate', () => {
   });
 
   it('a crit build can still be pushed over a tier threshold', () => {
-    const r = ask('crit wizard');
+    // An Amorus Lancer built for crit reaches tier 1 on its own Luck. (A Wizard
+    // used to as well, on a Permuth-inflated Luck total; scored honestly the
+    // all-Luck wizard line loses too much Arcane, and the next test says so.)
+    // The race is pinned: left to the search, a Drauga Lancer scores higher
+    // one tier down, and that is a judgement rather than a broken snap.
+    const r = ask('', { klass: 'Lancer (N)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
     ok(r.ctx.critChance >= 100,
        'a crit build tops out at ' + Math.round(r.ctx.critChance) + '% and never tiers up');
     eq(M.critTier(r.ctx.critChance) >= 1, true, 'crit tier never reached 1');
+  });
+
+  it('and a crit build that stops short of a tier does so because the tier costs more than it pays', () => {
+    const r = ask('crit wizard');
+    if (r.ctx.critChance >= 100) return;   // it tiered; nothing to explain
+    const allLuck = Object.assign({}, r.build, { invested: { str: 0, arc: 0, end: 0, spd: 0, lck: M.pointBudget(r.build) } });
+    const c = engine.optimizer.evaluate(allLuck, r.spec);
+    ok(c.critChance >= 100, 'the all-Luck line does not even reach a tier: ' + c.critChance);
+    ok(r.ctx.score > c.score, 'the all-Luck line scores ' + Math.round(c.score) + ' against ' +
+       Math.round(r.ctx.score) + ' - the tier was affordable and the search still passed it up');
   });
 });
 
@@ -2706,9 +2812,11 @@ describe('stat milestones', () => {
   });
 
   it('the reported healing stays what the site would show', () => {
-    // effectiveHeal is the engine's; outHeal must remain the site's number.
+    // effectiveHeal is the engine's; outHeal must remain the site's number -
+    // read with Venia's Permuth what-if off, which is how every figure the
+    // engine reports is read (the site's own row shows Permuth as permanent).
     const r = ask('', { roles: ['Healer'], level: data.Max_Lvl });
-    const site = engine.model.derived(r.build);
+    const site = engine.model.derived(Object.assign({}, r.build, { permuth: '' }));
     eq(r.ctx.outHeal, site.outHeal, 'the reported outgoing healing drifted from the model');
   });
 });
@@ -2776,13 +2884,23 @@ describe('healing is an amount, not a percentage', () => {
     ok(r.ctx.cdCutFlat >= 1, 'Sheea is equipped but its cooldown cut is not counted');
   });
 
-  it('a milestone cooldown cut only applies to its own element', () => {
+  it('a milestone cooldown cut applies to the moves the owner says it does', () => {
+    // The game text says STR 110 -> "Magic Element" and ARC 110 -> "Physical"
+    // (builder.js notes the two are swapped in game). The owner's reading from
+    // play, and what the community builds are written around: ARC 110 cuts
+    // every non-Physical move, Holy included, and STR 110 cuts Physical.
     const tiers = data.STAT_MILESTONE_TIERS;
-    const m = K.milestonesFor({ str: tiers[2] }, tiers);
-    const cut = m.cdCut.find(c => c.stat === 'str');
-    ok(cut, 'STR 110 grants no cooldown cut');
-    ok(cut.elements.test('Magic'), 'the STR cut does not apply to Magic');
-    ok(!cut.elements.test('Holy'), 'the STR cut wrongly applies to Holy');
+    const m = K.milestonesFor({ str: tiers[2], arc: tiers[2] }, tiers);
+    const str = m.cdCut.find(c => c.stat === 'str');
+    const arc = m.cdCut.find(c => c.stat === 'arc');
+    ok(str && arc, 'STR 110 or ARC 110 grants no cooldown cut');
+    ok(str.elements.test('Physical'), 'the STR cut does not apply to Physical');
+    ok(!str.elements.test('Holy') && !str.elements.test('Magic'), 'the STR cut applies to non-Physical moves');
+    ok(arc.elements.test('Holy') && arc.elements.test('Magic') && arc.elements.test('Fire'),
+       'the ARC cut misses a non-Physical element');
+    ok(!arc.elements.test('Physical'), 'the ARC cut applies to Physical');
+    eq(str.source, 'owner', 'the STR affinity does not say where it came from');
+    eq(arc.source, 'owner', 'the ARC affinity does not say where it came from');
   });
 });
 
@@ -2794,6 +2912,14 @@ describe('races are more than a stat block', () => {
       ok(role, name + ' has a kit and no RACE_ROLES entry');
       ok(!role.placeholder, name + ' has a full kit and is still marked placeholder');
     }
+  });
+
+  it("counts Daminos' outgoing healing now that the data states it", () => {
+    // The passive text used to carry no figure and the entry was a note. It now
+    // says 15%, so a Daminos healer has to be scored with it.
+    const r = ask('healer', { race: 'Daminos (3%)', klass: 'Saint (Or)' });
+    ok(((r.ctx.passives || {}).outHealPct || 0) >= 15,
+       'Daminos +15% outgoing healing not counted: ' + JSON.stringify(r.ctx.passives));
   });
 
   it('a race passive with no game text says where its number came from', () => {
@@ -2809,7 +2935,7 @@ describe('races are more than a stat block', () => {
         const src = (data.raceMoves || {})[race] || {};
         const named = [...(src.innatePassives || []), ...(src.learns || [])].find(m => m.name === p.name);
         ok(named, race + ' declares a passive it does not have: ' + p.name);
-        const text = String(named.effect || '') + String(named.quote || '');
+        const text = String(named.effect || '') + String(named.description || '') + String(named.quote || '');
         // Either the game states it, or we say out loud that somebody told us.
         ok(text.trim().length > 0 || p.source,
            race + '/' + p.name + ' is priced from nothing and does not say so');
@@ -2827,7 +2953,7 @@ describe('gear has to actually do something', () => {
       ok((data.gearItems || {})[name] || (data.artifactItems || {})[name],
          name + ' is not an item');
       ok(need.why && need.why.length > 30, name + ' gives no reason');
-      const kinds = ['element', 'summons', 'poison', 'blocking', 'healedBy'];
+      const kinds = ['element', 'summons', 'poison', 'blocking', 'healedBy', 'status'];
       ok(kinds.some(k => need[k]), name + ' declares no condition');
     }
   });
@@ -2878,12 +3004,17 @@ describe('gear has to actually do something', () => {
     // so this asserts the survivability the test is really about rather than one
     // of its two ingredients — a build can trade DR for health freely and only
     // the product is meaningful.
+    //
+    // 250 HP was with Permuth scored as a permanent x1.4 on Endurance; the
+    // honest figure on a perfect stat line is around 185.
     const r = healer();
     ok(r.ctx.blockDr > 20,
        'the healer has ' + Math.round(r.ctx.blockDr) + '% damage reduction');
-    ok(r.ctx.hp > 250, 'the healer is on ' + Math.round(r.ctx.hp) + ' HP');
+    ok(r.ctx.hp > 150, 'the healer is on ' + Math.round(r.ctx.hp) + ' HP');
+    // 400 was Permuth's figure as well; ~185 HP at 50%+ DR is what the honest
+    // line gives, and lifesteal sustain sits on top of it in the score.
     const survivability = r.ctx.hp * (1 + r.ctx.blockDr / 100);
-    ok(survivability > 400,
+    ok(survivability > 250,
        'the healer only survives like ' + Math.round(survivability) + ' effective HP');
   });
 
@@ -2936,9 +3067,10 @@ describe('abilities that do not work', () => {
     for (const roles of [['Healer'], ['Tank'], ['DPS'], ['Support']]) {
       for (const klass of ['Saint (Or)', 'Paladin (Or)', 'Berserker (Ch)']) {
         const r = ask('', { roles, klass, level: data.Max_Lvl });
-        const boughtName = (r.build.masteryBudget || {}).bought;
-        ok(!names.has(boughtName),
-           klass + ' as ' + roles.join('+') + ' bought the bugged ' + boughtName);
+        const boughtNames = ((r.build.masteryBudget || {}).capstoneOrder || []).map(c => c.name);
+        for (const boughtName of boughtNames)
+          ok(!names.has(boughtName),
+             klass + ' as ' + roles.join('+') + ' bought the bugged ' + boughtName);
       }
     }
   });
@@ -2950,9 +3082,596 @@ describe('abilities that do not work', () => {
     eq(pg.reason, 'bugged', 'Piercing Grace is reported as ' + pg.reason);
   });
 
-  it('the Saint buys the capstone that helps its actual job', () => {
+  it('the Saint buys the capstones that help its actual job', () => {
     const r = ask('', { roles: ['Healer'], klass: 'Saint (Or)', level: data.Max_Lvl });
-    eq((r.build.masteryBudget || {}).bought, 'Holy Grace Proficiency');
+    const names = ((r.build.masteryBudget || {}).capstoneOrder || []).map(c => c.name);
+    ok(names.indexOf('One For All') !== -1, 'One For All (+50% outgoing healing) not bought: ' + names.join(', '));
+    // Holy Grace Proficiency is regen, which is not modelled. It is either the
+    // unpriced fallback or reported as unpriced - never silently dropped.
+    const hg = (r.build.masteryPassedOver || []).find(x => x.name === 'Holy Grace Proficiency');
+    ok(names.indexOf('Holy Grace Proficiency') !== -1 || (hg && hg.reason === 'unmodelled'),
+       'Holy Grace Proficiency is neither bought nor reported as unpriced');
+  });
+});
+
+describe('go perfect: breakpoints and stat decay', () => {
+  const M = engine.model, O = engine.optimizer;
+  const STATS = ['str', 'arc', 'end', 'spd', 'lck'];
+  const fresh = (klass, race) => {
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = klass; b.race = race || 'Estella (24%)';
+    b.invested = { str: 0, arc: 0, end: 0, spd: 0, lck: 0 };
+    return b;
+  };
+
+  it('no total sits in the dead zone between the knee and the 110 perk', () => {
+    // The owner's rule: a stat sits on a breakpoint or at or under ~100. A
+    // total of 101-109 has paid the fall-off and bought nothing. The one
+    // legitimate exception is a stat with nothing invested at all - flats the
+    // allocator cannot remove put it there.
+    // The rest stat is the other exception: it takes whatever is left over,
+    // and when every other stat is already on a breakpoint there is nothing
+    // to trade its surplus against.
+    const d = K.STAT_DECAY;
+    ok(d && d.knee < d.next, 'no STAT_DECAY rule');
+    for (const q of REQUESTS) {
+      const r = ask(q);
+      const rest = (r.build._statLine || []).find(x => x.reason === 'rest');
+      for (const s of STATS) {
+        // Site totals: a combat overlay (the Coagulated ramp) is not the line.
+        const t = (r.ctx.siteStats || r.ctx.stats)[s];
+        ok(!(t > d.knee && t < d.next) || (r.build.invested[s] | 0) === 0 || (rest && rest.stat === s),
+           JSON.stringify(q) + ': ' + s + ' total ' + t + ' is in the dead zone with ' +
+           r.build.invested[s] + ' invested');
+      }
+    }
+  });
+
+  it('one rest stat, and every other invested stat sits on a breakpoint', () => {
+    // The shape of every community build: "60 End, 110 Arc, rest Str". A stat
+    // that was given points is the rest, or on 25 / 60 / 110 (one over is the
+    // percent sources rounding up), or Luck holding a crit tier.
+    const tiers = data.STAT_MILESTONE_TIERS;
+    for (const q of REQUESTS) {
+      const r = ask(q);
+      const line = r.build._statLine || [];
+      const rest = line.filter(x => x.reason === 'rest');
+      ok(rest.length <= 1, JSON.stringify(q) + ' has ' + rest.length + ' rest stats');
+      for (const s of STATS) {
+        if ((r.build.invested[s] | 0) === 0) continue;
+        if (rest[0] && rest[0].stat === s) continue;
+        if (s === 'lck' && r.ctx.critTier > 0) continue;
+        if ((line.find(x => x.stat === s) || {}).reason === 'floor') continue;   // the solo boss Speed floor
+        // Totals can carry a fraction from an item hook, so "on" is [bp, bp + 2);
+        // and they are the SITE totals - a combat overlay is not the line.
+        const t = (r.ctx.siteStats || r.ctx.stats)[s];
+        ok(tiers.some(bp => t >= bp && t < bp + 2),
+           JSON.stringify(q) + ': ' + s + ' total ' + t + ' is neither the rest stat nor on a breakpoint (' +
+           JSON.stringify(r.ctx.stats) + ')');
+        ok(Number.isInteger(r.build.invested[s]), JSON.stringify(q) + ': ' + s + ' has ' + r.build.invested[s] + ' points invested');
+      }
+    }
+  });
+
+  it('docks a build for a stat in the dead zone', () => {
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const b = fresh('Lancer (N)');
+    const at = total => {
+      b.invested = { str: 0, arc: 0, end: 0, spd: 0, lck: 0 };
+      b.invested.str = O.investedForTotal(b, 'str', total);
+      return O.evaluate(b, spec);
+    };
+    const knee = at(K.STAT_DECAY.knee), zone = at(K.STAT_DECAY.knee + 5);
+    ok(zone.stats.str > knee.stats.str, 'the probe did not land in the zone');
+    eq(zone.deadZone.length, 1, 'dead zone not detected: ' + JSON.stringify(zone.deadZone));
+    eq(knee.deadZone.length, 0, 'the knee itself counts as the dead zone');
+    ok(knee.score > zone.score, 'five points into the dead zone scored HIGHER (' +
+       Math.round(zone.score) + ' vs ' + Math.round(knee.score) + ')');
+  });
+
+  it('finds the fewest invested points that land a total on a breakpoint', () => {
+    // Percent sources are what make this non-trivial: 15% innate on STR and
+    // ARC, and Wandering Practitioner adds another 10% to STR.
+    const b = fresh('Saint (Or)');
+    b.armour = 'Wandering Practitioner';
+    for (const [stat, target] of [['str', 110], ['end', 60], ['arc', 110], ['lck', 25]]) {
+      const inv = O.investedForTotal(b, stat, target);
+      b.invested[stat] = inv;
+      const t = M.totalStat(b, stat);
+      ok(t >= target, stat + ': ' + inv + ' invested lands on ' + t + ', short of ' + target);
+      if (inv > 0) {
+        b.invested[stat] = inv - 1;
+        ok(M.totalStat(b, stat) < target, stat + ': one point fewer still reaches ' + target);
+      }
+      b.invested[stat] = 0;
+    }
+  });
+
+  it('Permuth is not in the totals the search reads', () => {
+    const r = ask('max damage crit lancer');
+    ok(r.build.mark === 'Venia' && r.build.permuth, 'the build does not wear Permuth at all');
+    const bare = Object.assign({}, r.build, { permuth: '' });
+    // Overlays (a stat ramp, a flat-stat capstone) sit ON TOP of the site
+    // totals, so each reported stat is the Permuth-less site total or more,
+    // and never the Permuth-inflated one.
+    const site = M.allStats(bare), inflated = M.allStats(r.build);
+    for (const s of STATS) {
+      ok(r.ctx.stats[s] >= site[s] - 1e-9, s + ': reported ' + r.ctx.stats[s] + ' is under the site total ' + site[s]);
+      if (s === r.build.permuth) ok(r.ctx.stats[s] < inflated[s], s + ': the reported total carries Permuth');
+    }
+    // model.js must still mirror the site, where Permuth IS a permanent x1.4.
+    ok(M.allStats(r.build)[r.build.permuth] > r.ctx.stats[r.build.permuth],
+       'the model no longer applies Permuth at all - verify.js would catch this against the page');
+  });
+
+  it('every build carries a stat line with a reason for each number', () => {
+    for (const q of REQUESTS.slice(0, 8)) {
+      const line = ask(q).build._statLine;
+      ok(Array.isArray(line) && line.length === 5, JSON.stringify(q) + ' has no stat line');
+      ok(line.some(x => ['rest', 'perk', 'cap', 'critTier', 'floor'].indexOf(x.reason) !== -1), JSON.stringify(q) + ' gives no stat a reason');
+      for (const x of line) ok(['perk', 'critTier', 'floor', 'rest', 'cap', 'dump', 'none'].indexOf(x.reason) !== -1, 'reason ' + x.reason);
+    }
+  });
+
+  it('a cooldown perk on the line names the moves it shortens', () => {
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { roles: ['Healer'] }, data);
+    const b = fresh('Saint (Or)', 'Sheea (Ob)');
+    b.invested.arc = O.investedForTotal(b, 'arc', 110);
+    const arc = O.statLineFor(b, spec).find(x => x.stat === 'arc');
+    eq(arc.reason, 'perk', 'ARC 110 is not a perk on the line');
+    ok(/cooldown/.test(arc.perk), 'the perk is ' + arc.perk);
+    ok(arc.moves.indexOf('Holy Grace') !== -1, 'Holy Grace (Holy) is not among the shortened moves: ' + arc.moves.join(', '));
+  });
+
+  it('a point past 110 is worth less than a point under the knee when the line is settled', () => {
+    // The decayed measure goPerfect decides with. Points past 110 in a stat
+    // count at K.STAT_DECAY.pastRate; a line with nothing past 110 is scored
+    // exactly as the plain scorer scores it.
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const b = fresh('Lancer (N)');
+    b.invested.str = O.investedForTotal(b, 'str', 110);
+    eq(O.decayedScore(b, spec), O.evaluate(b, spec).score, 'a line on 110 is docked');
+    b.invested.str += 40;
+    ok(O.decayedScore(b, spec) < O.evaluate(b, spec).score, 'forty points past 110 are worth full price');
+    ok(O.decayedScore(b, spec) > O.evaluate(Object.assign({}, b, { invested: Object.assign({}, b.invested, { str: b.invested.str - 40 }) }), spec).score,
+       'forty points past 110 are worth nothing at all');
+  });
+
+  it('tier points go first to the stat a shape can complete', () => {
+    // STR five short of 110: a [5, 3] completes the breakpoint, so STR leads
+    // the tier order whatever the goal weights say.
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'tank' }, data);
+    const b = fresh('Saint (Or)');
+    b.invested.end = O.investedForTotal(b, 'end', 60);
+    b.invested.str = O.investedForTotal(b, 'str', 105);
+    const order = O.tierOrder(b, spec);
+    eq(order[0], 'str', 'tier order ' + order.join(' > '));
+    ok(Array.isArray(ask('tanky build').build._tierOrder), 'the build does not carry its tier order');
+  });
+});
+
+describe('passives that were not counted', () => {
+  const M = engine.model, O = engine.optimizer;
+  const spec = goal => Intent.applyOverrides(Intent.parse('', data, K), { goal }, data);
+  const fresh = (klass, race) => {
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = klass; b.race = race || 'Estella (24%)';
+    b.invested = { str: 40, arc: 40, end: 40, spd: 0, lck: 30 };
+    return b;
+  };
+  const wear = (b, ...names) => { b.gear = names.map(n => ({ name: n, tier: 0, alloc: {}, traits: [] })); return b; };
+
+  it('every reference gear is either counted or named under "not counted"', () => {
+    // The community builds are made of these. A gear that appears in neither
+    // list is invisible - which is where Divine Promise (an ACTIVE, no passive
+    // text at all) used to be.
+    const gears = ['Shadow Gauntlets', 'Parasitic Leech', "Ptera's Heart", 'Coagulated Finger Nail',
+                   'Tear Blood Crystal', "Narthana's Leaf", 'Divine Promise', 'Sanguine Fang', 'Snorb',
+                   'Aspect of Maladaptation', 'Vainglorious Locket', "Madseer's Codex", 'Imbuement Reliquary',
+                   'Crystalline Spike', 'Spiked Steel Ball', 'Blooming Eye', 'Egg Shelmet', 'Molten Carapace'];
+    for (const g of gears) {
+      ok(data.gearItems[g], g + ' is not a gear in the data');
+      const t = O.gearPassiveTotals(wear(fresh('Saint (Or)'), g));
+      const listed = t.active.concat(t.unmodelled).map(x => x.name);
+      ok(listed.indexOf(g) !== -1, g + ' is neither counted nor reported: ' + listed.join(', '));
+    }
+    const dp = O.gearPassiveTotals(wear(fresh('Saint (Or)'), 'Divine Promise')).unmodelled.find(x => x.name === 'Divine Promise');
+    ok(dp && /Divine Gift/.test(dp.note), 'Divine Promise does not name the move it grants');
+  });
+
+  it('prices lifesteal, heals from damage, flat self-heals and the stat ramp', () => {
+    const b = wear(fresh('Impaler (Ch)', 'Calvariae (3%)'), 'Shadow Gauntlets', 'Parasitic Leech', 'Coagulated Finger Nail');
+    const t = O.gearPassiveTotals(b);
+    eq(t.lifestealPct, 5, 'Shadow Gauntlets lifesteal');
+    eq(t.healFromDmgPct, 2, 'Parasitic Leech heal from damage');
+    eq(t.statFlat.str, 7.5, 'Coagulated Finger Nail ramp');
+    const c = O.evaluate(b, spec('tank'));
+    ok(c.lifesteal >= 5, 'lifesteal did not reach the sustain figure: ' + c.lifesteal);
+    ok(c.stats.str >= M.allStats(b).str + 7, 'the stat ramp did not reach the scored totals');
+    ok(c.sustainPerTurn > 0 && c.effectiveHpSustain > c.effectiveHp, 'nothing reached sustain');
+    // Parasitic Leech heals the TEAM: nothing solo, something in a party.
+    eq(c.teamHealPerTurn, 0, 'a party heal counted solo');
+    const team = O.evaluate(b, Intent.applyOverrides(Intent.parse('', data, K), { goal: 'heal', play: 'team' }, data));
+    ok(team.teamHealPerTurn > 0 && team.healPerTurn >= team.teamHealPerTurn, 'Parasitic Leech heals nobody in a party');
+  });
+
+  it('reads the statuses a build applies from its kit and its gear', () => {
+    const b = wear(fresh('Impaler (Ch)'), "Ptera's Heart");
+    const st = O.statusesOf(b);
+    ok(st.enemy.has('poison') && st.self.has('poison'), "Ptera's Heart poison not read: " + JSON.stringify([...st.self]) + ' ' + JSON.stringify([...st.enemy]));
+    ok(st.enemy.has('bleed'), 'an Impaler applies no bleed? ' + JSON.stringify([...st.enemy]));
+    ok(st.self.has('bleed'), 'an Impaler bleeds itself and it was not read: ' + JSON.stringify([...st.self]));
+    const c = O.evaluate(b, spec('damage'));
+    ok(c.statuses.self.length >= 2, 'ctx.statuses.self ' + JSON.stringify(c.statuses));
+  });
+
+  it('a bleed-gated gear is inert on a kit that never bleeds', () => {
+    // Found from the data rather than assumed: a Saint bleeds (Slayer's Stab
+    // is in its kit), so the class that applies no Bleed at all is looked up.
+    const supers = Object.values(data.classes || {}).flat();
+    const noBleed = supers.find(k => !O.statusesOf(fresh(k)).enemy.has('bleed'));
+    ok(noBleed, 'every superclass applies Bleed?');
+    ok(O.inertFor('Tear Blood Crystal', wear(fresh(noBleed), 'Tear Blood Crystal'), spec('tank')),
+       'Tear Blood Crystal fires on a ' + noBleed + ' that applies no Bleed');
+    ok(!O.inertFor('Tear Blood Crystal', wear(fresh('Impaler (Ch)'), 'Tear Blood Crystal'), spec('tank')),
+       'Tear Blood Crystal is called inert on an Impaler');
+  });
+
+  it("counts Calvariae's passives and Brittle Cure", () => {
+    const b = fresh('Impaler (Ch)', 'Calvariae (3%)');
+    const pv = O.passivesFor(b);
+    for (const n of ['Broken Bones', 'Frail Body', 'Frugality'])
+      ok(pv.known.some(p => p.name === n), n + ' is not a known Calvariae passive');
+    const c = O.evaluate(b, spec('tank'));
+    ok(c.passives.selfHealFlat > 0 && c.passives.incHealPct > 0 && c.passives.dr > 0,
+       'Calvariae passives did not reach the totals: ' + JSON.stringify(c.passives));
+    ok(c.effectiveIncHeal > c.incHeal, 'Frugality did not raise incoming healing');
+    ok((c.setups || []).some(su => su.move === 'Brittle Cure'), 'Brittle Cure is not a setup move');
+  });
+
+  it('Lifesong and Astra reach the healing and sustain figures', () => {
+    const b = fresh('Saint (Or)');
+    const plain = O.evaluate(b, spec('heal'));
+    b.enchant = 'Lifesong';
+    const song = O.evaluate(b, spec('heal'));
+    ok(song.effectiveHeal > plain.effectiveHeal && song.effectiveIncHeal > plain.effectiveIncHeal,
+       'Lifesong moved neither healing figure');
+    b.mark = 'Astra';
+    const astra = O.evaluate(b, spec('heal'));
+    ok(astra.sustainPerTurn > song.sustainPerTurn, 'Astra (Utor) adds no sustain');
+    const r = ask('tanky build');
+    ok(['Venia', 'Astra'].indexOf(r.build.mark) !== -1, 'mark ' + r.build.mark);
+    const dps = ask('max damage crit lancer');
+    eq(dps.build.mark, 'Venia', 'a damage build switched marks for nothing');
+  });
+
+  it('a named boss scales every hit by its resistance and gives a kill time', () => {
+    const b = wear(fresh('Impaler (Ch)'), 'Shadow Gauntlets');
+    const open = O.evaluate(b, Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data));
+    const handa = O.evaluate(b, Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage', boss: 'Handaconda' }, data));
+    ok(data.BOSS_DATA && data.BOSS_DATA.Handaconda, 'no BOSS_DATA for Handaconda');
+    ok(handa.bestHit < open.bestHit, 'Handaconda (Physical x0.5) did not lower a Physical kit: ' + handa.bestHit + ' vs ' + open.bestHit);
+    ok(handa.bossFit.killTurns > 0 && isFinite(handa.bossFit.killTurns), 'no kill time');
+    ok(handa.bossFit.hpCorrupted > handa.bossFit.hp, 'Corrupted HP not read');
+  });
+
+  it('a gear active is part of the rotation', () => {
+    const b = wear(fresh('Saint (Or)'), 'Divine Promise');
+    const c = O.evaluate(b, Intent.applyOverrides(Intent.parse('', data, K), { goal: 'heal', play: 'team' }, data));
+    ok((c.rotation || []).some(rt => rt.move === 'Divine Gift'), 'Divine Gift is not in the rotation: ' +
+       JSON.stringify((c.rotation || []).map(x => x.move)));
+  });
+
+  it('assumes the soul tree health nodes are maxed, and says so in the build', () => {
+    const soul = O.maxHealthSoul();
+    ok(Object.keys(soul).length > 0, 'no health nodes found in soulTreeData');
+    const r = ask('tanky build');
+    eq(JSON.stringify(r.build.soul), JSON.stringify(soul), 'the build does not carry the maxed health nodes');
+  });
+});
+
+describe('shards stack the way the site counts them', () => {
+  const M = engine.model, O = engine.optimizer;
+  const spec = goal => Intent.applyOverrides(Intent.parse('', data, K), { goal }, data);
+
+  it('the third copy of a family counts at a quarter', () => {
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = 'Impaler (Ch)'; b.race = 'Estella (24%)';
+    b.shards = ['Reversing (R)'];
+    const one = M.shardTotals(b, K, { selfStacks: 2 }).dmgPct;
+    b.shards = ['Reversing (R)', 'Reversing (P)'];
+    const two = M.shardTotals(b, K, { selfStacks: 2 }).dmgPct;
+    b.shards = ['Reversing (R)', 'Reversing (P)', 'Reversing (R)'];
+    const three = M.shardTotals(b, K, { selfStacks: 2 }).dmgPct;
+    ok(two > one, 'the second copy counts nothing');
+    const r = data.shardItems['Reversing (R)'].rVal;
+    ok(Math.abs((three - two) - r * 2 * 0.25) < 1e-9, 'the third copy is worth ' + (three - two) + ', not a quarter of ' + (r * 2));
+    eq(M.shardTotals(b, K, { selfStacks: 2 }).families.Reversing, 3, 'family count');
+  });
+
+  it('per-debuff shards read the statuses the build actually carries', () => {
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = 'Impaler (Ch)'; b.race = 'Estella (24%)';
+    b.shards = ['Reversing (R)'];
+    const r = data.shardItems['Reversing (R)'].rVal;
+    ok(Math.abs(M.shardTotals(b, K, { selfStacks: 3 }).dmgPct - r * 3) < 1e-9, 'three self statuses');
+    ok(Math.abs(M.shardTotals(b, K).dmgPct - r * (K.SHARDS['per-debuff-self'].stacks || 1)) < 1e-9, 'the fallback is the rule');
+    // Five Reversing on a self-poisoning, self-bleeding Impaler: the community's
+    // Handa build. 2 full + 3 at a quarter, at two self statuses.
+    b.gear = [{ name: "Ptera's Heart", tier: 0, alloc: {}, traits: [] }];
+    b.shards = ['Reversing (R)', 'Reversing (R)', 'Reversing (R)', 'Reversing (R)', 'Reversing (R)'];
+    const c = O.evaluate(b, spec('damage'));
+    const self = c.statuses.self.length;
+    ok(self >= 2, 'expected poison and bleed on the Impaler: ' + JSON.stringify(c.statuses));
+    ok(Math.abs(c.shards.dmgPct - r * self * (2 + 3 * 0.25)) < 1e-9, '5x Reversing scored ' + c.shards.dmgPct);
+  });
+
+  it('the search may fit a family twice, and the trap fires from the third copy', () => {
+    const dps = ask('', { klass: 'Berserker (Ch)', goal: 'damage', level: data.Max_Lvl });
+    const copies = {};
+    for (const n of dps.build.shards) { const f = n.replace(/ \([RP]\)$/, ''); copies[f] = (copies[f] || 0) + 1; }
+    ok(Object.values(copies).some(n => n >= 2), 'a damage build never doubles a shard family: ' + dps.build.shards.join(', '));
+    const trap = K.TRAPS.find(t => t.name === 'Stacked shards');
+    ok(trap, 'no Stacked shards trap');
+    ok(!trap.when({ shards: ['Empowering (R)', 'Empowering (P)'] }), 'two copies trip the trap');
+    ok(trap.when({ shards: ['Empowering (R)', 'Empowering (P)', 'Empowering (R)'] }), 'three copies do not trip it');
+  });
+
+  it('reads a "3.5*2" damage string as two hits', () => {
+    eq(JSON.stringify(M.parseDamage('3.5*2')), JSON.stringify({ base: 3.5, hits: 2 }));
+    eq(JSON.stringify(M.parseDamage('2x3')), JSON.stringify({ base: 2, hits: 3 }));
+  });
+
+  it('the soul tree health nodes reach HP', () => {
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.klass = 'Saint (Or)'; b.race = 'Estella (24%)';
+    const bare = M.derived(b).hp;
+    b.soul = O.maxHealthSoul();
+    const expected = Object.values(data.soulTreeData).flat().filter(n => n.hpFlat).reduce((a, n) => a + n.hpFlat * n.maxRank, 0);
+    ok(expected > 0, 'no flat-HP soul nodes in the data');
+    ok(Math.abs((M.derived(b).hp - bare) - expected) < 1e-6, 'soul HP ' + (M.derived(b).hp - bare) + ' vs ' + expected);
+  });
+});
+
+describe('the BuildPlan', () => {
+  const Plan = require('./plan.js');
+  const SLOT_KEYS = ['race', 'armour', 'weapon', 'artifact', 'enchant', 'mark', 'subclass', 'lostScroll'];
+
+  it('every request comes back with a plan, and every slot in it is filled in', () => {
+    for (const q of REQUESTS.slice(0, 10)) {
+      const r = ask(q);
+      const p = r.plan;
+      ok(p && p.version === Plan.VERSION, JSON.stringify(q) + ' has no plan');
+      eq(p.summary.class, r.build.klass, 'plan class');
+      eq(JSON.stringify(p.stats.total), JSON.stringify(r.ctx.siteStats), 'plan totals are not the site totals');
+      eq(JSON.stringify(p.stats.scored), JSON.stringify(r.ctx.stats), 'plan scored totals are not the scored totals');
+      eq(p.slots.mastery.notation, r.build.masteryNotation, 'plan notation');
+      for (const k of SLOT_KEYS) {
+        const sl = p.slots[k];
+        ok(sl && 'chosen' in sl && Array.isArray(sl.alternatives), JSON.stringify(q) + ': slot ' + k + ' is malformed');
+        ok(['must', 'preferred', 'optional'].indexOf(sl.priority) !== -1, k + ' priority ' + sl.priority);
+        let last = -1;
+        for (const a of sl.alternatives) {
+          ok(a.delta == null || (a.delta >= 0 && a.delta >= last), k + ' alternatives are not sorted by how far behind they are');
+          if (a.delta != null) last = a.delta;
+          ok(a.name !== sl.chosen, k + ' lists the chosen option as an alternative');
+        }
+      }
+      eq(p.slots.gear.length, r.build.gear.length, 'gear slots');
+      for (const g of p.slots.gear) ok(Array.isArray(g.alternatives) && g.why, 'gear ' + g.chosen + ' has no alternatives or reason');
+      ok(p.slots.shards.summary, 'no shard summary');
+      ok(p.slots.corruption.chosen, 'no corruption form in the plan');
+    }
+  });
+
+  it('ranks the races for a class-locked request as full builds', () => {
+    const r = ask('', { klass: 'Saint (Or)', roles: ['Healer'], play: 'team', level: data.Max_Lvl });
+    const races = r.plan.slots.race;
+    ok(races.alternatives.length >= 3, 'only ' + races.alternatives.length + ' race alternatives');
+    ok(races.alternatives.some(a => a.full), 'no race alternative is a full build');
+    ok(races.alternatives.every(a => a.name !== r.build.race), 'the chosen race is among its own alternatives');
+    const full = races.alternatives.filter(a => a.full);
+    for (let i = 1; i < full.length; i++) ok(full[i].delta >= full[i - 1].delta, 'full builds are not ranked');
+  });
+
+  it('keeps what every slot measured, in the order it measured it', () => {
+    const r = ask('max damage crit lancer');
+    const alts = r.build._alts || {};
+    for (const k of ['armour', 'weapon', 'artifact', 'enchant', 'sub', 'gear1', 'gear2', 'gear3', 'gear4']) {
+      ok(Array.isArray(alts[k]) && alts[k].length > 1, k + ' recorded ' + (alts[k] ? alts[k].length : 0) + ' options');
+      eq(alts[k][0].delta, 0, k + ': the best option is not first');
+    }
+  });
+
+  it('measures the priority legend rather than guessing it', () => {
+    const P = Plan.priorityOf;
+    eq(P([{ name: 'a', delta: 0, chosen: true }, { name: 'b', delta: 0.2 }]), 'must');
+    eq(P([{ name: 'a', delta: 0, chosen: true }, { name: 'b', delta: 0.005 }]), 'optional');
+    eq(P([{ name: 'a', delta: 0, chosen: true }, { name: 'b', delta: 0.05 }]), 'preferred');
+    eq(P([{ name: 'a', delta: 0, chosen: true }]), 'must');
+  });
+
+  it('composes from a partial result, as analyse hands it one', () => {
+    const r = ask('tanky build');
+    const partial = { build: r.build, ctx: r.ctx, corruption: null, warnings: [] };
+    const p = Plan.compose(partial, r.spec, engine.model, K, data);
+    ok(p && p.slots && p.slots.corruption, 'no plan from a partial result');
+    eq(p.slots.corruption.alternatives.length, 0, 'invented corruption alternatives');
+    ok(p.slots.covenant, 'no covenant slot');
+  });
+});
+
+describe('the write-up reads like a build post', () => {
+  const COMMUNITY = ['Stats', 'Gears', 'Tier bonuses', 'Enchant', 'Mark', 'Race', 'Weapon', 'Artifact',
+                     'Subclass', 'Shards', 'Armour', 'Mastery', 'Lost scroll', 'Covenant', 'Corruption form',
+                     'Trait orbs', 'How to play'];
+  const reqs = [['healer', {}], ['tanky build', {}], ['max damage crit lancer', {}],
+                ['', { roles: ['Support'], play: 'team' }],
+                ['', { klass: 'Impaler (Ch)', roles: ['Tank', 'DPS'], play: 'solo', boss: 'Handaconda' }],
+                ['', { minmax: true }]];
+
+  it('every community section is present, in order, ahead of every folded one', () => {
+    for (const [q, o] of reqs) {
+      const secs = ask(q, o).explanation;
+      const at = h => secs.findIndex(x => x.h === h);
+      let last = -1;
+      for (const h of COMMUNITY) {
+        const i = at(h);
+        ok(i !== -1, JSON.stringify(q) + ': no "' + h + '" section');
+        ok(i > last, JSON.stringify(q) + ': "' + h + '" is out of order');
+        last = i;
+      }
+      ok(at('Build') !== -1 && at('Build') < at('Stats'), 'the terse Build table is not ahead of the write-up');
+      const firstFold = secs.findIndex(x => x.collapsed);
+      ok(firstFold === -1 || firstFold > last, JSON.stringify(q) + ': a folded section sits inside the write-up');
+      ok(secs.some(x => x.collapsed), 'nothing is folded - the honesty sections have gone');
+      for (const h of ['Gear passives NOT counted', 'Passives NOT counted', 'Stat points', 'Why this build'])
+        ok(secs.every(x => x.h !== h || x.collapsed), h + ' is not folded');
+      ok(secs.every(x => x.h !== 'Watch out' || !x.collapsed), 'Watch out is folded');
+    }
+  });
+
+  it('the Stats section carries the line and the Mastery section the notation', () => {
+    const r = ask('healer');
+    const stats = r.explanation.find(x => x.h === 'Stats');
+    ok(stats.table.some(row => row[0] === 'Line' && row[1] === (K.statLineText ? K.statLineText(r.build._statLine) : row[1])), 'no Line row');
+    const m = r.explanation.find(x => x.h === 'Mastery');
+    ok(m.body.indexOf(r.build.masteryNotation) !== -1, 'the notation is not in the Mastery section: ' + m.body);
+    ok(/get .+ first/.test(m.body) || !r.build.masteryBudget.getFirst, 'the Mastery section does not say what to get first');
+    const race = r.explanation.find(x => x.h === 'Race');
+    ok(race.body.indexOf(r.build.race) === 0, 'the Race line does not start with the chosen race: ' + race.body);
+    ok(race.body.indexOf('≥') !== -1, 'the Race line is not a ranking: ' + race.body);
+  });
+
+  it('a named fight brings its play notes, and the form the community runs', () => {
+    const r = ask('', { klass: 'Impaler (Ch)', roles: ['Tank', 'DPS'], play: 'solo', boss: 'Handaconda', level: data.Max_Lvl });
+    ok(r.plan.play.tactics.length >= 3, 'no Handaconda tactics');
+    const how = r.explanation.find(x => x.h === 'How to play');
+    ok(how.list.some(l => /Hand of Ramizca/.test(l)), 'the How to play section does not carry the tactics');
+    ok(how.list.some(l => /Handaconda/.test(l) && /HP/.test(l)), 'the boss HP is not in the play section');
+    eq(r.build.corruption, 'Tyranny', 'the community runs Tyranny on Handaconda; the build took ' + r.build.corruption);
+    ok(/Recommended for Handaconda/.test(r.corruption.best.why), 'the form does not say it was recommended for the fight');
+    const open = ask('', { klass: 'Impaler (Ch)', roles: ['Tank', 'DPS'], play: 'solo', level: data.Max_Lvl });
+    eq(open.plan.play.tactics.length, 0, 'tactics leaked into a fight nobody named');
+  });
+
+  it('the panel summary is the same build post in <b>, <br> and <i>', () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'build-ai.js'), 'utf8');
+    const start = src.indexOf('function summaryHtmlFor(res, ctx, spec) {');
+    const end = src.indexOf('function summaryHtmlForLegacy(');
+    ok(start !== -1 && end > start, 'summaryHtmlFor is not built from the plan');
+    const body = src.slice(start, end);
+    for (const label of ['Stats:', 'Gears:', 'Tier bonuses:', 'Race:', 'Mastery:', 'Trait orbs:', 'How to play:'])
+      ok(body.indexOf(label) !== -1, 'the summary has no ' + label + ' line');
+    const tags = body.match(/<([a-z]+)[ >]/g) || [];
+    for (const t of tags) ok(/^<(b|br|i)[ >]$/.test(t), 'the summary uses ' + t + ', which the site\'s sanitizer strips');
+  });
+});
+
+// ── golden builds ───────────────────────────────────────────────────────────
+// The owner's community builds, as expectations. A golden file names what the
+// reference JUSTIFIES - a milestone reached, a race in a set, three of four
+// gears - never the exact build, so it cannot overfit. Keys listed in `soft`
+// warn rather than fail (until --strict-golden); everything else is a hard
+// requirement the engine has to meet today.
+describe('golden builds', () => {
+  const dir = path.join(__dirname, 'golden');
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /\.json$/.test(f)).sort() : [];
+  const warnings = [];
+  const family = n => String(n || '').replace(/ \([RP]\)$/, '');
+
+  // Every check returns null when met, or a sentence saying how it was not.
+  const CHECKS = {
+    class:      (v, r) => r.build.klass === v ? null : 'class ' + r.build.klass,
+    raceIn:     (v, r) => v.indexOf(r.build.race) !== -1 ? null : 'race ' + r.build.race + ' not in ' + v.join(' / '),
+    raceRankingTop4Has: (v, r) => {
+      const top = [r.build.race].concat((r.plan.slots.race.alternatives || []).slice(0, 3).map(a => a.name));
+      const miss = v.filter(x => top.indexOf(x) === -1);
+      return miss.length ? miss.join(', ') + ' not in the top 4 races (' + top.join(' > ') + ')' : null;
+    },
+    milestones: (v, r) => {
+      const miss = v.filter(m => (r.ctx.siteStats[m.stat] || 0) < m.min)
+                    .map(m => m.stat.toUpperCase() + ' ' + r.ctx.siteStats[m.stat] + ' < ' + m.min);
+      return miss.length ? miss.join(', ') : null;
+    },
+    noDeadZone: (v, r) => !v || !r.ctx.deadZone.length ? null : 'dead zone: ' + r.ctx.deadZone.join(', '),
+    dominantStat: (v, r) => {
+      const inv = r.build.invested;
+      const top = Object.keys(inv).sort((a, b) => inv[b] - inv[a])[0];
+      return top === v ? null : 'most points in ' + top + ', not ' + v;
+    },
+    gearMust:   (v, r) => { const have = r.build.gear.map(g => g.name); const miss = v.filter(x => have.indexOf(x) === -1);
+                            return miss.length ? 'missing ' + miss.join(', ') : null; },
+    gearAtLeast:(v, r) => { const have = r.build.gear.map(g => g.name); const n = have.filter(x => v.of.indexOf(x) !== -1).length;
+                            return n >= v.n ? null : 'only ' + n + ' of ' + v.of.join(' / ') + ' (wearing ' + have.join(', ') + ')'; },
+    armourIn:   (v, r) => v.indexOf(r.build.armour) !== -1 ? null : 'armour ' + r.build.armour,
+    weapon:     (v, r) => {
+      const w = r.plan.slots.weapon;
+      if (v.name && w.chosen !== v.name) return 'weapon ' + w.chosen;
+      if (v.type && w.type !== v.type) return 'weapon type ' + w.type + ' (' + w.chosen + ')';
+      if (v.tiered && !w.tiered) return 'weapon ' + w.chosen + ' is not tiered';
+      return null;
+    },
+    artifact:   (v, r) => (r.build.artifact && r.build.artifact.name) === v ? null : 'artifact ' + (r.build.artifact && r.build.artifact.name),
+    artifactIn: (v, r) => v.indexOf(r.build.artifact && r.build.artifact.name) !== -1 ? null : 'artifact ' + (r.build.artifact && r.build.artifact.name),
+    subclass:   (v, r) => r.build.sub === v ? null : 'subclass ' + (r.build.sub || 'none'),
+    enchantIn:  (v, r) => v.indexOf(r.build.enchant) !== -1 ? null : 'enchant ' + (r.build.enchant || 'none'),
+    markIn:     (v, r) => v.indexOf(r.build.mark) !== -1 ? null : 'mark ' + r.build.mark,
+    shardFamilyMajority: (v, r) => { const n = r.build.shards.filter(x => family(x) === v).length;
+                                     return n >= 4 ? null : v + ' x' + n + ' of 7 (' + r.plan.slots.shards.summary + ')'; },
+    shards:     (v, r) => { const miss = Object.entries(v).filter(([f, n]) => r.build.shards.filter(x => family(x) === f).length < n)
+                              .map(([f, n]) => f + ' x' + n);
+                            return miss.length ? 'short of ' + miss.join(', ') + ' (' + r.plan.slots.shards.summary + ')' : null; },
+    'mastery.notationIn': (v, r) => v.indexOf(r.build.masteryNotation) !== -1 ? null : 'mastery ' + r.build.masteryNotation,
+    'mastery.capstonesMin': (v, r) => (r.build.masteryBudget || {}).capstonesTaken >= v ? null : 'capstones ' + (r.build.masteryBudget || {}).capstonesTaken,
+    'mastery.mustInclude': (v, r) => { const have = ((r.build.masteryBudget || {}).capstoneOrder || []).map(c => c.name);
+                                       const miss = v.filter(x => have.indexOf(x) === -1);
+                                       return miss.length ? 'capstones ' + have.join(', ') + ' (missing ' + miss.join(', ') + ')' : null; },
+    lostScrollIn: (v, r) => v.indexOf(r.build.lostScroll) !== -1 ? null : 'lost scroll ' + (r.build.lostScroll || 'none'),
+    covenantIn: (v, r) => v.indexOf(r.build.covenant) !== -1 ? null : 'covenant ' + (r.build.covenant || 'none'),
+    corruption: (v, r) => r.build.corruption === v ? null : 'corruption ' + r.build.corruption,
+    traits:     (v, r) => {
+      const count = (slots, id) => slots.reduce((a, g) => a + (g.traits || []).filter(t => t.id === id).length, 0);
+      const miss = [];
+      for (const [id, n] of Object.entries(v.gearHas || {})) if (count(r.build.gear, id) < n) miss.push('gear ' + id + ' x' + n);
+      for (const [id, n] of Object.entries(v.artifactHas || {})) if (count(r.build.artifact ? [r.build.artifact] : [], id) < n) miss.push('artifact ' + id + ' x' + n);
+      return miss.length ? 'short of ' + miss.join(', ') + ' (' + (r.plan.slots.traits.summary || 'none') + ')' : null;
+    },
+    tierPriorityStartsWith: (v, r) => ((r.plan.stats.tierPriority || [])[0] === v) ? null : 'tier priority ' + (r.plan.stats.tierPriority || []).join(' > '),
+    tactics:    (v, r) => r.plan.play.tactics.length >= v ? null : 'only ' + r.plan.play.tactics.length + ' tactics',
+  };
+
+  // Flatten { mastery: { notationIn, capstonesMin, mustInclude } } into dotted keys.
+  const flatten = (exp) => {
+    const out = [];
+    for (const [k, v] of Object.entries(exp || {})) {
+      if (k === 'mastery' && v && typeof v === 'object') for (const [kk, vv] of Object.entries(v)) out.push(['mastery.' + kk, vv]);
+      else out.push([k, v]);
+    }
+    return out;
+  };
+
+  ok(files.length > 0, 'no golden builds in tools/ai/golden');
+  for (const f of files) {
+    const g = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    it(g.name, () => {
+      const r = ask(g.request.text, g.request.overrides);
+      ok(r.plan, 'no plan');
+      const soft = new Set(g.soft || []);
+      const failed = [];
+      for (const [key, v] of flatten(g.expect)) {
+        const check = CHECKS[key];
+        ok(check, f + ': no check for expectation ' + key);
+        const problem = check(v, r);
+        if (!problem) continue;
+        if (soft.has(key) && !STRICT_GOLDEN) warnings.push(f + ': ' + key + ' — ' + problem);
+        else failed.push(key + ' — ' + problem);
+      }
+      ok(failed.length === 0, f + ':\n           ' + failed.join('\n           '));
+    });
+  }
+
+  it('says which soft expectations the engine does not meet yet', () => {
+    // Not a failure: the list is the to-do list. Printed so it is never quiet.
+    if (warnings.length) {
+      console.log('         soft golden expectations not met (' + warnings.length + '):');
+      for (const w of warnings) console.log('           ' + w);
+    }
   });
 });
 
@@ -3123,13 +3842,17 @@ describe('procs', () => {
   it('reads the item names off every slot shape', () => {
     // gear/artifact/weapon are objects like { name, tier }, mark is a bare
     // string. The first version pushed the OBJECT, so every lookup missed and
-    // no proc was ever detected on any build.
-    let found = 0;
-    for (const klass of Object.keys(data.masteryClassData || {})) {
-      const r = engine.ask('', { klass, goal: 'damage', play: 'solo', dmg: 'average' });
-      found += r.ctx.procs.listed.length + r.ctx.procs.traps.length;
-    }
-    ok(found > 0, 'no build anywhere detected a proc item - the slot names are not being read');
+    // no proc was ever detected on any build. Checked on a hand-built kit: the
+    // search itself seldom wears a proc item now that item value is measured.
+    const b = engine.model.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Lancer (N)'; b.race = 'Estella (24%)';
+    b.gear = [{ name: 'Sanguine Fang', tier: 6, alloc: {}, traits: [] }];
+    b.artifact = { name: 'Chaos Orb', tier: 6, alloc: {}, traits: [] };
+    b.weapon = { name: 'Vastic Glaive', tier: 4, alloc: {} };
+    const c = engine.optimizer.evaluate(b, Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data));
+    const names = c.procs.listed.concat(c.procs.traps).map(p => p.name);
+    for (const n of ['Sanguine Fang', 'Chaos Orb', 'Vastic Glaive'])
+      ok(names.indexOf(n) !== -1, n + ' was worn and not detected as a proc item: ' + names.join(', '));
   });
 
   it('counts an extra-status proc as a COST against a boss that heals from debuffs', () => {
@@ -3218,10 +3941,16 @@ describe('boss targeting', () => {
   });
 
   it('leaves a kit that applies no statuses alone', () => {
+    // The solo Speed floor is a separate, priced cost the search may choose to
+    // pay (a Monk keeping 10 more Strength eats a 4% dodge penalty), so the
+    // claim here is exactly the one about statuses: no debuff charge.
     const vs = engine.ask('', { klass: 'Monk (Or)', goal: 'damage', play: 'solo',
                                 dmg: 'average', boss: 'Seraphon' });
-    if (vs.ctx.bossFit.reasons.some(r => r.kind === 'debuffs')) return;  // kit changed
-    eq(vs.ctx.bossFit.mult, 1, 'a kit applying no statuses was penalised anyway');
+    const load = K.debuffLoad(engine.optimizer.kitFor(vs.build, vs.build.klass));
+    if (load.applying > 0) return;  // kit changed
+    ok(!vs.ctx.bossFit.reasons.some(r => r.kind === 'debuffs'),
+       'a kit applying no statuses was charged for debuffs');
+    if (!vs.ctx.bossFit.reasons.length) eq(vs.ctx.bossFit.mult, 1, 'penalised with no reason given');
   });
 
   it('never prices a mechanic it only reports', () => {
@@ -4196,6 +4925,8 @@ describe('play style', () => {
       // 'note' and 'bugged' carry no value, so there is no number for a unit to
       // label. Everything that DOES carry a value needs a unit in every
       // renderer, or it silently reads as "% damage".
+      // A `multi` is several kinds under one name; each of them is rendered.
+      if (r && r.kind === 'multi') { for (const e of (r.effects || [])) if (e.kind !== 'dmgPct') kinds.add(e.kind); continue; }
       if (r && r.kind && r.kind !== 'note' && r.kind !== 'bugged' && r.kind !== 'dmgPct') kinds.add(r.kind);
     }
     ok(kinds.size > 0, 'no non-damage mastery kinds exist, so this test proves nothing');
@@ -4427,7 +5158,7 @@ describe('cache busting', () => {
   const readRoot = f => fs.readFileSync(path.join(root, f), 'utf8');
 
   const ENGINE_SCRIPTS = ['ai-data.js', 'model.js', 'knowledge.js', 'intent.js',
-                          'optimize.js', 'explain.js', 'share.js', 'engine.js'];
+                          'optimize.js', 'explain.js', 'share.js', 'plan.js', 'engine.js'];
 
   it('the standalone page version-stamps every engine script', () => {
     const html = readRoot('tools/build-ai.html');

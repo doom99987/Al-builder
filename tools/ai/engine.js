@@ -16,13 +16,13 @@
     module.exports = factory(
       require('./model.js'), require('./knowledge.js'),
       require('./intent.js'), require('./optimize.js'), require('./explain.js'),
-      require('./share.js'));
+      require('./share.js'), require('./plan.js'));
   } else {
     root.ALB_Engine = factory(root.ALB_Model, root.ALB_Knowledge,
                               root.ALB_Intent, root.ALB_Optimize, root.ALB_Explain,
-                              root.ALB_Share);
+                              root.ALB_Share, root.ALB_Plan);
   }
-}(typeof self !== 'undefined' ? self : this, function (ModelMod, K, Intent, Opt, Explain, Share) {
+}(typeof self !== 'undefined' ? self : this, function (ModelMod, K, Intent, Opt, Explain, Share, Plan) {
 
   function Engine(data) {
     const M = ModelMod.Model(data);
@@ -60,9 +60,19 @@
         .filter(t => { try { return t.when(result.build, M, result.ctx); } catch { return false; } })
         .map(t => ({ name: t.name, text: t.warn }));
 
-      return Object.assign({ spec, warnings, model: M }, result, {
-        explanation: Explain.render(result, spec, M, K, data),
-      });
+      // The BuildPlan is the one structured account of the build; every
+      // renderer reads from it (see plan.js). Composed here so a caller that
+      // wants the plan and not the prose - the CLI's --json, a future
+      // language-model write-up - gets it without rendering anything.
+      const full = Object.assign({ spec, warnings, model: M }, result);
+      let plan = null;
+      try { plan = Plan ? Plan.compose(full, spec, M, K, data) : null; } catch (e) { plan = null; }
+      // On the result BEFORE the renderer reads it - an object literal
+      // evaluates its arguments first, so assigning both at once handed the
+      // renderer a result with no plan and it fell back to the detail alone.
+      full.plan = plan;
+      full.explanation = Explain.render(full, spec, M, K, data);
+      return full;
     }
 
     // A shareable arcanelineagebuilder.com URL for a build. Async because the
@@ -134,8 +144,13 @@
         // The same reasoning `ask` produces, so the analysis view can show WHY
         // the improved build looks like it does rather than only what changed.
         improvedExplanation: improved
-          ? Explain.render({ build: improved, ctx: improvedCtx, corruption: null, warnings: [] },
-                           spec, M, K, data).filter(sec => sec.h !== 'Request' && sec.h !== 'You chose')
+          ? (() => {
+              const partial = { build: improved, ctx: improvedCtx, corruption: improvedCorruption,
+                                covenant: improved.covenantChoice || null, warnings: [] };
+              try { partial.plan = Plan ? Plan.compose(partial, spec, M, K, data) : null; } catch (e) { partial.plan = null; }
+              return Explain.render(partial, spec, M, K, data)
+                .filter(sec => sec.h !== 'Request' && sec.h !== 'You chose');
+            })()
           : [],
       };
     }

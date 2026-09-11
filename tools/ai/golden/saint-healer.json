@@ -1,0 +1,34 @@
+{
+  "name": "Saint healer/tank - the community reference (2026-09)",
+  "source": "site owner, community build post",
+  "request": {
+    "text": "saint healer",
+    "overrides": { "klass": "Saint (Or)", "roles": ["Healer"], "play": "team", "dmg": "average", "level": 50 }
+  },
+  "expect": {
+    "class": "Saint (Or)",
+    "raceIn": ["Sheea (Ob)", "Daminos (3%)", "Corvolus (3%)", "Arborivia (3%)"],
+    "raceRankingTop4Has": ["Sheea (Ob)", "Daminos (3%)"],
+    "milestones": [{ "stat": "end", "min": 60 }, { "stat": "arc", "min": 110 }],
+    "noDeadZone": true,
+    "gearMust": ["Narthana's Leaf"],
+    "gearAtLeast": { "n": 3, "of": ["Narthana's Leaf", "Parasitic Leech", "Madseer's Codex", "Divine Promise",
+                                    "Vainglorious Locket", "Imbuement Reliquary", "Coagulated Finger Nail"] },
+    "armourIn": ["Wandering Practitioner", "Deathmantle", "Bloody Menace", "Raging Warrior"],
+    "weapon": { "type": "Spear", "tiered": true },
+    "artifact": "Narthana's Sigil",
+    "subclass": "Bard",
+    "enchantIn": ["Lifesong"],
+    "shardFamilyMajority": "Voltaic",
+    "mastery": { "notationIn": ["0-1-2", "0-2-1"], "capstonesMin": 2, "mustInclude": ["One For All"] },
+    "lostScrollIn": ["Metrom's Grasp", "Heavenly Prayer"],
+    "covenantIn": ["Church of Raphion", "Way of Life"],
+    "corruption": "Tyranny",
+    "traits": { "gearHas": { "stalwart": 2, "conduit": 1 }, "artifactHas": { "conduit": 1 } },
+    "tierPriorityStartsWith": "str",
+    "markIn": ["Astra", "Venia"]
+  },
+  "soft": ["raceIn", "raceRankingTop4Has", "gearMust", "gearAtLeast", "armourIn", "weapon", "artifact",
+           "subclass", "enchantIn", "shardFamilyMajority", "mastery.notationIn", "lostScrollIn",
+           "covenantIn", "traits", "tierPriorityStartsWith"]
+}

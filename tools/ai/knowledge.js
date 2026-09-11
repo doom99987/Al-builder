@@ -164,7 +164,9 @@
       statWeights: { end: 5, str: 2, arc: 0, spd: 1, lck: 0 },
       kitWords: ['block','guard','shield','defen','armou','taunt','protect','fortif','resist','damage reduction'],
       // Effective HP: raw HP scaled by block damage reduction and incoming heals.
-      score: c => (c.effectiveHp ?? c.hp) * (1 + c.blockDr / 100) *
+      // effectiveHpSustain is that plus what lifesteal returns over a stretch
+      // of the fight (SUSTAIN) — the figure All For One and Siphoning move.
+      score: c => (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * (1 + Math.min(c.blockDr, DR_CAP) / 100) *
                   (1 + ((c.effectiveIncHeal ?? c.incHeal) - 100) / 400),
       blurb: 'Endurance drives HP, and Strength converts to block damage reduction.',
     },
@@ -199,7 +201,7 @@
       // applies it per move), so it must not be applied again here - doing that
       // squared it and bought Arcane at the expense of everything else.
       score: c => {
-        const surv = (c.effectiveHp ?? c.hp) * (1 + c.blockDr / 100);
+        const surv = (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * (1 + Math.min(c.blockDr, DR_CAP) / 100);
         // No healing move means no healing. The multiplier multiplies nothing -
         // which is the whole lesson of the Paladin, and of the Necromancer that
         // won this role on a survivability score while healing zero per turn.
@@ -264,7 +266,7 @@
       // Block damage reduction belongs here. Scoring only damage and HP made the
       // optimiser dump Strength, which quietly cost a player 53 points of block
       // DR and still called the result an upgrade.
-      score: c => (c.bestHit * 0.6 + (c.effectiveHp ?? c.hp) * 0.8) * (1 + c.blockDr / 200),
+      score: c => (c.bestHit * 0.6 + (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * 0.8) * (1 + Math.min(c.blockDr, DR_CAP) / 200),
       blurb: 'A build that does not fall apart when the fight goes badly.',
     },
   };
@@ -536,6 +538,22 @@
   // the tests - if a game update rewords one of these, that fails loudly rather
   // than the engine quietly pricing something that no longer exists.
   //
+  // ── which 110 milestone shortens which cooldowns ─────────────────────────
+  // The game text says STR 110 -> "Magic Element attacks" and ARC 110 ->
+  // "Physical Element attacks", and builder.js notes the two are swapped in
+  // game relative to the design. The site owner's reading, from play, and what
+  // every community build is written around ("110 Arc for -1 cd" on a Saint
+  // whose heals are Holy): ARC 110 cuts EVERY non-Physical move - Holy, Magic,
+  // Fire, Nature, Ice, Dark, Hex - and STR 110 cuts Physical. That is what the
+  // engine prices. One line each to flip if play proves otherwise; the game
+  // text stays in MILESTONES untouched, because the tests assert it.
+  const MILESTONE_CD_AFFINITY = {
+    str: { test: t => /physical/i.test(t),  source: 'owner',
+           label: 'Physical moves' },
+    arc: { test: t => !/physical/i.test(t), source: 'owner',
+           label: 'every non-Physical move (Holy, Magic, Fire, Nature, Ice, Dark, Hex)' },
+  };
+
   // Index is the TIER: 0 -> 25 points, 1 -> 60, 2 -> 110.
   const MILESTONES = {
     lck: [
@@ -557,13 +575,13 @@
         note: 'not counted: Strike is the unarmed basic, and no optimised build uses it' },
       { kind: 'note', text: 'Take 10% less damage when blocking.',
         note: 'not counted separately - block damage reduction already comes from Strength' },
-      { kind: 'cdCut', value: 1, elements: /magic/i, text: 'Magic Element attacks cost 1 less cooldown.' },
+      { kind: 'cdCut', value: 1, affinity: 'str', text: 'Magic Element attacks cost 1 less cooldown.' },
     ],
     arc: [
       { kind: 'note', text: 'Use one extra potion.', note: 'potions are not modelled' },
       { kind: 'note', text: '15% chance to gain an extra energy at the start of your turn.',
         note: 'not counted: a chance at energy, and energy is a cap here rather than a flow' },
-      { kind: 'cdCut', value: 1, elements: /physical/i, text: 'Physical Element attacks cost 1 less cooldown.' },
+      { kind: 'cdCut', value: 1, affinity: 'arc', text: 'Physical Element attacks cost 1 less cooldown.' },
     ],
     spd: [
       { kind: 'note', text: 'Enemies are less likely to dodge your attacks.', note: 'no number given' },
@@ -587,11 +605,47 @@
         if (def.kind === 'outHealPct') out.outHealPct += def.value;
         else if (def.kind === 'incHealPct') out.incHealPct += def.value;
         else if (def.kind === 'dodgePct') out.dodgePct += def.value;
-        else if (def.kind === 'cdCut') out.cdCut.push({ elements: def.elements, value: def.value, stat, text: def.text });
+        else if (def.kind === 'cdCut') {
+          const aff = MILESTONE_CD_AFFINITY[def.affinity] || null;
+          out.cdCut.push({
+            // `elements.test(moveType)` is the shape every consumer reads, so
+            // the affinity is handed over in that shape.
+            elements: aff ? { test: t => aff.test(String(t || '')) } : (def.elements || null),
+            label: aff ? aff.label : null, source: aff ? aff.source : null,
+            value: def.value, stat, text: def.text,
+          });
+        }
       });
     }
     return out;
   }
+
+  // ── STAT DECAY ────────────────────────────────────────────────────────────
+  // Not in the site's maths, which is linear all the way up. From the owner:
+  // a stat falls off past about 100 - go to 110 for the milestone perk when
+  // the build actually uses it, otherwise stop at or under the knee and "go
+  // perfect" on the breakpoints (25 / 60 / 110). So 101-109 is the dead zone:
+  // past the fall-off and short of the perk. The scorer docks a build a little
+  // for every stat sitting there (optimize.js evaluate), and the allocator
+  // snaps totals out of it (snapToBreakpoints). The penalty is the owner's
+  // rule expressed as a number, not a measurement of the fall-off itself.
+  //
+  // `pastRate` is how much a point PAST 110 is worth against a point under the
+  // knee, when the finished line is being settled (optimize.js goPerfect). The
+  // owner does not know the real fall-off; half is the assumption that makes
+  // "60 End, 110 Arc, rest Str" beat "110 Arc, 142 End" for a Saint, which is
+  // the community's answer. It is used only there - the search itself stays
+  // on the site's linear maths.
+  const STAT_DECAY = { knee: 100, next: 110, deadZonePenalty: 0.04, pastRate: 0.5, assumed: true,
+    note: 'stats fall off past ~100 - sit on a breakpoint (25 / 60 / 110) or stay at or under it' };
+
+  // ── PERMUTH ───────────────────────────────────────────────────────────────
+  // Venia's Permuth (builder.js markMoves): 5% of your HP for a random 40%
+  // stat buff, 3 turns, 10-turn cooldown, 2 energy, weighted so it lands on
+  // your highest invested stat about half the time. The site's stat row shows
+  // it as a permanent x1.4; the search scores it as nothing (optimize.js
+  // evaluate) and the write-up prices it from these numbers.
+  const PERMUTH = { duration: 3, cd: 10, cost: 2, chance: 0.5, mult: 1.4 };
 
   // ── ENERGY ────────────────────────────────────────────────────────────────
   // The base energy cap is NOT recorded anywhere in the site's data, so it is an
@@ -616,6 +670,31 @@
                    note: 'consumes the whole pool for +20% per energy past the first' },
     },
   };
+
+  // ── PLAY NOTES ────────────────────────────────────────────────────────────
+  // One line of play advice per move, shown only when the build has the move.
+  // Things no table states: how a move is used, not what it does.
+  const PLAY_NOTES = {
+    'Bone Throw': 'use it while Handaconda is in counter mode (it turns white)',
+  };
+
+  // ── SUSTAIN ───────────────────────────────────────────────────────────────
+  // Lifesteal is health back per attack, not a heal: the game text for
+  // Parasitic Leech draws exactly that line ("a proper heal, not lifesteal").
+  // So it cannot go through the outgoing-healing figure, and it is not HP. It
+  // is scored as the health it returns over a stretch of the fight, on the
+  // survival figure the tank and healer archetypes read (optimize.js
+  // effectiveHpSustain). Both numbers are ASSUMPTIONS and the write-up says so:
+  // how many turns the stretch is, and what share of your turns are attacks
+  // rather than heals, guards or setups.
+  const SUSTAIN = { horizon: 6, attackShare: 0.5, assumed: true };
+
+  // Damage reduction sources add up here - block DR, gear, a capstone, a race
+  // passive, a setup - and past a point the sum stops meaning anything: a
+  // Citadel in Aspect of Maladaptation read 106% and the survival scores
+  // multiplied by it. Capped where the survival archetypes read it. The number
+  // is an assumption; the game's own cap is not stated anywhere in the data.
+  const DR_CAP = 80;
 
   // ── TRAITS ────────────────────────────────────────────────────────────────
   // The site applies FOUR of these itself (builder.js TRAIT_APPLIES_TO):
@@ -742,11 +821,11 @@
               'the reason Dullahan was the default answer to almost everything.' },
     ],
 
-    // Two races whose innate passives have NO effect text in the game data at
-    // all - only the names. The names are the whole of what was extractable, so
-    // for years the engine could see "Reduced Cooldowns" and knew nothing about
-    // it. The numbers below are REPORTED BY THE SITE OWNER, not read out of the
-    // data, and they are marked as such wherever they show up.
+    // Sheea's innate passive has NO effect text in the game data - only the
+    // name - so the engine could see "Reduced Cooldowns" and knew nothing about
+    // it. Its number is REPORTED BY THE SITE OWNER, not read out of the data,
+    // and it is marked as such wherever it shows up. Daminos used to be the
+    // same case; its passive text now states the figure.
     'Sheea (Ob)': [
       { name: 'Reduced Cooldowns', kind: 'cdCut', value: 1, source: 'owner',
         note: 'every cooldown is 1 turn shorter, and it STACKS with the STR 110 and ARC 110 ' +
@@ -754,11 +833,33 @@
               'that is worth more than a stat block.' },
     ],
     'Daminos (3%)': [
-      { name: 'Outgoing Healing', kind: 'note',
-        note: 'an innate outgoing-healing bonus with no figure anywhere in the data. NOT counted ' +
-              'because inventing the number would be inventing the build. Restructure (5 + 5% max ' +
-              'HP regen for 3 turns) and Mulligan Realm (~21% outgoing healing to the whole party, ' +
-              'plus a chance to survive a fatal blow) are real and also uncounted.' },
+      { name: 'Outgoing Healing', kind: 'outHealPct', value: 15, uptime: 1,
+        note: '+15% outgoing healing, stated in the passive text (data-race-moves.js). It was a ' +
+              'note with no figure until the data caught up. Restructure (5 + 5% max HP regen for ' +
+              '3 turns) and Mulligan Realm (~21% outgoing healing to the whole party, plus a ' +
+              'chance to survive a fatal blow) are real and still uncounted.' },
+    ],
+
+    // The bone race. Everything here is from the passive text; the uptimes and
+    // Frail Body's DR figure are assumptions and say so.
+    'Calvariae (3%)': [
+      { name: 'Broken Bones', kind: 'selfHealFlat', value: 12, uptime: 0.6,
+        note: '4 HP on your next turn for every hit of 5%+ max HP, up to 3 a turn - 12 HP at the three ' +
+              'a boss lands, scaled by incoming healing, counted on 60% of turns' },
+      { name: 'Frail Body', kind: 'dr', value: 15, uptime: 1, assumed: true,
+        note: 'any hit of 15%+ max HP is halved and the other half lands next turn as true damage. No ' +
+              'net reduction over two turns; priced as 15% DR for the turn it buys you to heal - an ' +
+              'assumption, not a measurement' },
+      { name: 'Frugality', kind: 'incHealPct', value: 20, uptime: 0.6,
+        note: '+20% incoming healing until the end of your next turn whenever Broken Bones fires' },
+    ],
+    // The tree race. Vine Guard is the whole race: attack every turn and keep it.
+    'Arborivia (3%)': [
+      { name: 'Vine Guard', kind: 'dr', value: 12.5, uptime: 0.6,
+        note: '2.5% DR and 0.75 flat regen per landed attack, stacking to 5 - 12.5% DR at full ' +
+              'stacks, kept up by attacking every turn; the regen is not modelled' },
+      { name: 'Overgrowth', kind: 'critChance', value: 10, uptime: 0.4,
+        note: '+10% crit chance and DR and +20 Speed until your next turn when you cast at full HP' },
     ],
 
     // The low-HP classes. Every one of these was in the "not counted" list until
@@ -882,6 +983,11 @@
     "Ptera's Heart":       { poison: true, caution: true,
                              why: 'it poisons every enemy AND you, every turn. Without a Poison build ' +
                                   'to feed, the half that lands on you is the half you get' },
+    // `status` is the general form of `poison`: the kit (or another item) has
+    // to put that status on the enemy before this passive can fire.
+    'Tear Blood Crystal':  { status: /bleed/i,
+                             why: 'its crit and defence buff only fires when you apply Bleed, and this ' +
+                                  'build applies none' },
     'Spore Root':          { blocking: true, caution: true,
                              why: 'it only does anything when you BLOCK a melee attack' },
     'Desert Escutcheon':   { blocking: true, caution: true,
@@ -926,6 +1032,12 @@
   // is reported as "not counted" rather than silently treated as zero, which is
   // what made the optimiser pick no enchant at all.
   const ENCHANTS = {
+    // `incHealPct` rides along on a healing enchant: Lifesong buffs both.
+    'Lifesong': { kind: 'outHealPct', value: 20, incHealPct: 20, uptime: 0.5,
+                  note: '+20% incoming AND outgoing healing for 3 turns when it procs on a hit or a heal; ' +
+                        'the chance is unstated, so it is counted as up half the time' },
+    'Reaper':   { kind: 'note',
+                  note: 'regen - per-turn healing this model has no turn loop for, so it is not priced' },
     'Inferno': { kind: 'dmgPct', value: 20, uptime: 0.6,
                  note: '+20% while Burn is applied (25% chance per attack to apply it)' },
     'Cursed':  { kind: 'dmgPct', value: 30, uptime: 0.5,
@@ -1016,9 +1128,6 @@
   //   support  helps the party more than itself
   //   allround genuinely fine anywhere — usually because it grants raw stats
   //
-  // `placeholder: true` means the race has no real stat block in the data yet.
-  // Those are excluded everywhere: recommending one is recommending an
-  // unfinished entry, not a build.
   const RACE_ROLES = {
     'Stultus (20%)':  { roles: ['crit', 'dps', 'speed'],
                         note: '10 Speed becomes 1 Crit Chance, capped at +100 — the crit race' },
@@ -1057,17 +1166,16 @@
     'Veneri (6%)':    { roles: ['utility'],
                         note: 'gold, enchants and potions — economy rather than combat' },
 
-    // Zero stat block, full kit. These were excluded as unfinished entries,
-    // which was wrong: they grant no stats ON PURPOSE and are played entirely
-    // for their moves. Excluding them meant they could never be recommended
-    // even where the kit is the whole point.
-    'Arborivia (3%)': { roles: ['support', 'crit'],
-                        note: 'no stat bonuses at all - Leaf Thrust carries +50 crit chance and ' +
-                              'Maple Vindication is party-wide regen. Everything it gives is in ' +
-                              'the kit, so it is only worth taking for the kit' },
-    'Calvariae (3%)': { roles: ['tank'],
-                        note: 'no stat bonuses at all - Brittle Cure trades 20% of current HP for ' +
-                              'a 25% damage-reduction buff' },
+    // Both shipped as zero stat blocks because the changelog never published
+    // them; the owner supplied the real numbers (builder.js `races`).
+    'Arborivia (3%)': { roles: ['support', 'crit', 'sustain'],
+                        note: 'Vine Guard stacks DR and flat regen on every landed hit, Overgrowth ' +
+                              'is +10% crit and DR while at full HP, and Leaf Thrust carries +50 ' +
+                              'crit chance - a sustain race with a crit kit' },
+    'Calvariae (3%)': { roles: ['tank', 'sustain'],
+                        note: 'Broken Bones heals after every heavy hit, Frail Body splits any hit ' +
+                              'of 15%+ max HP across two turns, and Brittle Cure buys 25% DR - ' +
+                              'the race for fights you win by not dying' },
   };
 
   // ── SETUP MOVES ───────────────────────────────────────────────────────────
@@ -1089,6 +1197,24 @@
   //
   // All values transcribed from the move text in the game data.
   const SETUP_MOVES = {
+    // Calvariae's Brittle Cure: 25% DR for 4 turns on an 8 turn cooldown, for
+    // 20% of your CURRENT HP (2 x 10%) as true self-damage - which is the cost
+    // the race is built around, and is not charged here.
+    'Brittle Cure': {
+      owner: 'Calvariae (3%)', cost: 1, cd: 8, duration: 4, reliability: 1,
+      kind: 'dr', value: 25,
+      note: '+25% DR for 4 turns every 8; costs 20% of your current HP, and taking a hit while it is ' +
+            'up gives 1 energy back a turn',
+    },
+    // A gear ACTIVE. Divine Promise is worn for this move; it targets an ally,
+    // so it protects the team rather than your own sheet and is listed rather
+    // than added to your damage reduction.
+    'Divine Gift': {
+      owner: 'Divine Promise', cost: 1, cd: 3, duration: 5, reliability: 1,
+      kind: 'partyDr', value: 10, party: true,
+      note: 'an ally gets 1 energy and 10% DR for 5 turns, every 3 turns - the whole reason to wear ' +
+            'Divine Promise, and worth nothing solo',
+    },
     'Cast Amplify': {
       owner: 'Corvolus (3%)', cost: 1, cd: 9, duration: 3, reliability: 1,
       kind: 'dmgPct', value: 20,
@@ -1248,6 +1374,21 @@
   // conditional so a "while in the Volcano" bonus cannot outbid a permanent one.
   // Transcribed by hand from the passive text; everything not listed here is
   // reported under "Gear passives NOT counted" rather than silently ignored.
+  //
+  //   kind             what it feeds
+  //   ------------------------------------------------------------------
+  //   dmgPct / critChance / dr / hpPct      as before
+  //   lifestealPct     health back per attack (optimize.js sustain)
+  //   healFromDmgPct   a proper heal to the team, as a share of your damage
+  //                    (`party: true` - worth nothing solo)
+  //   selfHealFlat     flat HP back a turn, scaled by incoming healing
+  //   healPctPerTurn   a share of max HP back a turn
+  //   statRamp         +value to every stat per turn, counted at assumedTurns
+  //   status           puts statuses on you (`self`) or the enemy (`enemy`);
+  //                    no number of its own, it is what the kit's Reversing,
+  //                    Shattering, Deranged Fighter and Lasting Life read
+  //   multi            several of the above under one name (`effects`)
+  //   onSite           already in the site's own maths - listed, added to nothing
   const GEAR_PASSIVES = {
     'Crystal Sphere':      { kind: 'critChance', value: 5,  uptime: 1,
                              note: '+5% crit chance, unconditional' },
@@ -1265,8 +1406,10 @@
                              note: '+15% to Fire elemental moves' },
     'Shard of Blight':     { kind: 'dmgPct',     value: 25, uptime: 0.3,
                              note: '+25% to Dark elemental attacks' },
-    'Tear Blood Crystal':  { kind: 'critChance', value: 5,  uptime: 0.5,
-                             note: '+5% crit and defence for 5 turns when you apply Bleed' },
+    'Tear Blood Crystal':  { kind: 'multi', uptime: 0.5,
+                             effects: [{ kind: 'critChance', value: 5 }, { kind: 'dr', value: 5 }],
+                             note: '+5% crit and +5% defence for 5 turns when you apply Bleed - counted ' +
+                                   'only on a kit that bleeds (GEAR_NEEDS)' },
     'Molten Carapace':     { kind: 'dr',         value: 30, uptime: 0.25,
                              note: '+30% defence below 40% HP' },
     'Egg Shelmet':         { kind: 'hpPct',      value: 10, uptime: 1,
@@ -1278,13 +1421,41 @@
                              note: '+5% damage always; 50 Corrupt Power in a Corruption Form raises ' +
                                    'it to +45% for one attack, once per turn — that half is not counted' },
 
+    'Shadow Gauntlets':    { kind: 'lifestealPct', value: 5, uptime: 1,
+                             note: '+5% lifesteal always; 45 Corrupt Power in a Corruption Form raises it ' +
+                                   'to 25% for one attack a turn, and that half is not counted' },
+    'Parasitic Leech':     { kind: 'healFromDmgPct', value: 2, uptime: 1, party: true,
+                             note: 'heals every teammate for 2% of the damage you deal - a proper heal, so ' +
+                                   'your outgoing healing scales it; worth nothing solo' },
+    'Sanguine Fang':       { kind: 'lifestealPct', value: 2.5, uptime: 1,
+                             note: '25% chance on hit to heal 10% of the damage dealt - 2.5% lifesteal on average' },
+    "Ptera's Heart":       { kind: 'status', self: ['poison'], enemy: ['poison'], uptime: 1,
+                             note: '3 Poison on you and on every enemy at the start of the fight, and 1 more ' +
+                                   'each turn. The poison damage itself is not priced; what it FEEDS is - ' +
+                                   'Reversing, Deranged Fighter, Lasting Life, Shattering' },
+    'Coagulated Finger Nail': { kind: 'statRamp', value: 1.5, capTurns: 10, assumedTurns: 5,
+                             note: '+1.5 to every stat at the start of each turn, to 10 turns; counted at 5 ' +
+                                   'stacks (+7.5 each). In game the Endurance half gives DR rather than HP - ' +
+                                   'here it counts as Endurance, as the site does' },
+    'Snorb':               { kind: 'status', enemy: ['cold'], uptime: 0.5,
+                             note: 'when you are attacked it puts 2 Cold on every enemy and deals 10% of your ' +
+                                   'max HP to all of them, every other turn - the damage is not priced' },
+    'Aspect of Maladaptation': { kind: 'dr', value: 25, uptime: 0.5,
+                             note: '25% less damage from the element that last hit you and 30% MORE from every ' +
+                                   'other - a single-element fight only; counted at half, and it is a downside ' +
+                                   'against a mixed kit' },
+
+    // Priced by the site itself: +75% outgoing healing and -25% Endurance sit in
+    // gearPctBonuses, so model.js already has it. Listed so nobody looks for it
+    // under "not counted".
+    "Narthana's Leaf":     { kind: 'onSite',
+                             note: 'sacrifice 25% of your max HP for 1.75x outgoing healing - the +75% outgoing ' +
+                                   'and -25% Endurance are in the site\'s own stat maths' },
+
     // Real, but not scoreable as a number here.
     'Wicked Crown':   { kind: 'note', note: 'turns physical moves into Dark — enables Shard of Blight' },
-    "Narthana's Leaf":{ kind: 'note', note: '1.75x outgoing heal for 25% of your max HP' },
     'Grain Of Balance': { kind: 'note', note: 'redistributes 25% of your highest stat — currently bugged' },
-    'Parasitic Leech':  { kind: 'note', note: 'heals the team for 2% of your damage' },
     'Dust Storm':       { kind: 'note', note: '10% chance to phase through an attack' },
-    'Sanguine Fang':    { kind: 'note', note: '25% chance to heal 10% of the damage dealt' },
     'Shattered Clock Hand': { kind: 'note', note: '30% chance to cut cooldowns on Strike' },
   };
 
@@ -1421,6 +1592,19 @@
       dodgeIrrelevant: true,
       why: 'Fully immune to Poison, so a kit that wins by stacking it - an Assassin above all - ' +
            'is doing nothing here beyond its direct damage.',
+      // How the fight is played, from the community's Impaler farm build. None
+      // of this is in any table; it is what a write-up needs and the numbers
+      // cannot supply.
+      plan: [
+        'Not immune to Bleed: a self-bleeding kit keeps its bleed-fed healing (Deranged Fighter, ' +
+        'Lasting Life) going every turn while Handaconda bleeds out - about 0.6% of its max HP a turn.',
+        'Guard the ultimates. Dodge Hand of Ramizca - it is the one move that can realistically kill ' +
+        'you before you regenerate.',
+        'Once it is low and carrying Cursed, just guard and let the bleed finish it.',
+      ],
+      // The form the community runs for this fight, and why. Honoured by
+      // pickCorruption as a bounded nudge, never an override.
+      preferForm: { form: 'Tyranny', why: 'a farm is about staying alive, not burst - Tyranny\'s stances and shields are the point' },
     },
     "Metrom's Vessel": {
       dodgeIrrelevant: true,
@@ -1641,6 +1825,25 @@
       note: 'When you heal 270 HP it deals damage and heals your allies for the same amount. ' +
             'Not counted: the amount is written as "X (scales on level)" and never stated. On ' +
             'a healer in a party it is doing real work these numbers miss.',
+    },
+  };
+
+  // ── MARK ABILITIES ────────────────────────────────────────────────────────
+  // The mark slot used to be Venia, always, for Permuth's x1.4 - which the
+  // search no longer scores as permanent. Astra is the community's healer and
+  // tank pick ("optional, but versatility"), and its Utor is a real number:
+  // 20-40% of max HP back every 7 turns for 2-4 stars, scaled by BOTH healing
+  // stats. Priced as a share of max HP a turn on the sustain figure.
+  const MARK_ABILITIES = {
+    'Astra': {
+      effects: [{ kind: 'healPctPerTurn', value: 33 / 7 }],
+      note: 'Utor restores 20-40% of max HP every 7 turns (2-4 stars), scaled by incoming and ' +
+            'outgoing healing - counted as the middle roll; Edo is a random team buff, not counted',
+    },
+    'Venia': {
+      effects: [],
+      note: 'Permuth: 5% of your HP for a random 40% stat buff, 3 turns every 10 - not in the search ' +
+            'totals (see K.PERMUTH); the constellation is a crit-and-status engine with no number to price',
     },
   };
 
@@ -2065,9 +2268,28 @@
     'Prideful Heart':       { kind: 'dr', value: 20, uptime: 0.5, party: true,
                               note: 'Torrefy lets you take another 20% of an ally\'s damage for them — ' +
                                     'worth nothing solo and a great deal in a party' },
-    'One For All':          { kind: 'note', party: true,
-                              note: '-30% damage for +50% outgoing healing — a deliberate trade in a party ' +
-                                    'and a straight loss alone' },
+    // ── healing and sustain ──────────────────────────────────────────────────
+    // `multi` is one capstone doing several things, each priced on its own kind.
+    // `onSite` marks the half model.js already applies (All For One's incoming
+    // healing is hard-coded in the site's pipeline): listed, never added twice.
+    'One For All':          { kind: 'multi', uptime: 1,
+                              effects: [{ kind: 'outHealPct', value: 50 }, { kind: 'dmgPct', value: -30 }],
+                              note: '+50% outgoing healing on every heal, multiplicative, for -30% damage — ' +
+                                    'the healer\'s capstone, and a straight loss on a build that does not heal' },
+    'All For One':          { kind: 'multi', uptime: 1,
+                              effects: [{ kind: 'lifestealPct', value: 20 },
+                                        { kind: 'incHealPct', value: 40, onSite: true }],
+                              note: '20% lifesteal on attacks and +40% incoming healing; the doubled regen ' +
+                                    'is not modelled' },
+    'Cleansing Prayer Proficiency': { kind: 'dr', value: 5, uptime: 0.4,
+                              note: '1 Resist and a 5% DR buff for 2 turns on every cast' },
+    'Holy Grace Proficiency': { kind: 'note',
+                              note: '+25% regen for 3 turns — regen is per-turn healing this model has no turn loop for' },
+    'Lasting Life':         { kind: 'incHealPct', value: 7.5, uptime: 0.8,
+                              note: 'Deranged Fighter goes from 1% to 2.5% incoming healing per unique status on ' +
+                                    'you — +7.5% at the five a self-poisoning, self-bleeding Impaler carries' },
+    'Siphoning':            { kind: 'lifestealPct', value: 5, uptime: 0.8,
+                              note: '5% lifesteal against bleeding targets, and an Impaler bleeds everything it touches' },
     'Lightspeed':           { kind: 'dodge', value: 100, uptime: 0.5,
                               note: '+10% autododge per dodge or Verdant Archer crit, with NO stack cap — ' +
                                     'it ramps to total avoidance over a long fight. Counted at half, ' +
@@ -2170,8 +2392,9 @@
                           'dump move gets almost none of it' },
     'Jade':       { kind: 'note',
                     note: '+30% incoming and outgoing healing — excellent on a healer, nothing on a hit' },
-    'Sandstone':  { kind: 'note',
-                    note: '20% chance to apply 2 Sundered; no damage of its own' },
+    'Sandstone':  { kind: 'status', enemy: ['sundered'], uptime: 0.2,
+                    note: '20% chance per attack to apply 2 Sundered - no damage of its own, it feeds ' +
+                          'Cursed, Blight and Shattering' },
     'Sun':        { kind: 'note',
                     note: 'defence procs on hit, and the enemy Defense Down half is bugged' },
     'Ferrus':     { kind: 'note', note: 'no passive at all' },
@@ -2613,14 +2836,18 @@
             'correct for the level you gave, but you cannot take the class itself until 15.',
     },
     {
-      name: 'Duplicate shards',
+      name: 'Stacked shards',
       when: b => {
-        const seen = new Set();
-        return (b.shards || []).some(s => seen.has(s) ? true : (seen.add(s), false));
+        const copies = {};
+        for (const s of (b.shards || [])) {
+          const f = String(s).replace(/ \([RP]\)$/, '');
+          copies[f] = (copies[f] || 0) + 1;
+        }
+        return Object.values(copies).some(n => n > 2);
       },
-      warn: 'Duplicate shards contribute nothing in this builder — it de-duplicates by name. ' +
-            'In game the second copy stacks at full value and the third and beyond at 25%, so the ' +
-            'site under-reports a stacked setup. Do not "fix" it by stacking here.',
+      warn: 'Three or more copies of one shard family. The first two count in full and every ' +
+            'copy after that at 25% - the site\'s own rule, and this build was scored by it - so ' +
+            'the third copy is worth a quarter of what its text says.',
     },
     {
       name: 'Untiered weapon',
@@ -2640,16 +2867,17 @@
            CLASS_ROLE, classRole,
            ROLES, roleOf, ROLE_ITEMS, roleItemNote, ROLE_ITEM_MARGIN, SCROLL_NOTES,
            ROLE_GOALS, ROLE_ORDER, goalsForRoles, goalWeights,
-           MILESTONES, milestonesFor, GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
+           MILESTONES, milestonesFor, MILESTONE_CD_AFFINITY, STAT_DECAY, PERMUTH,
+           GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
            UNAVAILABLE, AVOID, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
            BOSS_TACTICS, BOSS_PENALTIES, BOSS_SOLO_MIN_SPEED, STATUS_WORDS,
            bossProfile, debuffLoad, statusLoad, PROCS, procStatusGain,
-           ARTIFACT_ABILITIES,
+           ARTIFACT_ABILITIES, MARK_ABILITIES,
            COVENANTS, COVENANT_MIN_LEVEL, COVENANT_ASSUMED_RANK, COVENANT_BOSS_HOST,
            HP_STANCE, HP_GATED, HP_GATE_UPTIME, hpStance, hpGateFor,
-           ENERGY, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
+           ENERGY, SUSTAIN, DR_CAP, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
            QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED,

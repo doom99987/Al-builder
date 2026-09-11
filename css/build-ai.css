@@ -111,6 +111,15 @@
   margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
   color: #777; font-weight: 700;
 }
+/* Folded detail: the honesty sections sit behind a click, not in the way. */
+details.bai-sec > summary {
+  cursor: pointer; list-style: none; margin: 0; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: #777; font-weight: 700;
+}
+details.bai-sec > summary::-webkit-details-marker { display: none; }
+details.bai-sec > summary::before { content: '▸ '; color: #555; }
+details.bai-sec[open] > summary { margin-bottom: 8px; }
+details.bai-sec[open] > summary::before { content: '▾ '; }
 .bai-sec.bai-warn { border-color: #6b4a2a; }
 .bai-sec.bai-warn h3 { color: #d89a5a; }
 .bai-sec table { width: 100%; border-collapse: collapse; font-size: 14px; }

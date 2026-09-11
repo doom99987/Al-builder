@@ -882,7 +882,7 @@ const raceMoves = {
         description: "Landing an attack grants 2.5% DR and +0.75 Flat Regen, stacking cumulatively up to 5 times. The stacks dissipate if you do not attack for a turn.\n\nThe regen scales with stats such as Outgoing healing. Can only trigger once per turn."
       },
       {
-        level: 5,
+        level: 15,
         name: "Foliage",
         description: "Vine Guard also grants a 10% chance to gain a bonus NRG at the start of your turn. This increases by 10% per Vine Guard stack you are holding, capping at 50%."
       },
