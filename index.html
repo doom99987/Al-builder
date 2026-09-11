@@ -1968,7 +1968,9 @@
         sb.from('trade_listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
         sb.from('party_listings').select('*', { count: 'exact', head: true }).eq('status', 'open')
       ]);
-      const fmt = n => n == null ? '—' : n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n);
+      // 1.2k / 1.2M. The M branch starts at 999,950 because anything above that
+      // rounds to "1000.0k", which is the thing the M suffix exists to avoid.
+      const fmt = n => n == null ? '—' : n >= 999950 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
       const ps = document.getElementById('stat-players');
       const ls = document.getElementById('stat-listings');
       const pas = document.getElementById('stat-parties');
