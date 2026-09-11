@@ -1,0 +1,25 @@
+{
+  "name": "Paladin tank/support - community build (owner: may be stale)",
+  "source": "site owner, community build post; marked possibly out of date. Paladin (Or) has no mastery tree in the site's data, so mastery is not asserted.",
+  "stale": true,
+  "request": {
+    "text": "paladin tank",
+    "overrides": { "klass": "Paladin (Or)", "roles": ["Tank", "Support"], "play": "team", "dmg": "average", "level": 50 }
+  },
+  "expect": {
+    "class": "Paladin (Or)",
+    "dominantStat": "end",
+    "raceIn": ["Sheea (Ob)", "Lentum (Ob)", "Gynx (Ob)"],
+    "gearAtLeast": { "n": 2, "of": ["Vainglorious Locket", "Egg Shelmet", "Snorb", "Aspect of Maladaptation", "Molten Carapace"] },
+    "enchantIn": ["Reaper", "Lifesong"],
+    "weapon": { "name": "Jade Broadsword" },
+    "artifactIn": ["Chaos Orb", "Darksigil"],
+    "subclass": "Bard",
+    "shards": { "Voltaic": 2 },
+    "armourIn": ["Armored Lancer"],
+    "lostScrollIn": ["Metrom's Grasp", "Heavenly Prayer"],
+    "covenantIn": ["Church of Raphion", "Way of Life"]
+  },
+  "soft": ["dominantStat", "raceIn", "gearAtLeast", "enchantIn", "weapon", "artifactIn", "subclass", "shards", "armourIn",
+           "lostScrollIn", "covenantIn"]
+}

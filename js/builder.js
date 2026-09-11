@@ -25,13 +25,11 @@ const races = {
   // Withered Grove races. APPEND ONLY — _L.race is positional in the share
   // encoding, so inserting above would repoint every existing link.
   //
-  // STAT BLOCKS ARE PLACEHOLDERS. The changelog documents both races' passives
-  // and actives in full but never publishes their base stats ("do expect that
-  // some things change from the general design and stat makeup that you see
-  // here"). Zeros mean a build using these races under-counts its base stats
-  // until the real numbers arrive — they are the one missing piece.
-  "Arborivia (3%)": {str: 0, arc: 0, end: 0, lck: 0, spd: 0},
-  "Calvariae (3%)": {str: 0, arc: 0, end: 0, lck: 0, spd: 0}
+  // Base stats supplied by the site owner from the game (2026-09-10). The
+  // changelog documents both races' passives and actives in full but never
+  // published these, so they sat at zero until then.
+  "Arborivia (3%)": {str: 1, arc: 3, end: 2, lck: 3, spd: 1},
+  "Calvariae (3%)": {str: 2, arc: 1, end: 4, lck: 2, spd: 1}
 };
 
 let raceBase = { str: 0, arc: 0, end: 0, lck: 0, spd: 0 };

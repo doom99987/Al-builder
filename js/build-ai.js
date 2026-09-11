@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 40;
+  const ENGINE_V = 41;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -35,6 +35,7 @@
     'tools/ai/optimize.js',
     'tools/ai/explain.js',
     'tools/ai/share.js',
+    'tools/ai/plan.js',
     'tools/ai/engine.js',
   ];
 
@@ -522,6 +523,11 @@
     return '<div class="bai-sec' + (warn ? ' bai-warn' : '') + '"><h3>' + esc(title) + '</h3>' + inner + '</div>';
   }
 
+  // A folded section: the detail is one click away rather than in the way.
+  function folded(title, inner) {
+    return '<details class="bai-sec bai-fold"><summary>' + esc(title) + '</summary>' + inner + '</details>';
+  }
+
   function render(sections) {
     let html = '';
     for (const s of sections) {
@@ -532,7 +538,7 @@
           '<tr><td>' + esc(r[0]) + '</td><td>' + md(r[1]) + '</td></tr>').join('') + '</table>';
       }
       if (s.list) inner += '<ul>' + s.list.map(i => '<li>' + md(i) + '</li>').join('') + '</ul>';
-      html += section(s.h, inner, s.h === 'Watch out');
+      html += s.collapsed ? folded(s.h, inner) : section(s.h, inner, s.h === 'Watch out');
     }
     return html;
   }
@@ -804,7 +810,67 @@
   // <br>: anything fancier is liable to be stripped and there is no reason to
   // find out the hard way. (Both are whitelisted now — <b> was NOT, until the
   // sanitizer was fixed, so every generated summary quietly lost its emphasis.)
+  // The builder's summary box, in the community's shape - one line a slot,
+  // read from the BuildPlan. <b>, <br> and <i> only: that is what the site's
+  // summary sanitizer keeps.
   function summaryHtmlFor(res, ctx, spec) {
+    const plan = res && res.plan;
+    if (!plan) return summaryHtmlForLegacy(res, ctx, spec);
+    const S = plan.slots, st = plan.stats, L = [];
+    const pctOf = d => Math.round(d * 100) + '%';
+    const alts = sl => (sl.alternatives || []).filter(a => a.delta == null || a.delta <= 0.10).slice(0, 3)
+      .map(a => (a.name || 'none') + (a.delta == null ? '' : a.delta <= 0.005 ? ' (ties)' : ' (-' + pctOf(a.delta) + ')')).join(', ');
+    const or = sl => { const t = alts(sl); return t ? ' — or ' + t : ''; };
+    const opt = sl => sl.priority === 'optional' ? ' (optional)' : sl.priority === 'must' ? ' (must-have)' : '';
+    const stl = window.ALB_Explain && window.ALB_Explain.statLineText ? window.ALB_Explain.statLineText(st.line) : '';
+
+    if (plan.summary.name) L.push('<b>' + esc(plan.summary.name) + '</b> — ' + esc(plan.summary.line || ''));
+    L.push('<b>Built for:</b> ' + esc(plan.summary.role || plan.summary.goalLabel || '') +
+           (plan.request.boss ? ' vs ' + esc(plan.request.boss) : '') +
+           (plan.request.play === 'team' ? ', full team' : plan.request.play === 'solo' ? ', solo' : '') +
+           (plan.request.minmax ? ' (min-maxed)' : ''));
+    L.push('<b>Stats:</b> ' + esc(stl || '—'));
+    L.push('<b>Gears:</b> ' + S.gear.map(g => esc(g.chosen) + (g.replaceable && alts(g) ? ' (or ' + esc(alts(g)) + ')' : '')).join(', '));
+    if (st.tierPriority) L.push('<b>Tier bonuses:</b> ' + esc(st.tierPriority.slice(0, 3).map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(' ≥ ')));
+    L.push('<b>Enchant:</b> ' + esc(S.enchant.chosen || 'any') + esc(or(S.enchant)));
+    L.push('<b>Mark:</b> ' + esc(S.mark.chosen || 'none') + esc(opt(S.mark)) +
+           (S.mark.permuth ? ' — Permuth on ' + esc(S.mark.permuth.stat.toUpperCase()) : ''));
+    L.push('<b>Race:</b> ' + esc([S.race.chosen].concat((S.race.alternatives || []).slice(0, 3).map(a => a.name +
+           (a.delta == null ? '' : a.delta <= 0.005 ? ' (ties)' : ' (-' + pctOf(a.delta) + ')'))).join(' ≥ ')));
+    L.push('<b>Weapon:</b> ' + esc(S.weapon.chosen || 'none') + (S.weapon.type ? ' (' + esc(S.weapon.type) + ')' : '') + esc(or(S.weapon)));
+    L.push('<b>Artifact:</b> ' + esc(S.artifact.chosen || 'none') + esc(or(S.artifact)));
+    L.push('<b>Subclass:</b> ' + esc(S.subclass.chosen || 'none') + esc(or(S.subclass)));
+    L.push('<b>Weapon shards:</b> ' + esc(S.shards.summary || 'none'));
+    L.push('<b>Armour:</b> ' + esc(S.armour.chosen || 'none') +
+           (S.armour.runnerUp ? ' — beats ' + esc(S.armour.runnerUp.name) + (S.armour.runnerUp.delta <= 0.005 ? ' (ties)' : ' by ' + pctOf(S.armour.runnerUp.delta)) : ''));
+    L.push('<b>Mastery:</b> ' + esc(S.mastery.notation || '—') + (S.mastery.getFirst ? ' — get ' + esc(S.mastery.getFirst.name) + ' first' : ''));
+    L.push('<b>Lost scroll:</b> ' + esc(S.lostScroll.chosen || 'none') + esc(or(S.lostScroll)));
+    L.push('<b>Covenant:</b> ' + esc([S.covenant.chosen || 'none'].concat((S.covenant.alternatives || []).slice(0, 2).map(a => a.name)).join(' ≥ ')) +
+           (S.covenant.rank ? ' (rank ' + S.covenant.rank + ')' : ''));
+    L.push('<b>Corruption form:</b> ' + esc(S.corruption.chosen || 'none') + (S.corruption.why ? ' — ' + esc(S.corruption.why) : ''));
+    L.push('<b>Trait orbs:</b> ' + esc(S.traits.summary || 'none'));
+
+    const play = [];
+    const rot = plan.rotation;
+    if (rot.opener.length) play.push(rot.opener.map(x => x.move).join(' → ') + (rot.finisher ? ' → ' + rot.finisher : ''));
+    else if (rot.finisher) play.push('lead with ' + rot.finisher);
+    if (plan.play.boss && plan.play.boss.killTurns) play.push('about ' + Math.ceil(plan.play.boss.killTurns) + ' turns to kill ' + plan.play.boss.name + ' at sustained damage');
+    for (const t of plan.play.tactics) play.push(t);
+    for (const n of plan.play.notes) play.push(n.move + ': ' + n.note);
+    if (play.length) L.push('<b>How to play:</b> ' + esc(play.join('. ')));
+
+    const gaps = [];
+    if (plan.gaps.passivesNotCounted.length) gaps.push(plan.gaps.passivesNotCounted.length + ' class/race passives');
+    if (plan.gaps.gearNotCounted.length) gaps.push(plan.gaps.gearNotCounted.length + ' gear passives');
+    if (plan.gaps.masteryNotCounted.length) gaps.push(plan.gaps.masteryNotCounted.length + ' mastery capstones');
+    gaps.push('conditional buffs');
+    L.push('<i>Not counted in the numbers: ' + esc(gaps.join(', ')) + '. ' +
+           esc((plan.gaps.assumed || []).join('; ')) + (plan.gaps.assumed.length ? '.' : '') + '</i>');
+    L.push('<i>Generated by Build AI.</i>');
+    return L.join('<br>');
+  }
+
+  function summaryHtmlForLegacy(res, ctx, spec) {
     const n1 = v => (Math.round(v * 10) / 10).toLocaleString();
     const L = [];
 
@@ -911,13 +977,17 @@
         // Third copy of this switch, and the third time it has had to learn a
         // kind. A flat +23 Speed rendered here as "+23% damage" and 100 dodge as
         // "+100% damage" - wrong in the way that reads as perfectly plausible.
-        const unit = a.kind === 'critChance' ? ' crit chance'
-                   : a.kind === 'dr'        ? '% DR'
-                   : a.kind === 'dodge'     ? '% autododge'
-                   : a.kind === 'statFlat'  ? ' flat ' + String(a.stat || 'spd').toUpperCase()
-                   :                          '% damage';
-        niches.push('<b>' + esc(a.name) + ' (mastery):</b> +' + a.value + unit +
-                    (a.uptime < 1 ? ', counted at ' + Math.round(a.uptime * 100) + '% uptime' : ', always on') +
+        const unit = a.kind === 'critChance'   ? ' crit chance'
+                   : a.kind === 'dr'           ? '% DR'
+                   : a.kind === 'dodge'        ? '% autododge'
+                   : a.kind === 'statFlat'     ? ' flat ' + String(a.stat || 'spd').toUpperCase()
+                   : a.kind === 'outHealPct'   ? '% outgoing healing'
+                   : a.kind === 'incHealPct'   ? '% incoming healing'
+                   : a.kind === 'lifestealPct' ? '% lifesteal'
+                   :                            '% damage';
+        niches.push('<b>' + esc(a.name) + ' (mastery):</b> ' + (a.value < 0 ? '' : '+') + a.value + unit +
+                    (a.onSite ? ', already in the site\'s own maths'
+                     : a.uptime < 1 ? ', counted at ' + Math.round(a.uptime * 100) + '% uptime' : ', always on') +
                     (a.note ? ' — ' + esc(a.note) : ''));
       }
     }

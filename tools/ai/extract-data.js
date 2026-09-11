@@ -91,6 +91,12 @@ const WANTED = [
   // build can be aimed at a specific fight - Seraphon heals off the debuffs you
   // stack on it, so the best general build is a bad Seraphon build.
   ['js/encyclopedia.js', 'literal', ['BOSS_MOVE_DATA']],
+  // Boss HP and per-element resistances. Without these a boss-targeted build
+  // can be filtered by immunities but never priced against the fight: a Fire
+  // kit and a Physical kit read the same against Yar'thul, and "fastest" can
+  // only ever mean "faster than the alternatives" because there is no HP to
+  // divide by.
+  ['js/builder.js', 'literal', ['BOSS_DATA']],
 ];
 
 // ── extraction ──────────────────────────────────────────────────────────────
@@ -237,6 +243,48 @@ function extractAll() {
     if (Object.keys(passives).length) {
       data.itemPassives = passives;
       found.push(['itemPassives (mkPassive)', 'object{' + Object.keys(passives).length + '}']);
+    }
+  }
+
+  // Gear ACTIVES. mkPassive() covers the passives, but a handful of gears grant
+  // a castable move instead - Divine Promise's Divine Gift, The Smallest
+  // Boulder's Boulder Buddy - and those are plain move objects inside gearMoves.
+  // The literal cannot be read as data because it calls mkPassive and names
+  // passive consts defined above it, so it is run with stubs for both and only
+  // the Active learns are kept, keyed by gear. A gear whose whole content is an
+  // active used to be invisible here: not priced, and not even listed under
+  // "not counted".
+  {
+    const src = read('js/builder.js');
+    const m = /(?:const|let|var)\s+gearMoves\s*=\s*(\{)/.exec(src);
+    const actives = {};
+    if (m) {
+      const start = m.index + m[0].length - 1;
+      const end = matchFrom(src, start);
+      if (end > 0) {
+        const slice = src.slice(start, end + 1);
+        // Every bare identifier ending in "Passive" is a const defined above the
+        // literal; the stub makes each an inert Passive entry.
+        const idents = Array.from(new Set((slice.match(/\b[A-Za-z_]\w*Passive\b/g) || [])
+          .filter(x => x !== 'mkPassive')));
+        let table = null;
+        try {
+          // eslint-disable-next-line no-new-func -- first-party source; see header
+          table = new Function('mkPassive', ...idents, 'return (' + slice + ');')(
+            (name, effect) => ({ type: 'Passive', name, effect }),
+            ...idents.map(() => ({ type: 'Passive' })));
+        } catch { table = null; }
+        for (const [gear, def] of Object.entries(table || {})) {
+          const acts = ((def && def.learns) || []).filter(l => l && l.type === 'Active');
+          if (acts.length) actives[gear] = acts;
+        }
+      }
+    }
+    if (Object.keys(actives).length) {
+      data.gearActives = actives;
+      found.push(['gearActives (parsed)', 'object{' + Object.keys(actives).length + '}']);
+    } else {
+      missing.push('gearActives  (parsed from gearMoves in js/builder.js)');
     }
   }
 

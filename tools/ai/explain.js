@@ -19,7 +19,168 @@
   const n1 = v => (Math.round(v * 10) / 10).toLocaleString();
   const n0 = v => Math.round(v).toLocaleString();
 
+  // "60 End (+35% incoming healing) · 110 Arc (-1 cooldown on Holy Grace, Cleansing
+  // Prayer) · rest Str (84)" - the community's stat line, from build._statLine.
+  function statLineText(line) {
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    const parts = [];
+    for (const x of line || []) {
+      if (x.reason === 'perk') {
+        parts.push(x.total + ' ' + cap(x.stat) + ' (' + x.perk +
+                   (x.moves && x.moves.length ? ' on ' + x.moves.slice(0, 3).join(', ') : '') +
+                   (x.capped ? '; capped at ' + x.total : '') + ')');
+      } else if (x.reason === 'critTier') {
+        parts.push(x.total + ' ' + cap(x.stat) + ' (crit tier ' + x.tier + ')');
+      } else if (x.reason === 'rest') {
+        parts.push('rest ' + cap(x.stat) + ' (' + x.total + (x.also ? ', ' + x.also + ' on the way' : '') + ')');
+      } else if (x.reason === 'cap') {
+        parts.push(x.total + ' ' + cap(x.stat) + ' (capped on the breakpoint - past it a stat falls off)');
+      }
+    }
+    return parts.join('  ·  ');
+  }
+
+  // ── the community shape ─────────────────────────────────────────────────
+  // The sections a player reads on a build post, in that order, every one of
+  // them read from the BuildPlan (plan.js) and nothing else. The detailed
+  // sections that used to be the whole write-up follow, folded, so the honesty
+  // is still one click away rather than in the way.
+  const pct = d => Math.round(d * 100) + '%';
+  const altText = sl => (sl.alternatives || [])
+    .filter(a => a.delta == null || a.delta <= 0.10).slice(0, 3)
+    .map(a => (a.name || 'none') + (a.delta == null ? '' : a.delta <= 0.005 ? ' (ties)' : ' (-' + pct(a.delta) + ')'))
+    .join(', ');
+  const tag = sl => sl.priority === 'must' ? '  — **must-have**' : sl.priority === 'optional' ? '  — optional' : '';
+  const orLine = sl => { const t = altText(sl); return t ? '  Or: ' + t + '.' : ''; };
+  const chain = (chosen, alts) => [chosen || 'none'].concat((alts || []).slice(0, 3).map(a =>
+    (a.name || 'none') + (a.delta == null ? '' : a.delta <= 0.005 ? ' (ties)' : ' (-' + pct(a.delta) + ')'))).join('  ≥  ');
+  // A note that already ends in a full stop does not get a second one.
+  const why = t => t ? ' — ' + (/[.!?]$/.test(String(t).trim()) ? String(t).trim().slice(0, -1) : String(t).trim()) : '';
+  const allocText = a => Object.entries(a || {}).filter(([, v]) => v).map(([k, v]) => '+' + v + ' ' + k.toUpperCase()).join(', ');
+
+  function communitySections(plan, spec, K, data) {
+    const S = plan.slots, st = plan.stats, L = [];
+    const mark = x => Object.assign({ community: true }, x);
+
+    // Stats
+    const decay = st.breakpoints.decay;
+    L.push(mark({ h: 'Stats', table: [
+      ['Line', statLineText(st.line) || '—'],
+      ['Totals', ['str','arc','end','spd','lck'].map(k => k.toUpperCase() + ' ' + (st.total[k] ?? '—')).join('  ·  ') +
+                 '   (base + mastery + gear: the site\'s stat row' + (st.permuth ? ', Permuth off' : '') + ')'],
+      ['Invested', ['str','arc','end','spd','lck'].map(k => k.toUpperCase() + ' ' + (st.invested[k] | 0)).join('  ·  ')],
+      ['Rule', 'a stat sits on a breakpoint (25 / 60 / 110) or under the ~' + (decay ? decay.knee : 100) +
+               ' fall-off; one rest stat takes what is left' +
+               (st.breakpoints.deadZone.length ? '.  ' + st.breakpoints.deadZone.map(x => x.toUpperCase()).join(', ') +
+                ' sits in the dead zone and there was no better line' : '')],
+    ].concat(st.soulNote ? [['Soul tree', st.soulNote]] : []) }));
+
+    // Gears
+    L.push(mark({ h: 'Gears', list: S.gear.map(g =>
+      '**' + g.chosen + '**' + (g.tier ? ' (T' + g.tier + (allocText(g.alloc) ? ': ' + allocText(g.alloc) : '') + ')' : '') +
+      (g.traits.length ? '  [' + g.traits.map(t => t.name).join(', ') + ']' : '') +
+      why(g.why) + '.' + orLine(g) + tag(g)) }));
+
+    // Tier bonuses
+    L.push(mark({ h: 'Tier bonuses', body:
+      (st.tierPriority ? st.tierPriority.slice(0, 3).map(k => k.charAt(0).toUpperCase() + k.slice(1)).join(' ≥ ') : '—') +
+      ' — measured per point on this build, with any stat a shape can carry onto a breakpoint first.  ' +
+      [st.tierPoints.artifact && allocText(st.tierPoints.artifact.alloc) ? 'Artifact ' + allocText(st.tierPoints.artifact.alloc) : null,
+       st.tierPoints.weapon && allocText(st.tierPoints.weapon.alloc) ? 'Weapon ' + allocText(st.tierPoints.weapon.alloc) : null]
+        .filter(Boolean).join('; ') }));
+
+    // Enchant, Mark
+    L.push(mark({ h: 'Enchant', body: (S.enchant.chosen || 'none') + why(S.enchant.why) + '.' + orLine(S.enchant) + tag(S.enchant) }));
+    L.push(mark({ h: 'Mark', body: (S.mark.chosen || 'none') + why(S.mark.why) +
+      (S.mark.permuth ? '  Permuth on ' + S.mark.permuth.stat.toUpperCase() + ' (not in the totals).' : '.') + orLine(S.mark) + tag(S.mark) }));
+
+    // Race, ranked
+    const raceAlts = (S.race.alternatives || []);
+    L.push(mark({ h: 'Race', body: chain(S.race.chosen, raceAlts) + tag(S.race),
+      list: [S.race.chosen + why(S.race.why)]
+        .concat(raceAlts.slice(0, 3).map(a => a.name + why(a.why) + (a.full === false ? ' (coarse estimate)' : ''))) }));
+
+    // Weapon, Artifact, Subclass
+    L.push(mark({ h: 'Weapon', body: (S.weapon.chosen || 'none') +
+      (S.weapon.type ? ' (' + S.weapon.type + (S.weapon.tiered ? ', T' + S.weapon.tier + (allocText(S.weapon.alloc) ? ': ' + allocText(S.weapon.alloc) : '') : ', untiered') + ')' : '') +
+      why(S.weapon.why) + '.' + orLine(S.weapon) + tag(S.weapon) }));
+    L.push(mark({ h: 'Artifact', body: (S.artifact.chosen || 'none') +
+      (S.artifact.tier ? ' (T' + S.artifact.tier + (allocText(S.artifact.alloc) ? ': ' + allocText(S.artifact.alloc) : '') + ')' : '') +
+      (S.artifact.traits.length ? '  [' + S.artifact.traits.map(t => t.name).join(', ') + ']' : '') +
+      why(S.artifact.why) +
+      (S.artifact.roleMargin != null ? ' (chosen for the role, ' + S.artifact.roleMargin + '% behind the top score)' : '') + '.' + orLine(S.artifact) + tag(S.artifact) }));
+    L.push(mark({ h: 'Subclass', body: (S.subclass.chosen || 'none') + why(S.subclass.why) + '.' + orLine(S.subclass) + tag(S.subclass) }));
+
+    // Shards, Armour
+    L.push(mark({ h: 'Shards', body: (S.shards.summary || 'none') +
+      (S.shards.inert ? '  — the last ' + S.shards.inert + ' change nothing here; the slots are free so they are not left empty' : '') + '.' }));
+    L.push(mark({ h: 'Armour', body: (S.armour.chosen || 'none') +
+      (S.armour.runnerUp ? ' — beats ' + S.armour.runnerUp.name + (S.armour.runnerUp.delta <= 0.005 ? ' (ties)' : ' by ' + pct(S.armour.runnerUp.delta)) : '') + '.' + tag(S.armour) }));
+
+    // Mastery
+    const m = S.mastery;
+    L.push(mark({ h: 'Mastery', body: (m.notation || '—') + ' (capstones in red-green-blue)' +
+      (m.getFirst ? ' — get ' + m.getFirst.name + ' first' : '') +
+      (m.points.spent != null ? '.  ' + m.points.spent + '/' + m.points.cap + ' points, ' + (m.statNodes || 0) + ' on stat nodes' : '') + '.',
+      list: m.capstones.map(x => x.order + '. **' + x.name + '**' + (x.value ? ' (+' + x.value + '% measured, ' + x.cost + ' points to reach)' : ' (' + x.cost + ' points to reach)')) }));
+
+    // Scrolls, Covenant, Corruption, Trait orbs
+    L.push(mark({ h: 'Lost scroll', body: (S.lostScroll.chosen || 'none') + why(S.lostScroll.why) + '.' + orLine(S.lostScroll) +
+      (S.scrolls.some(x => x.chosen) ? '  Scrolls: ' + S.scrolls.map(x => x.chosen).filter(Boolean).join(', ') + '.' : '') }));
+    L.push(mark({ h: 'Covenant', body: chain(S.covenant.chosen || 'none', S.covenant.alternatives) +
+      (S.covenant.rank ? ' (rank ' + S.covenant.rank + ')' : '') + why(S.covenant.why) +
+      (S.covenant.decidedBy === 'fit' ? '  The top ' + (S.covenant.tied || 2) + ' measured the same, so this is a recommendation rather than a result.' : '') }));
+    L.push(mark({ h: 'Corruption form', body: (S.corruption.chosen || 'none') + why(S.corruption.why) }));
+    L.push(mark({ h: 'Trait orbs', body: S.traits.summary || 'none measured' }));
+
+    // How to play
+    const play = [];
+    const rot = plan.rotation;
+    if (rot.opener.length) play.push('Open: ' + rot.opener.map(x => '**' + x.move + '**').join(' → ') +
+      (rot.finisher ? ' → **' + rot.finisher + '** for ~' + Math.round(rot.bestBurst || rot.bestHit || 0) : ''));
+    else if (rot.finisher) play.push('Lead with **' + rot.finisher + '** (~' + Math.round(rot.bestHit || 0) + ' a hit, ' + Math.round(rot.sustainedHit || 0) + ' sustained).');
+    if (rot.heals.length) play.push('Heals: ' + rot.heals.slice(0, 3).map(h => '**' + h.name + '** ~' + Math.round(h.amount) + ' every ' + h.cd).join(', ') + '.');
+    if (rot.inForm.length) play.push('In ' + (S.corruption.chosen || 'form') + ': ' + rot.inForm.map(x => x.move).join(' → ') + '.');
+    if (plan.play.boss) {
+      const bz = plan.play.boss;
+      play.push('**' + bz.name + '**' + (bz.hp ? ': ' + bz.hp + ' HP' + (bz.hpCorrupted ? ' (' + bz.hpCorrupted + ' Corrupted)' : '') : '') +
+        (bz.killTurns ? ' — about ' + Math.ceil(bz.killTurns) + ' turns of sustained damage' + (bz.killTurnsCorrupted ? ', ' + Math.ceil(bz.killTurnsCorrupted) + ' Corrupted' : '') : '') +
+        (Object.keys(bz.res || {}).length ? '.  Resists: ' + Object.entries(bz.res).map(([k, v]) => k + ' x' + v).join(', ') : '') +
+        (bz.immune.length ? '.  Immune to ' + bz.immune.join(', ') : '') + '.');
+      for (const r of bz.reasons) play.push('Counted as -' + r.pct + '%: ' + r.text);
+    }
+    for (const t of plan.play.tactics) play.push(t);
+    for (const n of plan.play.notes) play.push('**' + n.move + '**: ' + n.note + '.');
+    if (plan.play.hpStance) play.push('Fights hurt on purpose: ' + plan.play.hpStance.sources.map(x => x.passive + ' (' + x.why + ')').join('; ') + '.');
+    if (plan.gaps.assumed.length) play.push('Assumed: ' + plan.gaps.assumed.join('; ') + '.');
+    L.push(mark({ h: 'How to play', list: play.length ? play : ['Nothing to add beyond the kit.'] }));
+    return L;
+  }
+
+  // Headers of the detailed render that belong in FRONT of the community
+  // sections (what was asked, what was assumed, the terse Build table) and the
+  // ones that stay visible at the end. Everything else folds.
+  const FRONT_HEADERS = new Set(['Request', 'Damage model', 'What it gives up', 'Rolled for you',
+                                 'You chose', 'What I assumed', "Couldn't use", 'Build']);
+  const VISIBLE_TAIL = new Set(['Watch out', 'Note']);
+
   function render(result, spec, M, K, data) {
+    const detail = renderDetail(result, spec, M, K, data);
+    const plan = result && result.plan;
+    if (!plan) return detail;
+    const front = [], tail = [];
+    for (const sec of detail) {
+      const isFront = FRONT_HEADERS.has(sec.h) || /^Built for /.test(sec.h) ||
+                      (result.flavour && sec.h === result.flavour.name);
+      if (isFront) front.push(sec);
+      else if (VISIBLE_TAIL.has(sec.h)) tail.push(sec);
+      else tail.push(Object.assign({ collapsed: true }, sec));
+    }
+    return front.concat(communitySections(plan, spec, K, data), tail);
+  }
+
+  // ── the detailed render ─────────────────────────────────────────────────
+  function renderDetail(result, spec, M, K, data) {
     const b = result.build, c = result.ctx;
     const arch = K.ARCHETYPES[spec.goal] || K.ARCHETYPES[K.DEFAULT_GOAL];
     const L = [];
@@ -160,7 +321,9 @@
           : b.shardsInert ? '   — the last ' + b.shardsInert + ' change nothing here' : '')]);
     }
     if (b.masteryNodes && b.masteryNodes.length) {
-      kit.push(['Mastery', b.masteryNodes.length + ' nodes  ·  ' + (b.masteryPoints || 0) + '/' +
+      // a-b-c first: capstones in red-green-blue, the way the community writes it.
+      kit.push(['Mastery', (b.masteryNotation ? b.masteryNotation + '  ·  ' : '') +
+                b.masteryNodes.length + ' nodes  ·  ' + (b.masteryPoints || 0) + '/' +
                 (data.MASTERY_TOTAL_POINTS || 35) + ' points  ·  ' + (b.masteryShards || 0) + ' echo shards']);
     }
     if (b.mark)    kit.push(['Mark', b.mark + (b.permuth ? ' — Permuth on ' + b.permuth.toUpperCase() : '')]);
@@ -230,6 +393,16 @@
     L.push({ h: 'Stat points', table: [
       ['Invested', ['str','arc','end','spd','lck'].map(s => s.toUpperCase() + ' ' + inv[s]).join('  ·  ')],
       ['Totals',   ['str','arc','end','spd','lck'].map(s => s.toUpperCase() + ' ' + c.stats[s]).join('  ·  ')],
+      ['Line',     statLineText(b._statLine) || '—'],
+      ['Breakpoints', (c.milestones && c.milestones.reached.filter(m => m.kind !== 'note').length
+          ? c.milestones.reached.filter(m => m.kind !== 'note').map(m => m.stat.toUpperCase() + ' ' + m.need).join(', ')
+          : 'none counted') +
+        (c.deadZone && c.deadZone.length
+          ? '   — ' + c.deadZone.map(s => s.toUpperCase()).join(', ') + ' sits in the dead zone (past the ~' +
+            ((K.STAT_DECAY || {}).knee || 100) + ' fall-off, short of 110) and there was no better line'
+          : '') +
+        '.  Past ~' + ((K.STAT_DECAY || {}).knee || 100) + ' a stat falls off (the owner\'s rule; the site\'s maths is linear), ' +
+        'so totals sit on a breakpoint or at or under it.'],
       ['HP', n1(c.hp)],
       ['Crit chance', n1(c.critChance) + '%' + (c.critTier ? '  (tier ' + c.critTier + ' — every hit crits)' : '')],
       ['Crit damage', c.critDmg.toFixed(2) + 'x'],
@@ -242,7 +415,13 @@
           ? '   (scored as ' + n1(c.effectiveHeal) + '% with your class healing passive - the site does not add that to its own figure)' : '')],
       ['Max energy', String(c.energyCap ?? '—') +
         (c.traits && c.traits.energyCap ? '  (+' + c.traits.energyCap + ' from Overflow)' : '')],
-    ]});
+    ].concat(b.mark === 'Venia' && b.permuth ? (() => {
+      const P = K.PERMUTH || { duration: 3, cd: 10, cost: 2, chance: 0.5, mult: 1.4 };
+      return [['Permuth', 'on ' + b.permuth.toUpperCase() + ' — x' + P.mult + ' for ' + P.duration + ' turns every ' +
+               P.cd + ' (' + P.cost + ' energy), about a ' + Math.round(P.chance * 100) + '% chance of landing on that ' +
+               'stat. Not in the totals above: the site\'s own stat row shows it as if it were always on, the search ' +
+               'does not.']];
+    })() : []) });
 
     // ── traits ──────────────────────────────────────────────────────────────
     if (c.traits && (c.traits.active.length || c.traits.unmodelled.length)) {
@@ -571,12 +750,26 @@
     if (c.gearPassives && (c.gearPassives.active.length || c.gearPassives.unmodelled.length)) {
       const gp = c.gearPassives;
       if (gp.active.length) {
+        const gunit = a => a.kind === 'critChance'     ? ' crit chance'
+                         : a.kind === 'dr'             ? '% DR'
+                         : a.kind === 'hpPct'          ? '% HP'
+                         : a.kind === 'lifestealPct'   ? '% lifesteal'
+                         : a.kind === 'healFromDmgPct' ? '% of your damage healed to each ally'
+                         : a.kind === 'selfHealFlat'   ? ' HP back a turn'
+                         : a.kind === 'healPctPerTurn' ? '% of max HP back a turn'
+                         : a.kind === 'statRamp'       ? ' to every stat a turn'
+                         :                               '% damage';
+        // Not every kind is a number: a status entry names what it applies and
+        // an on-site entry is already in the site's maths.
+        const glabel = a => a.kind === 'status' ? 'applies ' + (a.statuses || []).join(', ')
+                          : a.kind === 'onSite' ? 'in the site\'s own numbers'
+                          : (a.value < 0 ? '' : '+') + a.value + gunit(a);
         L.push({ h: 'Gear and weapon passives counted', table: gp.active.map(a =>
-          [a.name, '+' + a.value + (a.kind === 'critChance' ? ' crit chance'
-                                  : a.kind === 'dr' ? '% DR'
-                                  : a.kind === 'hpPct' ? '% HP' : '% damage') +
-                   (a.effective !== a.value
+          [a.name, glabel(a) +
+                   (a.kind === 'status' || a.kind === 'onSite' ? ''
+                    : a.effective !== a.value
                      ? '  — counted as ' + n1(a.effective) + ', it is conditional' : '  — always on') +
+                   (a.party ? ' (party)' : '') +
                    (a.note ? '.  ' + a.note : '') +
                    (a.hpGate ? '  ' + a.hpGate.why : '')]) });
       }
@@ -600,15 +793,22 @@
         // of wrong that reads as perfectly plausible.
         // A bugged ability carries no value, so there is no number for a unit
         // to label. It is reported by its note alone, which says it does not work.
-        const unit = a => a.kind === 'bugged'     ? ''
-                        : a.kind === 'critChance' ? ' crit chance'
-                        : a.kind === 'dr'        ? '% DR'
-                        : a.kind === 'dodge'     ? '% autododge'
-                        : a.kind === 'statFlat'  ? ' flat ' + String(a.stat || 'spd').toUpperCase()
-                        :                          '% damage';
+        const unit = a => a.kind === 'bugged'       ? ''
+                        : a.kind === 'critChance'   ? ' crit chance'
+                        : a.kind === 'dr'           ? '% DR'
+                        : a.kind === 'dodge'        ? '% autododge'
+                        : a.kind === 'statFlat'     ? ' flat ' + String(a.stat || 'spd').toUpperCase()
+                        : a.kind === 'outHealPct'   ? '% outgoing healing'
+                        : a.kind === 'incHealPct'   ? '% incoming healing'
+                        : a.kind === 'lifestealPct' ? '% lifesteal'
+                        :                            '% damage';
+        // A capstone that does several things is several rows under one name.
+        // The sign is the value's own: One For All's -30% damage is a cost, and
+        // "+-30%" is not a number anybody reads.
         L.push({ h: 'Mastery abilities counted', table: ma.active.map(a =>
-          [a.name, '+' + a.value + unit(a) +
-                   (a.uptime < 1 ? '  — counted at ' + Math.round(a.uptime * 100) + '% uptime' : '  — always on') +
+          [a.name, (a.value < 0 ? '' : '+') + a.value + unit(a) +
+                   (a.onSite ? '  — already in the site\'s own maths, so not added again here'
+                    : a.uptime < 1 ? '  — counted at ' + Math.round(a.uptime * 100) + '% uptime' : '  — always on') +
                    (a.party ? ', and ×' + a.party + ' because it lands on the party, not just you' : '') +
                    (a.note ? '.  ' + a.note : '')]) });
         if (ma.active.some(a => a.party)) {
@@ -808,5 +1008,5 @@
     return lines.join('\n');
   }
 
-  return { render, toText };
+  return { render, renderDetail, communitySections, statLineText, toText };
 }));

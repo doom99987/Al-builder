@@ -422,10 +422,9 @@ So a rolled goal only draws from races whose roles suit it — `GOAL_RACE_ROLES`
 maps which to which, and `test.js` asserts that 120 damage rolls never produce a
 support or utility race.
 
-Two races are marked `placeholder: true`: **Arborivia** and **Calvariae** have no
-stat block in the data yet (all zeroes). They are excluded from every search,
-because recommending one is recommending an unfinished entry rather than a build.
-Asking for one explicitly still works.
+**Arborivia** and **Calvariae** shipped with zero stat blocks (the changelog never
+published them) and were excluded from every search as unfinished. The owner
+supplied the real numbers from the game, so both are searched like any other race.
 
 Adding a race? Give it a `RACE_ROLES` entry — a test fails if any race in the
 data is unclassified, so it cannot be forgotten.
@@ -668,7 +667,10 @@ node tools/ai/test.js             # offline: parser, search, invariants, encodin
 node tools/ai/test.js --verbose
 ```
 
-121 checks, no dependencies, exit code 1 on failure so it can gate a release. It
+Around 430 checks, no dependencies, exit code 1 on failure so it can gate a release.
+`--only=<text>` runs just the groups and tests whose name contains it (the whole
+suite is minutes long; checking one deliberately broken guard should not be), and
+`--strict-golden` turns the golden corpus's soft expectations into failures. It
 covers intent parsing (including every misspelling and alias), build invariants
 across 27 request styles, reading and improving an existing build, determinism,
 the share container, model arithmetic, and cache-bust consistency.
@@ -889,13 +891,93 @@ ignoring what a Berserker gets for being hurt is half an answer. The numbers are
 the ones the game text states, read at the 50% HP the stance assumes; Bloodlust's
 further +40% below 30% is still not counted, and says so.
 
+## Breakpoints and stat decay
+
+Every community build the site owner supplied has the same stat shape: "60 End,
+110 Arc, rest Str"; "60 End, 60 Luck, 110 Str"; "full Luck"; "full End". One
+stat takes whatever is left over and every other stat you put points in sits
+EXACTLY on a milestone (25 / 60 / 110). The owner's reason is stat decay: past
+about 100 a stat falls off, so you go to 110 for the milestone perk when the
+build uses it and otherwise stop under the knee.
+
+The site's maths is linear and `model.js` mirrors it, so none of this is a
+formula. It is a rule, in three parts:
+
+- **The dead zone.** A site total of 101-109 has paid the fall-off and bought
+  nothing. `evaluate` docks the score `STAT_DECAY.deadZonePenalty` per stat
+  sitting there, and `snapToBreakpoints` moves such a stat up to 110 or down to
+  the knee, whichever the scorer prefers.
+- **Go perfect.** Once the winning build is settled, `goPerfect` tries every
+  stat as the rest, snaps every other invested stat onto a breakpoint, steps
+  each one up or down a breakpoint while that pays, and keeps the best line -
+  judged with points past 110 worth `STAT_DECAY.pastRate` of a point under the
+  knee, which is what makes "rest Str" beat "142 End" on a Saint. Luck sitting
+  on a crit-tier threshold and Speed sitting on the solo boss dodge floor are
+  breakpoints of their own.
+- **The line is the SITE total.** Base + level + race + gear + mastery, the
+  stat row the site shows with Venia's Permuth off. A Coagulated ramp or a
+  Flourish stance is a combat overlay and is scored, not lined.
+
+Venia's Permuth is scored as nothing: the site's row shows it as a permanent
+x1.4, in game it is a 3-turn buff every 10 with a coin-flip on the stat. The
+mark is still worn and the write-up prices it as the buff (`PERMUTH`).
+
+`build._statLine` carries the reason for every number - the perk it sits on,
+the moves a cooldown cut shortens, "rest", "cap", "floor" - and `test.js`
+holds every request to the rule: one rest stat, everything else on a
+breakpoint, nothing in the dead zone.
+
+## Mastery notation
+
+The community writes a mastery tree as `a-b-c`: how many capstone Masteries are
+taken in the red, green and blue branches, two available in each. `0-1-2` is one
+green capstone and both blue ones. `masteryNotation(build)` derives it, the
+write-up leads with it, and `masteryBudget.capstoneOrder` says which to get
+first - the purchase order is the play order.
+
+## The BuildPlan contract - and the LLM seam
+
+`plan.js` composes one structured object for a finished build - every slot with
+what was chosen, what came second and by how much (`bestOfSlot` keeps its
+ranking on `build._alts`, `run()` keeps the race and class ranking), why, and
+the numbers - and every renderer reads FROM it: `explain.js` turns it into the
+community-shaped sections, the site panel turns it into the builder's summary
+box, the CLI's `--json` hands it over whole. `priority` on a slot is the
+community's italics legend, measured: `must` when nothing else comes within
+10%, `optional` when the runner-up ties.
+
+That object is the seam for anything that writes about a build later. A
+language-model write-up, if one is ever wanted, takes the BuildPlan as its ONLY
+input, must not invent a number the plan does not carry, and returns sections in
+the same `{h, body, table, list}` shape so nothing downstream changes. There is
+no network code in this folder and the ToS draft's "does not transmit what you
+enter" stays true until the day that layer exists.
+
+## Golden builds
+
+`tools/ai/golden/*.json` are the owner's community builds as expectations. A
+file names what the reference JUSTIFIES - a milestone reached, a race in a set,
+three of four gears, the mastery notation - never the exact build, so it cannot
+overfit. Keys listed in `soft` warn rather than fail (until `--strict-golden`);
+everything else is a requirement the engine meets today. The suite prints the
+soft misses at the end: that list is the to-do list, and each stage that lands
+promotes what it can from soft to hard. Drop another build in as a new file and
+it runs with no test changes.
+
 ## What it does not model
 
 Being explicit here matters more than the feature list, because a confident
 wrong answer is worse than an admitted gap:
 
-- **Capstone abilities.** Mastery *stats* are modelled; the 5-point capstones
-  grant abilities that are not scored, so the capstone is chosen by branch.
+- **Energy as a flow.** Energy is a cap here, not income per turn: Conduit,
+  Voltaic, Wandering Practitioner's +16.6% energy and the ARC 60 milestone are
+  all listed and none of them is priced. That is the next thing to model - the
+  community's healer wears all four.
+- **Regen.** Per-turn healing (Reaper, Holy Grace Proficiency, Mending) needs a
+  turn loop this model does not have. Listed, never priced.
+- **Stat decay as a mechanic.** The owner's rule - stats fall off past ~100 -
+  is applied as a RULE (see "Breakpoints and stat decay"), not as maths: the
+  site's formulas are linear and `model.js` mirrors them.
 - **Conditional buffs.** Focus Step's flat Speed, Rallying Shout, stance effects
   — the model has hooks for them but the optimiser does not assume they are
   active, so damage figures are pre-buff.
@@ -952,9 +1034,12 @@ prediction of your damage in game.
 
 ## Performance
 
-A request takes ~150ms and searches every class/race pairing, a 14-gear
-shortlist, all armours, the legal weapons, artifacts, 7 shard slots and 10 trait
-slots.
+A request takes ~300ms (the suite's budget is 400) and searches every class/race
+pairing, a 14-gear shortlist, all armours, the legal weapons, artifacts, marks,
+7 shard slots and 10 trait slots, then settles the winner's stat line with the
+"go perfect" pass. It was ~150ms before gear passives, statuses, sustain and the
+alternatives were measured; the extra evaluations are where the quality came
+from, and the budget is held on purpose.
 
 It was ~1000ms before profiling showed the cost was not the search at all but
 recomputation: `moveDamage()` rebuilt all five stat totals for **every move**,

@@ -152,6 +152,30 @@
     // What this build actually DOES, read from its own kit. Used to decide
     // whether an item's passive can ever fire for it — see GEAR_NEEDS.
     const _doesCache = {};
+    // A bounded memo: `keyOf(build)` names what `fn` actually reads. Cleared
+    // outright when it grows, which is simpler than an LRU and just as good
+    // for a search that revisits the same few thousand shapes.
+    function memo(keyOf, fn, cap) {
+      const cache = new Map();
+      return (build, extra) => {
+        const key = keyOf(build, extra);
+        if (cache.has(key)) return cache.get(key);
+        if (cache.size > (cap || 4000)) cache.clear();
+        const v = fn(build, extra);
+        cache.set(key, v);
+        return v;
+      };
+    }
+    const wornKey = build => (build.gear || []).map(g => g.name).join(',') + '|' +
+                             (build.artifact ? build.artifact.name : '') + '|' +
+                             (build.weapon ? build.weapon.name : '') + '|' +
+                             (build.klass || '') + '|' + (build.race || '');
+
+    // Status words as the kit writes them, folded to one name each.
+    const STATUS_FOLD = { bleeding: 'bleed', poisoned: 'poison', burning: 'burn', inferno: 'burn',
+                          stunned: 'stun', hexed: 'hex', chilled: 'cold', frozen: 'cold' };
+    const foldStatus = w => STATUS_FOLD[w] || w;
+
     function buildDoes(build) {
       const key = [build.klass, build.race, build.sub || '', build.covenant || '',
                    build.covenantRank | 0, build.scroll1 || '', build.scroll2 || '',
@@ -159,7 +183,12 @@
       if (_doesCache[key]) return _doesCache[key];
 
       const elements = new Set();
+      // What the kit puts on the enemy, and what it puts on YOU. Both matter:
+      // Reversing and Lasting Life read your own statuses, Shattering and Tear
+      // Blood Crystal read the enemy's.
+      const enemyStatuses = new Set(), selfStatuses = new Set();
       let summons = false, poison = false;
+      const words = (K.STATUS_WORDS || []).filter(w => !/ /.test(w));
       const note = mv => {
         // Elements come from ATTACKS only. An item that puts a status on your
         // Magic attacks gains nothing from a Magic BUFF, and counting one let
@@ -172,6 +201,17 @@
         // light" and convinced the engine that a Saint had summons.
         if (/summons?\b|skeleton|sylph|darkbeast|raise dead/i.test(text)) summons = true;
         if (/\bpoison/i.test(text)) poison = true;
+        // "applies 2 Bleeding to yourself and the enemy" is both lists at once.
+        const lower = text.toLowerCase();
+        if (/\b(appl(?:y|ies)|inflicts?|grants?|puts?)\b/.test(lower)) {
+          const onSelf = /\b(to|on) (yourself|you)\b/.test(lower);
+          for (const w of words) {
+            if (!new RegExp('\\b' + w + '\\b').test(lower)) continue;
+            const st = foldStatus(w);
+            if (isAttack || !onSelf) enemyStatuses.add(st);
+            if (onSelf) selfStatuses.add(st);
+          }
+        }
       };
       const scan = e => { for (const mv of ((e || {}).learns || [])) note(mv);
                           for (const p of ((e || {}).innatePassives || [])) note(p); };
@@ -184,7 +224,29 @@
       for (const n of [build.scroll1, build.scroll2]) if (n) scan((D.scrollMoves || {})[n]);
       if (build.lostScroll) scan((D.lostScrollMoves || {})[build.lostScroll]);
 
-      return (_doesCache[key] = { elements, summons, poison });
+      return (_doesCache[key] = { elements, summons, poison, enemyStatuses, selfStatuses });
+    }
+
+    // The kit's statuses plus the ones worn gear and the weapon add (Ptera's
+    // Heart poisons both sides; Sandstone sunders). One place, so a passive
+    // gated on a status and a shard counting them read the same answer.
+    const statusesOf = memo(
+      b => [b.klass, b.race, b.sub || '', b.covenant || '', b.covenantRank | 0, b.scroll1 || '',
+            b.scroll2 || '', b.lostScroll || '', wornKey(b)].join('|'),
+      build => statusesOfUncached(build));
+    function statusesOfUncached(build) {
+      const does = buildDoes(build);
+      const self = new Set(does.selfStatuses), enemy = new Set(does.enemyStatuses);
+      const add = rule => {
+        if (!rule || rule.kind !== 'status') return;
+        for (const st of (rule.self || [])) self.add(foldStatus(st));
+        for (const st of (rule.enemy || [])) enemy.add(foldStatus(st));
+      };
+      for (const g of build.gear || []) add((K.GEAR_PASSIVES || {})[g.name]);
+      if (build.artifact) add((K.GEAR_PASSIVES || {})[build.artifact.name]);
+      const wpn = build.weapon && build.weapon.name;
+      if (wpn) add((K.WEAPON_PASSIVES || {})[((D.weapons || {})[wpn] || {}).series]);
+      return { self, enemy };
     }
 
     // Can this item's passive ever fire for this build? Returns null when there
@@ -212,7 +274,12 @@
         return need.why;
       }
       if (need.summons) return does.summons ? null : need.why;
-      if (need.poison)  return does.poison  ? null : need.why;
+      // Gear counts as a source: Ptera's Heart feeds Impure Crown.
+      if (need.poison)  return (does.poison || statusesOf(build).enemy.has('poison')) ? null : need.why;
+      if (need.status) {
+        for (const st of statusesOf(build).enemy) if (need.status.test(st)) return null;
+        return need.why;
+      }
       // A blocking item wants a build that is actually being hit and guarding.
       if (need.blocking) return (spec && /tank/.test(spec.goal || '')) ? null : need.why;
       // Anti-synergy rather than a requirement: it is worse in a party.
@@ -389,9 +456,17 @@
     // Procs with a stated chance, turned into what they are expected to do.
     // Reported on every build, not only boss ones: "33% to apply an extra
     // status" is a build property, and it was being ignored entirely.
-    function procTotals(build) {
+    // debuffLoad and statusLoad read the CLASS's move text, which is the same
+    // on every evaluate of a request; the profile had them at a tenth of it.
+    const debuffLoadOf = memo(b => b.klass || '', b => K.debuffLoad(movesOf(b)));
+    const statusLoadOf = memo((b, boss) => (b.klass || '') + '|' + (boss && boss.name) + '|' + ((boss && boss.statusImmune) || []).join(','),
+                              (b, boss) => K.statusLoad(movesOf(b), boss.statusImmune));
+    const procTotals = memo(
+      b => wornKey(b) + '|' + (b.mark || '') + '|' + (b.armour || '') + '|' + (b.permuth || ''),
+      b => procTotalsUncached(b));
+    function procTotalsUncached(build) {
       const worn = wornNames(build);
-      const load = K.debuffLoad(movesOf(build));
+      const load = debuffLoadOf(build);
       const gain = K.procStatusGain(worn, load);
       const listed = [], traps = [];
       for (const name of worn) {
@@ -423,12 +498,22 @@
       return (_bossCache[spec.boss] = p);
     }
 
+    // Solo against a boss that has to be dodged, Speed has a floor (bossFit
+    // prices falling short of it). The stat line treats that floor as a
+    // breakpoint of its own, so "go perfect" never snaps Speed under it.
+    function speedFloor(spec) {
+      if (!spec || spec.play !== 'solo' || !spec.boss) return 0;
+      const boss = bossFor(spec);
+      if (!boss || boss.dodgeIrrelevant) return 0;
+      return K.BOSS_SOLO_MIN_SPEED || 0;
+    }
+
     // Multiplier on this build's damage for the chosen fight, plus why.
     function bossFit(build, spec, ctx) {
       const boss = bossFor(spec);
       if (!boss) return { mult: 1, boss: null, reasons: [] };
       const moves = movesOf(build);
-      const load = K.debuffLoad(moves);
+      const load = debuffLoadOf(build);
       const reasons = [];
       let mult = 1;
       // A proc that applies extra statuses makes a debuff kit worse here, not
@@ -459,7 +544,7 @@
       // nothing but its direct damage. Assassin into Handaconda is the case:
       // three of its five moves are about Poison, and Handaconda is immune.
       if (boss.statusImmune.length) {
-        const inert = K.statusLoad(moves, boss.statusImmune);
+        const inert = statusLoadOf(build, boss);
         if (inert.applying > 0) {
           const P = K.BOSS_PENALTIES;
           const penalty = Math.min(P.immuneCap, P.immuneShare * inert.share);
@@ -531,6 +616,14 @@
     // ── evaluation ───────────────────────────────────────────────────────────
     // One place turns a build into a score. Everything else just proposes builds.
     function evaluate(build, spec) {
+      // Permuth is scored as NOTHING. model.js mirrors the site's stat row,
+      // where Venia's Permuth reads as a permanent x1.4 on one stat; in game it
+      // is a 2-energy, 10-turn-cooldown, 3-turn buff with about a 50% chance of
+      // landing on the stat you wanted. Searching with it on overstated every
+      // build's main stat by up to 40% and put "Total" forty points away from
+      // what the community means by the word. The mark is still worn and still
+      // in the share link; the write-up prices it as the buff it is (K.PERMUTH).
+      if (build.permuth && build.mark === 'Venia') build = Object.assign({}, build, { permuth: '' });
       const d = M.derived(build);
       const moves = kitFor(build, build.klass || spec.klass || '');
 
@@ -541,19 +634,48 @@
       const pv = passiveTotals(build);
       const gp = gearPassiveTotals(build);
       const ma = masteryAbilityTotals(build, spec);
-      const sh = M.shardTotals(build, K);
+      // The statuses this build puts on itself and on the enemy - from the kit
+      // and from the gear - which is what Reversing and Shattering count.
+      const baseStatuses = statusesOf(build);   // memoised - copied, never added into
+      const statuses = { self: new Set(baseStatuses.self), enemy: new Set(baseStatuses.enemy) };
+      for (const st of gp.selfStatuses) statuses.self.add(st);
+      for (const st of gp.enemyStatuses) statuses.enemy.add(st);
+      const sh = M.shardTotals(build, K, { selfStacks: Math.max(1, statuses.self.size),
+                                           targetStacks: Math.max(3, statuses.enemy.size) });
       const en = (K.ENCHANTS || {})[build.enchant];
-      const enPct = en && en.kind === 'dmgPct' ? en.value * (en.uptime ?? 1) : 0;
+      const enUp = en ? (en.uptime ?? 1) : 0;
+      const enPct = en && en.kind === 'dmgPct' ? en.value * enUp : 0;
+      const enOutHeal = en && en.kind === 'outHealPct' ? en.value * enUp : 0;
+      const enIncHeal = en ? (en.incHealPct || 0) * enUp : 0;
+      const mk = (K.MARK_ABILITIES || {})[build.mark];
+      const markHealPct = mk ? (mk.effects || []).filter(e => e.kind === 'healPctPerTurn')
+                                 .reduce((a, e) => a + e.value * (e.uptime ?? 1), 0) : 0;
+      // Aimed at a fight: every hit is scaled by that boss's resistance to the
+      // move's element. Physical is Physical; Magic reads the Arcane column.
+      const bossData = spec.boss ? (D.BOSS_DATA || {})[spec.boss] : null;
+      const bossRes = bossData && bossData.res ? bossData.res : null;
+      const resFor = mv => {
+        if (!bossRes) return 1;
+        const el = String(mv.moveType || '').trim();
+        const key = /^(magic|arcane)$/i.test(el) ? 'Arcane' : el.charAt(0).toUpperCase() + el.slice(1).toLowerCase();
+        const v = bossRes[key];
+        return typeof v === 'number' ? v : 1;
+      };
 
       // A flat stat from a mastery has to reach the stats everything else reads,
       // or the ability probes as worth nothing and is never bought. Overlaid on
       // a COPY: d.stats is what the build reports, and it has to keep matching
       // what the site will show.
-      const maFlat = ma.statFlat;
-      const hasFlat = STATS.some(k => maFlat[k] > 0);
+      // The site's own totals, before any combat overlay. The stat LINE - the
+      // breakpoints, the dead zone, "60 End, 110 Arc, rest Str" - is read from
+      // these: a Coagulated ramp or a Flourish stance is not where your points
+      // are, it is what happens to them in a fight.
+      const siteStats = d.stats;
+      const maFlat = ma.statFlat, gpFlat = gp.statFlat;
+      const hasFlat = STATS.some(k => maFlat[k] > 0 || gpFlat[k] > 0);
       if (hasFlat) {
         d.stats = Object.assign({}, d.stats);
-        for (const k of STATS) if (maFlat[k]) d.stats[k] += maFlat[k];
+        for (const k of STATS) d.stats[k] += (maFlat[k] || 0) + (gpFlat[k] || 0);
       }
 
       const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance + ma.critChance;
@@ -597,6 +719,10 @@
           rotation.push({ move: su.move, gain: null, note: su.note, uptime });
         } else if (su.kind === 'summonDmgPct') {
           rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+        } else {
+          // Anything this scorer has no column for (an ally buff, say) is still
+          // part of the rotation and is listed as such.
+          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
         }
       }
 
@@ -613,7 +739,7 @@
 
       let bestHit = 0, bestMove = null, bestBurst = 0, burstMove = null, sustainedHit = 0;
       for (const mv of moves) {
-        let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx });
+        let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * resFor(mv);
         let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + gp.dmgPct + ma.dmgPct;
 
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
@@ -650,14 +776,14 @@
         }
         // Recompute from the pre-multiplier damage so the buffs compound properly.
         const preMult = dmg;
-        const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * (1 + pct / 100) : preMult;
+        const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * resFor(mv) * (1 + pct / 100) : preMult;
         const burst = withStats * (1 + openPct / 100) * buffedMult;
         const sust  = preMult   * (1 + sustPct / 100) * mult;
         if (burst > bestBurst) { bestBurst = burst; burstMove = mv; }
         if (sust > sustainedHit) sustainedHit = sust;
       }
       const ctx = {
-        stats: d.stats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
+        stats: d.stats, siteStats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
         blockDr: d.blockDr + tt.dr + gp.dr + ma.dr + pv.dr + setupDr,
         outHeal: d.outHeal, incHeal: d.incHeal,
@@ -700,19 +826,30 @@
       if (ctx.milestones.dodgePct) ctx.effectiveHp = ctx.hp /
         Math.max(0.05, 1 - Math.min(95, ctx.dodge + ctx.milestones.dodgePct) / 100);
 
+      // ── stat decay (the owner's rule, not the site's maths) ───────────────
+      // A total sitting past the ~100 knee and short of the 110 perk is in the
+      // dead zone: it has paid the fall-off and bought nothing for it. The
+      // scorer docks each such stat a little (K.STAT_DECAY), which is what
+      // makes the allocator's snap to a "perfect" line actually win.
+      const decay = K.STAT_DECAY || null;
+      ctx.deadZone = decay
+        ? STATS.filter(s => (ctx.siteStats[s] || 0) > decay.knee && (ctx.siteStats[s] || 0) < decay.next)
+        : [];
+
       // Healing the site does not apply to its own percentage - class passives
       // and stat milestones - folded into SEPARATE figures the healing and tank
       // archetypes score on, so the Heal out/in numbers this build reports stay
       // the ones the site will show.
-      const outBonus = ((ctx.passives || {}).outHealPct || 0) + ctx.milestones.outHealPct;
+      const outBonus = ((ctx.passives || {}).outHealPct || 0) + ctx.milestones.outHealPct + ma.outHealPct + enOutHeal;
       ctx.effectiveHeal = ctx.outHeal * (1 + outBonus / 100);
-      ctx.effectiveIncHeal = ctx.incHeal + ctx.milestones.incHealPct;
+      ctx.effectiveIncHeal = ctx.incHeal + ctx.milestones.incHealPct + ma.incHealPct + pv.incHealPct + enIncHeal;
 
       // ── how much you heal, and how often ──────────────────────────────────
       // A cooldown cut is worth exactly what it lets you repeat, so the two are
       // computed together. Race cuts are flat; milestone cuts are element-gated
-      // (STR 110 shortens Magic attacks, ARC 110 shortens Physical ones), so a
-      // Holy heal gets nothing from either milestone and everything from Sheea.
+      // the way the owner plays it (K.MILESTONE_CD_AFFINITY: ARC 110 shortens
+      // every non-Physical move, Holy heals included; STR 110 shortens
+      // Physical), and they stack with Sheea.
       const flatCut = (ctx.passives || {}).cdCut || 0;
       ctx.cdCutFlat = flatCut;
       const cdFor = mv => {
@@ -749,12 +886,47 @@
 
       ctx.heals = healMoves.sort((a, b) => b.perTurn - a.perTurn);
       ctx.bestHeal = bestHeal;
+      // A heal that comes off your damage (Parasitic Leech) is a proper heal to
+      // the rest of the party: scaled by outgoing healing, counted for the
+      // allies it reaches, and worth nothing solo.
+      const su = K.SUSTAIN || { horizon: 6, attackShare: 0.5 };
+      ctx.teamHealPerTurn = 0;
+      if (gp.healFromDmgPct > 0 && spec.play === 'team') {
+        const allies = partyScale(spec) - 1;
+        ctx.teamHealPerTurn = ctx.sustainedHit * su.attackShare * (gp.healFromDmgPct / 100) * healMult * allies;
+        perTurn += ctx.teamHealPerTurn;
+      }
       ctx.healPerTurn = perTurn;
 
-      // Aimed at a boss, the score is how fast THIS build kills THAT boss.
+      // ── sustain ───────────────────────────────────────────────────────────
+      // Health back that is not a heal move: lifesteal off your attacks, flat
+      // HP back a turn (Broken Bones), a share of max HP back a turn (Utor).
+      // None of it is HP, so it goes into a THIRD survival figure the tank and
+      // healer archetypes read: effective HP plus what comes back over an
+      // assumed stretch of the fight. K.SUSTAIN says how long, and how many of
+      // your turns are attacks.
+      ctx.lifesteal = (sh.lifesteal || 0) + ma.lifestealPct + gp.lifestealPct + pv.lifestealPct;
+      const incMult = (ctx.effectiveIncHeal || 100) / 100;
+      const outMult = (ctx.effectiveHeal || 100) / 100;
+      ctx.sustainPerTurn = ctx.sustainedHit * (ctx.lifesteal / 100) * su.attackShare
+                         + (gp.selfHealFlat + pv.selfHealFlat) * incMult
+                         + ctx.hp * ((gp.healPctPerTurn + markHealPct) / 100) * incMult * outMult;
+      ctx.effectiveHpSustain = ctx.effectiveHp + ctx.sustainPerTurn * su.horizon;
+      ctx.statuses = { self: [...statuses.self], enemy: [...statuses.enemy] };
+
+      // Aimed at a boss, the score is how fast THIS build kills THAT boss - and
+      // with BOSS_DATA extracted, "how fast" is a number of turns at last.
       const fit = bossFit(build, spec, ctx);
+      if (fit.boss && bossData) {
+        fit.hp = bossData.hp || null;
+        fit.hpCorrupted = (bossData.hpVariants || {}).Corrupted || null;
+        fit.res = bossRes || {};
+        fit.killTurns = fit.hp && ctx.sustainedHit > 0 ? fit.hp / ctx.sustainedHit : null;
+        fit.killTurnsCorrupted = fit.hpCorrupted && ctx.sustainedHit > 0 ? fit.hpCorrupted / ctx.sustainedHit : null;
+      }
       ctx.bossFit = fit;
-      ctx.score = (blendScore(ctx, spec, arch) + 1e-6 * ctx.bestHit) * fit.mult;
+      ctx.score = (blendScore(ctx, spec, arch) + 1e-6 * ctx.bestHit) * fit.mult
+                * (1 - (decay ? decay.deadZonePenalty : 0) * ctx.deadZone.length);
       return ctx;
     }
 
@@ -949,23 +1121,403 @@
       }
 
       build.invested = snapshot;
-      return best;
+      snapToBreakpoints(build, spec);
+      return evaluate(build, spec).score;
+    }
+
+    // ── "go perfect" ─────────────────────────────────────────────────────────
+    // The owner's rule for a stat line: land on a breakpoint (25 / 60 / 110) or
+    // stay at or under the ~100 knee where stats fall off. 101-109 is the dead
+    // zone - past the fall-off, short of the perk - and the hill-climb has no
+    // reason to leave it, because the maths it climbs is linear. So for every
+    // stat sitting there this tries both ways out: DOWN to the knee, with the
+    // freed points sent to whichever other stat measures best, and UP to the
+    // next breakpoint, paid for by the largest other stat. The scorer decides
+    // between staying, up and down; the dead-zone penalty is what makes
+    // staying the worst of the three.
+    //
+    // Then a trim: a total a few points past a breakpoint that reaches nothing
+    // gives those points to the receiving stat, kept only when the scorer
+    // calls it no worse - "60 End, 110 Arc, rest Str" rather than 63 and 114.
+    //
+    // Totals include gear, armour, mastery and the percentage sources, and
+    // Permuth is excluded exactly as the scorer excludes it, so the invested
+    // points that land a TOTAL on a target are found by probing the model
+    // rather than by inverting its rounding.
+    function bare(build) {
+      return build.permuth && build.mark === 'Venia' ? Object.assign({}, build, { permuth: '' }) : build;
+    }
+    // Fewest invested points that put `stat`'s total at or over `target`.
+    function investedForTotal(build, stat, target) {
+      const B = bare(build);                 // shares build.invested
+      const cur = build.invested[stat] | 0;
+      const totalAt = inv => {
+        const was = build.invested[stat];
+        build.invested[stat] = Math.max(0, inv);
+        const t = M.totalStat(B, stat);
+        build.invested[stat] = was;
+        return t;
+      };
+      // Totals can carry a fraction (item hooks add fractions of a point, as
+      // the site does); invested points cannot.
+      let inv = Math.max(0, Math.round(cur + (target - totalAt(cur))));
+      let guard = 0;
+      while (totalAt(inv) < target && guard++ < 60) inv++;
+      while (inv > 0 && totalAt(inv - 1) >= target && guard++ < 120) inv--;
+      return inv;
+    }
+
+    function snapToBreakpoints(build, spec) {
+      const decay = K.STAT_DECAY;
+      if (!decay) return;
+      const tiers = D.STAT_MILESTONE_TIERS || [25, 60, 110];
+      let bestScore = evaluate(build, spec).score;
+      const budget = M.pointBudget(build);
+      const legal = () => STATS.every(s => (build.invested[s] | 0) >= 0) &&
+                          STATS.reduce((a, s) => a + (build.invested[s] | 0), 0) <= budget;
+      // Score a change to the invested line, then put it back.
+      const probe = mutate => {
+        const before = Object.assign({}, build.invested);
+        mutate();
+        let sc = -Infinity;
+        try { if (legal()) sc = evaluate(build, spec).score; } catch (e) { sc = -Infinity; }
+        build.invested = before;
+        return sc;
+      };
+      const apply = mutate => { mutate(); bestScore = evaluate(build, spec).score; };
+      // The other stat five points would help most - where freed points go.
+      const receiver = exclude => {
+        let bestS = null, bestV = -Infinity;
+        for (const s of STATS) {
+          if (s === exclude) continue;
+          const v = probe(() => { build.invested[s] += 5; });
+          if (v > bestV) { bestV = v; bestS = s; }
+        }
+        return bestS;
+      };
+      const largestOther = exclude => STATS.filter(x => x !== exclude)
+        .sort((a, b) => (build.invested[b] | 0) - (build.invested[a] | 0))[0];
+
+      for (let pass = 0; pass < 2; pass++) {
+        const t = M.allStats(bare(build));
+        const zone = STATS.filter(s => t[s] > decay.knee && t[s] < decay.next && (build.invested[s] | 0) > 0);
+        if (!zone.length) break;
+        for (const s of zone) {
+          const cur = build.invested[s] | 0;
+          const upInv   = investedForTotal(build, s, decay.next);
+          const downInv = Math.max(0, investedForTotal(build, s, decay.knee + 1) - 1);
+          const donor = largestOther(s);
+          const to = receiver(s);
+          const up   = () => { const n = upInv - cur; build.invested[s] += n; build.invested[donor] -= n; };
+          const down = () => { const n = cur - downInv; build.invested[s] -= n; build.invested[to] += n; };
+          const scUp = upInv > cur ? probe(up) : -Infinity;
+          const scDown = downInv < cur ? probe(down) : -Infinity;
+          if (scUp >= scDown && improves(scUp, bestScore)) apply(up);
+          else if (improves(scDown, bestScore)) apply(down);
+        }
+      }
+
+      // Trim: just past a breakpoint and reaching nothing more. Kept when the
+      // scorer calls the tidier line no worse, which is what "go perfect" means.
+      for (const s of STATS) {
+        const t = M.allStats(bare(build))[s];
+        const bp = tiers.filter(x => t > x && t <= x + 9).sort((a, b) => b - a)[0];
+        if (!bp) continue;
+        const surplus = Math.min(build.invested[s] | 0, t - bp);
+        if (surplus <= 0) continue;
+        const to = receiver(s);
+        if (!to) continue;
+        const trim = () => { build.invested[s] -= surplus; build.invested[to] += surplus; };
+        const sc = probe(trim);
+        if (sc > -Infinity && !improves(bestScore, sc)) apply(trim);
+      }
+    }
+
+    // ── one rest stat, everything else exactly on a breakpoint ───────────────
+    // Every community build the owner supplied has this shape: "60 End, 110
+    // Arc, rest Str"; "60 End, 60 Luck, 110 Str"; "full Luck"; "full End". One
+    // stat takes whatever is left over, and every other stat you put points in
+    // sits EXACTLY on 25, 60 or 110 - not 63, not 122. That is the owner's
+    // "otherwise go perfect", and it is a rule rather than a score: the maths
+    // this engine climbs is linear, so left to the score alone a healer ends
+    // on 122 Arc and 131 End and calls it optimal.
+    //
+    // The scorer still decides everything that is a choice - which stat is the
+    // rest (every stat is tried, including one holding no points yet), and for
+    // each other stat which breakpoint it sits on (down and up are tried while
+    // either pays) - and it decides with points past 110 worth K.STAT_DECAY
+    // .pastRate of a point under the knee, so a rest stat run deep past the
+    // fall-off loses to a second scaling stat kept under it. A Luck total
+    // sitting on a crit-tier threshold is exempt: those are breakpoints of
+    // their own.
+    //
+    // Run once, on the winning build (finishLine), because it is thorough.
+    function decayedScore(build, spec) {
+      const decay = K.STAT_DECAY;
+      let full;
+      try { full = evaluate(build, spec); } catch (e) { return -Infinity; }
+      if (!decay || decay.pastRate == null || decay.pastRate >= 1) return full.score;
+      const over = STATS.filter(s => full.stats[s] > decay.next && (build.invested[s] | 0) > 0 &&
+                                     !(s === 'lck' && full.critTier > 0));
+      if (!over.length) return full.score;
+      const saved = Object.assign({}, build.invested);
+      for (const s of over) build.invested[s] = Math.min(build.invested[s], investedForTotal(build, s, decay.next));
+      let clipped;
+      try { clipped = evaluate(build, spec).score; } catch (e) { clipped = full.score; }
+      build.invested = saved;
+      return clipped + (full.score - clipped) * decay.pastRate;
+    }
+
+    function goPerfect(build, spec) {
+      const decay = K.STAT_DECAY || null;
+      const tiers = (D.STAT_MILESTONE_TIERS || [25, 60, 110]).slice().sort((a, b) => a - b);
+      const floor = speedFloor(spec);
+      const tiersFor = s => (s === 'spd' && floor && tiers.indexOf(floor) === -1)
+        ? tiers.concat([floor]).sort((a, b) => a - b) : tiers;
+      const budget = M.pointBudget(build);
+      const legal = () => STATS.every(s => (build.invested[s] | 0) >= 0) &&
+                          STATS.reduce((a, s) => a + (build.invested[s] | 0), 0) <= budget;
+      const score = () => legal() ? decayedScore(build, spec) : -Infinity;
+
+      // Luck sitting on a crit-tier threshold is there on purpose.
+      const critTier = () => { try { return evaluate(build, spec).critTier; } catch (e) { return 0; } };
+      const exempt = s => {
+        if (s !== 'lck') return false;
+        const tier = critTier();
+        if (!tier) return false;
+        build.invested.lck -= 1;
+        const below = critTier();
+        build.invested.lck += 1;
+        return below < tier;
+      };
+
+      const start = Object.assign({}, build.invested);
+      let bestLine = null, bestSc = -Infinity;
+      for (const r of STATS) {
+        build.invested = Object.assign({}, start);
+        const others = STATS.filter(s => s !== r && (build.invested[s] | 0) > 0 && !exempt(s));
+        if (!others.length && (build.invested[r] | 0) === 0) continue;
+        // Down to the breakpoint at or below, freeing the difference to the rest.
+        const t = M.allStats(bare(build));
+        for (const s of others) {
+          const bp = tiersFor(s).filter(x => x <= t[s]).sort((a, b) => b - a)[0] || 0;
+          const inv = bp ? investedForTotal(build, s, bp) : 0;
+          const freed = (build.invested[s] | 0) - inv;
+          if (freed > 0) { build.invested[s] = inv; build.invested[r] += freed; }
+        }
+        let sc = score();
+        // Then step each other stat down a breakpoint, or up one, while it pays.
+        for (let round = 0; round < 3; round++) {
+          let improved = false;
+          for (const s of others) {
+            const cur = M.allStats(bare(build))[s];
+            const lower = tiersFor(s).filter(x => x < cur).sort((a, b) => b - a)[0] || 0;
+            const invDown = lower ? investedForTotal(build, s, lower) : 0;
+            const freed = (build.invested[s] | 0) - invDown;
+            if (freed > 0) {
+              build.invested[s] -= freed; build.invested[r] += freed;
+              const down = score();
+              if (improves(down, sc)) { sc = down; improved = true; continue; }
+              build.invested[s] += freed; build.invested[r] -= freed;
+            }
+            const next = tiersFor(s).find(x => x > cur);
+            if (!next) continue;
+            const cost = investedForTotal(build, s, next) - (build.invested[s] | 0);
+            if (cost <= 0 || cost > (build.invested[r] | 0)) continue;
+            build.invested[s] += cost; build.invested[r] -= cost;
+            const up = score();
+            if (improves(up, sc)) { sc = up; improved = true; }
+            else { build.invested[s] -= cost; build.invested[r] += cost; }
+          }
+          if (!improved) break;
+        }
+        // The rest stat itself can land in the dead zone (101-109) - it takes
+        // whatever is left, and what is left is what it is. One way out is
+        // tried: up to 110, paid by the largest other stat, which then steps
+        // down to its own breakpoint below and hands the difference back.
+        if (decay && (build.invested[r] | 0) > 0) {
+          const rt = M.allStats(bare(build))[r];
+          if (rt > decay.knee && rt < decay.next) {
+            const donor = others.slice().sort((a, b) => (build.invested[b] | 0) - (build.invested[a] | 0))[0];
+            const need = investedForTotal(build, r, decay.next) - (build.invested[r] | 0);
+            if (donor && need > 0 && need <= (build.invested[donor] | 0)) {
+              const before = Object.assign({}, build.invested);
+              build.invested[r] += need; build.invested[donor] -= need;
+              const dt = M.allStats(bare(build))[donor];
+              const bp = tiersFor(donor).filter(x => x <= dt).sort((a, b) => b - a)[0] || 0;
+              const inv = bp ? investedForTotal(build, donor, bp) : 0;
+              const freed = (build.invested[donor] | 0) - inv;
+              if (freed > 0) { build.invested[donor] = inv; build.invested[r] += freed; }
+              const out = score();
+              if (improves(out, sc)) sc = out;
+              else build.invested = before;
+            }
+          }
+        }
+        if (sc > bestSc) { bestSc = sc; bestLine = Object.assign({}, build.invested); }
+      }
+      // The best perfect line, full stop. This is the owner's rule, and the
+      // scorer's job was to choose between the perfect lines, not to veto them.
+      build.invested = bestLine || start;
+    }
+
+    // Settle the stat line and the tier shapes together on the finished build:
+    // a tier shape can move a total by up to 9, so it is snap, re-shape, snap.
+    // The last snap is what makes the totals - tier points included - perfect.
+    // Every community build assumes the soul tree's health nodes are maxed
+    // ("if you do not have this, take 10-20 extra Endurance"). Data-driven:
+    // every node that grants flat HP, at its max rank.
+    function maxHealthSoul() {
+      const soul = {};
+      for (const list of Object.values(D.soulTreeData || {}))
+        for (const n of list) if (n && n.hpFlat && n.id) soul[n.id] = n.maxRank || 1;
+      return soul;
+    }
+
+    function finishLine(build, spec) {
+      const fixedGear = new Set(D.FIXED_GEAR || []);
+      build.soul = maxHealthSoul();
+      goPerfect(build, spec);
+      const shapes = () => JSON.stringify([(build.gear || []).map(g => g.alloc), build.artifact && build.artifact.alloc,
+                                           build.weapon && build.weapon.alloc]);
+      const before = shapes();
+      for (const g of build.gear || []) if (!fixedGear.has(g.name)) bestTierAlloc(build, spec, g, false);
+      if (build.artifact) bestTierAlloc(build, spec, build.artifact, false);
+      if (build.weapon && M.weaponIsTiered(build.weapon.name)) bestTierAlloc(build, spec, build.weapon, true);
+      // The second pass exists for a tier shape that pushed a total off its
+      // breakpoint; when no shape moved, the line is still perfect.
+      if (shapes() !== before) goPerfect(build, spec);
+      build._statLine = statLineFor(build, spec);
+      build._tierOrder = tierOrder(build, spec);
+    }
+
+    // The community's stat line - "60 End, 110 Arc, rest Str" - with the reason
+    // for each number. Read off the finished totals, so it describes the build
+    // rather than plans it. `perk` is the highest counted milestone the total
+    // reaches; `moves` are the kit moves a cooldown cut actually shortens.
+    function statLineFor(build, spec) {
+      const ctx = evaluate(build, spec);
+      const defFor = m => (((K.MILESTONES || {})[m.stat] || [])[m.tier - 1]) || {};
+      const perkText = m => {
+        const def = defFor(m);
+        return m.kind === 'cdCut'      ? '-' + (def.value || 1) + ' cooldown'
+             : m.kind === 'incHealPct' ? '+' + (def.value || 0) + '% incoming healing'
+             : m.kind === 'outHealPct' ? '+' + (def.value || 0) + '% outgoing healing'
+             : m.kind === 'dodgePct'   ? (def.value || 0) + '% autododge'
+             : m.text;
+      };
+      const kit = (ctx.moves || []).concat(healMovesFor(build));
+      const shortens = (s, cut) => {
+        const out = [], seen = new Set();
+        for (const mv of kit) {
+          if (!mv || !mv.name || seen.has(mv.name)) continue;
+          if (cut && cut.elements && cut.elements.test(String(mv.moveType || '')) && Number(mv.cooldown) > 1) {
+            seen.add(mv.name); out.push(mv.name);
+          }
+        }
+        return out;
+      };
+      // A perk is only the reason for a number when the build can use it: a
+      // cooldown cut that shortens nothing in the kit, or outgoing healing on
+      // a build that heals nothing, is not why the points are there.
+      const usable = (m, moves) => m.kind === 'cdCut'      ? moves.length > 0
+                               : m.kind === 'outHealPct' ? (ctx.healPerTurn || 0) > 0
+                               : true;
+      const site = ctx.siteStats || ctx.stats;
+      const floor = speedFloor(spec);
+      const line = STATS.map(s => {
+        const total = site[s] | 0;
+        const invested = build.invested[s] | 0;
+        const reached = ctx.milestones.reached
+          .filter(m => m.stat === s && m.kind !== 'note')
+          .sort((a, b) => b.need - a.need);
+        const top = reached[0] || null;
+        const row = { stat: s, total, invested, target: top ? top.need : null,
+                      reason: 'none', perk: null, moves: [] };
+        if (top) {
+          const cut = top.kind === 'cdCut' ? ctx.milestones.cdCut.find(c => c.stat === s) : null;
+          const moves = cut ? shortens(s, cut) : [];
+          // "Sits on" a breakpoint at or past the perk's own: within one,
+          // since the percent sources step totals by more than a point. End
+          // parked on 110 still holds the +35% incoming healing from 60, and
+          // is capped there because past 110 a stat falls off.
+          const tiersHere = D.STAT_MILESTONE_TIERS || [25, 60, 110];
+          const sitsOn = tiersHere.some(bp => bp >= top.need && total >= bp && total < bp + 2);
+          if (sitsOn && usable(top, moves)) {
+            row.reason = 'perk'; row.perk = perkText(top); row.moves = moves;
+            row.capped = total > top.need + 1;
+          } else if (usable(top, moves)) {
+            row.also = perkText(top);       // crossed on the way, worth naming
+          }
+        }
+        if (row.reason === 'none' && s === 'lck' && ctx.critTier > 0) {
+          row.reason = 'critTier'; row.tier = ctx.critTier;
+        }
+        if (row.reason === 'none' && s === 'spd' && floor && total >= floor && total < floor + 2) {
+          row.reason = 'floor'; row.perk = 'the solo boss dodge floor'; row.target = floor;
+        }
+        return row;
+      });
+      // The rest stat is the one invested stat that does NOT sit on a
+      // breakpoint - goPerfect leaves at most one. If every invested stat sits
+      // on one, the largest is the rest. A stat parked exactly on a breakpoint
+      // for a reason no milestone text states (Luck at 110 for crit chance) is
+      // "cap": capped there because past it a stat falls off.
+      const tiers = D.STAT_MILESTONE_TIERS || [25, 60, 110];
+      const onBp = x => tiers.some(bp => x.total >= bp && x.total < bp + 2) ||
+                        (x.stat === 'spd' && floor > 0 && x.total >= floor && x.total < floor + 2);
+      const open = line.filter(x => x.reason === 'none' && x.invested > 0);
+      const off = open.filter(x => !onBp(x));
+      const rest = (off.length ? off : open).sort((a, b) => b.invested - a.invested)[0];
+      if (rest) rest.reason = 'rest';
+      for (const x of line) if (x.reason === 'none' && x.invested > 0) x.reason = onBp(x) ? 'cap' : 'dump';
+      return line;
     }
 
     // ── tier shapes ──────────────────────────────────────────────────────────
-    // Try every legal shape for a slot and keep whichever scores best. Shapes are
-    // few (at most three per tier), so this is exhaustive and exact.
+    // Which stats a tier shape should feed, most valuable first: measured by a
+    // +5 probe on each, with any stat 1-9 short of a breakpoint moved to the
+    // front - a 9 / 5 / 3 / 2 is exactly what completes it. This is the "Tier
+    // bonuses: Str >= Arc >= End" line of a community build. Cached against the
+    // invested line, which is what changes it.
+    function tierOrder(build, spec) {
+      const key = STATS.map(s => build.invested[s] | 0).join(',') + '|' + (build.klass || '') + '|' + (build.race || '');
+      if (build._tierOrderKey === key && build._tierOrder) return build._tierOrder;
+      const tiers = D.STAT_MILESTONE_TIERS || [25, 60, 110];
+      const base = evaluate(build, spec).score || 1;
+      const t = M.allStats(bare(build));
+      const val = {};
+      for (const s of STATS) {
+        const was = build.invested[s];
+        build.invested[s] = (was | 0) + 5;
+        let v;
+        try { v = evaluate(build, spec).score / base - 1; } catch (e) { v = 0; }
+        build.invested[s] = was;
+        const short = tiers.some(bp => t[s] < bp && t[s] >= bp - 9);
+        val[s] = v + (short ? 1 : 0);
+      }
+      const order = STATS.slice().sort((a, b) => val[b] - val[a]);
+      build._tierOrder = order; build._tierOrderKey = key;
+      return order;
+    }
+
+    // Try every legal shape for a slot and keep whichever scores best. Shapes
+    // are few (at most three per tier), and two stat orders are tried for
+    // each: the measured one and the same with its top two swapped, so a
+    // [5, 3] can go either way round.
     function bestTierAlloc(build, spec, slotRef, isWeapon) {
       const tier = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
       const shapes = M.shapesFor(tier, isWeapon);
-      const w = weightOf(spec);
-      const order = STATS.slice().sort((a, b) => (w[b] || 0) - (w[a] || 0));
+      const order = tierOrder(build, spec);
+      const swapped = order.slice(); [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
       let best = null, bestScore = -Infinity;
       for (const shape of shapes) {
-        slotRef.tier = tier;
-        slotRef.alloc = M.allocForShape(shape, order);
-        const sc = evaluate(build, spec).score;
-        if (sc > bestScore) { bestScore = sc; best = { tier, alloc: Object.assign({}, slotRef.alloc) }; }
+        for (const ord of [order, swapped]) {
+          slotRef.tier = tier;
+          slotRef.alloc = M.allocForShape(shape, ord);
+          const sc = evaluate(build, spec).score;
+          if (sc > bestScore) { bestScore = sc; best = { tier, alloc: Object.assign({}, slotRef.alloc) }; }
+        }
       }
       slotRef.tier = best.tier; slotRef.alloc = best.alloc;
       return bestScore;
@@ -993,9 +1545,12 @@
     // `prefer(opt)` marks an option whose value the model cannot see. Such an
     // option is kept when it is within ROLE_ITEM_MARGIN of the best score, not
     // merely when it ties — see the note on ROLE_ITEM_MARGIN.
-    function bestOfSlot(build, spec, options, set, tieBreak, prefer) {
+    // `slotKey` names the slot; when given, every option's score is kept on
+    // build._alts[slotKey] so the write-up can say what came second and by how
+    // much - "Race: Sheea >= Daminos >= Corvolus" is this list.
+    function bestOfSlot(build, spec, options, set, tieBreak, prefer, slotKey) {
       let bestVal = null, bestScore = -Infinity;
-      const scored = prefer ? [] : null;
+      const scored = (prefer || slotKey) ? [] : null;
       for (const opt of options) {
         set(build, opt);
         const sc = evaluate(build, spec).score;
@@ -1015,10 +1570,12 @@
         }
       }
 
+      if (slotKey && scored) recordAlts(build, slotKey, scored, bestScore);
+
       // Second pass: if a preferred option lost, but lost by less than the
       // allowance, it takes the slot back. Recorded on the build so the
       // write-up can say it was chosen this way and by how much it lost.
-      if (scored && bestScore > 0) {
+      if (scored && prefer && bestScore > 0) {
         const margin = K.ROLE_ITEM_MARGIN ?? 0.10;
         const floor = bestScore * (1 - margin);
         const pick = scored
@@ -1033,6 +1590,20 @@
 
       set(build, bestVal);
       return bestVal;
+    }
+
+    // The ranking a slot was decided on: name, score, and how far behind the
+    // best each option landed (0 for the best). Kept short; the write-up shows
+    // the top few.
+    function recordAlts(build, slotKey, scored, bestScore) {
+      const nameOf = opt => opt == null ? '' : (typeof opt === 'string' ? opt : (opt.name || String(opt)));
+      const list = scored
+        .map(x => ({ name: nameOf(x.opt), score: x.sc,
+                     delta: bestScore > 0 ? Math.max(0, (bestScore - x.sc) / bestScore) : 0 }))
+        .sort((a, b) => a.delta - b.delta)
+        .slice(0, 6);
+      build._alts = build._alts || {};
+      build._alts[slotKey] = list;
     }
 
     // ── the pipeline ─────────────────────────────────────────────────────────
@@ -1081,6 +1652,7 @@
 
       for (let slot = b.gear.length; slot < 4; slot++) {
         let bestName = null, bestScore = -Infinity, bestAlloc = null, bestDead = true;
+        const ranked = [];
         for (const cand of shortlist) {
           if (b.gear.some(g => g.name === cand.name)) continue;
           const entry = { name: cand.name, tier: tierOf(cand.name), alloc: {} };
@@ -1088,6 +1660,7 @@
           if (!fixedGear.has(cand.name)) bestTierAlloc(b, spec, entry, false);
           const sc = evaluate(b, spec).score;
           b.gear.pop();
+          ranked.push({ opt: cand.name, sc });
 
           // A passive that cannot fire for this build is worth nothing, so on a
           // tie the item whose passive DOES something wins. This is what stops a
@@ -1102,12 +1675,15 @@
             bestAlloc = Object.assign({}, entry.alloc);
           }
         }
-        if (bestName) b.gear.push({ name: bestName, tier: tierOf(bestName), alloc: bestAlloc });
+        if (bestName) {
+          b.gear.push({ name: bestName, tier: tierOf(bestName), alloc: bestAlloc });
+          recordAlts(b, 'gear' + b.gear.length, ranked, bestScore);
+        }
       }
 
       // A locked slot is not searched — the point of choosing it is that it stays.
       if (spec.armour) b.armour = spec.armour;
-      else bestOfSlot(b, spec, keepUsable(Object.keys(D.armourItems)), (bb, v) => { bb.armour = v; });
+      else bestOfSlot(b, spec, keepUsable(Object.keys(D.armourItems)), (bb, v) => { bb.armour = v; }, null, null, 'armour');
 
       // Weapons must be compared WITH their tier points. Only the tiered series
       // roll any, so leaving alloc empty during selection made a Dragonbone Spear
@@ -1123,7 +1699,7 @@
       // and everything else this model does not score, so on an equal score the
       // tiered weapon wins. Left to list order the answer was a Ferrus Sword,
       // which reads as a mistake whether or not it scores the same.
-      }, (cand, cur) => M.weaponIsTiered(cand) && !M.weaponIsTiered(cur));
+      }, (cand, cur) => M.weaponIsTiered(cand) && !M.weaponIsTiered(cur), null, 'weapon');
       // A weapon outside the tiered series has no tier and no allocation. Saying
       // otherwise is wrong in the output and writes meaningless bits into the
       // share link.
@@ -1137,16 +1713,21 @@
       const isRoleItem = v => !!(v && K.roleItemNote && K.roleItemNote(spec.goal, v));
       bestOfSlot(b, spec, keepUsable(Object.keys(D.artifactItems)), (bb, v) => {
         bb.artifact = v ? { name: v, tier: D.MAX_GEAR_TIER, alloc: {} } : null;
-      }, (cand, cur) => isRoleItem(cand) && !isRoleItem(cur), isRoleItem);
+      }, (cand, cur) => isRoleItem(cand) && !isRoleItem(cur), isRoleItem, 'artifact');
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
 
-      // Permuth multiplies one finished stat total by 1.4 — always worth taking,
-      // and it belongs on whichever stat the build actually leans on.
+      // The mark. Venia's Permuth is scored as nothing (see evaluate), so this
+      // is Astra's Utor against nothing - a survival build takes Astra, a
+      // damage build ties and keeps Venia, which is the community's own split.
       b.mark = 'Venia';
+      bestOfSlot(b, spec, Object.keys(K.MARK_ABILITIES || { Venia: 1 }).sort((x, y) => x === 'Venia' ? -1 : y === 'Venia' ? 1 : 0),
+                 (bb, v) => { bb.mark = v; }, null, null, 'mark');
+      // Permuth belongs on whichever stat the build actually leans on. Kept
+      // whatever the mark, so switching back to Venia in the builder is ready.
       bestOfSlot(b, spec, order.slice(0, 3), (bb, v) => { bb.permuth = v; });
 
       if (spec.enchant) b.enchant = spec.enchant;
-      else bestOfSlot(b, spec, ['', ...keepUsable(Object.keys(D.enchantItems))], (bb, v) => { bb.enchant = v; });
+      else bestOfSlot(b, spec, ['', ...keepUsable(Object.keys(D.enchantItems))], (bb, v) => { bb.enchant = v; }, null, null, 'enchant');
 
       // The covenant goes in before mastery and stats, not after: it can add an
       // attack to the kit (Death Curtain scales on STR/75 + ARC/75, which pulls
@@ -1171,15 +1752,15 @@
 
       const preferRole = v => !!(v && K.roleItemNote && K.roleItemNote(spec.goal, v));
       bestOfSlot(b, spec, pinned('sub', ['', ...(D.subClasses || [])]),
-                 (bb, v) => { bb.sub = v; }, rolePick, preferRole);
+                 (bb, v) => { bb.sub = v; }, rolePick, preferRole, 'sub');
 
       const scrollOpts = scrollsFor(klass);
       bestOfSlot(b, spec, pinned('lostScroll', ['', ...scrollOpts.lost]),
-                 (bb, v) => { bb.lostScroll = v; }, rolePick, preferRole);
+                 (bb, v) => { bb.lostScroll = v; }, rolePick, preferRole, 'lostScroll');
       bestOfSlot(b, spec, pinned('scroll1', ['', ...scrollOpts.scrolls]),
-                 (bb, v) => { bb.scroll1 = v; }, rolePick, preferRole);
+                 (bb, v) => { bb.scroll1 = v; }, rolePick, preferRole, 'scroll1');
       bestOfSlot(b, spec, pinned('scroll2', ['', ...scrollOpts.scrolls.filter(n => n !== b.scroll1)]),
-                 (bb, v) => { bb.scroll2 = v; }, rolePick, preferRole);
+                 (bb, v) => { bb.scroll2 = v; }, rolePick, preferRole, 'scroll2');
 
       // Free slots, same as the shards. A scroll slot left blank because nothing
       // in it moved a number reads as a bug, and in game you would obviously
@@ -1219,6 +1800,10 @@
       for (const g of b.gear) if (!fixedGear.has(g.name)) bestTierAlloc(b, spec, g, false);
       if (b.artifact) bestTierAlloc(b, spec, b.artifact, false);
       if (b.weapon && M.weaponIsTiered(b.weapon.name)) bestTierAlloc(b, spec, b.weapon, true);
+
+      // Out of the dead zone with every flat source in place. The full "go
+      // perfect" pass runs once, on the winning finalist (finishLine in run).
+      snapToBreakpoints(b, spec);
 
       return b;
     }
@@ -1268,7 +1853,7 @@
 
     // Which setup buffs this build can actually cast, from its race and class.
     const _setupCache = {};
-    function setupsFor(build) {
+    function setupsForKit(build) {
       const key = [build.race || '', build.klass || '', build.covenant || '',
                    build.covenantRank | 0, build.sub || '', build.scroll1 || '',
                    build.scroll2 || '', build.lostScroll || ''].join('|');
@@ -1304,13 +1889,37 @@
       return (_setupCache[key] = owned);
     }
 
+    // Gear actives (Divine Promise's Divine Gift) on top of the kit's setups.
+    // Kept out of the cache above: the gear changes on every candidate the
+    // search tries, and keying the kit scan on it thrashed the cache into
+    // re-reading four move tables per evaluate.
+    function setupsFor(build) {
+      const base = setupsForKit(build);
+      const table = K.SETUP_MOVES || {};
+      let extra = null;
+      for (const g of build.gear || []) {
+        const acts = (D.gearActives || {})[g.name];
+        if (!acts) continue;
+        for (const mv of acts) {
+          const def = table[mv.name];
+          if (def && (!def.owner || def.owner === g.name)) (extra = extra || []).push(Object.assign({ move: mv.name }, def));
+        }
+      }
+      return extra ? base.concat(extra) : base;
+    }
+
     // Gear passives, aggregated the same way traits are. Split into what can be
     // scored and what cannot, so a build can say which of its gear is doing
     // something the numbers above do not reflect.
-    function gearPassiveTotals(build) {
+    const gearPassiveTotals = memo(wornKey, build => gearPassiveTotalsUncached(build));
+    function gearPassiveTotalsUncached(build) {
       const table = K.GEAR_PASSIVES || {};
       const text = D.itemPassives || {};
-      const out = { dmgPct: 0, critChance: 0, hpPct: 0, dr: 0, active: [], unmodelled: [] };
+      const out = { dmgPct: 0, critChance: 0, hpPct: 0, dr: 0,
+                    lifestealPct: 0, healFromDmgPct: 0, selfHealFlat: 0, healPctPerTurn: 0,
+                    statFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+                    selfStatuses: new Set(), enemyStatuses: new Set(),
+                    active: [], unmodelled: [] };
       const seen = new Set();
       // Where this build sits on its own health bar. An item gated on an HP
       // threshold is worth what it is worth TO THIS BUILD, not what it is worth
@@ -1328,6 +1937,39 @@
         return (entry.learns || []).map(m => m.effect || '').filter(Boolean)
                  .join(' ').replace(/\s+/g, ' ').trim() || null;
       };
+      // A gear whose whole content is an ACTIVE (Divine Promise) has no passive
+      // text at all, and used to vanish from both lists.
+      const activeText = name => {
+        const acts = (D.gearActives || {})[name];
+        if (!acts || !acts.length) return null;
+        return acts.map(m => 'grants ' + m.name + (m.effect ? ': ' + m.effect : ''))
+                   .join(' ').replace(/\s+/g, ' ').trim();
+      };
+
+      // One effect of one item, applied to the totals. Every kind lands here.
+      const apply = (name, e, up, extra) => {
+        const kind = e.kind;
+        let eff = 0;
+        if (kind === 'status') {
+          for (const st of (e.self || []))  out.selfStatuses.add(foldStatus(st));
+          for (const st of (e.enemy || [])) out.enemyStatuses.add(foldStatus(st));
+        } else if (kind === 'statRamp') {
+          // +value per turn to every stat, counted at the assumed turn count.
+          eff = e.value * Math.min(e.capTurns || 99, e.assumedTurns || 1);
+          for (const st of STATS) out.statFlat[st] += eff;
+        } else if (kind === 'onSite') {
+          eff = 0;                                   // already in model.js
+        } else if (e.value != null) {
+          eff = e.value * up;
+          if (typeof out[kind] === 'number') out[kind] += eff;
+        }
+        // The NAME stays the item's real name. Decorating it with the kind
+        // broke the check that every counted passive traces back to a
+        // knowledge entry, and that check is worth more than a tidier label.
+        out.active.push(Object.assign({ name, kind, value: e.value, effective: eff, uptime: up,
+                                        statuses: kind === 'status' ? (e.self || []).concat(e.enemy || []) : undefined,
+                                        party: !!e.party, onSite: kind === 'onSite' }, extra || {}));
+      };
 
       const consider = name => {
         if (!name || seen.has(name)) return;
@@ -1340,14 +1982,8 @@
           const g = gated(name, art.uptime ?? 1);
           const up = g ? g.uptime : (art.uptime ?? 1);
           for (const e of art.effects) {
-            const eff = e.value * up;
-            if (out[e.kind] !== undefined) out[e.kind] += eff;
-            // The NAME stays the item's real name. Decorating it with the kind
-            // broke the check that every counted passive traces back to a
-            // knowledge entry, and that check is worth more than a tidier label.
-            out.active.push({ name, kind: e.kind, value: e.value, effective: eff,
-                              note: art.note, source: 'artifact',
-                              hpGate: g ? { agrees: g.agrees, uptime: g.uptime, why: g.why } : null });
+            apply(name, e, up, { note: art.note, source: 'artifact',
+                                 hpGate: g ? { agrees: g.agrees, uptime: g.uptime, why: g.why } : null });
           }
           return;
         }
@@ -1357,19 +1993,19 @@
         }
 
         const rule = table[name];
-        if (!rule || rule.kind === 'note' || rule.value == null) {
-          const txt = text[name] || artifactText(name);
-          if (txt) out.unmodelled.push({ name, note: (rule && rule.note) || txt.slice(0, 110) });
+        const priceable = rule && rule.kind !== 'note' &&
+          (rule.kind === 'status' || rule.kind === 'onSite' || rule.kind === 'statRamp' ||
+           rule.kind === 'multi' || rule.value != null);
+        if (!priceable) {
+          const txt = text[name] || artifactText(name) || activeText(name);
+          if (txt || rule) out.unmodelled.push({ name, note: (rule && rule.note) || (txt || '').slice(0, 110) });
           return;
         }
         const g = gated(name, rule.uptime ?? 1);
-        const eff = rule.value * (g ? g.uptime : (rule.uptime ?? 1));
-        if (out[rule.kind] !== undefined) out[rule.kind] += eff;
-        // `kind` has to travel with the entry: without it the write-up labelled
-        // Crystal Sphere's +5 CRIT CHANCE as "+5% damage", because the renderer
-        // had nothing to switch on.
-        out.active.push({ name, kind: rule.kind, value: rule.value, effective: eff, note: rule.note,
-                          hpGate: g ? { agrees: g.agrees, uptime: g.uptime, why: g.why } : null });
+        const up = g ? g.uptime : (rule.uptime ?? 1);
+        const extra = { note: rule.note, hpGate: g ? { agrees: g.agrees, uptime: g.uptime, why: g.why } : null };
+        const effects = rule.kind === 'multi' ? (rule.effects || []) : [rule];
+        for (const e of effects) apply(name, e, up, extra);
       };
 
       for (const g of build.gear || []) consider(g.name);
@@ -1382,16 +2018,13 @@
       if (wpn) {
         const series = ((D.weapons || {})[wpn] || {}).series;
         const rule = series && (K.WEAPON_PASSIVES || {})[series];
-        if (rule && rule.kind !== 'note' && rule.value != null) {
-          const eff = rule.value * (rule.uptime ?? 1);
-          if (out[rule.kind] !== undefined) out[rule.kind] += eff;
-          out.active.push({ name: series + ' (weapon)', kind: rule.kind, value: rule.value,
-                            effective: eff, note: rule.note });
+        if (rule && rule.kind !== 'note' && (rule.kind === 'status' || rule.value != null)) {
+          apply(series + ' (weapon)', rule, rule.uptime ?? 1, { note: rule.note });
         } else if (series) {
-          const text = (D.itemPassives || {})[series];
-          if (rule || text) {
+          const wtext = (D.itemPassives || {})[series];
+          if (rule || wtext) {
             out.unmodelled.push({ name: series + ' (weapon)',
-                                  note: (rule && rule.note) || (text || '').slice(0, 110) });
+                                  note: (rule && rule.note) || (wtext || '').slice(0, 110) });
           }
         }
       }
@@ -1418,13 +2051,37 @@
       return 1 + allies * (K.PARTY_SPREAD ?? 0.5);
     }
 
+    // Memoised on the capstones taken, the class and the play style - and on
+    // the IDENTITY of the two tables it reads, because the tests swap those out
+    // under it and a stale total would hide the swap.
+    let _maTableRef = null, _maDataRef = null;
+    const _maCache = new Map();
+    const _nodesKey = new WeakMap();   // the joined node list, kept on the array itself
     function masteryAbilityTotals(build, spec) {
+      if (K.MASTERY_ABILITIES !== _maTableRef || D.masteryAbilities !== _maDataRef) {
+        _maTableRef = K.MASTERY_ABILITIES; _maDataRef = D.masteryAbilities;
+        _maCache.clear();
+      }
+      const nodes = build.masteryNodes || [];
+      let nk = _nodesKey.get(nodes);
+      if (nk === undefined) { nk = nodes.join(','); if (nodes.length) _nodesKey.set(nodes, nk); }
+      const key = (build.klass || '') + '|' + nk + '|' + ((spec && spec.play) || '');
+      if (_maCache.has(key)) return _maCache.get(key);
+      if (_maCache.size > 4000) _maCache.clear();
+      const v = masteryAbilityTotalsUncached(build, spec);
+      _maCache.set(key, v);
+      return v;
+    }
+    function masteryAbilityTotalsUncached(build, spec) {
       const table = K.MASTERY_ABILITIES || {};
       const perClass = (D.masteryAbilities || {})[build.klass] || {};
       // `dodge` is avoidance rather than reduction, and `statFlat` is a flat
       // stat rather than a percentage, so neither could be expressed before and
-      // both were silently scored as nothing.
+      // both were silently scored as nothing. The healing and lifesteal kinds
+      // exist for the same reason: a Saint's capstones are heals, and until
+      // they had a column here the engine could only buy them blind.
       const out = { dmgPct: 0, critChance: 0, dr: 0, dodge: 0,
+                    outHealPct: 0, incHealPct: 0, lifestealPct: 0,
                     statFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
                     active: [], unmodelled: [] };
       const nodes = D.masteryNodes || [];
@@ -1445,24 +2102,41 @@
           out.unmodelled.push({ name: entry.name, note: (rule && rule.note) || null });
           continue;
         }
-        const kind   = rule ? rule.kind : 'dmgPct';
-        const value  = rule && rule.value != null ? rule.value : entry.bonus;
-        const uptime = rule && rule.uptime != null ? rule.uptime : K.MASTERY_ABILITY_DEFAULT_UPTIME;
-        if (value == null) { out.unmodelled.push({ name: entry.name, note: rule && rule.note }); continue; }
-        // A team effect is counted once for you and again for the allies it
-        // reaches. A damage build gets a scale of exactly 1, so this can never
-        // quietly inflate a solo build.
-        const scale = (rule && rule.party) ? partyScale(spec) : 1;
-        const eff = value * uptime * scale;
-        if (kind === 'statFlat') {
-          const st = (rule && rule.stat) || 'spd';
-          if (out.statFlat[st] !== undefined) out.statFlat[st] += eff;
-        } else if (typeof out[kind] === 'number') {
-          out[kind] += eff;
+        // One capstone can do several things (All For One is lifesteal AND
+        // incoming healing). `multi` carries them as a list; everything else is
+        // a list of one, so the loop below is the only place a kind is applied.
+        const effects = rule && rule.kind === 'multi'
+          ? (rule.effects || [])
+          : [{ kind: rule ? rule.kind : 'dmgPct',
+               value: rule && rule.value != null ? rule.value : entry.bonus,
+               stat: rule && rule.stat }];
+        for (const ef of effects) {
+          const kind   = ef.kind;
+          const value  = ef.value;
+          const uptime = ef.uptime != null ? ef.uptime
+                       : rule && rule.uptime != null ? rule.uptime : K.MASTERY_ABILITY_DEFAULT_UPTIME;
+          if (value == null) { out.unmodelled.push({ name: entry.name, note: rule && rule.note }); continue; }
+          // A team effect is counted once for you and again for the allies it
+          // reaches. A damage build gets a scale of exactly 1, so this can never
+          // quietly inflate a solo build.
+          const scale = (ef.party ?? (rule && rule.party)) ? partyScale(spec) : 1;
+          // `onSite` means model.js already applies it (All For One's +40%
+          // incoming healing is hard-coded in the site's own pipeline). It is
+          // listed so the write-up can say so, and added to nothing, so it is
+          // never counted twice.
+          const eff = ef.onSite ? 0 : value * uptime * scale;
+          if (!ef.onSite) {
+            if (kind === 'statFlat') {
+              const st = ef.stat || 'spd';
+              if (out.statFlat[st] !== undefined) out.statFlat[st] += eff;
+            } else if (typeof out[kind] === 'number') {
+              out[kind] += eff;
+            }
+          }
+          out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
+                            stat: ef.stat, party: scale > 1 ? scale : null,
+                            onSite: !!ef.onSite, note: rule && rule.note });
         }
-        out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
-                          stat: rule && rule.stat, party: scale > 1 ? scale : null,
-                          note: rule && rule.note });
       }
       return out;
     }
@@ -1471,7 +2145,8 @@
     function passiveTotals(build) {
       const { known } = passivesFor(build);
       const out = { dmgPct: 0, critChance: 0, dr: 0, summonHpPct: 0, summonDmgPct: 0,
-                    outHealPct: 0, cdCut: 0, byMoveType: [] };
+                    outHealPct: 0, incHealPct: 0, selfHealFlat: 0, lifestealPct: 0,
+                    cdCut: 0, byMoveType: [] };
       const wepType = build.weapon ? ((D.weapons || {})[build.weapon.name] || {}).type : null;
       const stance = K.hpStance ? K.hpStance(build.klass, build.race) : null;
       const agreeUp = (K.HP_GATE_UPTIME || {}).agree ?? 0.8;
@@ -1520,7 +2195,7 @@
       // whatever the last build left on the object.
       if (!all.length || !cd) {
         build.masteryNodes = []; build.masteryPoints = 0; build.masteryPassedOver = [];
-        build.masteryBudget = null; return;
+        build.masteryBudget = null; build.masteryNotation = '0-0-0'; return;
       }
 
       const byId = {};
@@ -1570,14 +2245,25 @@
       // switching it on and asking the scorer. This automatically respects the
       // goal: a damage capstone probes as worthless on a tank because the tank's
       // score does not read damage.
-      const _abilityCache = {};
+      // Measured against the CURRENT selection, not the empty tree: once a
+      // capstone is bought, the next one is worth what it adds on top of it.
+      // `_current` is the score of what is selected now; the cache is dropped
+      // whenever that changes (resync).
+      let _abilityCache = {};
+      let _current = _probeBase;
+      const abilityNames = (D.masteryAbilities || {})[build.klass] || {};
+      const resync = () => {
+        build.masteryNodes = all.filter(n => taken.has(n.id)).map(n => n.id);
+        try { _current = evaluate(build, spec).score || 1; } catch (e) { /* keep the last base */ }
+        _abilityCache = {};
+      };
       const abilityValue = nodeId => {
         if (_abilityCache[nodeId] !== undefined) return _abilityCache[nodeId];
         const before = build.masteryNodes;
         build.masteryNodes = (before || []).concat([nodeId]);
         let v;
-        try { v = Math.max(0, _pctOfBase(evaluate(build, spec).score)); }
-        catch { v = 0; }
+        try { v = Math.max(0, ((evaluate(build, spec).score / (_current || 1)) - 1) * 100); }
+        catch (e) { v = 0; }
         build.masteryNodes = before;
         return (_abilityCache[nodeId] = v);
       };
@@ -1596,6 +2282,9 @@
       const taken = new Set();
       let spent = 0;
       let marginalRatio = null;
+      // Every capstone bought, in the order it was bought - which is also the
+      // order to take them in game. The first is what the build is built around.
+      const capstoneOrder = [];
 
       // A node's parent may be an ARRAY, and builder.js requires ALL of them
       // (parentOk uses .every, builder.js:7326). That is the shape in the tree
@@ -1641,40 +2330,38 @@
         // It is the honest answer to "why not this capstone": everything bought
         // was worth more per point than it was.
         marginalRatio = best.ratio;
+        // A capstone can be bought here too, on value per point. Once it is,
+        // every later probe is measured on top of it.
+        let boughtCapstone = false;
+        for (const x of best.path) if (x.type === 'mastery') {
+          capstoneOrder.push({ id: x.id, branch: x.branch, value: abilityValue(x.id), cost: best.c,
+                               name: (abilityNames[x.id] || {}).name || x.id });
+          boughtCapstone = true;
+        }
+        if (boughtCapstone) resync();
       }
 
-      // ── the capstone pass, which used to run too late to do anything ─────
-      // This block sat AFTER the "spend whatever is left" filler, so by the time
-      // it ran there was never anything left. Measured across every class and
-      // goal: it had exactly 0 points to work with every single time and bought
-      // nothing, ever. All of its careful "buy the RIGHT one" reasoning was dead
-      // code, and the spare points went to stat nodes this build had already
-      // been measured not to care about — which is precisely the "why does it
-      // skip masteries for stat points" complaint.
+      // ── the capstone pass ─────────────────────────────────────────────────
+      // History: this block used to sit AFTER the "spend whatever is left"
+      // filler, so it had exactly 0 points to work with every single time and
+      // bought nothing, ever - which was precisely the "why does it skip
+      // masteries for stat points" complaint.
       //
-      // Five points is five stat nodes, so the choice has to be made on what the
+      // The value loop above already buys every priced capstone that pays per
+      // point - a Saint healer leaves it holding One For All and All For One.
+      // This pass is for what that loop cannot see: the one capstone an engine
+      // with no number for it would otherwise never buy. It is measured on top
+      // of what has already been bought, not on the empty tree.
+      //
+      // Five points is five stat nodes, so the choice is made on what the
       // ability actually does; picking by branch colour was choosing between
       // Overload (+100%, but only against stunned enemies) and Element Mastery
       // (+15% to a caster's entire kit) by which side of the tree they sat on.
-      const considered = all.filter(n => n.type === 'mastery' && !taken.has(n.id))
-        .map(n => {
-          const path = closure(n.id);
-          return { n, path, c: path.reduce((a, x) => a + _mastCost(x), 0),
-                   v: abilityValue(n.id),
-                   branchW: (w[(cd.branchStats || {})[n.branch]] || 0) };
-        });
-      // Remembered rather than discarded. "It costs 7 to reach and 4 were left"
-      // is an answer; "it was not chosen" is not, and that is all the output
-      // could say while the losers were being filtered away here.
-      const pointsLeft = CAP - spent;
-      const capstones = considered.filter(x => x.c <= pointsLeft)
-        // Ability value first; branch weight only breaks ties between abilities
-        // this engine cannot tell apart, which is what it was always doing.
-        .sort((a, b) => b.v - a.v || b.branchW - a.branchW || a.c - b.c);
+      //
       // Buy on measured value when there is any. When every remaining capstone
       // measures zero, WHY it measures zero decides what happens next: a priced
       // ability that scores nothing has genuinely been weighed and turned down
-      // for this goal, and those points are better spent as stats — but an
+      // for this goal, and those points are better spent as stats - but an
       // ability this engine cannot price scores zero for want of a number, not
       // for want of value, and a real in-game ability beats stat nodes the build
       // has already been measured not to want.
@@ -1687,12 +2374,33 @@
         // does not work is how five mastery points get spent on nothing.
         if (r && r.kind === 'bugged') return false;
         return (r && r.kind === 'note') || (!r && e.bonus == null) ||
-               (r && r.kind !== 'note' && r.value == null);
+               (r && r.kind !== 'note' && r.kind !== 'multi' && r.value == null);
       };
+      // What the pass had to work with - the write-up's "it cost 7 to reach
+      // and 4 were left" is measured from here.
+      const leftAtCapstone = CAP - spent;
+      resync();
+      // Remembered rather than discarded. "It costs 7 to reach and 4 were
+      // left" is an answer; "it was not chosen" is not, and that is all the
+      // output could say while the losers were being filtered away here.
+      const considered = all.filter(n => n.type === 'mastery' && !taken.has(n.id))
+        .map(n => {
+          const path = closure(n.id);
+          return { n, path, c: path.reduce((a, x) => a + _mastCost(x), 0),
+                   v: abilityValue(n.id),
+                   branchW: (w[(cd.branchStats || {})[n.branch]] || 0) };
+        });
+      const pointsLeft = CAP - spent;
+      const capstones = considered.filter(x => x.c <= pointsLeft)
+        // Ability value first; branch weight only breaks ties between abilities
+        // this engine cannot tell apart, which is what it was always doing.
+        .sort((a, b) => b.v - a.v || b.branchW - a.branchW || a.c - b.c);
       const bought = capstones.find(x => x.v > 0.01) || capstones.find(unpriced) || null;
       if (bought) {
         bought.path.forEach(x => taken.add(x.id));
         spent += bought.c;
+        capstoneOrder.push({ id: bought.n.id, branch: bought.n.branch, value: bought.v, cost: bought.c,
+                             name: (abilityNames[bought.n.id] || {}).name || bought.n.id });
       }
 
       // Then spend whatever is left on any node still reachable, even one whose
@@ -1740,10 +2448,15 @@
       const perClass = (D.masteryAbilities || {})[build.klass] || {};
       const abilityRules = K.MASTERY_ABILITIES || {};
       const pct1 = v => (Math.round(v * 10) / 10);
-      build.masteryBudget = { cap: CAP, spent, leftAtCapstone: pointsLeft,
+      build.masteryBudget = { cap: CAP, spent, leftAtCapstone,
                               bought: bought ? (perClass[bought.n.id] || {}).name || null : null,
+                              // Purchase order, which is also the order to take them in
+                              // game: the first entry is what the build is built around.
+                              capstoneOrder: capstoneOrder.slice(),
+                              getFirst: capstoneOrder.length ? capstoneOrder[0] : null,
                               capstonesTaken: build.masteryNodes.filter(id => byId[id].type === 'mastery').length,
                               statNodes:      build.masteryNodes.filter(id => byId[id].type === 'node').length };
+      build.masteryNotation = masteryNotation(build);
       build.masteryPassedOver = considered
         .filter(x => !taken.has(x.n.id) && perClass[x.n.id])
         .map(x => {
@@ -1790,6 +2503,21 @@
         })
         .sort((a, b) => b.value - a.value);
       build.masteryShards = build.masteryNodes.filter(id => byId[id].type === 'breakthrough').length;
+    }
+
+    // The community writes a mastery tree as "a-b-c": how many capstone
+    // Masteries are taken in the red, green and blue branches, two available in
+    // each. "0-1-2" is one green capstone and both blue ones. It says nothing
+    // about the stat nodes, which is the point - the capstones are the build.
+    function masteryNotation(build) {
+      const byId = {};
+      (D.masteryNodes || []).forEach(n => { byId[n.id] = n; });
+      const count = { red: 0, green: 0, blue: 0 };
+      for (const id of build.masteryNodes || []) {
+        const n = byId[id];
+        if (n && n.type === 'mastery' && count[n.branch] !== undefined) count[n.branch]++;
+      }
+      return count.red + '-' + count.green + '-' + count.blue;
     }
 
     // Every selected node must have every ancestor selected, and the bill must
@@ -1841,7 +2569,9 @@
       for (let i = 0; i < slots; i++) {
         let bestName = null, bestScore = evaluate(build, spec).score;
         for (const name of names) {
-          if (build.shards.includes(name)) continue;
+          // A shard may be fitted more than once: the model counts copies of a
+          // family the way the site does (two in full, then 25%), so the third
+          // copy only wins when a quarter of it still beats every other shard.
           build.shards.push(name);
           const sc = evaluate(build, spec).score;
           build.shards.pop();
@@ -1978,13 +2708,23 @@
     }
 
     // ── corruption ───────────────────────────────────────────────────────────
-    function pickCorruption(ctx) {
+    // A named fight may carry a preferred form (BOSS_TACTICS[...].preferForm),
+    // recorded from how the community plays it. It is a bounded nudge on the
+    // fit score - enough to decide a close call, never enough to overturn a
+    // form the kit has no use for - and the reason travels with the pick.
+    const PREFER_FORM_WEIGHT = 0.25;
+    function pickCorruption(ctx, spec) {
+      const pref = spec && spec.boss ? (((K.BOSS_TACTICS || {})[spec.boss] || {}).preferForm || null) : null;
       const scored = K.CORRUPTION.map(entry => {
         const r = entry.fit(ctx);
-        return Object.assign({ form: entry.form, score: r.score, why: r.why },
+        const preferred = !!(pref && pref.form === entry.form);
+        return Object.assign({ form: entry.form,
+                               score: r.score * (preferred ? 1 + PREFER_FORM_WEIGHT : 1),
+                               why: r.why + (preferred ? ' Recommended for ' + spec.boss + ': ' + pref.why + '.' : ''),
+                               preferred },
                              { damage: corruptionDamage(entry.form, ctx) });
       }).sort((a, b) => b.score - a.score);
-      return { best: scored[0], all: scored };
+      return { best: scored[0], all: scored, preferred: pref ? pref.form : null };
     }
 
     // What a form does to the damage numbers. Worked out for EVERY form, not
@@ -2009,31 +2749,28 @@
     }
 
     // ── entry point ──────────────────────────────────────────────────────────
-    // Races with no real stat block in the data. Excluded from every search —
-    // recommending one is recommending an unfinished entry, and its zeroed stats
-    // make it strictly worse anyway, so nothing is lost.
-    function realRaces() {
-      const roles = K.RACE_ROLES || {};
-      return Object.keys(D.races || {}).filter(r => !(roles[r] || {}).placeholder);
-    }
+    // Every race in the data is searched. There used to be a `placeholder`
+    // exclusion for races with no stat block; Arborivia and Calvariae were the
+    // last two, and the owner supplied their real numbers (builder.js `races`).
+    const allRaces = () => Object.keys(D.races || {});
 
     // Races that suit a goal. Used for RANDOM rolls, where the maths cannot save
     // us: most racial passives are prose the engine cannot read, so left to base
     // stats alone it will happily roll Daminos for a damage build — four lives
     // and outgoing healing, which is excellent and entirely beside the point.
     //
-    // Falls back to every real race rather than to nothing.
+    // Falls back to every race rather than to nothing.
     function racesForGoal(goal) {
       const want = (K.GOAL_RACE_ROLES || {})[goal];
       const roles = K.RACE_ROLES || {};
-      if (!want) return realRaces();
-      const fit = realRaces().filter(r => {
+      if (!want) return allRaces();
+      const fit = allRaces().filter(r => {
         const rr = (roles[r] || {}).roles || [];
         return rr.some(x => want.indexOf(x) !== -1);
       });
       // Tech races are off-role but earn their place through a specific combo.
-      for (const t of techFor(goal)) if (fit.indexOf(t.race) === -1 && realRaces().indexOf(t.race) !== -1) fit.push(t.race);
-      return fit.length ? fit : realRaces();
+      for (const t of techFor(goal)) if (fit.indexOf(t.race) === -1 && allRaces().indexOf(t.race) !== -1) fit.push(t.race);
+      return fit.length ? fit : allRaces();
     }
 
     // Tech entries that apply to a goal, and to a race.
@@ -2199,9 +2936,7 @@
         const pool = byWeapon ? byWeapon.filter(k => allowed.includes(k)) : allowed;
         klasses = pool.length ? pool : allowed;
       }
-      // Placeholder races are never searched; a named one is still honoured, so
-      // asking for Arborivia explicitly still works.
-      const races = spec.race ? [spec.race] : realRaces();
+      const races = spec.race ? [spec.race] : allRaces();
 
       // Coarse pass: a cheap build per (class, race) to find where to look
       // properly. Without it a full search of 570 pairs is far too slow.
@@ -2226,17 +2961,45 @@
       const finalists = coarse.slice(0, Math.min(8, coarse.length));
 
       let best = null, bestCtx = null;
+      const built = [];
       for (const f of finalists) {
         const b = buildFor(f.k, f.r, spec);
         const ctx = evaluate(b, spec);
+        built.push({ k: f.k, r: f.r, score: ctx.score });
         if (!best || ctx.score > bestCtx.score) { best = b; bestCtx = ctx; }
       }
 
-      const corr = pickCorruption(bestCtx);
+      // The winner's stat line goes "perfect" here, once, and its ctx is
+      // re-read afterwards so everything downstream sees the finished totals.
+      finishLine(best, spec);
+      bestCtx = evaluate(best, spec);
+
+      // What came second. Races for the winning class from the finalists are
+      // FULL builds, ranked; the rest of the coarse pass fills in behind them
+      // and is marked as coarse. Classes are the best coarse pair per class.
+      const topScore = Math.max(...built.map(x => x.score), 1e-9);
+      const seenRace = new Set();
+      const raceAlts = [];
+      for (const x of built.filter(x => x.k === best.klass).sort((a, b) => b.score - a.score)) {
+        seenRace.add(x.r);
+        raceAlts.push({ race: x.r, score: x.score, delta: Math.max(0, (topScore - x.score) / topScore), full: true });
+      }
+      for (const x of coarse.filter(x => x.k === best.klass && !seenRace.has(x.r)).slice(0, 8)) {
+        seenRace.add(x.r);
+        raceAlts.push({ race: x.r, score: x.score, delta: null, full: false });
+      }
+      const classBest = {};
+      for (const x of coarse) if (!classBest[x.k] || x.score > classBest[x.k].score) classBest[x.k] = x;
+      const classTop = Math.max(...Object.values(classBest).map(x => x.score), 1e-9);
+      const classAlts = Object.values(classBest).sort((a, b) => b.score - a.score).slice(0, 8)
+        .map(x => ({ klass: x.k, race: x.r, score: x.score, delta: Math.max(0, (classTop - x.score) / classTop), coarse: true }));
+
+      const corr = pickCorruption(bestCtx, spec);
       best.corruption = corr.best.form;
 
       return { build: best, ctx: bestCtx, corruption: corr, considered: coarse.length,
                covenant: best.covenantChoice || null,
+               alternatives: { race: raceAlts, class: classAlts },
                flavour: flavourFor(bestCtx),
                weaknesses: weaknessesOf(bestCtx, best) };
     }
@@ -2255,10 +3018,13 @@
 
     return { run, evaluate, movesFor, covenantMovesFor, kitFor, baseOf, weightOf, rankGear,
              pickCorruption, pickCovenant,
-             flavourFor, rollRandom, weaknessesOf, racesForGoal, realRaces, techForRace,
+             flavourFor, rollRandom, weaknessesOf, racesForGoal, allRaces, techForRace,
              masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
-             passivesFor, setupsFor, healMovesFor, buildDoes, inertFor, cautionFor,
-             masteryAbilityTotals, classesForLevel };
+             passivesFor, setupsFor, healMovesFor, buildDoes, statusesOf, maxHealthSoul, inertFor, cautionFor,
+             gearPassiveTotals, passiveTotals,
+             masteryAbilityTotals, masteryNotation, classesForLevel,
+             snapToBreakpoints, goPerfect, finishLine, decayedScore, investedForTotal, statLineFor, tierOrder,
+             speedFloor };
   }
 
   return { Optimizer };

@@ -220,9 +220,9 @@ damage-formula rewrite, which is not implemented — the calculator still uses t
 old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat` with
 `DRMultiplier = 100 / (100 + Reduc)`.
 
-`races` entries for **Arborivia and Calvariae carry placeholder zero stat
-blocks** — the changelog documents their passives and actives in full but never
-publishes base stats. Builds using them under-count until the real numbers land.
+`races` entries for **Arborivia and Calvariae** were placeholder zeros until
+2026-09-10; the owner supplied their base stats from the game (the changelog
+never published them), so they now count like every other race.
 
 #### Gear traits
 
@@ -404,3 +404,32 @@ The `owner` field matters: a *different* account logging in must **replace** loc
 - The load-order comment blocks in `index.html` carry counts ("all 12 QTE trainer IIFEs") that drift as trainers are added. Update them alongside the code.
 - Sending user text into `innerHTML` needs `_escHtml` (`saved-builds.js`) or `_sanitizeSummHtml` (`core.js`).
 - `index.html` declares `<meta charset="utf-8">` and it must stay first in `<head>`. Without it browsers fall back to windows-1252 and every em-dash in the UI renders as mojibake. GitHub Pages sends the charset in its header, which masks the problem in production while breaking `python -m http.server` locally.
+
+## Build AI (tools/ai)
+
+The admin/tester "AI" panel is a local rule-based optimiser, not a model call: no
+API, no network. `tools/ai/README.md` is its design doc; read it before touching
+anything in the folder.
+
+- **Run the suite**: `node tools/ai/test.js` (minutes). `--only=<text>` runs the
+  matching groups/tests; `--strict-golden` fails on soft golden expectations.
+  Every new guard is mutation-tested: break the code on purpose and confirm the
+  guard fails, then restore.
+- **`model.js` mirrors `js/builder.js` to the decimal** and `tools/ai/verify.js`
+  (browser console, against the live page) proves it. Anything that is not the
+  site's own maths - the owner's rules, assumed uptimes, sustain, stat decay -
+  goes in `knowledge.js` or the scorer in `optimize.js`, never in `model.js`.
+- **`knowledge.js` is the edit surface**: gear passives, race/class passives,
+  capstones, setup moves, boss tactics, marks, the stat-decay rule. Everything
+  not priced is reported under "not counted", never silently zero.
+- **After a game-data edit**: `node tools/ai/extract-data.js` regenerates the
+  snapshot (`ai-data.json`/`.js`); a test fails while it is stale.
+- **Cache stamps move together**: `ENGINE_V` in `js/build-ai.js`, every `?v=`
+  in `tools/build-ai.html`, and `js/build-ai.js?v=` / `css/build-ai.css?v=` in
+  `index.html`. A stale engine dies on the first call into a function the old
+  copy lacks.
+- **`plan.js` is the write-up contract**: `explain.js` and the panel summary
+  both render from the BuildPlan. A future LLM write-up consumes the same
+  object and nothing else.
+- **`tools/ai/golden/`** holds the owner's community builds as expectations;
+  add a build as a new JSON file, no test changes needed.

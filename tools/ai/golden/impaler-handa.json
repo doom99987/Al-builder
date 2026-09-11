@@ -1,0 +1,26 @@
+{
+  "name": "Impaler Handaconda farm - the community reference (2026-09)",
+  "source": "site owner, community build post; showcase https://youtu.be/BytQnTdH1qQ",
+  "request": {
+    "text": "impaler solo handaconda farm",
+    "overrides": { "klass": "Impaler (Ch)", "roles": ["Tank", "DPS"], "play": "solo", "dmg": "average", "boss": "Handaconda", "level": 50 }
+  },
+  "expect": {
+    "class": "Impaler (Ch)",
+    "raceIn": ["Calvariae (3%)", "Inferion (Ob)"],
+    "milestones": [{ "stat": "end", "min": 60 }, { "stat": "str", "min": 110 }, { "stat": "lck", "min": 60 }],
+    "noDeadZone": true,
+    "gearAtLeast": { "n": 3, "of": ["Shadow Gauntlets", "Tear Blood Crystal", "Coagulated Finger Nail", "Ptera's Heart"] },
+    "armourIn": ["Bloody Menace"],
+    "weapon": { "type": "Spear", "tiered": true },
+    "artifact": "Darksigil",
+    "subclass": "Alchemist",
+    "shards": { "Voltaic": 2, "Reversing": 3 },
+    "mastery": { "notationIn": ["0-2-1"], "capstonesMin": 2, "mustInclude": ["Lasting Life"] },
+    "covenantIn": ["Way of Life"],
+    "corruption": "Tyranny",
+    "tactics": 3
+  },
+  "soft": ["raceIn", "milestones", "gearAtLeast", "armourIn", "weapon", "artifact", "subclass", "shards",
+           "mastery.notationIn", "mastery.mustInclude", "covenantIn"]
+}
