@@ -927,6 +927,16 @@ the moves a cooldown cut shortens, "rest", "cap", "floor" - and `test.js`
 holds every request to the rule: one rest stat, everything else on a
 breakpoint, nothing in the dead zone.
 
+### Class ceilings
+
+Some stat lines are known and the score cannot see why. `STAT_LINE_RULES` in
+`knowledge.js` holds them, per class and stat, with the owner as the source: a
+Saint only needs the 60 Endurance milestone - past it the points do more as
+Strength - unless it runs Astra, where Utor's heal needs about 102 total
+Endurance to pop Narthana's Sigil. A capped stat sits on its ceiling (or a
+breakpoint below it), is never the rest stat, and is not a dead zone even when
+the ceiling falls inside 101-109. `statCeilings(build)` says which apply.
+
 ## Mastery notation
 
 The community writes a mastery tree as `a-b-c`: how many capstone Masteries are
@@ -1034,7 +1044,8 @@ prediction of your damage in game.
 
 ## Performance
 
-A request takes ~300ms (the suite's budget is 400) and searches every class/race
+A request takes 265-420ms depending on machine load (the suite's budget is 600, and
+`--verbose` prints the measured figure - watch that, not the limit) and searches every class/race
 pairing, a 14-gear shortlist, all armours, the legal weapons, artifacts, marks,
 7 shard slots and 10 trait slots, then settles the winner's stat line with the
 "go perfect" pass. It was ~150ms before gear passives, statuses, sustain and the

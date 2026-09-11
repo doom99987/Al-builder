@@ -639,6 +639,37 @@
   const STAT_DECAY = { knee: 100, next: 110, deadZonePenalty: 0.04, pastRate: 0.5, assumed: true,
     note: 'stats fall off past ~100 - sit on a breakpoint (25 / 60 / 110) or stay at or under it' };
 
+  // ── STAT LINE RULES ───────────────────────────────────────────────────────
+  // Per-class ceilings the community plays by and the score cannot see. From
+  // the owner (2026-09-11): a Saint only needs the 60 Endurance milestone -
+  // past it the points do more as Strength, since the heals scale on both -
+  // unless it runs Astra, where Utor's heal needs about 102 total Endurance to
+  // pop Narthana's Sigil (he quotes 102 invested on Daminos). A capped stat
+  // sits exactly on its ceiling, or on a breakpoint below it, and is never the
+  // rest stat; where the freed points go is still the scorer's call.
+  const STAT_LINE_RULES = [
+    { klass: 'Saint (Or)', stat: 'end', cap: 60, source: 'owner',
+      why: 'a Saint only needs the 60 Endurance milestone - past it the points do more as Strength',
+      unless: [{ cap: 102, source: 'owner',
+                 when: b => b.mark === 'Astra' && !!b.artifact && b.artifact.name === "Narthana's Sigil",
+                 why: "with Astra, Utor's heal needs about 102 total Endurance to pop Narthana's Sigil" }] },
+  ];
+  // The ceilings that apply to THIS build: { stat: { cap, why, source } }.
+  function statCeilings(build) {
+    const out = {};
+    for (const r of STAT_LINE_RULES) {
+      if (r.klass && r.klass !== build.klass) continue;
+      let cap = r.cap, why = r.why, source = r.source;
+      for (const u of (r.unless || [])) {
+        let live = false;
+        try { live = !!u.when(build); } catch (e) { live = false; }
+        if (live) { cap = u.cap; why = u.why; source = u.source || source; break; }
+      }
+      out[r.stat] = { cap, why, source };
+    }
+    return out;
+  }
+
   // ── PERMUTH ───────────────────────────────────────────────────────────────
   // Venia's Permuth (builder.js markMoves): 5% of your HP for a random 40%
   // stat buff, 3 turns, 10-turn cooldown, 2 energy, weighted so it lands on
@@ -843,12 +874,13 @@
     // The bone race. Everything here is from the passive text; the uptimes and
     // Frail Body's DR figure are assumptions and say so.
     'Calvariae (3%)': [
-      { name: 'Broken Bones', kind: 'selfHealFlat', value: 12, uptime: 0.6,
-        note: '4 HP on your next turn for every hit of 5%+ max HP, up to 3 a turn - 12 HP at the three ' +
-              'a boss lands, scaled by incoming healing, counted on 60% of turns' },
-      { name: 'Frail Body', kind: 'dr', value: 15, uptime: 1, assumed: true,
+      { name: 'Broken Bones', kind: 'selfHealFlat', value: 4, uptime: 0.6, assumed: true,
+        note: '4 HP on your next turn for every hit of 5%+ max HP, up to 3 a turn - priced at ONE ' +
+              'such hit a turn, scaled by incoming healing, counted on 60% of turns. Three a turn ' +
+              'is a rare fight, and pricing it that way put this race ahead of Sheea on a healer' },
+      { name: 'Frail Body', kind: 'dr', value: 10, uptime: 1, assumed: true,
         note: 'any hit of 15%+ max HP is halved and the other half lands next turn as true damage. No ' +
-              'net reduction over two turns; priced as 15% DR for the turn it buys you to heal - an ' +
+              'net reduction over two turns; priced as 10% DR for the turn it buys you to heal - an ' +
               'assumption, not a measurement' },
       { name: 'Frugality', kind: 'incHealPct', value: 20, uptime: 0.6,
         note: '+20% incoming healing until the end of your next turn whenever Broken Bones fires' },
@@ -2868,6 +2900,9 @@
            ROLES, roleOf, ROLE_ITEMS, roleItemNote, ROLE_ITEM_MARGIN, SCROLL_NOTES,
            ROLE_GOALS, ROLE_ORDER, goalsForRoles, goalWeights,
            MILESTONES, milestonesFor, MILESTONE_CD_AFFINITY, STAT_DECAY, PERMUTH,
+           STAT_LINE_RULES, statCeilings,
+           STAT_LINE_RULES, statCeilings,
+           STAT_LINE_RULES, statCeilings,
            GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
            UNAVAILABLE, AVOID, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
