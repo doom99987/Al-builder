@@ -10,6 +10,7 @@
     "raceIn": ["Sheea (Ob)", "Daminos (3%)", "Corvolus (3%)", "Arborivia (3%)"],
     "raceRankingTop4Has": ["Sheea (Ob)", "Daminos (3%)"],
     "milestones": [{ "stat": "end", "min": 60 }, { "stat": "arc", "min": 110 }],
+    "totalIn": { "end": [[60, 62], [102, 104]] },
     "noDeadZone": true,
     "gearMust": ["Narthana's Leaf"],
     "gearAtLeast": { "n": 3, "of": ["Narthana's Leaf", "Parasitic Leech", "Madseer's Codex", "Divine Promise",

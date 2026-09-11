@@ -28,7 +28,10 @@
       if (x.reason === 'perk') {
         parts.push(x.total + ' ' + cap(x.stat) + ' (' + x.perk +
                    (x.moves && x.moves.length ? ' on ' + x.moves.slice(0, 3).join(', ') : '') +
-                   (x.capped ? '; capped at ' + x.total : '') + ')');
+                   (x.capped ? '; capped at ' + x.total : '') +
+                   (x.rule ? '; ' + x.rule : '') + ')');
+      } else if (x.reason === 'rule') {
+        parts.push(x.total + ' ' + cap(x.stat) + ' (' + x.rule + ')');
       } else if (x.reason === 'critTier') {
         parts.push(x.total + ' ' + cap(x.stat) + ' (crit tier ' + x.tier + ')');
       } else if (x.reason === 'rest') {

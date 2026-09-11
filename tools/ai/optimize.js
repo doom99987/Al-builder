@@ -832,8 +832,17 @@
       // scorer docks each such stat a little (K.STAT_DECAY), which is what
       // makes the allocator's snap to a "perfect" line actually win.
       const decay = K.STAT_DECAY || null;
+      // A stat parked on a class ceiling (a Saint's 102 Endurance for Utor) is
+      // there on purpose, whatever the fall-off says.
+      const lineRules = K.statCeilings ? K.statCeilings(build) : {};
+      ctx.lineRules = lineRules;
       ctx.deadZone = decay
-        ? STATS.filter(s => (ctx.siteStats[s] || 0) > decay.knee && (ctx.siteStats[s] || 0) < decay.next)
+        ? STATS.filter(s => {
+            const t = ctx.siteStats[s] || 0;
+            const c = lineRules[s];
+            if (c && t >= c.cap && t < c.cap + 2) return false;
+            return t > decay.knee && t < decay.next;
+          })
         : [];
 
       // Healing the site does not apply to its own percentage - class passives
@@ -1272,8 +1281,15 @@
       const decay = K.STAT_DECAY || null;
       const tiers = (D.STAT_MILESTONE_TIERS || [25, 60, 110]).slice().sort((a, b) => a - b);
       const floor = speedFloor(spec);
-      const tiersFor = s => (s === 'spd' && floor && tiers.indexOf(floor) === -1)
-        ? tiers.concat([floor]).sort((a, b) => a - b) : tiers;
+      // A class ceiling (K.STAT_LINE_RULES) replaces every breakpoint above it
+      // with itself, and the capped stat is never the rest.
+      const ceilings = K.statCeilings ? K.statCeilings(build) : {};
+      const tiersFor = s => {
+        let list = tiers;
+        if (s === 'spd' && floor && tiers.indexOf(floor) === -1) list = tiers.concat([floor]);
+        if (ceilings[s]) list = list.filter(x => x < ceilings[s].cap).concat([ceilings[s].cap]);
+        return list.slice().sort((a, b) => a - b);
+      };
       const budget = M.pointBudget(build);
       const legal = () => STATS.every(s => (build.invested[s] | 0) >= 0) &&
                           STATS.reduce((a, s) => a + (build.invested[s] | 0), 0) <= budget;
@@ -1294,6 +1310,7 @@
       const start = Object.assign({}, build.invested);
       let bestLine = null, bestSc = -Infinity;
       for (const r of STATS) {
+        if (ceilings[r]) continue;                 // a capped stat never takes the rest
         build.invested = Object.assign({}, start);
         const others = STATS.filter(s => s !== r && (build.invested[s] | 0) > 0 && !exempt(s));
         if (!others.length && (build.invested[r] | 0) === 0) continue;
@@ -1425,9 +1442,11 @@
                                : true;
       const site = ctx.siteStats || ctx.stats;
       const floor = speedFloor(spec);
+      const ceil = K.statCeilings ? K.statCeilings(build) : {};
       const line = STATS.map(s => {
         const total = site[s] | 0;
         const invested = build.invested[s] | 0;
+        const onCeiling = !!(ceil[s] && total >= ceil[s].cap && total < ceil[s].cap + 2);
         const reached = ctx.milestones.reached
           .filter(m => m.stat === s && m.kind !== 'note')
           .sort((a, b) => b.need - a.need);
@@ -1456,6 +1475,13 @@
         if (row.reason === 'none' && s === 'spd' && floor && total >= floor && total < floor + 2) {
           row.reason = 'floor'; row.perk = 'the solo boss dodge floor'; row.target = floor;
         }
+        // A class ceiling: the reason when nothing else is, and the reason
+        // behind the perk when a milestone sits on the same number.
+        if (onCeiling) {
+          row.rule = ceil[s].why; row.ruleSource = ceil[s].source;
+          if (row.reason === 'none') row.reason = 'rule';
+          row.capped = false;
+        }
         return row;
       });
       // The rest stat is the one invested stat that does NOT sit on a
@@ -1466,7 +1492,7 @@
       const tiers = D.STAT_MILESTONE_TIERS || [25, 60, 110];
       const onBp = x => tiers.some(bp => x.total >= bp && x.total < bp + 2) ||
                         (x.stat === 'spd' && floor > 0 && x.total >= floor && x.total < floor + 2);
-      const open = line.filter(x => x.reason === 'none' && x.invested > 0);
+      const open = line.filter(x => x.reason === 'none' && x.invested > 0 && !ceil[x.stat]);
       const off = open.filter(x => !onBp(x));
       const rest = (off.length ? off : open).sort((a, b) => b.invested - a.invested)[0];
       if (rest) rest.reason = 'rest';
