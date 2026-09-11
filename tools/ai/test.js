@@ -5694,6 +5694,21 @@ describe('cache busting', () => {
        'inline handler(s) using the plain escaper:\n  ' + bad.join('\n  '));
   });
 
+  // AdSense listed "Ads.txt: Not found" for months because the file was never
+  // in the repo. GitHub Pages serves the repo root, so it has to sit there, and
+  // it has to name the same publisher as the tag in index.html - if the two
+  // drift, ads still load and the revenue is flagged as unauthorised.
+  it('ads.txt authorises the publisher the AdSense tag uses', () => {
+    const html = readRoot('index.html');
+    const tag = /adsbygoogle\.js\?client=ca-(pub-\d+)/.exec(html);
+    ok(tag, 'no AdSense tag in index.html');
+    let ads = '';
+    try { ads = readRoot('ads.txt'); } catch (e) { ads = ''; }
+    ok(ads, 'ads.txt is missing from the site root');
+    ok(new RegExp('^google\\.com,\\s*' + tag[1] + ',\\s*DIRECT,\\s*f08c47fec0942fa0\\s*$', 'm').test(ads),
+       'ads.txt does not authorise ' + tag[1] + ': ' + JSON.stringify(ads.trim()));
+  });
+
   it('version.json and index.html agree on the site version', () => {
     const raw = readRoot('version.json');
     let parsed;
