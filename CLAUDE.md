@@ -55,6 +55,8 @@ Files are internally divided by a header comment, but **the style varies per fil
 
 `switchPage(name)` toggles `.site-page.active` on `#page-<name>`. Within the QTE page, `switchQteTab(name)` shows `#qte-panel-<name>` and calls that trainer's show/hide hooks. Both live in the inline `<script>` at the bottom of `index.html`, not in a JS file.
 
+**Matchmaking is disabled** (2026-09-11, owner request). In `index.html` its stylesheet, nav button, home card, page div, script tag and both `switchPage` hooks are commented out, and `'matchmaking'` is out of `_validPages` so `#matchmaking` lands on Home. `js/matchmaking.js`, `css/matchmaking.css`, the SQL and the tests that read those files are untouched and dormant. To restore: grep `index.html` for `Matchmaking is disabled`, uncomment each block, put `'matchmaking'` back in `_validPages`, and bump the stamps and `SITE_VERSION`.
+
 ## Supabase
 
 Client is created in `sb.js` and shared as `window._sbClient`; other modules must reuse it rather than constructing their own. The anon key is committed in several files by design (it is a public key; RLS is the actual boundary).
