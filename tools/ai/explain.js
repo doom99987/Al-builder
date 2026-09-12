@@ -525,6 +525,24 @@
         lines.push('**Turn ' + turn + ' — ' + finisher.name + '** for about **' +
                    n0(c.bestBurst) + '**, against ' + n0(c.bestHit) + ' with no setup.');
       }
+      if (c.openerCrit > 0) {
+        lines.push('**Opening crit:** **+' + Math.round(c.openerCrit) + '%** that exists only on this ' +
+                   'turn — what the setups grant, and anything gated on full health, which a fight ' +
+                   'starts at. It is in the number above and deliberately not in the sustained one.');
+      }
+      // What the rotation costs to run. A plan you cannot pay for is not a plan,
+      // and the energy gain chance only means anything as an average per turn.
+      if (c.energy && c.energyPlan && c.energyPlan.steps.length) {
+        const e = c.energy, p = c.energyPlan;
+        const spent = p.steps.reduce((a, s) => a + s.cost, 0);
+        lines.push('**Energy:** you open at **' + Math.round(e.cap) + '** and gain about **' +
+                   (Math.round(e.perTurn * 100) / 100) + ' a turn** (' + e.regen +
+                   ' flat, plus a ' + Math.round(e.chancePct) + '% gain chance counted as its average). ' +
+                   'This opener spends **' + spent + '**' +
+                   (p.waits ? ', so it needs **' + p.waits + ' extra turn' + (p.waits > 1 ? 's' : '') +
+                              '** waiting on energy — ' + p.turns + ' turns in all.'
+                            : ' — nothing here waits on energy.'));
+      }
       if (c.sustainedHit && Math.abs(c.sustainedHit - c.bestHit) > 1) {
         lines.push('Over a longer fight the buffs are not always up, so sustained damage settles ' +
                    'around **' + n0(c.sustainedHit) + '** — which is the number this build was ' +

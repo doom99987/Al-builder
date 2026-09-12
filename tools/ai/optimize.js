@@ -329,6 +329,25 @@
     // change and the search then compared every scroll against the same kit.
     const _kitCache = {};
     function kitFor(build, klass) {
+      // KNOWN GAP, deliberately left open (2026-09-12). Race ACTIVES are scanned
+      // for setups and for statuses but are not in the scored kit, so a race
+      // attack cannot compete as a move however good it is - Arborivia's Leaf
+      // Thrust (2 damage x3 hits, +50 crit) and Boreas's Inner Frost are both
+      // invisible to the damage scorer.
+      //
+      // Switching them on is one line -- `if (build.race) extra.push(...
+      // grantedMoves('raceMoves', build.race));`, plus `build.race` in the key --
+      // and it was tried and reverted, because on its own it makes builds WORSE:
+      //   - Boreas's Inner Frost became the best nuke in the game despite
+      //     heavy-stunning you for two turns first (now priced, see K.SELF_STUN).
+      //   - The Impaler Handaconda golden flipped Calvariae -> Inferion on the
+      //     strength of Inferno Rift (255 against Death Curtain's 214), against
+      //     the community's own ranking of Calvariae >> Inferion - because the
+      //     race ATTACKS get priced while the race DEFENSIVE packages that make
+      //     Calvariae the farm race stay underpriced. It also stranded 4 mastery
+      //     points and dropped that build to a single capstone.
+      // Price the race defensive kits first, then turn this on and re-run the
+      // golden corpus.
       const key = [klass, build.covenant || '', build.covenantRank | 0, build.sub || '',
                    build.scroll1 || '', build.scroll2 || '', build.lostScroll || ''].join('|');
       if (_kitCache[key]) return _kitCache[key];
@@ -653,10 +672,21 @@
       // Aimed at a fight: every hit is scaled by that boss's resistance to the
       // move's element. Physical is Physical; Magic reads the Arcane column.
       const bossData = spec.boss ? (D.BOSS_DATA || {})[spec.boss] : null;
+      // Wicked Crown turns every Physical move into a Dark one — the site does
+      // exactly this at js/builder.js:4487. Anything that reads a move's type has
+      // to read the CONVERTED type or it pays element-gated buffs on moves the
+      // game says they miss, and misses the ones they now cover: Corvolus's Cast
+      // Amplify reaching a converted Stealth Strike is the whole point of the
+      // crown on an Assassin.
+      const wicked = (build.gear || []).some(g => g && g.name === 'Wicked Crown');
+      const typeOf = mv => {
+        const t = String(mv.moveType || '');
+        return (wicked && /^physical$/i.test(t.trim())) ? 'Dark' : t;
+      };
       const bossRes = bossData && bossData.res ? bossData.res : null;
       const resFor = mv => {
         if (!bossRes) return 1;
-        const el = String(mv.moveType || '').trim();
+        const el = typeOf(mv).trim();
         const key = /^(magic|arcane)$/i.test(el) ? 'Arcane' : el.charAt(0).toUpperCase() + el.slice(1).toLowerCase();
         const v = bossRes[key];
         return typeof v === 'number' ? v : 1;
@@ -678,7 +708,24 @@
         for (const k of STATS) d.stats[k] += (maFlat[k] || 0) + (gpFlat[k] || 0);
       }
 
-      const critChance = d.critChance + tt.critChance + pv.critChance + gp.critChance + ma.critChance;
+      // A gear bonus gated on a status this kit never applies pays nothing, and
+      // is marked inert rather than quietly counted - Frozen Diadem's crit needs
+      // Cold on the target, which most kits never put there.
+      let inertCrit = 0;
+      for (const a of (gp.active || [])) {
+        if (!a.needsStatus) continue;
+        const met = [...statuses.enemy].some(s => a.needsStatus.test(String(s)));
+        if (!met) { inertCrit += a.effective || 0; a.inert = true; }
+      }
+      // Ramp stats are at zero when a fight opens, so the burst figure is taken
+      // on stats with the ramp removed. The sustained figures keep it.
+      const rampFlat = gp.rampFlat || null;
+      const hasRamp = !!rampFlat && STATS.some(k => (rampFlat[k] || 0) > 0);
+      const openerStats = hasRamp
+        ? (() => { const o = Object.assign({}, d.stats); for (const k of STATS) o[k] -= (rampFlat[k] || 0); return o; })()
+        : d.stats;
+
+      const critChance = d.critChance + tt.critChance + pv.critChance + (gp.critChance - inertCrit) + ma.critChance;
       const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
       // The chosen damage model decides what "damage" means for the whole search.
       //
@@ -698,31 +745,43 @@
       // numbers come out of this: the opener (everything up), and the sustained
       // figure (each buff weighted by its uptime, duration / cooldown).
       const setups = setupsFor(build);
-      let setupDmgPct = 0, setupSustainedPct = 0, setupDr = 0;
+      let setupDmgPct = 0, setupSustainedPct = 0, setupDr = 0, setupCrit = 0;
       const statBuffs = {};
       const rotation = [];
-      for (const su of setups) {
+      for (let si = 0; si < setups.length; si++) {
+        const su = setups[si];
         const uptime = Math.min(1, (su.duration || 1) / Math.max(1, su.cd || 1)) * (su.reliability ?? 1);
+        // A setup that also grants crit (Shadow Form's attack out of Invisible)
+        // pays it on the opener only - that is the turn it is cast for.
+        if (su.critChance) setupCrit += su.critChance * (su.reliability ?? 1);
         if (su.kind === 'dmgPct') {
-          const full = su.value * (su.reliability ?? 1);
+          // A RAMPING buff is worth the tick it has actually reached when the hit
+          // lands, not its five-turn average: cast at position si of n setups, the
+          // nuke comes n - si turns later. Absolute Radiance on a three-turn
+          // opener is only its first or second tick, which is exactly why a fast
+          // kill can prefer a flat scroll over it.
+          const ticks = su.ramp && su.ramp.length ? su.ramp : null;
+          const full = ticks
+            ? ticks[Math.min(ticks.length - 1, Math.max(0, setups.length - si - 1))] * (su.reliability ?? 1)
+            : su.value * (su.reliability ?? 1);
           setupDmgPct += full;
           setupSustainedPct += su.value * uptime;
-          rotation.push({ move: su.move, gain: full, elements: su.elements || null, note: su.note, uptime });
+          rotation.push({ move: su.move, cost: su.cost || 0, gain: full, elements: su.elements || null, note: su.note, uptime });
         } else if (su.kind === 'statBuff' && su.statBuff) {
           statBuffs[su.statBuff] = true;
-          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+          rotation.push({ move: su.move, cost: su.cost || 0, gain: null, note: su.note, uptime });
         } else if (su.kind === 'dr') {
           // A defensive setup. It is not damage, so it does not belong in
           // setupDmgPct - it is uptime-weighted onto block DR, which is what the
           // survival archetypes actually score.
           setupDr += su.value * uptime;
-          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+          rotation.push({ move: su.move, cost: su.cost || 0, gain: null, note: su.note, uptime });
         } else if (su.kind === 'summonDmgPct') {
-          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+          rotation.push({ move: su.move, cost: su.cost || 0, gain: null, note: su.note, uptime });
         } else {
           // Anything this scorer has no column for (an ally buff, say) is still
           // part of the rotation and is listed as such.
-          rotation.push({ move: su.move, gain: null, note: su.note, uptime });
+          rotation.push({ move: su.move, cost: su.cost || 0, gain: null, note: su.note, uptime });
         }
       }
 
@@ -737,7 +796,22 @@
         buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
       }
 
+      // Crit that is only up on the opening turn: the setups cast for it, and
+      // the full-health bonuses (Arborivia's Overgrowth, Stellian Core) whose
+      // long-run uptime shaves them down but which are certainly up when the
+      // fight starts. It moves the BURST number only - the sustained figure
+      // keeps the averaged crit, because over a fight that is what you have.
+      const openerCrit = setupCrit + (pv.openerCritChance || 0) + (gp.openerCritChance || 0);
+      if (openerCrit > 0) {
+        buffedCrit += openerCrit;
+        buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
+      }
+
       let bestHit = 0, bestMove = null, bestBurst = 0, burstMove = null, sustainedHit = 0;
+      // Blasphemy's Notch pays out only on a move costing 3+ energy, so the form
+      // has to be priced against the best of THOSE. Measured here because this
+      // is the only place every move is already damage-ranked.
+      let bestDump = 0, dumpMove = null;
       for (const mv of moves) {
         let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * resFor(mv);
         let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + gp.dmgPct + ma.dmgPct;
@@ -745,7 +819,12 @@
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
         // Affinity Boost — only pay on moves of that type.
         for (const mt of pv.byMoveType) {
-          if (mt.when.test(String(mv.moveType || '') + ' ' + String(mv.element || ''))) pct += mt.value;
+          if (mt.when.test(typeOf(mv) + ' ' + String(mv.element || ''))) pct += mt.value;
+        }
+        // Gear bonuses gated the same way. Read through typeOf, so a Physical
+        // move converted by Wicked Crown collects the Dark ones.
+        for (const mt of (gp.byMoveType || [])) {
+          if (mt.when.test(typeOf(mv) + ' ' + String(mv.element || ''))) pct += mt.value;
         }
 
         // heavyHand only pays on skills costing 2+ energy; strip it otherwise.
@@ -761,13 +840,18 @@
         const es = (K.ENERGY.scalingMoves || {})[mv.name];
         if (es) dmg *= (1 + es.perEnergy * Math.max(0, cap - es.freeEnergy));
 
-        const plain = dmg * mult;
+        // A move that stuns YOU before it lands costs turns nobody else pays, so
+        // it is counted per turn it occupies (K.SELF_STUN). Without this, Boreas's
+        // Inner Frost - 21 base, and two turns of you standing there - outscored
+        // every real nuke the moment race actives entered the kit.
+        const stunDiv = 1 + (K.selfStunTurns ? K.selfStunTurns(mv) : 0);
+        const plain = dmg * mult / stunDiv;
         if (plain > bestHit) { bestHit = plain; bestMove = mv; }
 
         // The same move with the setup up. Element-gated buffs only pay on
         // matching move types.
-        const type = String(mv.moveType || '') + ' ' + String(mv.element || '');
-        let openPct = 0, sustPct = 0;
+        const type = typeOf(mv) + ' ' + String(mv.element || '');
+        let openPct = ma.openerDmgPct || 0, sustPct = 0;
         for (const rt of rotation) {
           if (rt.gain === null) continue;
           if (rt.elements && !rt.elements.test(type)) continue;
@@ -776,10 +860,16 @@
         }
         // Recompute from the pre-multiplier damage so the buffs compound properly.
         const preMult = dmg;
-        const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * resFor(mv) * (1 + pct / 100) : preMult;
-        const burst = withStats * (1 + openPct / 100) * buffedMult;
-        const sust  = preMult   * (1 + sustPct / 100) * mult;
+        // The opener is taken on ramp-free stats: a Crystalized Star stack you
+        // have not built yet is not damage you have on turn three.
+        const openerBase = hasRamp
+          ? M.moveDamage(build, mv, { stats: openerStats }) * resFor(mv) * (1 + pct / 100)
+          : preMult;
+        const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * resFor(mv) * (1 + pct / 100) : openerBase;
+        const burst = withStats * (1 + openPct / 100) * buffedMult / stunDiv;
+        const sust  = preMult   * (1 + sustPct / 100) * mult / stunDiv;
         if (burst > bestBurst) { bestBurst = burst; burstMove = mv; }
+        if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; }
         if (sust > sustainedHit) sustainedHit = sust;
       }
       const ctx = {
@@ -796,6 +886,7 @@
         // shared game data, so this attaches to a copy rather than writing to one.
         bestHit, bestMove: withShape(build, bestMove), moves, goal: spec.goal,
         bestBurst, burstMove: withShape(build, burstMove), sustainedHit, rotation, setups,
+        bestDump, dumpMove: withShape(build, dumpMove), openerCrit, worn: wornNames(build),
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
         masteryBudget: build.masteryBudget || null,
@@ -866,10 +957,45 @@
         if (!raw) return 1;
         let cut = flatCut;
         for (const c of ctx.milestones.cdCut)
-          if (c.elements && c.elements.test(String(mv.moveType || ''))) cut += c.value;
+          if (c.elements && c.elements.test(typeOf(mv))) cut += c.value;
         return Math.max(1, raw - cut);
       };
       ctx.effectiveCd = cdFor;
+
+      // ── energy over turns ───────────────────────────────────────────────────
+      // Owner's rule: 1 a turn flat, plus the energy GAIN stat counted as its
+      // average (a 40% chance is 0.4 a turn). This does not gate damage - it
+      // says whether the rotation above can be paid for, and how many turns it
+      // really takes once waiting for energy is counted.
+      const nrgChance = Math.max(0, Number(d.nrgChance) || 0);
+      const regenPerTurn = K.ENERGY.regenPerTurn ?? 1;
+      const energyPerTurn = regenPerTurn + nrgChance / 100;
+      ctx.energy = { perTurn: energyPerTurn, regen: regenPerTurn, chancePct: nrgChance, cap };
+      ctx.energyPlan = (() => {
+        const steps = [];
+        let have = K.ENERGY.startAtCap === false ? 0 : cap;
+        let waits = 0;
+        const spend = (name, cost) => {
+          let wait = 0;
+          // A pool that cannot grow would loop forever, so waiting is bounded.
+          while (have < cost && wait < 12 && energyPerTurn > 0) { have = Math.min(cap, have + energyPerTurn); wait++; }
+          have = Math.max(0, have - cost);
+          waits += wait;
+          steps.push({ move: name, cost, wait, left: Math.round(have * 10) / 10 });
+          have = Math.min(cap, have + energyPerTurn);
+        };
+        for (const rt of (ctx.rotation || [])) spend(rt.move, rt.cost || 0);
+        const fin = ctx.burstMove || ctx.bestMove;
+        if (fin) {
+          // A cost written "3+X" (Carnage) consumes the whole pool, so the ledger
+          // charges what is actually banked rather than the 3 it parses to -
+          // which is the entire reason a build like that hoards energy.
+          const base = M.parseCost(fin.cost);
+          const dumpsPool = /\+/.test(String(fin.cost == null ? '' : fin.cost));
+          spend(fin.name, dumpsPool ? Math.max(base, Math.floor(have)) : base);
+        }
+        return { steps, waits, turns: steps.length + waits };
+      })();
 
       const healMult = ctx.effectiveHeal / 100;
       let bestHeal = 0, perTurn = 0;
@@ -1096,13 +1222,28 @@
         // being found.
         const perLuck = D.LUCK_CRIT_RATIO || 1;
         const need = Math.ceil((target - cur.critChance) / perLuck);
+        // Two candidates per donor: the EXACT points needed to land on the
+        // threshold, and the donor's whole stack. Landing on the minimum is not
+        // always the best line past it - the Luck that carries you to a tier
+        // usually keeps paying once you are there - and trying only the minimum
+        // was rejecting tiers that a slightly greedier line wins outright. (An
+        // Amorus Lancer reached 100 crit at the minimum and scored BELOW its own
+        // no-tier line, so the snap reverted; the all-Luck line scores above it.)
         for (const donor of STATS.filter(s => s !== 'lck').sort((a, b) => build.invested[b] - build.invested[a])) {
-          const take = Math.min(need, Math.max(0, build.invested[donor]));
-          if (!take) continue;
-          build.invested[donor] -= take; build.invested.lck += take;
-          const sc = evaluate(build, spec);
-          if (sc.score > best + 1e-9) { best = sc.score; Object.assign(snapshot, build.invested); }
-          else { build.invested[donor] += take; build.invested.lck -= take; }
+          const avail = Math.max(0, build.invested[donor]);
+          if (!avail) continue;
+          let bestTake = 0, bestScore = best;
+          for (const take of [...new Set([Math.min(need, avail), avail])]) {
+            if (!take) continue;
+            build.invested[donor] -= take; build.invested.lck += take;
+            const sc = evaluate(build, spec).score;
+            build.invested[donor] += take; build.invested.lck -= take;   // always restore
+            if (sc > bestScore + 1e-9) { bestScore = sc; bestTake = take; }
+          }
+          if (bestTake) {
+            build.invested[donor] -= bestTake; build.invested.lck += bestTake;
+            best = bestScore; Object.assign(snapshot, build.invested);
+          }
           break;
         }
       }
@@ -1944,8 +2085,11 @@
       const out = { dmgPct: 0, critChance: 0, hpPct: 0, dr: 0,
                     lifestealPct: 0, healFromDmgPct: 0, selfHealFlat: 0, healPctPerTurn: 0,
                     statFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+                    // The share of statFlat that comes from a RAMP, kept separately
+                    // so the opener can be computed without it.
+                    rampFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
                     selfStatuses: new Set(), enemyStatuses: new Set(),
-                    active: [], unmodelled: [] };
+                    active: [], unmodelled: [], byMoveType: [], openerCritChance: 0 };
       const seen = new Set();
       // Where this build sits on its own health bar. An item gated on an HP
       // threshold is worth what it is worth TO THIS BUILD, not what it is worth
@@ -1980,19 +2124,41 @@
           for (const st of (e.self || []))  out.selfStatuses.add(foldStatus(st));
           for (const st of (e.enemy || [])) out.enemyStatuses.add(foldStatus(st));
         } else if (kind === 'statRamp') {
-          // +value per turn to every stat, counted at the assumed turn count.
+          // +value per turn (or per crit) to a stat, counted at the assumed count.
+          // `stat` narrows it to one stat - Crystalized Star ramps Luck alone -
+          // and `rampsFromZero` records it as a ramp, so the opener can leave it
+          // out: a stack you have not built yet is not damage you have.
           eff = e.value * Math.min(e.capTurns || 99, e.assumedTurns || 1);
-          for (const st of STATS) out.statFlat[st] += eff;
+          for (const st of (e.stat ? [e.stat] : STATS)) {
+            out.statFlat[st] += eff;
+            if (e.rampsFromZero) out.rampFlat[st] += eff;
+          }
         } else if (kind === 'onSite') {
           eff = 0;                                   // already in model.js
         } else if (e.value != null) {
           eff = e.value * up;
-          if (typeof out[kind] === 'number') out[kind] += eff;
+          // A bonus gated on a move's element — Shard of Blight's +25% to Dark —
+          // pays only on matching moves, so it is held aside the way the race and
+          // class passives are. Added flat it pays every build that cannot use it
+          // and underpays the one built around it.
+          if (kind === 'dmgPct' && e.elements) out.byMoveType.push({ when: e.elements, value: eff });
+          else if (typeof out[kind] === 'number') out[kind] += eff;
+          // Crit gated on high health (Stellian Core, above 95%) is up on the
+          // opening turn whatever its long-run uptime is, so the share the
+          // uptime shaved off is held aside for the burst number.
+          // ...but only when full health is where this build actually opens. A
+          // Berserker deliberately drops low before it hits, so its opener is
+          // not a full-health turn and it must not collect this - which is also
+          // why it should not be wearing the item in the first place.
+          if (kind === 'critChance' && (e.fullHp || (extra && extra.hpGate && extra.hpGate.agrees))) {
+            out.openerCritChance += e.value * (1 - up);
+          }
         }
         // The NAME stays the item's real name. Decorating it with the kind
         // broke the check that every counted passive traces back to a
         // knowledge entry, and that check is worth more than a tidier label.
         out.active.push(Object.assign({ name, kind, value: e.value, effective: eff, uptime: up,
+                                        needsStatus: e.needsStatus || null,
                                         statuses: kind === 'status' ? (e.self || []).concat(e.enemy || []) : undefined,
                                         party: !!e.party, onSite: kind === 'onSite' }, extra || {}));
       };
@@ -2107,7 +2273,7 @@
       // exist for the same reason: a Saint's capstones are heals, and until
       // they had a column here the engine could only buy them blind.
       const out = { dmgPct: 0, critChance: 0, dr: 0, dodge: 0,
-                    outHealPct: 0, incHealPct: 0, lifestealPct: 0,
+                    outHealPct: 0, incHealPct: 0, lifestealPct: 0, openerDmgPct: 0,
                     statFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
                     active: [], unmodelled: [] };
       const nodes = D.masteryNodes || [];
@@ -2159,6 +2325,14 @@
               out[kind] += eff;
             }
           }
+          // `openerFull`: an ability whose condition is guaranteed on the turn
+          // the build opens with - Shadow Master's "+30% while invisible" on a
+          // class that fires its nuke out of Shadow Form. The uptime keeps the
+          // sustained figure honest; the share it shaved off is held for the
+          // opener, the same way full-health crit is.
+          if (!ef.onSite && kind === 'dmgPct' && (ef.openerFull || (rule && rule.openerFull))) {
+            out.openerDmgPct += value * (1 - uptime) * scale;
+          }
           out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
                             stat: ef.stat, party: scale > 1 ? scale : null,
                             onSite: !!ef.onSite, note: rule && rule.note });
@@ -2172,7 +2346,7 @@
       const { known } = passivesFor(build);
       const out = { dmgPct: 0, critChance: 0, dr: 0, summonHpPct: 0, summonDmgPct: 0,
                     outHealPct: 0, incHealPct: 0, selfHealFlat: 0, lifestealPct: 0,
-                    cdCut: 0, byMoveType: [] };
+                    cdCut: 0, byMoveType: [], openerCritChance: 0 };
       const wepType = build.weapon ? ((D.weapons || {})[build.weapon.name] || {}).type : null;
       const stance = K.hpStance ? K.hpStance(build.klass, build.race) : null;
       const agreeUp = (K.HP_GATE_UPTIME || {}).agree ?? 0.8;
@@ -2191,6 +2365,12 @@
           // is held aside rather than added to the flat total.
           if (p.when) out.byMoveType.push({ when: p.when, value: v });
           else out.dmgPct += v;
+        } else if (p.kind === 'critChance' && p.fullHp) {
+          // Gated on being at max HP (Arborivia's Overgrowth). The sustained
+          // figure keeps the uptime, but an OPENER happens at full health by
+          // definition, so the share the uptime shaved off is held for the burst.
+          out.critChance += v;
+          out.openerCritChance += p.value * (1 - (p.uptime ?? 1));
         } else if (out[p.kind] !== undefined) out[p.kind] += v;
       }
       return out;
@@ -2744,12 +2924,41 @@
       const scored = K.CORRUPTION.map(entry => {
         const r = entry.fit(ctx);
         const preferred = !!(pref && pref.form === entry.form);
+        const damage = corruptionDamage(entry.form, ctx);
+        // A goal measured in damage should let the MEASURED damage have a say,
+        // not the shape fit alone - otherwise a form that unlocks a worn item's
+        // bonus loses to one that merely suits the kit. Bounded at +50% so a
+        // shape answer is never overturned by a rounding error, and zero for
+        // goals that damage does not serve.
+        const dmgGoal = /damage|burst|crit/.test((spec && spec.goal) || '');
+        // On a NAMED fight the community's form wins: the owner's note that a
+        // Handaconda farm runs Tyranny is worth more than a measured +7% on the
+        // opener, because it is about surviving the farm rather than out-damaging
+        // it. So the measured nudge is capped below PREFER_FORM_WEIGHT there.
+        const gainCap = pref ? 0.1 : 0.5;
+        const gain = damage ? Math.min(gainCap, Math.max(0, (damage.burstGain || 0) / 100)) : 0;
         return Object.assign({ form: entry.form,
-                               score: r.score * (preferred ? 1 + PREFER_FORM_WEIGHT : 1),
-                               why: r.why + (preferred ? ' Recommended for ' + spec.boss + ': ' + pref.why + '.' : ''),
+                               score: r.score * (preferred ? 1 + PREFER_FORM_WEIGHT : 1) *
+                                      (1 + (dmgGoal ? Math.min(0.5, gain) : 0)),
+                               why: r.why + (preferred ? ' Recommended for ' + spec.boss + ': ' + pref.why + '.' : '') +
+                                    (dmgGoal && gain > 0 ? ' Measured at +' + damage.burstGain + '% on the opener.' : ''),
                                preferred },
-                             { damage: corruptionDamage(entry.form, ctx) });
+                             { damage });
       }).sort((a, b) => b.score - a.score);
+      // On a NAMED fight the community's form wins unless another is clearly
+      // better. The note exists because the fight is played a particular way -
+      // a Handaconda farm is about surviving it - and a few percent of opener
+      // damage does not overturn that. It took a promotion rather than a bigger
+      // weight because the fit scores themselves move as the engine learns more:
+      // race actives gave the Impaler a 3-energy move, which made Blasphemy
+      // "fit" and quietly displaced the Tyranny the community actually runs.
+      if (pref) {
+        const want = scored.find(s => s.form === pref.form);
+        if (want && want !== scored[0] && want.score >= scored[0].score * 0.75) {
+          scored.splice(scored.indexOf(want), 1);
+          scored.unshift(want);
+        }
+      }
       return { best: scored[0], all: scored, preferred: pref ? pref.form : null };
     }
 
@@ -2765,12 +2974,21 @@
       let d;
       try { d = fn(ctx, M); } catch (e) { return null; }
       if (!d) return null;
+      // Gear that only pays inside a form - Ages Pages' Corrupt Power crit. The
+      // build is settled before the form is picked, so this is where the two
+      // finally meet. `formBurst` keeps the form's OWN multiplier separate, so a
+      // test (or a reader) can still see what the form itself did.
+      const fg = K.formGearCrit ? K.formGearCrit(ctx, form, M) : { crit: 0, mult: 1, lines: [] };
       const base = ctx.bestBurst || ctx.bestHit || 0;
+      const burst = (d.burst || 1) * (fg.mult || 1);
+      const sustained = (d.sustained || 1) * (fg.mult || 1);
       return Object.assign({}, d, {
-        burstHit: base * (d.burst || 1),
-        sustainedHit: (ctx.sustainedHit || 0) * (d.sustained || 1),
-        burstGain: Math.round(((d.burst || 1) - 1) * 1000) / 10,
-        sustainedGain: Math.round(((d.sustained || 1) - 1) * 1000) / 10,
+        lines: (d.lines || []).concat(fg.lines || []),
+        formBurst: d.burst || 1, formGearCrit: fg.crit || 0,
+        burstHit: base * burst,
+        sustainedHit: (ctx.sustainedHit || 0) * sustained,
+        burstGain: Math.round((burst - 1) * 1000) / 10,
+        sustainedGain: Math.round((sustained - 1) * 1000) / 10,
       });
     }
 

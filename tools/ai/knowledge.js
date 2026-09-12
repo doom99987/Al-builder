@@ -694,6 +694,14 @@
     // currently have (up to 22.5% at 6 energy)", and 22.5 / 3.75 = 6. The
     // damage calculator independently pins its stepper to the same number.
     base: 6,
+    // Owner-stated: 1 energy a turn, flat, before anything else. The energy GAIN
+    // stat (the site's nrgChance - Arcane's identity plus Conduit) is a PERCENT
+    // CHANCE of another one, and is counted as its average: a 40% chance is 0.4
+    // energy a turn over a fight. That average is the only shape a chance can
+    // take inside a turn count, and it is what lets a rotation be costed at all.
+    regenPerTurn: 1,
+    // Assumed: you walk into the fight with a full pool.
+    startAtCap: true,
     // Moves whose damage scales with energy spent. `perEnergy` is the fraction
     // gained per energy consumed past `freeEnergy`.
     scalingMoves: {
@@ -701,6 +709,31 @@
                    note: 'consumes the whole pool for +20% per energy past the first' },
     },
   };
+
+  // ── SELF-STUN ─────────────────────────────────────────────────────────────
+  // Some moves buy their damage with your own turns. Boreas's Inner Frost reads
+  // "Heavy stun yourself for two turns. At the end, deal AoE dmg" - you lose two
+  // turns AND take hits through them, and nothing in the move data marks that as
+  // a cost. So a 21-base race move on a 12 turn cooldown outscored every real
+  // nuke in the game the moment race actives entered the scored kit.
+  //
+  // Priced as damage per turn occupied: a hit that costs N turns is divided by
+  // (1 + N), so a two-turn self-stun is worth a third of the same hit landed now.
+  // The turns are the honest part; whether being stunned also gets you killed is
+  // not modelled and makes the real cost worse, never better.
+  const SELF_STUN = { 'Inner Frost': 2 };
+  const SELF_STUN_TEXT = /stun yourself|heavy stun yourself|receive \d+ stacks? of heavy stun/i;
+  const SELF_STUN_ASSUMED = 2;
+  function selfStunTurns(mv) {
+    if (!mv) return 0;
+    const named = SELF_STUN[mv.name];
+    if (named != null) return named;
+    // An unlisted move whose own text says it stuns you is caught here rather
+    // than scored as free. The turn count is assumed, and the entry above is
+    // where a real one belongs.
+    return SELF_STUN_TEXT.test(String(mv.quote || '') + ' ' + String(mv.effect || ''))
+      ? SELF_STUN_ASSUMED : 0;
+  }
 
   // ── PLAY NOTES ────────────────────────────────────────────────────────────
   // One line of play advice per move, shown only when the build has the move.
@@ -890,7 +923,11 @@
       { name: 'Vine Guard', kind: 'dr', value: 12.5, uptime: 0.6,
         note: '2.5% DR and 0.75 flat regen per landed attack, stacking to 5 - 12.5% DR at full ' +
               'stacks, kept up by attacking every turn; the regen is not modelled' },
-      { name: 'Overgrowth', kind: 'critChance', value: 10, uptime: 0.4,
+      // Casting at max HP: +10 crit, +10% DR and +20 SPD until your next turn.
+      // The crit is the priced half; the DR and the Speed are not. `fullHp` means
+      // it is up on an opening turn by definition, so the burst number counts all
+      // of it while the sustained figure keeps the uptime.
+      { name: 'Overgrowth', kind: 'critChance', value: 10, uptime: 0.4, fullHp: true,
         note: '+10% crit chance and DR and +20 Speed until your next turn when you cast at full HP' },
     ],
 
@@ -1247,6 +1284,18 @@
       note: 'an ally gets 1 energy and 10% DR for 5 turns, every 3 turns - the whole reason to wear ' +
             'Divine Promise, and worth nothing solo',
     },
+    // The bonus rides on the attack that BREAKS Invisible, so it is one attack
+    // per cast rather than three turns of them: duration 1 against a 7 turn
+    // cooldown. The ~20% extra crit chance it also grants is not priced - this
+    // table has no crit column, and a build already past 100% crit banks nothing
+    // from it unless the extra covers a whole tier.
+    'Shadow Form': {
+      owner: 'Assassin (Ch)', cost: 1, cd: 7, duration: 1, reliability: 1,
+      kind: 'dmgPct', value: 20, critChance: 20,
+      note: 'go Invisible, then break it with the nuke: that attack deals +20% damage and gets about ' +
+            '20% more crit chance (the crit half is not priced). One turn of setup, and the cheapest ' +
+            'one an Assassin has',
+    },
     'Cast Amplify': {
       owner: 'Corvolus (3%)', cost: 1, cd: 9, duration: 3, reliability: 1,
       kind: 'dmgPct', value: 20,
@@ -1294,6 +1343,12 @@
     'Absolute Radiance': {
       owner: 'Absolute Radiance', cost: 4, cd: 18, duration: 5, reliability: 1,
       kind: 'dmgPct', value: 13.5,
+      // It RAMPS, so what it is worth depends on which turn the hit lands. The
+      // opener reads the tick it has actually reached - cast on turn 1 with the
+      // nuke on turn 3 is the second tick, 10%, not the 13.5% average. Sustained
+      // still uses the average. This is the difference between a scroll that
+      // suits a long fight and one that suits a fast kill.
+      ramp: [7.5, 10, 12.5, 15, 22.5],
       note: 'ramps 7.5 / 10 / 12.5 / 15 / 22.5% across its five turns - counted at the ' +
             'AVERAGE of those, 13.5%, rather than the 22.5% headline you only reach on turn five',
     },
@@ -1422,8 +1477,15 @@
   //   multi            several of the above under one name (`effects`)
   //   onSite           already in the site's own maths - listed, added to nothing
   const GEAR_PASSIVES = {
-    'Crystal Sphere':      { kind: 'critChance', value: 5,  uptime: 1,
-                             note: '+5% crit chance, unconditional' },
+    // Double-counted until now: the +5 lives in gearPctBonuses (builder.js:2219)
+    // and model.js folds it into crit chance, so pricing it here as well scored
+    // the item at +10. `onSite` lists it and adds nothing - the treatment
+    // Narthana's Leaf already had. "Removes crit fatigue" is dead text: Crit
+    // Fatigue stopped existing in the Section 9 rework (builder.js:465-467).
+    'Crystal Sphere':      { kind: 'onSite',
+                             note: '+5% crit chance, unconditional - already in the site\'s own crit ' +
+                                   'figure. Its "removes crit fatigue" half does nothing: the mechanic ' +
+                                   'no longer exists' },
     "Yar'thul's Wrath":    { kind: 'dmgPct',     value: 80, uptime: 0.5,
                              note: '+8% damage per Overheat stack, caps at 10 — ramps over a fight' },
     'Vainglorious Locket': { kind: 'dmgPct',     value: 10, uptime: 0.5,
@@ -1434,10 +1496,43 @@
                              note: '+25% against blocking enemies' },
     'Forest Charm':        { kind: 'dmgPct',     value: 15, uptime: 0.25,
                              note: '+15% in the Forest, +25% to Nature attacks' },
-    'Vulcan Knuckle':      { kind: 'dmgPct',     value: 15, uptime: 0.3,
-                             note: '+15% to Fire elemental moves' },
-    'Shard of Blight':     { kind: 'dmgPct',     value: 25, uptime: 0.3,
-                             note: '+25% to Dark elemental attacks' },
+    // "+10 flat Luck every successful crit for 2 effective turns (5 stacks max)."
+    // A RAMP, and the distinction matters more here than anywhere: it is worth
+    // nothing on a nuke fired on turn 3 behind two buff turns, because no attack
+    // of yours has landed yet, and a great deal over a long fight. `rampsFromZero`
+    // keeps it out of the opener figure and in the sustained one. 3 stacks is the
+    // assumed average over a fight - the cap is 5 and holding it needs a crit
+    // every other turn, which this build does manage.
+    'Crystalized Star':    { kind: 'statRamp', stat: 'lck', value: 10, capTurns: 5, assumedTurns: 3,
+                             rampsFromZero: true,
+                             note: '+10 Luck per crit to 5 stacks - counted at 3 stacks (+30 Luck) over a ' +
+                                   'fight and at ZERO on an opener, since the nuke lands before you have crit' },
+    // "+5 innate crit against Cold targets; applying Cold gives a non-stacking
+    // +10 for 2 turns." Both halves need Cold on the target, so on a kit that
+    // never applies it this is a 4-Luck stat stick and nothing else.
+    'Frozen Diadem':       { kind: 'critChance', value: 10, uptime: 0.5, needsStatus: /cold|freez/i,
+                             note: '+5 crit against Cold targets, +10 for 2 turns when you apply Cold - ' +
+                                   'counted only on a kit that actually applies Cold' },
+    // Element-gated: `elements` means this pays on matching moves only, at full
+    // value, instead of being smeared across every move at a guessed uptime.
+    'Vulcan Knuckle':      { kind: 'dmgPct',     value: 15, uptime: 1, elements: /fire/i,
+                             note: '+15% to Fire moves - all of it, on Fire moves, and nothing on the rest' },
+    // The flat +5 crit is unconditional and is priced. The rest is not: "once per
+    // turn while in a Corruption Form, spending 50 Corrupt Power raises this" is
+    // worth up to +10 more (2 stacks) in Blasphemy or Tyranny, and NOTHING in
+    // Heresy, where Corrupt Power is currently bugged - owner, 2026-09-11. The
+    // form is chosen after the build is settled, so the engine cannot price a
+    // form-dependent bonus without the two passes talking to each other.
+    // `onSite`: the flat +5 is in gearPctBonuses (builder.js:2220), which model.js
+    // already folds into crit chance. Pricing it here as well counted it twice.
+    'Ages Pages':          { kind: 'onSite',
+                             note: '+5 crit flat, already in the site\'s own crit figure. In Blasphemy or Tyranny, spending Corrupt Power adds up ' +
+                                   'to +10 more (capped at 2 stacks by a bug); in Heresy it adds nothing, ' +
+                                   'because Corrupt Power is bugged there. That part is not counted' },
+    'Shard of Blight':     { kind: 'dmgPct',     value: 25, uptime: 1, elements: /dark/i,
+                             note: '+25% to Dark attacks, and Wicked Crown turns your Physical moves into ' +
+                                   'Dark ones - that is the pairing. The 15% defence is gated on being ' +
+                                   'inside Deeproot Canopy and is not counted' },
     'Tear Blood Crystal':  { kind: 'multi', uptime: 0.5,
                              effects: [{ kind: 'critChance', value: 5 }, { kind: 'dr', value: 5 }],
                              note: '+5% crit and +5% defence for 5 turns when you apply Bleed - counted ' +
@@ -1485,7 +1580,7 @@
                                    'and -25% Endurance are in the site\'s own stat maths' },
 
     // Real, but not scoreable as a number here.
-    'Wicked Crown':   { kind: 'note', note: 'turns physical moves into Dark — enables Shard of Blight' },
+    'Wicked Crown':   { kind: 'note', note: 'turns your Physical moves into Dark. That is priced — the scorer reads the converted type, so Dark-gated buffs (Corvolus\'s Cast Amplify) reach them and Physical ones stop. The Poison immunity and -15% incoming DoT are not priced' },
     'Grain Of Balance': { kind: 'note', note: 'redistributes 25% of your highest stat — currently bugged' },
     'Dust Storm':       { kind: 'note', note: '10% chance to phase through an attack' },
     'Shattered Clock Hand': { kind: 'note', note: '30% chance to cut cooldowns on Strike' },
@@ -2218,8 +2313,12 @@
                               note: '+15% to magic, fire, nature, holy, dark and ice — a caster\'s whole kit' },
     'Cursed Fists':         { kind: 'dmgPct', value: 10, uptime: 1,
                               note: '+10% to all Darkwraith and Darkbeast skills, and +20% crit chance on strikes' },
-    'Shadow Master':        { kind: 'dmgPct', value: 30, uptime: 0.5,
-                              note: '+30% while invisible — half a rotation for an Assassin' },
+    // Owner (2026-09-11): assume the Shadow Form setup happens when nuking, so
+    // all 30% is up on the opener. The 0.5 uptime still governs the sustained
+    // figure, where you are not invisible half the time.
+    'Shadow Master':        { kind: 'dmgPct', value: 30, uptime: 0.5, openerFull: true,
+                              note: '+30% while invisible — all of it on a nuke fired out of Shadow ' +
+                                    'Form, half a rotation over a long fight' },
     'Oppression':           { kind: 'dmgPct', value: 25, uptime: 0.6,
                               note: '+5% per unique status on the target, capped at 5 — needs them applied first' },
     'Energy Manipulator':   { kind: 'dmgPct', value: 22.5, uptime: 0.6,
@@ -2354,6 +2453,16 @@
       when: b => b.klass === 'Blade Dancer (N)' && (b.masteryNodes || []).includes('rm1'),
       base: 12, scaling: 'STR/32',
       note: 'Parry Master rewrites this move: 12 base and STR/32, not 8 and STR/40',
+    }],
+    // Owner (2026-09-11): an Assassin always fires this out of Shadow Form, so
+    // price the invisible version. "Increases damage dealt by 100% if invisible
+    // while attacking" doubles the base, and the base is what the scaling
+    // multiplies, so 10 becomes 20. Shadow Form is the class's second learn
+    // (level 17); below that the move is a plain 10 and this would overstate it.
+    'Stealth Strike': [{
+      when: b => b.klass === 'Assassin (Ch)' && (b.level == null || b.level >= 17),
+      base: 20,
+      note: 'counted out of Invisible, which doubles it - the opener every Assassin actually plays',
     }],
     // Blade Dancer rm2: Flowing Dance Proficiency changes the scaling stat.
     'Flowing Dance': [{
@@ -2700,6 +2809,36 @@
   // happened at all, and the out-of-form rotation is the only one that ran.
   const CORRUPTION_ENTRY_TURNS = 7;
 
+  // ── GEAR THAT ONLY PAYS INSIDE A FORM ─────────────────────────────────────
+  // The build is settled before a form is chosen, so a bonus that needs both -
+  // the item worn AND a particular form - had nowhere to live and was worth
+  // nothing to either decision. This is that place.
+  const FORM_GEAR = {
+    'Ages Pages': {
+      crit: 5, stacks: 2,
+      forms: { Blasphemy: true, Tyranny: true, Heresy: false },
+      why: 'spending Corrupt Power raises its crit once a turn, capped at 2 stacks by a bug. In ' +
+           'Heresy, Corrupt Power is itself bugged, so it never fires there (owner, 2026-09-11)',
+    },
+  };
+  // What this form unlocks from the gear already on the build, and what that
+  // crit is worth to this build's damage.
+  function formGearCrit(c, form, M) {
+    let crit = 0; const lines = [];
+    for (const name of Object.keys(FORM_GEAR)) {
+      const rule = FORM_GEAR[name];
+      if (!(c.worn || []).includes(name)) continue;
+      if (!rule.forms[form]) continue;
+      crit += rule.crit * rule.stacks;
+      lines.push('**' + name + '** is worth **+' + (rule.crit * rule.stacks) +
+                 ' crit** in this form: ' + rule.why + '.');
+    }
+    if (!crit || !M) return { crit: 0, mult: 1, lines: [] };
+    const before = M.expectedMultiplier(c.critChance || 0, c.critDmg || 2);
+    const after  = M.expectedMultiplier((c.critChance || 0) + crit, c.critDmg || 2);
+    return { crit, mult: before > 0 ? after / before : 1, lines };
+  }
+
   const CORRUPTION_DAMAGE = {
     Blasphemy: (c) => {
       // "Any move costing 0-2 NRG generates 1 Notch up to your cap. Any move
@@ -2720,19 +2859,47 @@
                           CORRUPTION_ENTRY_TURNS + ' turns.' }],
         };
       }
-      // "10% at 1 Notch, scaling to 30% at your cap."
-      const burst = 1.30;
+      // "10% at 1 Notch, scaling to 30% at your cap." The bonus lands on the move
+      // that SPENDS the stack, so it is worth what the best 3+ energy move is
+      // worth - NOT what the build's best hit is worth. A kit whose nuke costs 2
+      // (an Assassin's Poison Fan) gets nothing from this form no matter how hard
+      // that nuke hits: 0-2 energy moves bank Notch, they never spend it.
+      // Owner-stated, 2026-09-11.
+      const base = c.bestBurst || c.bestHit || 0;
+      const dumpName = (c.dumpMove && c.dumpMove.name) || dumps[0].name;
+      // `bestDump` missing means an older ctx: fall back to the flat +30% rather
+      // than silently reporting the form as worthless.
+      const burst = (c.bestDump != null && base) ? Math.max(1, (c.bestDump * 1.30) / base) : 1.30;
+      if (burst <= 1) {
+        return {
+          burst: 1, sustained: 1, ifCrit: null,
+          lines: [
+            'Notch is spent by a move costing **3+ energy**. This build\'s best hit is **' +
+              ((c.burstMove && c.burstMove.name) || (c.bestMove && c.bestMove.name) || 'its nuke') +
+              '**, which costs 0-2 - it banks Notch and never gets the bonus.',
+            'Dumping the stack into **' + dumpName + '** instead lands ' + Math.round(c.bestDump * 1.30) +
+              ' against ' + Math.round(base) + ' for the move you would rather use, so the +30% has ' +
+              'nothing worth landing on here. Pick another form.',
+          ],
+          unknown: ['The Shield (5-25% of the hit) and the 1 NRG refunded per Notch, neither of which ' +
+                    'changes the damage answer above.'],
+          assumed: [],
+          steps: [{ move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
+                    note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
+                          CORRUPTION_ENTRY_TURNS + ' turns.' }],
+        };
+      }
       // A full stack takes `cap` cheap turns to bank and one turn to spend, so
       // over a long fight the bonus lands on one turn in cap+1.
-      const sustained = 1 + 0.30 / (cap + 1);
+      const sustained = 1 + (burst - 1) / (cap + 1);
       return {
         burst, sustained, ifCrit: null,
         lines: [
           'Notch caps at your energy cap, which this build has at **' + cap + '**.',
-          'A full stack spent on a damaging move is **+30% damage** — ' +
-            dumps.map(m => m.name).slice(0, 3).join(', ') +
-            (dumps.length > 1 ? ' cost' : ' costs') + ' 3+ energy and ' +
-            (dumps.length > 1 ? 'consume' : 'consumes') + ' the whole stack.',
+          'Only a move costing **3+ energy** spends the stack for **+30% damage**, and here that is **' +
+            dumpName + '**. Moves costing 0-2 bank Notch and never get the bonus, however hard they hit.',
+          'Against what this build would otherwise open with, that is **+' +
+            (100 * (burst - 1)).toFixed(1) + '%** on the turn it lands.',
           'Banking a full stack takes ' + cap + ' cheap turns, so over a long fight that is ' +
             '**+' + (100 * (sustained - 1)).toFixed(1) + '%** damage per turn, not +30%.',
         ],
@@ -2743,7 +2910,7 @@
           { move: 'Bank Notch', turns: cap,
             note: 'Moves costing 0-2 energy, one Notch each, up to your cap of ' + cap +
                   '. This is the cost of the +30%, and it is why the sustained figure is so much smaller.' },
-          { move: dumps[0].name, isFinisher: true,
+          { move: dumpName, isFinisher: true,
             note: 'Costs 3+ energy, so it consumes the whole stack: +30% damage, a shield worth 25% of ' +
                   'the hit, and 1 NRG back per Notch.' },
         ],
@@ -2789,6 +2956,13 @@
           { move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
             note: 'Bank 100 Corrupt Energy, then spend it to enter the form. About ' +
                   CORRUPTION_ENTRY_TURNS + ' turns. You start in Dark Wing.' },
+          // Owner (2026-09-11): you enter in Dark Wing and Force goes to the wing
+          // you are standing in, so reaching Light Force costs a whole turn of
+          // Meditate first. It is not a footnote - it is a turn, and the rotation
+          // has to show it.
+          { move: 'Meditate to swap wings', turns: 1,
+            note: 'you enter the form in Dark Wing and Force builds in the wing you are in, so ' +
+                  'swapping to White Wing costs a full turn of Meditate before any Light Force exists' },
           { move: 'Build Light Force',
             note: 'Force goes to whichever stance you are in, and it is White Wing that builds Light. ' +
                   'A flat amount per hit plus a bonus on a crit, once per turn, scaling with crit tier — ' +
@@ -2915,6 +3089,7 @@
            ENERGY, SUSTAIN, DR_CAP, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
-           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED,
+           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit,
+           SELF_STUN, selfStunTurns,
            CORRUPTION_ENTRY_TURNS, TRAPS };
 }));
