@@ -1251,6 +1251,119 @@ describe('random and flavour', () => {
     eq(+m[2] - +m[1] + 1, r.ctx.energyCap, 'banking turns should equal the energy cap');
   });
 
+  it('Blasphemy pays nothing to a kit whose best hit costs under 3 energy', () => {
+    // Owner-stated: the Notch bonus lands on the move that SPENDS the stack, and
+    // only a 3+ energy move can spend it. An Assassin's nuke is Poison Fan at 2
+    // energy, so the form is worth nothing there - the engine used to multiply
+    // that hit by 1.30 regardless and then recommend the form off that number.
+    const cost = m => { const n = parseInt(String(m && m.cost), 10); return isNaN(n) ? 0 : n; };
+    const a = ask('assassin nuke biggest single hit');
+    const nuke = a.ctx.burstMove || a.ctx.bestMove;
+    ok(cost(nuke) < 3, 'premise gone: this Assassin nuke costs ' + cost(nuke) + ' energy');
+    const aBl = (a.corruption.all || []).find(f => f.form === 'Blasphemy');
+    ok(aBl && aBl.damage, 'no Blasphemy row on the Assassin');
+    // `formBurst` is the FORM's own multiplier, before any gear the form
+    // unlocks - which is what the Notch rule is about.
+    eq(aBl.damage.formBurst, 1, 'Blasphemy buffed a ' + cost(nuke) + '-energy nuke');
+
+    // The other direction, or the fix has simply broken the form: a kit built
+    // around a 6-energy Carnage still collects the whole +30%.
+    const b = ask('berserker carnage max damage');
+    const bBl = (b.corruption.all || []).find(f => f.form === 'Blasphemy');
+    ok(bBl && bBl.damage && bBl.damage.formBurst > 1,
+       'Blasphemy stopped paying a kit whose payoff move costs 6 energy');
+  });
+
+  it('counts a move that stuns you per turn it costs you', () => {
+    // Boreas's Inner Frost heavy-stuns YOU for two turns and only then lands.
+    // Nothing in the move data marks that as a cost, so a 21-base race move on a
+    // 12 turn cooldown outscored every real nuke as soon as race actives entered
+    // the scored kit.
+    eq(K.selfStunTurns({ name: 'Inner Frost' }), 2, 'Inner Frost is not listed as a self-stun');
+    eq(K.selfStunTurns({ name: 'Poison Fan' }), 0, 'a normal move was treated as a self-stun');
+    ok(K.selfStunTurns({ name: 'Unlisted', effect: 'Receive 2 stacks of Heavy Stun.' }) > 0,
+       'an unlisted move whose own text stuns the user is still scored as free');
+
+    // And the search must stop handing it out as the biggest hit in the game.
+    for (const q of ['assassin nuke biggest single hit', 'max damage', 'biggest hit crit build']) {
+      const mv = ask(q).ctx.burstMove || {};
+      eq(K.selfStunTurns(mv), 0,
+         '"' + q + '" opens with ' + mv.name + ', which stuns you before it lands');
+    }
+  });
+
+  it('lets a corruption form see gear that only pays inside it', () => {
+    // Ages Pages: spending Corrupt Power raises its crit, capped at 2 stacks by
+    // a bug, in Blasphemy or Tyranny - and never in Heresy, where Corrupt Power
+    // is itself bugged. The build is settled before the form is chosen, so this
+    // was worth nothing to either decision until the two passes were joined.
+    const r = ask('assassin nuke biggest single hit');
+    if (!(r.build.gear || []).some(g => g.name === 'Ages Pages')) return;
+    const by = {};
+    for (const f of (r.corruption.all || [])) by[f.form] = f.damage;
+    ok(by.Blasphemy && by.Blasphemy.formGearCrit > 0, 'Blasphemy sees nothing from Ages Pages');
+    ok(by.Tyranny && by.Tyranny.formGearCrit > 0, 'Tyranny sees nothing from Ages Pages');
+    eq(by.Heresy ? by.Heresy.formGearCrit : 0, 0, 'Heresy counted a bonus its bugged Corrupt Power cannot give');
+  });
+
+  it('prices Stealth Strike as the hit that comes out of Invisible', () => {
+    // Owner-stated: an Assassin always opens out of Shadow Form, so the move is
+    // counted at its doubled base. It must NOT double for anyone else.
+    const rule = ((K.MOVE_OVERRIDES || {})['Stealth Strike'] || [])[0];
+    ok(rule, 'no override for Stealth Strike');
+    eq(rule.base, 20, 'the doubled base');
+    ok(rule.when({ klass: 'Assassin (Ch)', level: 50 }), 'the override does not fire on an Assassin');
+    ok(!rule.when({ klass: 'Rogue (N)', level: 50 }), 'it fires on a class with no Shadow Form');
+    ok(!rule.when({ klass: 'Assassin (Ch)', level: 10 }), 'it fires below the level that learns Shadow Form');
+
+    // And it reaches the damage figure, not just the table.
+    // The rewrite is a QUIRK on the moveShape hook, so a bare model has none of
+    // it - wire knowledge in the way engine.js does, or this measures nothing.
+    const M = require('./model.js').Model(data);
+    for (const q of K.QUIRKS) if (typeof M.register[q.hook] === 'function') M.register[q.hook](q.apply);
+    const r = engine.ask('', { klass: 'Assassin (Ch)', goal: 'burst' });
+    const mv = r.ctx.moves.find(m => m.name === 'Stealth Strike');
+    ok(mv, 'no Stealth Strike in the kit');
+    const asAssassin = M.moveDamage(r.build, mv, { stats: r.ctx.stats });
+    const asOther = M.moveDamage(Object.assign({}, r.build, { klass: 'Rogue (N)' }), mv, { stats: r.ctx.stats });
+    ok(asAssassin > asOther * 1.8,
+       'the doubling never reached the damage: ' + asAssassin.toFixed(1) + ' vs ' + asOther.toFixed(1));
+  });
+
+  it('counts full-health and setup crit on the opening turn only', () => {
+    // A fight starts at full health, so Arborivia's Overgrowth (+20 crit at max
+    // HP, owner) and Shadow Form's ~20 on the attack that breaks Invisible are
+    // certainly up on an opener - averaging them down there understated every
+    // burst build. The sustained figure keeps the averaged crit.
+    // Pinned to a race WITHOUT a full-health passive, so the comparison below
+    // measures Overgrowth rather than whichever race the search happens to like.
+    const a = engine.ask('', { klass: 'Assassin (Ch)', race: 'Dullahan (1%)', goal: 'burst' });
+    ok(a.ctx.openerCrit >= 20, "Shadow Form's crit is missing from the opener: " + a.ctx.openerCrit);
+    ok(a.ctx.bestBurst > a.ctx.bestHit, 'a prepared hit is not worth more than a cold one');
+    const b = engine.ask('', { klass: 'Assassin (Ch)', race: 'Arborivia (3%)', goal: 'burst' });
+    if (b.build.race === 'Arborivia (3%)' && a.build.race === 'Dullahan (1%)') {
+      ok(b.ctx.openerCrit > a.ctx.openerCrit,
+         'Overgrowth adds nothing to an opener that happens at full health');
+    }
+  });
+
+  it('costs the opening rotation in energy, with the gain chance as an average', () => {
+    // Owner-stated: 1 energy a turn flat, and the energy GAIN stat is a percent
+    // chance of another - averaged, because a chance cannot be half-spent inside
+    // a turn count. A rotation nobody can pay for is not a rotation.
+    for (const q of ['assassin nuke biggest single hit', 'berserker carnage max damage', 'tanky knight']) {
+      const c = ask(q).ctx;
+      const e = c.energy;
+      ok(e && e.perTurn >= 1, q + ': no energy income on the ctx');
+      ok(Math.abs((e.regen + e.chancePct / 100) - e.perTurn) < 1e-9,
+         q + ': energy a turn is not the flat regen plus the gain chance');
+      const p = c.energyPlan;
+      ok(p && p.steps.length, q + ': no energy ledger for the opener');
+      for (const s of p.steps) ok(s.left >= 0, q + ': ' + s.move + ' is cast at negative energy');
+      ok(p.turns >= p.steps.length, q + ': waiting turns are not counted in the total');
+    }
+  });
+
   it('does not number a bonus action as a turn', () => {
     // Heresy spends Light Force as a bonus action. Calling it "Turn 3" directly
     // contradicted the note beside it saying it costs no turn.
@@ -2319,15 +2432,37 @@ describe('Luck buys crit chance at half rate', () => {
   });
 
   it('a crit build can still be pushed over a tier threshold', () => {
-    // An Amorus Lancer built for crit reaches tier 1 on its own Luck. (A Wizard
-    // used to as well, on a Permuth-inflated Luck total; scored honestly the
-    // all-Luck wizard line loses too much Arcane, and the next test says so.)
-    // The race is pinned: left to the search, a Drauga Lancer scores higher
-    // one tier down, and that is a judgement rather than a broken snap.
-    const r = ask('', { klass: 'Lancer (N)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
+    // An Assassin built for crit reaches tier 1 on its own Luck, because its nuke
+    // scales on Luck (Poison Fan is STR/200 + ARC/80 + LCK/100) so the points keep
+    // paying well past the last breakpoint.
+    //
+    // This used to pin an Amorus Lancer, and that passed only because Crystal
+    // Sphere and Ages Pages were each counted TWICE: their flat crit lives in
+    // gearPctBonuses (builder.js:2219-2220), which model.js already folds into
+    // crit chance, and GEAR_PASSIVES added it a second time. With that corrected
+    // the Lancer stops at the 110 Luck breakpoint - see the next test, which
+    // pins the reason.
+    // The race is pinned to a Luck race on purpose: this test is about whether
+    // the snap CAN cross a tier, not about which race wins the argument. (With
+    // race actives in the scored kit - parked, see kitFor - the search prefers
+    // Boreas and Inner Frost, a line that wants Strength and Arcane instead.)
+    const r = ask('', { klass: 'Assassin (Ch)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
     ok(r.ctx.critChance >= 100,
        'a crit build tops out at ' + Math.round(r.ctx.critChance) + '% and never tiers up');
     eq(M.critTier(r.ctx.critChance) >= 1, true, 'crit tier never reached 1');
+  });
+
+  it('a class whose damage does not scale on Luck stops at the last Luck breakpoint', () => {
+    // The tension worth knowing about: the owner's stat-decay rule counts points
+    // past the last breakpoint at half rate, and crit tier 1 needs roughly 200
+    // Luck. For a class whose moves scale on Strength, the climb never pays, so
+    // it parks on 110 and takes tier 0. Two rules disagreeing, not a broken snap.
+    // If this ever starts tiering, the decay rule or the crit maths has moved and
+    // both deserve a look.
+    const r = ask('', { klass: 'Lancer (N)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
+    ok(r.ctx.stats.lck <= 130,
+       'the Lancer now climbs past the last Luck breakpoint to ' + Math.round(r.ctx.stats.lck) +
+       ' - the decay rule and the crit tier stopped disagreeing, which is worth a look');
   });
 
   it('and a crit build that stops short of a tier does so because the tier costs more than it pays', () => {
@@ -4643,7 +4778,12 @@ describe('mastery abilities', () => {
     // Flourish Proficiency is a flat +23 SPEED and was written up as "+23%
     // damage" - plausible-looking and wrong, the same class of bug the gear
     // passives had.
-    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'damage', play: 'solo' });
+    //
+    // Pinned to the SPEED goal, which is the build that reliably buys the
+    // capstone. On a damage goal the Ranger's capstone choice moves with the rest
+    // of the engine, and this test is about how an ability is LABELLED, not about
+    // which build happens to buy it.
+    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'speed', play: 'solo' });
     const flourish = r.ctx.masteryAbilities.active.find(a => a.name === 'Flourish Proficiency');
     ok(flourish, 'Ranger did not take Flourish Proficiency');
     eq(flourish.kind, 'statFlat', 'Flourish Proficiency is not reported as a flat stat');
