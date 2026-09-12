@@ -409,6 +409,8 @@ The `owner` field matters: a *different* account logging in must **replace** loc
 
 ## Build AI (tools/ai)
 
+Before pricing anything new, read `tools/ai/LEARNING.md` - the learning index: verified game facts with provenance, every correction and what it taught, the open gaps ranked by damage impact, and the game-update checklist.
+
 The admin/tester "AI" panel is a local rule-based optimiser, not a model call: no
 API, no network. `tools/ai/README.md` is its design doc; read it before touching
 anything in the folder.
