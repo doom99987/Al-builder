@@ -1364,6 +1364,59 @@ describe('random and flavour', () => {
     }
   });
 
+  it('adds the Luck 25 milestone to crit damage, as the site does', () => {
+    // Reported from play: "Crit Damage increased by 10%" at 25 Luck was shown in
+    // the milestone panel and never added. It is +0.1 on the crit multiplier,
+    // and model.js must agree with builder.js or every crit build is off by it.
+    const M = require('./model.js').Model(data);
+    const b = M.emptyBuild(); b.level = data.Max_Lvl; b.race = 'Dullahan (1%)'; b.klass = 'Assassin (Ch)';
+    b.invested = { str: 0, arc: 0, end: 0, spd: 0, lck: 0 };
+    const low = M.derived(b);
+    ok(low.stats.lck < 25, 'test premise: the uninvested build already has ' + low.stats.lck + ' Luck');
+    b.invested.lck = 40;
+    const high = M.derived(b);
+    ok(Math.abs((high.critDmg - low.critDmg) - 0.1) < 1e-9,
+       'crit damage moved by ' + (high.critDmg - low.critDmg) + ' crossing 25 Luck, not 0.1');
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+    ok(src.indexOf('_lckMsCritDmg') !== -1, 'builder.js does not add the Luck 25 crit damage that model.js counts');
+  });
+
+  it('gives a race reason that applies to the build it is on', () => {
+    // Reported from play: "Corvolus - highest base Arcane in the game" was the
+    // reason printed for a Strength Carnage Berserker. The reason must name
+    // something the race does for THIS build, or say that nothing does.
+    const r = engine.ask('', { klass: 'Berserker (Ch)', race: 'Corvolus (3%)', goal: 'damage', level: data.Max_Lvl });
+    const whyOf = res => ((res.explanation || []).find(x => x.h === 'Why this build') || {}).list || [];
+    const line = whyOf(r).find(l => l.indexOf('**Corvolus (3%)**') === 0);
+    ok(line, 'no race line in Why this build');
+    ok(line.indexOf('highest base Arcane') === -1, 'the race reason is its generic blurb again: ' + line);
+
+    const a = ask('assassin nuke biggest single hit');
+    if (a.build.race === 'Arborivia (3%)') {
+      const aLine = whyOf(a).find(l => l.indexOf('**Arborivia') === 0) || '';
+      ok(/Overgrowth/.test(aLine), 'Arborivia is picked for Overgrowth and the reason does not say so: ' + aLine);
+    }
+  });
+
+  it('does not pair a low-health race with an item that needs full health', () => {
+    // Reported from play: the AI chose Estella for Hyper Rage (+25% below half
+    // health) and Stellian Core (only above 95%) on the same build. A race does
+    // not commit a build to fighting hurt, but the opposite-side item is advice
+    // arguing with itself, so it is counted at the conflict uptime.
+    const stance = K.hpStance('Assassin (Ch)', 'Estella (24%)');
+    const g = K.hpGateFor('Stellian Core', stance, 0.35);
+    ok(g && !g.agrees, 'Stellian Core is not treated as conflicting with Estella');
+    eq(g.uptime, K.HP_GATE_UPTIME.conflict, 'Stellian Core uptime on an Estella build');
+    eq(K.hpGateFor('Molten Carapace', stance, 0.25), null, 'a low-health item is not penalised on Estella');
+    eq(K.hpGateFor('Stellian Core', K.hpStance('Assassin (Ch)', 'Arborivia (3%)'), 0.35), null,
+       'a race with no health preference changed Stellian Core');
+    for (const q of [{ race: 'Estella (24%)', goal: 'damage' }, { race: 'Estella (24%)', goal: 'burst' }]) {
+      const r = engine.ask('', Object.assign({ level: data.Max_Lvl }, q));
+      ok(!(r.build.artifact && r.build.artifact.name === 'Stellian Core'),
+         'an Estella ' + q.goal + ' build still wears Stellian Core');
+    }
+  });
+
   it('puts every item at its own max tier, not the global cap', () => {
     // Owner-stated: most gear stops short of T6. Crystal Sphere tops out at T3
     // (4 points, not 9), Yar'thul's Wrath at T4, Stellian Core does reach T6.

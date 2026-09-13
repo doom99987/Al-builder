@@ -556,7 +556,7 @@
   const MILESTONES = {
     lck: [
       { kind: 'note',       text: 'Crit Damage increased by 10%.',
-        note: 'not counted: critDmg is computed from the site\'s own formula and this is not in it' },
+        note: 'counted in critDmg itself: +0.1 on the multiplier at 25 Luck, applied by the site\'s own formula and mirrored in model.js' },
       { kind: 'outHealPct', value: 35, text: 'Gain 35% Outgoing healing.' },
       { kind: 'note',       text: 'Gain gold after battles end.',
         note: 'gold, which no build score can see' },
@@ -1284,14 +1284,13 @@
     },
     // The bonus rides on the attack that BREAKS Invisible, so it is one attack
     // per cast rather than three turns of them: duration 1 against a 7 turn
-    // cooldown. The ~20% extra crit chance it also grants is not priced - this
-    // table has no crit column, and a build already past 100% crit banks nothing
-    // from it unless the extra covers a whole tier.
+    // cooldown. Its +20% crit chance is paid on the opener only (evaluate's
+    // `openerCrit`), the turn the form is cast for.
     'Shadow Form': {
       owner: 'Assassin (Ch)', cost: 1, cd: 7, duration: 1, reliability: 1,
       kind: 'dmgPct', value: 20, critChance: 20,
-      note: 'go Invisible, then break it with the nuke: that attack deals +20% damage and gets about ' +
-            '20% more crit chance (the crit half is not priced). One turn of setup, and the cheapest ' +
+      note: 'go Invisible, then break it with the nuke: that attack deals +20% damage and gets +20% crit chance. ' +
+            'One turn of setup, and the cheapest ' +
             'one an Assassin has',
     },
     'Cast Amplify': {
@@ -2021,14 +2020,32 @@
     if (race === 'Estella (24%)') {
       sources.push({ owner: race, passive: 'Hyper Rage', why: '25% damage below 50% health' });
     }
-    return { side: cls ? cls.side : null, committed: !!cls, sources };
+    // `raceSide`: a race never COMMITS a build to fighting hurt, but it can make
+    // the opposite side contradictory (see hpGateFor).
+    return { side: cls ? cls.side : null, committed: !!cls, sources,
+             raceSide: race === 'Estella (24%)' ? 'low' : null };
   }
 
   // The uptime an HP-gated passive really gets on THIS build, and a sentence
   // saying why it is not the number written in the table.
   function hpGateFor(name, stance, declared) {
     const gate = HP_GATED[name];
-    if (!gate || !stance || !stance.committed) return null;
+    if (!gate || !stance) return null;
+    if (!stance.committed) {
+      // Reported from play: the AI picked Estella for Hyper Rage ("below 50%
+      // health only") and, on the same build, Stellian Core ("only above 95%").
+      // A race does not commit a build to fighting hurt, so its own passive is
+      // left where it is - but an item that needs the OPPOSITE side is advice
+      // arguing with itself, and is counted at the conflict uptime.
+      if (!stance.raceSide || gate.needs === stance.raceSide) return null;
+      const src = stance.sources.find(s => s.passive === 'Hyper Rage') || stance.sources[stance.sources.length - 1];
+      return {
+        uptime: HP_GATE_UPTIME.conflict, agrees: false, declared,
+        why: name + ' is gated ' + gate.text + ', the opposite of what ' + src.owner + ' is picked for (' +
+             src.passive + ': ' + src.why + '). Counted at ' + Math.round(HP_GATE_UPTIME.conflict * 100) +
+             '% uptime: you are there for the opening turn and then leaving.',
+      };
+    }
     const agrees = gate.needs === stance.side;
     const uptime = agrees ? HP_GATE_UPTIME.agree : HP_GATE_UPTIME.conflict;
     const who = stance.sources[0];
@@ -2043,6 +2060,40 @@
           '% uptime instead of ' + Math.round((declared ?? 1) * 100) + '%: you are there for the ' +
           'opening turn and then actively leaving.',
     };
+  }
+
+  // ── WHY THIS RACE, FOR THIS BUILD ─────────────────────────────────────────
+  // A race's general blurb is true and often irrelevant. Reported from play:
+  // "Corvolus - highest base Arcane in the game" was printed on a Strength
+  // Carnage build that gets nothing from Arcane. So the reason is read off what
+  // the race actually does for THIS build: its priced passives that are live
+  // here, its setup moves that pay in the opener, and a base stat of +3 or more
+  // on a stat the build uses (the best move's scaling, or anything invested).
+  // Null when none apply; the caller then says so instead of borrowing a reason.
+  function raceReasonFor(build, ctx, data) {
+    const race = build && build.race;
+    if (!race || !ctx) return null;
+    const parts = [];
+    const move = ctx.burstMove || ctx.bestMove || null;
+    const moveType = move ? String(move.moveType || '') + ' ' + String(move.element || '') : '';
+    for (const p of ((ctx.passiveList || {}).known || [])) {
+      if (p.owner !== race || p.kind === 'note' || p.kind === 'bugged' || p.whenWeapon) continue;
+      if (p.when && move && !p.when.test(moveType)) continue;
+      parts.push(p.name + (p.note ? ' (' + p.note + ')' : ''));
+    }
+    for (const rt of (ctx.rotation || [])) {
+      const su = (ctx.setups || []).find(s => s.move === rt.move);
+      if (!su || su.owner !== race) continue;
+      const pays = rt.gain > 0 && (!rt.elements || rt.elements.test(moveType));
+      if (pays || su.kind === 'dr' || su.kind === 'partyDr') parts.push(rt.move + ' in the opener');
+    }
+    const block = ((data && data.races) || {})[race] || {};
+    const scaling = String((move && move.scaling) || '').toUpperCase();
+    const LABEL = { str: 'STR', arc: 'ARC', end: 'END', lck: 'LCK', spd: 'SPD' };
+    const used = Object.keys(LABEL).filter(k => (block[k] || 0) >= 3 &&
+      (scaling.indexOf(LABEL[k]) !== -1 || ((build.invested || {})[k] | 0) > 0));
+    if (used.length) parts.push('base ' + used.map(k => LABEL[k] + ' +' + block[k]).join(', ') + ' on a stat this build uses');
+    return parts.length ? parts.join('; ') : null;
   }
 
   // ── COVENANTS ─────────────────────────────────────────────────────────────
@@ -3248,6 +3299,6 @@
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
            QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit, MAX_TIER, maxTierFor,
-           SELF_STUN, selfStunTurns,
+           SELF_STUN, selfStunTurns, raceReasonFor,
            CORRUPTION_ENTRY_TURNS, TRAPS };
 }));

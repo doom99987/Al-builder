@@ -3259,9 +3259,22 @@
       }
       coarse.sort((a, b) => b.score - a.score);
 
-      // Keep the best few pairs, but always keep at least one of each named
-      // constraint so an explicit request is never optimised away.
-      const finalists = coarse.slice(0, Math.min(8, coarse.length));
+      // Keep the best few pairs, but never let one class take every seat. The
+      // coarse pass is a rough cut: for a Support request it put seven Paladin
+      // races ahead of Saint, so Saint was never built - and built, it beats
+      // the winner by 4%. The best pair of each leading class is seated first,
+      // then the remaining seats go to the next best pairs.
+      const FINALISTS = 8, CLASS_SEATS = 4;
+      const finalists = [];
+      const seated = new Set();
+      for (const c of coarse) {
+        if (finalists.length >= CLASS_SEATS) break;
+        if (!seated.has(c.k)) { seated.add(c.k); finalists.push(c); }
+      }
+      for (const c of coarse) {
+        if (finalists.length >= FINALISTS) break;
+        if (finalists.indexOf(c) === -1) finalists.push(c);
+      }
 
       let best = null, bestCtx = null;
       const built = [];

@@ -1189,7 +1189,12 @@ function updatePecents() {
     // (DOM order), so its value is already cached by the time we get here.
     const _endHealPct = (stat === "out-heal" || stat === "inc-heal")
       ? (_statVals.end ?? 0) / END_HEAL_DIVISOR : 0;
-    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct + _endHealPct;
+    // The Luck 25 milestone reads "Crit Damage increased by 10%": +0.1 on the
+    // crit multiplier, on the same Luck total crit chance uses. It was shown in
+    // the milestone panel and never added here (reported from play). The build
+    // AI's model.js critMultiplier mirrors this line.
+    const _lckMsCritDmg = (stat === "crit-dmg" && totalLck >= STAT_MILESTONE_TIERS[0]) ? 0.1 : 0;
+    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct + _endHealPct + _lckMsCritDmg;
     let display;
     if (base === "—") {
       display = "—";
@@ -1238,6 +1243,17 @@ function updatePecents() {
       const tb = _traitBonusFor(traitTot, "crit-chance");
       if (tb.total) display = (parseFloat(display) + tb.total).toFixed(1);
       _setTraitTitle(el, tb);
+    }
+    // Shadow Form: the attack out of Invisible "has ~20% more critical chance"
+    // as well as its damage buff - reported from play: the toggle applied the
+    // damage and dropped the crit. The class is checked first, and the toggle
+    // list read inside a try, because this pass also runs during page load,
+    // before dmgBonusPassives exists.
+    if (stat === "crit-chance" && document.getElementById("super-picker")?.value === "Assassin (Ch)") {
+      let _shadowFormOn = false;
+      try { _shadowFormOn = dmgBonusPassives.some(p => p.name === "Shadow Form" && dmgBonusActive[p.key]); }
+      catch (e) { _shadowFormOn = false; }
+      if (_shadowFormOn) display = (parseFloat(display) + 20).toFixed(1);
     }
     if (stat === "crit-chance" && racePicker.value === "Vydeer (1%)" && dmgBonusActive["passive:Crit Buildup"] && vydeerCritStacks > 0) {
       display = (parseFloat(display) + vydeerCritStacks * 1.5).toFixed(1);
@@ -4027,7 +4043,7 @@ let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
 let vydeerCritStacks = 0; // 0-10: Vydeer Crit Buildup turns (1.5% crit per turn, max 15%)
 let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (×1.20 each)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
-const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false };
+const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false, surprisePkg: false };
 const summonBuffsActive = { spiritAwakening: false };
 const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false, focusStepSpd: false, fireSutraStr: false };
 let exposeActive = false;
@@ -4048,6 +4064,10 @@ const TEAM_BUFFS = [
   { key: 'castAmplify',label: "Cast Amplify",   mult: 1.20, desc: "+20% damage buff to magic/holy/fire/nature/ice/dark moves for 3 turns." },
   { key: 'blizzard',   label: "Blizzard",       mult: 1.20, desc: "+20% ice damage for the team for 4 turns." },
   { key: 'arcaneRitual',label: "Arcane Ritual", mult: 1.40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
+  // Surprise Package is a scroll (Thief, Martial Artist): a bomb planted for 3
+  // turns that the next hit detonates. Only a Physical or Magic hit gets the
+  // +35%; every other affinity sets off a different payload instead.
+  { key: 'surprisePkg', label: "Surprise Package", mult: 1.35, desc: "Scroll bomb (2 energy, 11 turn cooldown): the Physical or Magic hit that detonates it deals +35% bonus damage. The bomb itself deals 30% of max HP (5% on bosses). Other affinities trigger a different payload instead: Fire +15% fire damage and 10 Burning, Ice 6 Cold to all, Poison 20 Poison and 2 Weakened, Hex 1 Hex and 100 true damage, Dark 3 Vulnerable and 3 Weakened." },
 ];
 // --- Corruption form ---
 // Being in your Corruption Form changes what a hit is worth, so the calculator
@@ -5295,7 +5315,14 @@ function collectDmgBonusPassives() {
           // Mastery upgrades the base entry — put it first so it's the "primary" version
           ex.kinds.unshift("mastery");
           ex.descs.unshift({ kind: "mastery", text: e.desc });
-          ex.bonus = Math.max(ex.bonus, e.bonus); // keep higher value — mastery should never reduce
+          // A mastery whose own text says it "stacks multiplicatively" with the
+          // buff it upgrades is a SECOND multiplier, not a replacement: Shadow
+          // Master is x1.30 on top of Shadow Form's own x1.20, x1.56 in all.
+          // Reported from play - taking the higher of the two threw the x1.20
+          // away. Every other mastery keeps the higher value; it never reduces.
+          ex.bonus = /multiplicative/i.test(e.desc || '')
+            ? Math.round(((1 + ex.bonus / 100) * (1 + e.bonus / 100) - 1) * 10000) / 100
+            : Math.max(ex.bonus, e.bonus);
         } else {
           ex.kinds.push(e.kind);
           ex.descs.push({ kind: e.kind, text: e.desc });
@@ -5408,6 +5435,7 @@ function getActiveDmgMult(moveType = null, energyAfter = null) {
     if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
     if ((b.key === 'castAmplify' || b.key === 'arcaneRitual') && moveType && !_amplifyTypes.includes(moveType)) return;
     if (b.key === 'castAmplify') { mult *= Math.pow(1.20, castAmplifyStacks); return; }
+    if (b.key === 'surprisePkg' && moveType && !['Physical', 'Magic'].includes(moveType)) return;
     mult *= b.mult;
   });
   mult *= getCorruptionDmgMult();

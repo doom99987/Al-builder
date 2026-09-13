@@ -198,6 +198,37 @@ swapped item's stats slide the totals off their breakpoints. And a ramp item
 (Crystalized Star) raises the *in-fight* Luck total, not the stat line — a test
 that reads `ctx.stats` for a stat-line rule should read `ctx.siteStats`.
 
+## Tester feedback: Shadow Form, Luck 25, finalist seats (2026-09-13)
+
+From a tester's report (SeedDev), what each problem was and the fix:
+
+| Report | Cause | Fix |
+|---|---|---|
+| The Shadow Form toggle gave ×1.30, not ×1.56, and no crit | the DMG calc merged a mastery into its base entry with `max`, so Shadow Master's ×1.3 replaced the form's own ×1.2 | a mastery marked multiplicative now multiplies into its base (1.2 × 1.3 = 1.56); an Assassin with Shadow Form on gets +20 crit chance in the readout |
+| 25 Luck gave no crit damage | the milestone was a note only | +0.1 on the crit multiplier at 25 total Luck, in the site readout (`_lckMsCritDmg`) and in `model.js` `critMultiplier` — run `verify.js` in the browser |
+| Surprise Package missing from the DMG calc | not listed | team buff ×1.35, only on the Physical or Magic hit that detonates it |
+| Estella (+25% below 40% HP) paired with Stellian Core (needs 95% HP) | the HP-gate check only fired for classes that commit to a health side | `hpStance.raceSide`: a low-health race sets the side, and an item gated the other way is priced at conflict uptime (0.05) |
+| Race reason didn't apply ("highest base Arcane" on a STR Berserker) | the line was a fixed blurb per race | `K.raceReasonFor` names only race abilities that fire for this kit, setups that pay, and base stats the best move scales with; otherwise it says none apply and gives the measured margin |
+| Elemental Infuser has no icon | its entry has no `image` URL | **open** — needs the image URL |
+
+**What the Luck fix knocked loose.** Two builds moved; both are explained.
+
+- **Support flipped from Saint (132 HP) to Blade Dancer (92 HP)** and failed the fragility test. Saint was never built: the coarse pass gave seven of eight finalist seats to Paladin races, and Saint came ninth. Built and finished, Saint beats Blade Dancer by 4%. Fix: the best pair of each of the top 4 classes is seated first, and the other 4 seats go by coarse score. With 0 class seats the test fails again.
+- **The Impaler golden now wears Ages Pages instead of Coagulated Finger Nail** (reference gears 2 → 1 of 4). An engine copy with the Luck bonus switched off reproduces the old build exactly, so the bonus is the cause: more crit damage makes Ages Pages' +5 crit worth slightly more. The two items score within 0.2%, with the Nail's ramp counted at an assumed 5 stacks. Not a bug — a longer fight tips it back.
+
+**Checked in the browser** on a local server: Shadow Form reads +20%, and +56%
+with Shadow Master; crit chance goes 2.5 to 22.5 with the toggle on; crit
+damage steps 2.0 to 2.1 exactly when total Luck reaches 25 (not at 24).
+
+**The engine needed no Shadow Form change.** The site multiplies every active
+buff; the engine adds them. For this pair it lands close anyway: Shadow Master's
+opener half is held back and compounds with the setup buff, 1.15 × 1.35 = ×1.55
+against the game's ×1.56. The add-versus-multiply gap grows with other damage
+bonuses on the build — a known simplification, not new. The stale note that
+called Shadow Form's crit unpriced is fixed: `openerCrit` pays it on the opener.
+
+Every other soft golden miss is unchanged against be16ac9.
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →
@@ -209,10 +240,11 @@ For every new move: does it cost *you* anything — HP, turns, a stun?
 
 ## Standing reference: the Assassin nuke
 
-Arborivia, 150 Luck (224 on the site row), Primordial Dagger, Stellian Core,
-Yar'thul's Wrath / Coagulated Finger Nail / Ages Pages / Crystal Sphere,
+Arborivia, 150 Luck (213 on the site row), Primordial Dagger, Stellian Core,
+Yar'thul's Wrath / Coagulated Finger Nail / Ages Pages / Band of Crushing Force,
 Traveling Pasmark, Miner, Absolute Radiance, Cursed, 3 Reversing + 2 Empowering
 + 2 Striking, mastery 2-0-0, Cult of Thanasius. Shadow Form → Absolute Radiance
-→ Poison Fan: 738 cold, 1,266 prepared at real tiers (208 Luck; it read
-1,392 when every item was priced at T6). Permuth on Luck
+→ Poison Fan: 741 cold, 1,283 prepared at real tiers with the Luck 25 crit bonus (213 Luck;
+Band of Crushing Force now edges Crystal Sphere). It read 1,266 before that
+bonus and 1,392 when every item was priced at T6. Permuth on Luck
 (not counted) is +68% and a coin flip. Every hybrid line loses to pure Luck.
