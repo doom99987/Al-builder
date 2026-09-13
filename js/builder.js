@@ -4640,16 +4640,23 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const totalMult         = _o.total;
     const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[Physical → Dark]</span> ` : '';
     let formula; let currentDmg;
+    // Flat damage (Crystalline Spike) lands on every hit here too: the item says
+    // it ALWAYS grants it, and the Frosted proc below already took it. Only moves
+    // with a stat scaling used to get it.
+    const _flat0   = getFlatDmgBonus();
+    const _hit0    = baseDmgNum + _flat0;
+    const _hit0Str = _flat0 ? `(${baseDmgNum} + ${_flat0})` : `${baseDmgNum}`;
     if (totalMult > 1) {
-      const boosted = baseDmgNum * totalMult;
+      const boosted = _hit0 * totalMult;
       currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-      formula = `${typeTag}${baseDmgNum} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult)}</span> = <b>${boosted.toFixed(1)}</b>`;
+      formula = `${typeTag}${_hit0Str} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult)}</span> = <b>${boosted.toFixed(1)}</b>`;
       if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(1)}</b>`;
     } else {
-      currentDmg = hitCount > 1 ? baseDmgNum * hitCount : baseDmgNum;
+      currentDmg = hitCount > 1 ? _hit0 * hitCount : _hit0;
       formula = hitCount > 1
-        ? `${baseDmgNum} × ${hitCount} hits = <b>${currentDmg}</b>`
-        : `Base damage: <b>${baseDmgNum}</b>`;
+        ? `${_hit0Str} × ${hitCount} hits = <b>${currentDmg}</b>`
+        : (_flat0 ? `Base damage: ${baseDmgNum} + ${_flat0} <span class="dc-bonus-tag">[flat]</span> = <b>${_hit0}</b>`
+                  : `Base damage: <b>${baseDmgNum}</b>`);
     }
     const { mult: sMult, label: sLabel } = getStatusMultiplier(effectiveMoveType);
     if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
@@ -5131,6 +5138,19 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Elemental Infuser's From Sky to Soul — manually added. Its text gives the buff
+  // as "(10% / 20% / 30%)", which no parseDmgBonus pattern reads, and it is an
+  // Active without the Buff category, so it never became a toggle. The game text
+  // says the buff is bugged and does not scale, so it counts as a flat 10%.
+  // Element-gated through _affinityRestricted (Magic, Fire, Ice, Hex).
+  if (hasGearEquipped("Elemental Infuser")) {
+    const fstsKey = "buff:From Sky to Soul";
+    if (!seen.has(fstsKey)) {
+      seen.add(fstsKey);
+      rawEntries.push({ key: fstsKey, name: "From Sky to Soul", bonus: 10, kind: "buff", desc: "Elemental Infuser (3 energy, 10 turn cooldown): Magic, Fire, Ice and Hex abilities deal more damage for 3 turns, and you take 3 Vulnerable. Listed as 10% / 20% / 30%, but the buff is bugged and does not scale, so it counts as 10%." });
+    }
+  }
+
   // Boreas Frost Stacks — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
   if (raceName === "Boreas (1%)") {
     const fsKey = "passive:Frost Stacks";
@@ -5383,6 +5403,7 @@ function getActiveDmgMult(moveType = null, energyAfter = null) {
     "Cast Amplify":      ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"],
     "Elemental Master":  ["Fire", "Magic", "Nature", "Dark"],
     "Forest Charm":      ["Nature"],
+    "From Sky to Soul":  ["Magic", "Fire", "Ice", "Hex"],
     "Element Mastery":   ["Magic", "Fire", "Nature", "Holy", "Dark", "Ice"],
   };
   let mult = 1;

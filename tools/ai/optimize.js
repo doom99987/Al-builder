@@ -822,6 +822,9 @@
       // has to be priced against the best of THOSE. Measured here because this
       // is the only place every move is already damage-ranked.
       let bestDump = 0, dumpMove = null;
+      // The stats each of those two hits was taken on, so a per-hit figure read
+      // later matches the hit it scales (ramp-free, or buffed by a stat setup).
+      let burstMoveStats = null, dumpMoveStats = null;
       for (const mv of moves) {
         let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * resFor(mv);
         let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + (gp.dmgPct - inertDmg) + ma.dmgPct;
@@ -878,10 +881,23 @@
         const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * resFor(mv) * (1 + pct / 100) : openerBase;
         const burst = withStats * (1 + openPct / 100) * buffedMult / stunDiv;
         const sust  = preMult   * (1 + sustPct / 100) * mult / stunDiv;
-        if (burst > bestBurst) { bestBurst = burst; burstMove = mv; }
-        if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; }
+        const burstStats = Object.keys(statBuffs).length ? buffedStats : (hasRamp ? openerStats : d.stats);
+        if (burst > bestBurst) { bestBurst = burst; burstMove = mv; burstMoveStats = burstStats; }
+        if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; dumpMoveStats = burstStats; }
         if (sust > sustainedHit) sustainedHit = sust;
       }
+      // A nuke's scaled damage per hit WITHOUT flat damage, on the stats that hit
+      // was taken on: what a flat bonus that only fires in a form (Crystalline
+      // Spike's +40) is measured against. Null for a two-part attack or a move
+      // with no damage, which take no flat damage.
+      const perHitOf = (mv, st) => {
+        if (!mv) return null;
+        const shp = M.effectiveShape(build, mv);
+        if (shp.second || !(shp.hits > 0) || !(shp.base > 0)) return null;
+        return M.moveDamage(build, mv, { stats: st || d.stats, flat: 0 }) / shp.hits;
+      };
+      const burstPerHit = perHitOf(burstMove, burstMoveStats);
+      const dumpPerHit = perHitOf(dumpMove, dumpMoveStats);
       const ctx = {
         stats: d.stats, siteStats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
@@ -895,7 +911,7 @@
         // Reported with the shape the build actually gives them. `mv` objects are
         // shared game data, so this attaches to a copy rather than writing to one.
         bestHit, bestMove: withShape(build, bestMove), moves, goal: spec.goal,
-        bestBurst, burstMove: withShape(build, burstMove), sustainedHit, rotation, setups,
+        bestBurst, burstMove: withShape(build, burstMove), burstPerHit, dumpPerHit, sustainedHit, rotation, setups,
         bestDump, dumpMove: withShape(build, dumpMove), openerCrit, worn: wornNames(build),
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
@@ -1557,10 +1573,45 @@
       return soul;
     }
 
+    // Crit tiers, retried on the FINISHED line. allocateStats snaps to a tier
+    // before shards, traits and tier shapes exist, when the tier costs far more
+    // Luck than it will at the end; goPerfect only walks 25/60/110. So a tier the
+    // scorer rates higher could be unreachable: a crit Wizard wearing Crystalline
+    // Spike sat on ARC 78 / LCK 72 (590) with LCK 115 (614) two stats away.
+    // Each tier is tried from the largest other stats and kept only if it scores
+    // better on the decayed score, which already treats a crit tier as a breakpoint.
+    function critSnapFinished(build, spec) {
+      let best = decayedScore(build, spec);
+      const perLuck = D.LUCK_CRIT_RATIO || 1;
+      for (const target of [100, 200, 300]) {
+        const cur = evaluate(build, spec);
+        if (cur.critChance >= target) continue;
+        const before = Object.assign({}, build.invested);
+        let need = Math.ceil((target - cur.critChance) / perLuck);
+        const donors = STATS.filter(x => x !== 'lck').sort((a, b) => (build.invested[b] | 0) - (build.invested[a] | 0));
+        for (const donor of donors) {
+          if (need <= 0) break;
+          const take = Math.min(need, build.invested[donor] | 0);
+          build.invested[donor] -= take; build.invested.lck += take; need -= take;
+        }
+        let guard = 0;
+        while (evaluate(build, spec).critChance < target && guard++ < 20) {
+          const donor = STATS.filter(x => x !== 'lck' && (build.invested[x] | 0) > 0)
+                             .sort((a, b) => (build.invested[b] | 0) - (build.invested[a] | 0))[0];
+          if (!donor) break;
+          build.invested[donor] -= 1; build.invested.lck += 1;
+        }
+        const sc = evaluate(build, spec).critChance >= target ? decayedScore(build, spec) : -Infinity;
+        if (improves(sc, best)) { goPerfect(build, spec); best = decayedScore(build, spec); }
+        else build.invested = before;
+      }
+    }
+
     function finishLine(build, spec) {
       const fixedGear = new Set(D.FIXED_GEAR || []);
       build.soul = maxHealthSoul();
       goPerfect(build, spec);
+      critSnapFinished(build, spec);
       const shapes = () => JSON.stringify([(build.gear || []).map(g => g.alloc), build.artifact && build.artifact.alloc,
                                            build.weapon && build.weapon.alloc]);
       const before = shapes();
@@ -1856,7 +1907,12 @@
       // and the real scorer settles it. There are three such items in the whole
       // game, so this costs three evaluations and closes the hole for good.
       const shortlist = rankGear(spec, w).slice(0, 14);
-      for (const name of Object.keys(D.gearPctBonuses || {})) {
+      // Gear the model prices inside its own maths (GEAR_PASSIVES kind 'onSite')
+      // is just as invisible to rankGear. Crystalline Spike's flat damage per hit
+      // nearly tripled a crit Berserker's score and still never made the cut.
+      const seated = Object.keys(D.gearPctBonuses || {}).concat(
+        Object.keys(K.GEAR_PASSIVES || {}).filter(n => (K.GEAR_PASSIVES[n] || {}).kind === 'onSite' && D.gearItems[n]));
+      for (const name of seated) {
         if (!usable(name) || shortlist.some(g => g.name === name)) continue;
         shortlist.push({ name, v: 0, block: D.gearItems[name] || {} });
       }
@@ -2249,7 +2305,17 @@
            rule.kind === 'multi' || rule.value != null);
         if (!priceable) {
           const txt = text[name] || artifactText(name) || activeText(name);
-          if (txt || rule) out.unmodelled.push({ name, note: (rule && rule.note) || (txt || '').slice(0, 110) });
+          // A gear whose only content is an active the rotation prices as a setup
+          // (Elemental Infuser's From Sky to Soul) is counted there, not here - so
+          // say that, rather than leave it reading as ignored.
+          const setups = text[name] ? [] : ((D.gearActives || {})[name] || []).filter(m => {
+            const def = (K.SETUP_MOVES || {})[m.name];
+            return def && (!def.owner || def.owner === name) && ['dmgPct', 'dr', 'statBuff'].includes(def.kind);
+          }).map(m => m.name);
+          const note = (rule && rule.note) ||
+            (setups.length ? setups.join(', ') + ' is priced as a setup move in the rotation; the gear has nothing passive to count'
+                           : (txt || '').slice(0, 110));
+          if (txt || rule) out.unmodelled.push({ name, note });
           return;
         }
         const g = gated(name, rule.uptime ?? 1);
@@ -2994,11 +3060,20 @@
         // Handaconda farm runs Tyranny is worth more than a measured +7% on the
         // opener, because it is about surviving the farm rather than out-damaging
         // it. So the measured nudge is capped below PREFER_FORM_WEIGHT there.
+        // The form's own measured gain and the gain from gear it unlocks are
+        // capped SEPARATELY. One cap over both let a big shared gear bonus
+        // (Crystalline Spike's +40 fires in Blasphemy and Tyranny alike) fill it
+        // for both, so the difference the forms themselves make stopped counting.
+        // Gear gets half the cap: it can settle a close call, not overturn a form.
         const gainCap = pref ? 0.1 : 0.5;
-        const gain = damage ? Math.min(gainCap, Math.max(0, (damage.burstGain || 0) / 100)) : 0;
+        const formGain = damage ? Math.min(gainCap, Math.max(0, (damage.formBurst || 1) - 1)) : 0;
+        const gearGain = damage
+          ? Math.min(gainCap / 2, Math.max(0, (1 + (damage.burstGain || 0) / 100) / (damage.formBurst || 1) - 1))
+          : 0;
+        const gain = formGain + gearGain;
         return Object.assign({ form: entry.form,
                                score: r.score * (preferred ? 1 + PREFER_FORM_WEIGHT : 1) *
-                                      (1 + (dmgGoal ? Math.min(0.5, gain) : 0)),
+                                      (dmgGoal ? (1 + formGain) * (1 + gearGain) : 1),
                                why: r.why + (preferred ? ' Recommended for ' + spec.boss + ': ' + pref.why + '.' : '') +
                                     (dmgGoal && gain > 0 ? ' Measured at +' + damage.burstGain + '% on the opener.' : ''),
                                preferred },
@@ -3037,13 +3112,26 @@
       // build is settled before the form is picked, so this is where the two
       // finally meet. `formBurst` keeps the form's OWN multiplier separate, so a
       // test (or a reader) can still see what the form itself did.
-      const fg = K.formGearCrit ? K.formGearCrit(ctx, form, M) : { crit: 0, mult: 1, lines: [] };
+      // Flat gear is priced on the move the form nukes with: Blasphemy's dump.
+      const perHit = d.nuke === 'dump' ? ctx.dumpPerHit : ctx.burstPerHit;
+      const fg = K.formGearCrit ? K.formGearCrit(ctx, form, M, perHit)
+                                : { crit: 0, mult: 1, critMult: 1, flatMult: 1, lines: [] };
+      const critMult = fg.critMult != null ? fg.critMult : (fg.mult || 1);
+      const flatMult = fg.flatMult != null ? fg.flatMult : 1;
       const base = ctx.bestBurst || ctx.bestHit || 0;
-      const burst = (d.burst || 1) * (fg.mult || 1);
-      const sustained = (d.sustained || 1) * (fg.mult || 1);
+      // Form crit (Ages Pages) is up every turn in the form. A flat bonus that
+      // costs 60 Corrupt Power on ONE attack (Crystalline Spike) is priced on the
+      // nuke only: no Corrupt Power income is stated, so it is never spread per turn.
+      const burst = (d.burst || 1) * critMult * flatMult;
+      const sustained = (d.sustained || 1) * critMult;
+      // A form whose own bonus lands on nothing still pays the gear - say so
+      // rather than tell the reader to pick another form it is chosen for.
+      const formLines = flatMult > 1 && (d.burst || 1) <= 1
+        ? (d.lines || []).map(l => l.replace(' Pick another form.', ' The worn gear below is the only damage reason to pick it.'))
+        : (d.lines || []);
       return Object.assign({}, d, {
-        lines: (d.lines || []).concat(fg.lines || []),
-        formBurst: d.burst || 1, formGearCrit: fg.crit || 0,
+        lines: formLines.concat(fg.lines || []),
+        formBurst: d.burst || 1, formSustained: d.sustained || 1, formGearCrit: fg.crit || 0, formGearFlat: flatMult,
         burstHit: base * burst,
         sustainedHit: (ctx.sustainedHit || 0) * sustained,
         burstGain: Math.round((burst - 1) * 1000) / 10,

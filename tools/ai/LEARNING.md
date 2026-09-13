@@ -229,6 +229,62 @@ called Shadow Form's crit unpriced is fixed: `openerCrit` pays it on the opener.
 
 Every other soft golden miss is unchanged against be16ac9.
 
+## Crystalline Spike flat damage, and the Infuser toggle (2026-09-13)
+
+**Elemental Infuser.** The tester's "no icon" meant From Sky to Soul never showed
+up in the DMG calc as a buff to switch on. The calculator adds a gear Active only
+when it has the Buff category or its text matches a "grants N" pattern, and then
+only if `parseDmgBonus` finds a number — "(10% / 20% / 30%)" matches nothing. It
+is now a manual entry (+10%, gated to Magic, Fire, Ice and Hex). The game text
+says the buff is bugged and does not scale; 10% is the assumed reading. The
+engine prices it as a setup (`SETUP_MOVES['From Sky to Soul']`).
+
+**Crystalline Spike.** `verify.js` found the model 5 short per hit on every move
+when the Spike was worn: the site adds flat damage to the scaled base of each hit,
+before any multiplier (`dmgPerHit = base × (1 + contrib) + flat`). `model.js` now
+does the same — not on the two-part attacks (Stinger, Crucible), whose site
+branches add none, and not on moves with no damage. The site's own no-scaling
+branch left the hit out (it gave the Frosted proc the bonus but not the hit
+itself); the item says it *always* grants +5, so that branch now adds it, and
+`verify.js` compares no-scaling moves too.
+
+**Why the search never found it.** `rankGear` values gear by stat block and
+priced passives; flat damage is neither, so the Spike (4 STR) never made the
+14-item shortlist. Swapped into the crit Berserker it scored 3,998 against 1,406.
+Gear the model prices inside its own maths (`GEAR_PASSIVES` kind `onSite`) now
+gets a guaranteed seat, as percentage gear already did.
+
+**What it changed.** On many-hit kits the flat damage outweighs Strength: Carnage
+is 1 × 20 hits, so +5 a hit is +100 before crits. Crit builds with the Spike go
+full Luck — the owner's Berserker reference ("Full Luck", Crystalline Spike), now
+matched: its dominant-stat miss is gone and it wears the Spike. The Impaler
+reference now takes the Spike and 14 STR (soft miss STR 110) but gains its
+Lasting Life capstone.
+
+**A review workflow over the change** (4 diagnosticians, 4 review lenses, a
+skeptic per finding) confirmed 9 of 12 findings. Fixed:
+
+| Finding | Fix |
+|---|---|
+| The Spike's one-attack +40 was applied to every sustained turn in a form | `formGearCrit` returns `critMult` and `flatMult`; flat touches the nuke only |
+| Blasphemy nukes with its 3+ energy dump, but the +40 was measured on the best hit | `CORRUPTION_DAMAGE.Blasphemy` returns `nuke: 'dump'`; evaluate reports `dumpPerHit` |
+| One cap over form gain and gear gain: a shared Spike bonus filled it for Blasphemy and Tyranny, flipping the pick to a form whose lines said "Pick another form" | form and gear gains capped separately (gear at half); a form chosen for its gear says so |
+| Per-hit figure taken on different stats from the hit it scales | recorded per burst/dump (ramp-free or buffed) |
+| A crit tier the scorer rated 4% higher was unreachable: allocateStats snaps before shards and tier shapes exist, goPerfect only walks 25/60/110 | `critSnapFinished` retries tiers on the finished line |
+
+Four tests had outdated assumptions, rewritten to keep their intent: the element
+gate pins scrolls (Ice Shards' 4 hits out-gain Death Curtain's 2) and proves the
+gain is gated; Stealth Strike's doubling is measured without flat damage (flat is
+added after the base doubles); Healer+DPS and DPS+Tank compare the heal and tank
+archetype scores (Luck 60's +35% healing tied heal per turn; lifesteal made raw HP
+meaningless), the tank bar set against a pure tank; the Lancer and crit-wizard
+tier tests now require the chosen line to beat the nearest line on the other side
+of the tier. Every new guard was mutation-tested.
+
+**Open, for the owner:** whether Invisible's +100% multiplies the final hit (it
+would then double the Spike's +5 too); whether flat damage really lands per hit
+on many-hit moves (the site says so and the Berserker reference agrees).
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →

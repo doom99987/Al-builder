@@ -1282,6 +1282,16 @@
       note: 'an ally gets 1 energy and 10% DR for 5 turns, every 3 turns - the whole reason to wear ' +
             'Divine Promise, and worth nothing solo',
     },
+    // Elemental Infuser's active. Written as 10% / 20% / 30% over 3 turns, but
+    // the game text says the buff is bugged and does not scale: priced at 10%.
+    'From Sky to Soul': {
+      owner: 'Elemental Infuser', cost: 3, cd: 10, duration: 3, reliability: 1,
+      kind: 'dmgPct', value: 10,
+      elements: /magic|fire|ice|hex/i,
+      note: 'Magic, Fire, Ice and Hex attacks deal +10% for 3 turns - listed as 10% / 20% / 30%, but the ' +
+            'game text says it is bugged and does not scale [assumed 10%]. It also puts 3 Vulnerable on ' +
+            'you for those turns, which is not priced',
+    },
     // The bonus rides on the attack that BREAKS Invisible, so it is one attack
     // per cast rather than three turns of them: duration 1 against a 7 turn
     // cooldown. Its +20% crit chance is paid on the opener only (evaluate's
@@ -1526,6 +1536,10 @@
                              note: '+5 crit flat, already in the site\'s own crit figure. In Blasphemy or Tyranny, spending Corrupt Power adds up ' +
                                    'to +10 more (capped at 2 stacks by a bug); in Heresy it adds nothing, ' +
                                    'because Corrupt Power is bugged there. That part is not counted' },
+    'Crystalline Spike':   { kind: 'onSite',
+                             note: '+5 flat damage on every hit, counted inside move damage exactly as the site adds it. ' +
+                                   'The +40 for spending 60 Corrupt Power is priced on the form nuke (Blasphemy, Tyranny; ' +
+                                   'not Heresy, where Corrupt Power is bugged)' },
     'Shard of Blight':     { kind: 'dmgPct',     value: 25, uptime: 1, elements: /dark/i,
                              note: '+25% to Dark attacks, and Wicked Crown turns your Physical moves into ' +
                                    'Dark ones - that is the pairing. The 15% defence is gated on being ' +
@@ -2869,23 +2883,55 @@
       why: 'spending Corrupt Power raises its crit once a turn, capped at 2 stacks by a bug. In ' +
            'Heresy, Corrupt Power is itself bugged, so it never fires there (owner, 2026-09-11)',
     },
+    // Flat damage, not crit: +5 on every hit normally, +40 on the attack that
+    // spends 60 Corrupt Power (once a turn, in a form). Priced on the form nuke
+    // as the ratio (per hit + 40) / (per hit + 5), since flat damage rides every
+    // multiplier the hit has. Heresy is excluded for the same reason as Ages
+    // Pages: Corrupt Power is bugged there.
+    'Crystalline Spike': {
+      flat: 40, base: 5,
+      forms: { Blasphemy: true, Tyranny: true, Heresy: false },
+      why: 'spending 60 Corrupt Power raises its flat damage from +5 to +40 per hit on that attack, ' +
+           'once a turn. In Heresy, Corrupt Power is bugged, so it never fires there',
+    },
   };
   // What this form unlocks from the gear already on the build, and what that
   // crit is worth to this build's damage.
-  function formGearCrit(c, form, M) {
-    let crit = 0; const lines = [];
+  // `perHit` is the per-hit damage of the move the form actually nukes with
+  // (Blasphemy spends its Notch on the 3+ energy dump, not the best hit);
+  // it defaults to the burst move's. `critMult` is up every turn in the form;
+  // `flatMult` is one attack's worth and must only touch the nuke.
+  function formGearCrit(c, form, M, perHit) {
+    let crit = 0, flatMult = 1;
+    const critLines = [], flatLines = [];
     for (const name of Object.keys(FORM_GEAR)) {
       const rule = FORM_GEAR[name];
       if (!(c.worn || []).includes(name)) continue;
       if (!rule.forms[form]) continue;
+      if (rule.flat) {
+        // Needs the nuke's per-hit damage; a two-part attack has none to add to.
+        const per = perHit !== undefined ? perHit : c.burstPerHit;
+        if (!(per > 0)) continue;
+        const m = (per + rule.flat) / (per + rule.base);
+        flatMult *= m;
+        flatLines.push('**' + name + '** is worth **+' + Math.round((m - 1) * 1000) / 10 +
+                       '%** on the form nuke: ' + rule.why + '.');
+        continue;
+      }
       crit += rule.crit * rule.stacks;
-      lines.push('**' + name + '** is worth **+' + (rule.crit * rule.stacks) +
-                 ' crit** in this form: ' + rule.why + '.');
+      critLines.push('**' + name + '** is worth **+' + (rule.crit * rule.stacks) +
+                     ' crit** in this form: ' + rule.why + '.');
     }
-    if (!crit || !M) return { crit: 0, mult: 1, lines: [] };
-    const before = M.expectedMultiplier(c.critChance || 0, c.critDmg || 2);
-    const after  = M.expectedMultiplier((c.critChance || 0) + crit, c.critDmg || 2);
-    return { crit, mult: before > 0 ? after / before : 1, lines };
+    let critMult = 1;
+    if (crit && M) {
+      const before = M.expectedMultiplier(c.critChance || 0, c.critDmg || 2);
+      const after  = M.expectedMultiplier((c.critChance || 0) + crit, c.critDmg || 2);
+      critMult = before > 0 ? after / before : 1;
+    } else {
+      crit = 0; critLines.length = 0;
+    }
+    if (!crit && flatMult === 1) return { crit: 0, mult: 1, critMult: 1, flatMult: 1, lines: [] };
+    return { crit, mult: critMult * flatMult, critMult, flatMult, lines: critLines.concat(flatLines) };
   }
 
   const CORRUPTION_DAMAGE = {
@@ -2943,6 +2989,7 @@
       const sustained = 1 + (burst - 1) / (cap + 1);
       return {
         burst, sustained, ifCrit: null,
+        nuke: 'dump',   // the in-form hit is the 3+ energy dump, not the best hit
         lines: [
           'Notch caps at your energy cap, which this build has at **' + cap + '**.',
           'Only a move costing **3+ energy** spends the stack for **+30% damage**, and here that is **' +
