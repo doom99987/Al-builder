@@ -4052,7 +4052,7 @@ let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
 let sinisterGazeReflect = false;      // Sinister Gaze: enemy has your Bulk Up defense debuff
 let sinisterGazeBloodProf = false;    // Sinister Gaze: enemy has your Blood Eruption Prof damage debuff
-let overcoreActive = false;      // Overcore (Darkwraith rm1): crit mult squared at max darkcores
+let overcoreActive = false;      // Overcore (Darkwraith rm1): crits one tier higher (+1 crit mult) at max darkcores
 let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive hits (5% additive per stack, max 50%)
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
@@ -4409,6 +4409,9 @@ function getOvercritInfo() {
   return { tier, overflow, cc };
 }
 
+// Each crit tier past a normal crit adds +1 to the crit multiplier (Withered
+// Grove rework: "Getting a higher tier of critical hit will increase the Crit
+// Damage multiplier by 1"). At 2.25x, orange is 3.25x - not 2.25 x 2 = 4.50x.
 function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
   if (critMult === null) return '';
   let info;
@@ -4421,18 +4424,18 @@ function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
     if (!info) return '';
   }
   let out = '';
-  const orangeDmg = finalDmg * 2 * critMult;
+  const orangeDmg = finalDmg * (critMult + 1);
   const orangeLabel = info.tier >= 2 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${(critMult * 2).toFixed(2)}): <b>${orangeDmg.toFixed(1)}</b></span>`;
+  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${(critMult + 1).toFixed(2)}): <b>${orangeDmg.toFixed(1)}</b></span>`;
   if (info.cc > 200) {
-    const redDmg = finalDmg * 3 * critMult;
+    const redDmg = finalDmg * (critMult + 2);
     const redLabel = info.tier >= 3 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${(critMult * 3).toFixed(2)}): <b>${redDmg.toFixed(1)}</b></span>`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${(critMult + 2).toFixed(2)}): <b>${redDmg.toFixed(1)}</b></span>`;
   }
   if (info.cc > 300) {
-    const purpleDmg = finalDmg * 4 * critMult;
+    const purpleDmg = finalDmg * (critMult + 3);
     const purpleLabel = info.tier >= 4 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${(critMult * 4).toFixed(2)}): <b>${purpleDmg.toFixed(1)}</b></span>`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${(critMult + 3).toFixed(2)}): <b>${purpleDmg.toFixed(1)}</b></span>`;
   }
   return out;
 }
@@ -4490,12 +4493,23 @@ function buildLifestealExpectedLine(expectedDmg, m) {
   return out;
 }
 
-// Expected total damage for a multi-hit move using binomial expectation:
-//   E[dmg] = totalDmg × (1 + p × (critMult − 1))
-// where p = crit chance fraction. Requires Crystal Sphere (no crit fatigue).
+// Expected crit multiplier for one hit. Below 100% crit it is the usual blend,
+// 1 + p x (critMult - 1). From 100% every hit crits, and the overflow past each
+// hundred is the chance of the next tier, which adds +1: 150% crit at 2.25x is
+// 2.25 + 0.5 = 2.75x, 200% is a guaranteed orange at 3.25x. The old blend kept
+// scaling p past 1 and overstated every overcrit build. Mirrored by
+// tools/ai/model.js expectedMultiplier.
+function getExpectedCritMult(critMult, critChancePct) {
+  const cc = Math.max(0, critChancePct);
+  if (cc <= 100) return 1 + (cc / 100) * (critMult - 1);
+  return critMult + (Math.floor(cc / 100) - 1) + (cc % 100) / 100;
+}
+
+// Expected total damage for a multi-hit move: every hit rolls its own crit, so
+// the expectation is the total times the expected multiplier. Crit Fatigue no
+// longer exists, so no hit is exempt.
 function getExpectedMultiHitDmg(totalDmg, critMult, critChancePct) {
-  const p = critChancePct / 100;
-  return totalDmg * (1 + p * (critMult - 1));
+  return totalDmg * getExpectedCritMult(critMult, critChancePct);
 }
 
 function getArmourDmgTypePct(_moveType) {
@@ -4694,7 +4708,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
         const _cc0b = getMoveCritChancePct();
         if (_cc0b !== null) {
           const _exp0b = getExpectedMultiHitDmg(_resFinalDmg0, _critMult0, _cc0b);
-          const _eCrits0 = hitCount * (_cc0b / 100);
+          const _eCrits0 = hitCount * (Math.min(100, _cc0b) / 100);
           formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits0.toFixed(1)} exp. crits × ${_beakDmgPer0.toFixed(1)}): <b>${(_exp0b + _eCrits0 * _beakDmgPer0).toFixed(1)}</b></span>`;
         }
       }
@@ -4940,7 +4954,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
       const _ccB = getMoveCritChancePct();
       if (_ccB !== null) {
         const _expB = getExpectedMultiHitDmg(_resFinalDmg, _critMult, _ccB);
-        const _eCrits = hitCount * (_ccB / 100);
+        const _eCrits = hitCount * (Math.min(100, _ccB) / 100);
         formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits.toFixed(1)} exp. crits × ${_beakDmgPer.toFixed(1)}): <b>${(_expB + _eCrits * _beakDmgPer).toFixed(1)}</b></span>`;
       }
     }
@@ -5830,11 +5844,13 @@ function setIvoryStacks(val) {
 // hard-coded number instead of running the same maths. They close over nothing
 // but module-level state, so nesting them bought nothing.
 
-// Overcore (Darkwraith rm1): at max darkcores, crit mult is squared.
+// Overcore (Darkwraith rm1): at max darkcores, crits are upgraded to the next
+// tier. Since the Withered Grove rework a tier adds +1 to the multiplier, so
+// 2x becomes 3x - it used to be read as squaring it (2x -> 4x).
 function getCritDmgMultEffective() {
   const base = getCritDmgMult();
   if (base === null) return null;
-  return overcoreActive ? base * base : base;
+  return overcoreActive ? base + 1 : base;
 }
 
 // Energy bonus for energy-scaling moves.
@@ -6835,11 +6851,11 @@ function renderDmgBonusSection() {
     if (!_overcoreUnlocked && overcoreActive) overcoreActive = false;
     if (_overcoreUnlocked) {
       const baseCrit = getCritDmgMult();
-      const squaredCrit = baseCrit !== null ? (baseCrit * baseCrit).toFixed(2) : "?";
+      const squaredCrit = baseCrit !== null ? (baseCrit + 1).toFixed(2) : "?";
       html += `<h3 class="dc-bonus-title" style="margin-top:12px">Overcore</h3><div class="dc-bonus-list">
-        <div class="dc-bonus-row${overcoreActive ? " dc-bonus-on" : ""}" data-overcore title="Overcore (rm1): at max Darkcores, crit multiplier is squared.">
+        <div class="dc-bonus-row${overcoreActive ? " dc-bonus-on" : ""}" data-overcore title="Overcore (rm1): at max Darkcores, crits are upgraded to the next tier (+1 crit multiplier).">
           <div class="dc-bonus-check">${overcoreActive ? "✓" : ""}</div>
-          <span class="dc-bonus-name">Crit squared (max cores)</span>
+          <span class="dc-bonus-name">Next crit tier (max cores)</span>
           <span class="dc-bonus-pct">${baseCrit !== null ? `×${squaredCrit}` : "—"}</span>
         </div>
       </div>`;
@@ -7718,7 +7734,7 @@ const masteryClassData = {
       r5:  { name: "Arcane Node" }, r6:  { name: "Arcane Node" },
       r7:  { name: "Arcane Node" }, r8:  { name: "Arcane Node" },
       r9:  { name: "Arcane Node" },
-      rm1: { name: "Overcore",                    desc: "Whenever you land a critical hit at max Darkcores (6), empower your Darkbeast's next attack.\nAt max Darkcores, critical hits are upgraded to the next tier (visible by the crit colour) — crit damage multiplies by itself (e.g. 2x crit → 4x).\nYour Darkbeast's next move is enhanced:\nPounce: Applies 2 bleed, base damage → 8.\nVoid Bite: Lifesteal → 40%, base damage → 14.\nShade Roar: Applies 2 sunder, base damage → 12." },
+      rm1: { name: "Overcore",                    desc: "Whenever you land a critical hit at max Darkcores (6), empower your Darkbeast's next attack.\nAt max Darkcores, critical hits are upgraded to the next tier (visible by the crit colour) — each tier adds +1 to crit damage (e.g. 2x crit → 3x).\nYour Darkbeast's next move is enhanced:\nPounce: Applies 2 bleed, base damage → 8.\nVoid Bite: Lifesteal → 40%, base damage → 14.\nShade Roar: Applies 2 sunder, base damage → 12." },
       rm2: { name: "Call Darkbeast Proficiency",  desc: "Your Darkbeast's Void Bite now inflicts 2 weakened and 2 vulnerable and gets a damage buff and energy gain buff at 5+ orbs.\nThe statuses are always applied regardless of darkcores consumed. Energy gain and damage buff are suspected to be bugged." },
     }
   },

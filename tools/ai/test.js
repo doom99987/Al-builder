@@ -418,8 +418,13 @@ describe('model', () => {
     eq(M.critTier(100), 1);
     eq(M.critTier(250), 2);
     eq(M.expectedMultiplier(100, 2), 2);          // guaranteed crit, no overcrit
-    eq(M.expectedMultiplier(200, 2), 4);          // guaranteed orange
+    eq(M.expectedMultiplier(200, 2), 3);          // guaranteed orange: +1, not x2
     eq(M.expectedMultiplier(50, 2), 1.5);         // half the hits crit
+    // Withered Grove rework: a higher tier adds +1. The owner's example: 2.25x
+    // crit damage, a super crit is 3.25x, not 4.50x.
+    eq(M.expectedMultiplier(200, 2.25), 3.25);
+    eq(M.expectedMultiplier(150, 2.25), 2.75);    // half the hits orange
+    eq(M.expectedMultiplier(300, 2.25), 4.25);    // guaranteed red
   });
 
   it('gives untiered weapons no tier points', () => {
@@ -1488,6 +1493,46 @@ describe('random and flavour', () => {
     const src = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
     const at = src.indexOf('refineGear(x.b, spec)'), fin = src.indexOf('finishLine(x.b, spec)');
     ok(at !== -1 && fin !== -1 && at < fin, 'run() must re-check gear before it perfects the stat line');
+  });
+
+  it('re-ranks tier points when the re-check swaps an item', () => {
+    // tierOrder caches its stat ranking on the invested points alone, so after a
+    // gear swap the cached order can be stale: a crit Assassin's swapped-in
+    // Crystal Sphere took its 4 tier points to Strength instead of Luck and
+    // stayed under the crit tier. Planted directly: a cached order that ranks
+    // Endurance and Speed first, keyed to this exact line, and one slot whose
+    // only runner-up is Crystal Sphere. The swap must re-measure the order.
+    const r = engine.ask('', { klass: 'Assassin (Ch)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
+    const O = engine.optimizer;
+    const b = JSON.parse(JSON.stringify(r.build));
+    let i = b.gear.findIndex(g => g.name === 'Crystal Sphere');
+    if (i < 0) i = b.gear.length - 1;
+    b.gear[i] = { name: 'Chocolate Egg', tier: 1, alloc: { str: 2 }, traits: b.gear[i].traits || [] };
+    b._alts = { ['gear' + (i + 1)]: [{ name: 'Crystal Sphere' }] };
+    O.tierOrder(b, r.spec);                                  // key the cache to this line
+    b._tierOrder = ['end', 'spd', 'str', 'arc', 'lck'];      // then make it wrong
+    const planted = O.evaluate(b, r.spec).score;
+    O.refineGear(b, r.spec);
+    eq(b.gear[i].name, 'Crystal Sphere', 'the re-check did not take Crystal Sphere over a Chocolate Egg');
+    const a = b.gear[i].alloc || {};
+    ok(!a.end && !a.spd, 'the swapped-in item spent its tier points by a stale cached order: ' + JSON.stringify(a));
+    ok(O.evaluate(b, r.spec).score > planted, 'the re-check did not improve the build');
+  });
+
+  it('never lowers a finished build by re-running its tier points', () => {
+    // bestTierAlloc tries the top two stat orders only. Re-run on a settled
+    // line it used to replace an allocation that was holding a crit tier, so
+    // finishLine could leave a build worse than it found it.
+    const O = engine.optimizer;
+    for (const q of ['assassin nuke biggest single hit', 'crit wizard', 'berserker crit', 'saint healer']) {
+      const r = ask(q);
+      const b = JSON.parse(JSON.stringify(r.build));
+      const before = O.evaluate(b, r.spec).score;
+      O.finishLine(b, r.spec);
+      const after = O.evaluate(b, r.spec).score;
+      ok(after >= before * (1 - 1e-6),
+         '"' + q + '": finishing the finished build again scores ' + Math.round(after) + ' against ' + Math.round(before));
+    }
   });
 
   it('does not number a bonus action as a turn', () => {
@@ -6240,6 +6285,51 @@ describe('flat damage and gear actives', () => {
     const listed = O.gearPassiveTotals(wearing(fresh('Elementalist (Or)'), 'Elemental Infuser'))
       .unmodelled.find(x => x.name === 'Elemental Infuser');
     ok(listed && /priced as a setup/.test(listed.note), 'the write-up does not say the Infuser active is priced');
+  });
+});
+
+// ── crit tiers add +1 (Withered Grove rework) ───────────────────────────────
+describe('crit tiers add +1 to the multiplier', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  // Pull one top-level function out of builder.js by its name.
+  const siteFn = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+
+  it('shows each overcrit colour at +1, +2, +3 on the crit multiplier', () => {
+    const body = siteFn('buildOvercritLines');
+    for (const [colour, add] of [['orange', 1], ['red', 2], ['purple', 3]]) {
+      ok(new RegExp('const ' + colour + 'Dmg = finalDmg \\* \\(critMult \\+ ' + add + '\\);').test(body),
+         colour + ' crit damage is not finalDmg x (critMult + ' + add + ')');
+      ok(body.indexOf('(critMult + ' + add + ').toFixed(2)') !== -1, colour + ' label does not show critMult + ' + add);
+    }
+    ok(!/critMult \* [234]/.test(body), 'an overcrit line still multiplies the crit multiplier');
+  });
+
+  it('the site expected crit multiplier matches the model everywhere', () => {
+    const M = engine.model;
+    const siteExpected = new Function(siteFn('getExpectedCritMult') + '; return getExpectedCritMult;')();
+    for (const cd of [2, 2.1, 2.25, 3.4]) {
+      for (const cc of [0, 37, 99.5, 100, 150, 199, 200, 250, 313, 400]) {
+        const a = siteExpected(cd, cc), b = M.expectedMultiplier(cc, cd);
+        ok(Math.abs(a - b) < 1e-9, 'at ' + cc + '% crit and ' + cd + 'x the site says ' + a + ' and the model ' + b);
+      }
+    }
+    eq(siteExpected(2.25, 200), 3.25, 'the owner example: 2.25x super crit is 3.25x');
+    ok(/return totalDmg \* getExpectedCritMult\(critMult, critChancePct\);/.test(siteFn('getExpectedMultiHitDmg')),
+       'expected multi-hit damage does not use the tiered multiplier');
+  });
+
+  it('Overcore upgrades a crit one tier: +1, not squared', () => {
+    ok(/return overcoreActive \? base \+ 1 : base;/.test(siteFn('getCritDmgMultEffective')),
+       'Overcore does not add +1 to the crit multiplier');
   });
 });
 

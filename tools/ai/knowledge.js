@@ -2448,8 +2448,8 @@
     'Dark Smite Proficiency': { kind: 'critChance', value: 50, uptime: 0.3,
                               note: '+50% crit chance on Dark Smite, on top of its base 25%' },
     'Overcore':             { kind: 'note',
-                              note: 'at 6 Darkcores your crits are upgraded a whole tier — the biggest ' +
-                                    'multiplier in the game, and not modelled here' },
+                              note: 'at 6 Darkcores your crits are upgraded a whole tier, which since the ' +
+                                    'Withered Grove rework is +1 to the crit multiplier. Not modelled here' },
 
     // ── defensive and utility: real, but not a bigger hit ────────────────────
     'Holy Shield':          { kind: 'dr', value: 15, uptime: 0.4, party: true,

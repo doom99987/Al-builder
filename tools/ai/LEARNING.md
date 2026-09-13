@@ -287,6 +287,37 @@ move. Keep it per hit.
 **Open, for the owner:** whether Invisible's +100% multiplies the final hit (it
 would then double the Spike's +5 too).
 
+## Crit tiers add +1, not a multiple (2026-09-13)
+
+**Owner fact, from the Withered Grove patch notes:** base Crit Damage is 2x and
+no longer grows with Luck; "getting a higher tier of critical hit will increase
+the Crit Damage multiplier by 1". At 2.25x crit damage a normal crit is 2.25x,
+orange 3.25x, red 4.25x, purple 5.25x. The site showed 4.50x, 6.75x and 9.00x.
+
+| Where | Was | Now |
+|---|---|---|
+| DMG calc overcrit lines | crit × 2, × 3, × 4 | crit + 1, + 2, + 3 |
+| Expected multi-hit damage | 1 + p × (crit − 1) with p past 1 | `getExpectedCritMult`: blend below 100%, crit + (tier − 1) + overflow above |
+| Overcore ("upgraded to the next tier") | crit squared | crit + 1 |
+| `model.js` `expectedMultiplier` | crit × (tier + p) | crit + (tier − 1) + p |
+| DeathBeak expected crits | hits × crit chance, past the hit count | capped at every hit |
+
+A parity test evaluates the site's `getExpectedCritMult` from `builder.js` and
+compares it with the model across crit damage and crit chance.
+
+**What it exposed in the search.** Past 100% crit, Luck now buys +1 per 100 rather
+than a whole multiple, so a crit tier is a small step, and three search gaps that
+the old, bigger tiers had hidden started losing real score:
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| A crit Assassin sat at 99% crit; Crystal Sphere with its points in Luck crossed the tier for +6% | `tierOrder` caches its stat ranking on the invested points alone, so after a gear swap the order is stale and tier points went to Strength | the cache is cleared whenever `refineGear` swaps an item and before the finishing tier pass; a crit tier within 9 Luck counts as a breakpoint, like a stat milestone |
+| Finishing a finished build again lowered it by 10% | `bestTierAlloc` tries only the top two stat orders and never kept the allocation already on the slot | the incumbent allocation is a candidate: re-running can never make a slot worse |
+| A swap only the finished line makes worth it was never tried | gear is re-checked before the stat line settles | `run()` re-checks gear once more on the finished line, re-finishes, keeps it only if it scores higher |
+
+The crit Assassin now finishes at 104.75% crit and 1,067 (it was 965 at 99%).
+Golden builds: unchanged. Every new guard was mutation-tested.
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →
@@ -298,11 +329,13 @@ For every new move: does it cost *you* anything — HP, turns, a stun?
 
 ## Standing reference: the Assassin nuke
 
-Arborivia, 150 Luck (213 on the site row), Primordial Dagger, Stellian Core,
-Yar'thul's Wrath / Coagulated Finger Nail / Ages Pages / Band of Crushing Force,
+Arborivia, 150 Luck (210 on the site row), Primordial Dagger, Stellian Core,
+Crystalline Spike / Yar'thul's Wrath / Band of Crushing Force / Coagulated Finger Nail,
+Arcane Robes,
 Traveling Pasmark, Miner, Absolute Radiance, Cursed, 3 Reversing + 2 Empowering
 + 2 Striking, mastery 2-0-0, Cult of Thanasius. Shadow Form → Absolute Radiance
-→ Poison Fan: 741 cold, 1,283 prepared at real tiers with the Luck 25 crit bonus (213 Luck;
-Band of Crushing Force now edges Crystal Sphere). It read 1,266 before that
-bonus and 1,392 when every item was priced at T6. Permuth on Luck
+→ Poison Fan: 946 cold, 1,411 prepared, at 110% crit, with Crystalline Spike's flat
+damage per hit and crit tiers adding +1 (2026-09-13). It read 1,283 before the
+Spike was counted, 1,266 before the Luck 25 crit bonus, and 1,392 when every item
+was priced at T6. Permuth on Luck
 (not counted) is +68% and a coin flip. Every hybrid line loses to pure Luck.

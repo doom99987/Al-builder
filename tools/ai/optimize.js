@@ -1615,6 +1615,8 @@
       const shapes = () => JSON.stringify([(build.gear || []).map(g => g.alloc), build.artifact && build.artifact.alloc,
                                            build.weapon && build.weapon.alloc]);
       const before = shapes();
+      // The settled line is not the one the order was cached against.
+      delete build._tierOrderKey;
       for (const g of build.gear || []) if (!fixedGear.has(g.name)) bestTierAlloc(build, spec, g, false);
       if (build.artifact) bestTierAlloc(build, spec, build.artifact, false);
       if (build.weapon && M.weaponIsTiered(build.weapon.name)) bestTierAlloc(build, spec, build.weapon, true);
@@ -1727,8 +1729,16 @@
       const key = STATS.map(s => build.invested[s] | 0).join(',') + '|' + (build.klass || '') + '|' + (build.race || '');
       if (build._tierOrderKey === key && build._tierOrder) return build._tierOrder;
       const tiers = D.STAT_MILESTONE_TIERS || [25, 60, 110];
-      const base = evaluate(build, spec).score || 1;
+      const baseCtx = evaluate(build, spec);
+      const base = baseCtx.score || 1;
       const t = M.allStats(bare(build));
+      // A crit tier is a breakpoint of its own (decayedScore already treats it
+      // so). Within 9 Luck of the next one, Luck counts as "short" exactly like
+      // a stat 1-9 short of a milestone - a +5 probe can miss a tier a few crit
+      // away, and then no tier point ever goes to Luck.
+      const cc = baseCtx.critChance || 0;
+      const toNextTier = (Math.floor(cc / 100) + 1) * 100 - cc;
+      const critShort = toNextTier > 0 && toNextTier <= 9 * (D.LUCK_CRIT_RATIO || 1);
       const val = {};
       for (const s of STATS) {
         const was = build.invested[s];
@@ -1736,7 +1746,7 @@
         let v;
         try { v = evaluate(build, spec).score / base - 1; } catch (e) { v = 0; }
         build.invested[s] = was;
-        const short = tiers.some(bp => t[s] < bp && t[s] >= bp - 9);
+        const short = tiers.some(bp => t[s] < bp && t[s] >= bp - 9) || (s === 'lck' && critShort);
         val[s] = v + (short ? 1 : 0);
       }
       const order = STATS.slice().sort((a, b) => val[b] - val[a]);
@@ -1759,6 +1769,15 @@
       const order = tierOrder(build, spec);
       const swapped = order.slice(); [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
       let best = null, bestScore = -Infinity;
+      // The allocation already on the slot is a candidate too. Only the top two
+      // stat orders are tried, so re-running this on a settled line could force
+      // points OUT of a stat the order no longer ranks: 4 Luck holding a crit
+      // tier moved to Strength, dropping the crit build under the tier and 10%
+      // of its score. Re-running must never make a slot worse.
+      if (slotRef && slotRef.tier === tier && slotRef.alloc && Object.keys(slotRef.alloc).length) {
+        const sc = evaluate(build, spec).score;
+        best = { tier, alloc: Object.assign({}, slotRef.alloc) }; bestScore = sc;
+      }
       for (const shape of shapes) {
         for (const ord of [order, swapped]) {
           slotRef.tier = tier;
@@ -1876,10 +1895,16 @@
           const entry = { name, tier: fixed.has(name) ? 0 : D.MAX_GEAR_TIER, alloc: {},
                           traits: prev.traits ? prev.traits.slice() : [] };
           build.gear[i] = entry;
+          // tierOrder caches its stat ranking on the invested points alone. A
+          // swapped item moves what each stat is worth - Crystal Sphere's +5 crit
+          // put a crit tier 4 Luck away - so the cached order is stale here, and
+          // its tier points went to Strength instead of crossing the tier.
+          delete build._tierOrderKey;
           if (!fixed.has(name)) bestTierAlloc(build, spec, entry, false);
           const sc = evaluate(build, spec).score;
           if (improves(sc, score)) score = sc;
           else build.gear[i] = prev;
+          delete build._tierOrderKey;
         }
       }
     }
@@ -3388,6 +3413,22 @@
         refineGear(x.b, spec);
         finishLine(x.b, spec);
         x.score = evaluate(x.b, spec).score;
+        // The line finishing settles can open a swap the first re-check could
+        // not see: at 150 Luck a crit Assassin sat at 99% crit, and Crystal
+        // Sphere's +5 in place of another item crosses the tier for +6%. So gear
+        // is re-checked once more on the finished line and re-finished, and the
+        // result is kept only if it scores higher.
+        const snap = JSON.parse(JSON.stringify(x.b));
+        snap._alts = x.b._alts;
+        const gearKey = b => JSON.stringify((b.gear || []).map(g => [g.name, g.tier, g.alloc]));
+        const was = gearKey(x.b);
+        refineGear(x.b, spec);
+        if (gearKey(x.b) !== was) {
+          finishLine(x.b, spec);
+          const sc = evaluate(x.b, spec).score;
+          if (improves(sc, x.score)) x.score = sc;
+          else x.b = snap;
+        }
         x.finished = true;
       }
       for (const x of built) {
