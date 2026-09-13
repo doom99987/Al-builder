@@ -90,6 +90,114 @@ what is next. Read it before pricing anything new.
 10. **Mastery stat nodes** are not steered onto the build's stat.
 11. **Permuth stat pick** is unmeasured (measure like `permuth_value` did).
 
+## The price-everything audit (2026-09-13)
+
+Every priceable thing in the game — 76 gears, 12 artifacts, 19 races, 19
+armours, 15 enchants, 13 weapon series, 3 marks, 4 covenants, 108 capstones —
+read against its game text by agents, one batch at a time, under the rules
+above. The raw findings (gates, notes, synergies, party value, reasoning) are
+kept in `tools/ai/audit/2026-09-13.json`: that file is the tandem map, and the
+first place to look before pricing a combo.
+
+**Applied:** 78 entries — GEAR_PASSIVES 33, MASTERY_ABILITIES 31, ENCHANTS 7,
+WEAPON_PASSIVES 5, ARTIFACT_ABILITIES 1, MARK_ABILITIES 1 — as one
+`Object.assign` block marked `AUDIT 2026-09-13` just above `knowledge.js`'s
+`return`. A key there overrides the hand-written entry above it; deleting the
+block reverts the whole audit.
+
+**Rejected at review, and why** (each is a class of error to catch next time):
+
+| Entry | Why not |
+|---|---|
+| Stellian Core | nested a `multi` inside artifact effects — the scorer silently zeroes it |
+| Coagulated Finger Nail | `stat: 'all'` — the ramp writes to a stat that does not exist |
+| Cursed | `needsStatus` on an enchant (enchants ignore gates) and uptime 0.5 → 0.85 |
+| Shifting Hourglass | dropped its self-stun cost and its DR |
+| Lifesong | un-priced a community pick that sits under the Saint golden |
+| Frostburned Rune | `status` kinds ignore element gates, so every kit would "apply" Cold |
+| Pathfinder Mark, Dark Glare Proficiency | the stager emitted a junk `when` regex |
+| Elemental Infuser | "bugged" with no game text behind it |
+| Ramizcan Idol | a 1-turn buff after a block, counted at 50% uptime |
+| Holy Crash / Flame Drop / Light Burst Proficiency | replaced a priced value with a move rewrite the engine does not have |
+
+**Engine bug the audit exposed:** the `needsStatus` gate subtracted every unmet
+entry from *crit*; an unmet +20% damage would have read as −20 crit. It is per
+kind now (crit, damage, DR).
+
+**Process lessons:** stage from structured proposals and never hand-splice;
+when verifier agents are expensive, verify by rule (`value in text`,
+`onSiteAlready → onSite`, implied gates) and review only what the rules flag;
+a re-applied block must be removed as whole lines; load-check after writing.
+
+**Missing engine kinds, by how many items need them:** incoming/elemental DR
+(8 armours), energy % and energy chance (5 armours, Eroded Blade, Status
+Master), per-move damage % (5 capstones), stat-% ramps (3), corruption-form
+enchants (Polaris, Octantis, Skyblaze), dodge on gear (Dust Storm, Desert
+Escutcheon), damage ramps (Yar'thul's Wrath, Unending Flow), cheat-death (2),
+summon damage (2), party DR (2) — then about 55 singletons, among them crit
+procs (DeathBeak Dagger), flat and true flat damage (Crystalline Spike, Blooming
+Eye), starting energy (Traveler's Lamp), crit lifesteal (Drauga), energy on a
+timer (Nisse), multiplicative outgoing healing (One For All), per-status healing
+(Lasting Life) and crit tier +1 (Overcore). Until those exist the items are
+notes: listed, never scored.
+
+**Most-cited tandem partners:** Ptera's Heart, Crystalized Star, Corvolus's Cast
+Amplify, Snorb, the Cursed enchant, Frozen Diadem, Oppression, Energy
+Manipulator, Wicked Crown, Imbuement Reliquary, Verdant Archer, Vital Strike,
+Parasitic Leech, Spore Root. Roughly 90 synergy lines are *anti*-synergies —
+read those before recommending a pairing.
+
+**Party value (50 items):** Traveler's Lamp opens with 3 Vulnerable on every
+enemy — a team-wide ×1.20 on the opening turns; Divine Promise keeps one ally on
++1 energy and 10% DR permanently; Parasitic Leech heals every ally 2% of your
+damage; Dragon Memoir, Blazing Brand and Ptera's Heart put statuses on enemies
+that allies' gated bonuses read; Narthana's Leaf multiplies heals on allies.
+None of this reaches a party score yet — it waits on `party: true` setups
+scaling through `partyScale(spec)` (open gap 3).
+
+**Still by hand:** race entries (ability names plus SETUP_MOVES), Daminos,
+Way of Life and Church of Raphion setup moves, armours and covenants (no table).
+
+## Real tiers, and finishing the search properly (2026-09-13)
+
+**Owner fact: every item has its own max tier.** The site lets any gear be set
+to T6 and any tiered weapon to T4, and the engine used those caps for
+everything — so Crystal Sphere (max T3, 4 points) was priced at T6 (9 points),
+Yar'thul's Wrath (max T4) the same, and every low-tier item was handed stat
+points no player can put on it. `K.MAX_TIER` (161 items) and `K.maxTierFor`
+now set each item's tier; `bestTierAlloc` reads it. Tier points per tier:
+T1 2 · T2 3 · T3 4 · T4 5 · T5 6 · T6 9 (a tier's other shapes total one
+less). Primordial reaches T5 in game, but the site stops weapons at T4, and
+only the tiered series (Dragon, Blight, Sun, Sandstone, Primordial) carry tier
+points at all — Icerind, Blacksteel, Corealloy and Ivory are listed to T3 by
+the owner but are untiered on the site. Shields are not searched. Named by the
+owner but missing from the site data: Soul and Heart, The Hand of Thuriaz,
+Darkblight Sword/Cestus/Spear, Overgrowth Axe, Curseblood Knife, Maul of
+Brotherhood, and the shields Dragonflame, Icerind, Ivory, Sandstone, Targe,
+Slimy Buckler, Ferrus Towershield.
+
+With honest tiers the standing Assassin nuke reads **1,266 prepared, 208
+Luck** (it was an inflated 1,392 on 224).
+
+**Three search fixes the honest numbers forced:**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Berserker golden wore DeathBeak Dagger (a stat stick) though Shard of Blight scored 2% higher | gear is picked before capstones, tiers and traits settle | `refineGear`: re-check each slot's recorded runners-up against the settled build, carrying the slot's trait orbs |
+| Healer picked Calvariae (71 heal/turn) over Sheea (93) | only the winner was finished, after winning on an unfinished score | finish every finalist within 5% of the lead; choose among finished builds only |
+| A solo boss build sat on 31 Speed | the 40-Speed floor was only a score penalty, met by phantom tier points | a hard floor inside `goPerfect`: raise Speed to it first, and `legal()` refuses any step below |
+
+**Against the community references** (`--strict-golden`, pre-audit baseline
+first): soft misses 62 → 58. The Impaler now reaches STR 110 and wears 2 of its
+4 reference gears (was 1); the Paladin is END-dominant (was LCK); the Berserker
+wears 1 of its reference gears (was 0). One new soft miss to look at: the
+Saint's tier priority now starts with END, where the post says Str ≥ Arc ≥ End.
+
+Order matters: gear is re-checked **before** the stat line is perfected, or the
+swapped item's stats slide the totals off their breakpoints. And a ramp item
+(Crystalized Star) raises the *in-fight* Luck total, not the stat line — a test
+that reads `ctx.stats` for a stat-line rule should read `ctx.siteStats`.
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →
@@ -105,5 +213,6 @@ Arborivia, 150 Luck (224 on the site row), Primordial Dagger, Stellian Core,
 Yar'thul's Wrath / Coagulated Finger Nail / Ages Pages / Crystal Sphere,
 Traveling Pasmark, Miner, Absolute Radiance, Cursed, 3 Reversing + 2 Empowering
 + 2 Striking, mastery 2-0-0, Cult of Thanasius. Shadow Form → Absolute Radiance
-→ Poison Fan: 819 cold, 1,392 prepared, 1,495 in Blasphemy. Permuth on Luck
+→ Poison Fan: 738 cold, 1,266 prepared at real tiers (208 Luck; it read
+1,392 when every item was priced at T6). Permuth on Luck
 (not counted) is +68% and a coin flip. Every hybrid line loses to pure Luck.

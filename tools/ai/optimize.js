@@ -711,11 +711,21 @@
       // A gear bonus gated on a status this kit never applies pays nothing, and
       // is marked inert rather than quietly counted - Frozen Diadem's crit needs
       // Cold on the target, which most kits never put there.
-      let inertCrit = 0;
+      // The gate is per KIND: an unmet damage bonus comes off the damage total and
+      // an unmet DR off the DR total. Subtracting every gated entry from crit (as
+      // this first did) would have turned an unmet +20% damage into -20 crit.
+      // Element-gated damage is held in byMoveType, not gp.dmgPct, so it is left
+      // alone here.
+      let inertCrit = 0, inertDmg = 0, inertDr = 0;
       for (const a of (gp.active || [])) {
         if (!a.needsStatus) continue;
         const met = [...statuses.enemy].some(s => a.needsStatus.test(String(s)));
-        if (!met) { inertCrit += a.effective || 0; a.inert = true; }
+        if (met) continue;
+        const eff = a.effective || 0;
+        if (a.kind === 'critChance') inertCrit += eff;
+        else if (a.kind === 'dmgPct' && !a.elements) inertDmg += eff;
+        else if (a.kind === 'dr') inertDr += eff;
+        a.inert = true;
       }
       // Ramp stats are at zero when a fight opens, so the burst figure is taken
       // on stats with the ramp removed. The sustained figures keep it.
@@ -814,7 +824,7 @@
       let bestDump = 0, dumpMove = null;
       for (const mv of moves) {
         let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * resFor(mv);
-        let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + gp.dmgPct + ma.dmgPct;
+        let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + (gp.dmgPct - inertDmg) + ma.dmgPct;
 
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
         // Affinity Boost — only pay on moves of that type.
@@ -875,7 +885,7 @@
       const ctx = {
         stats: d.stats, siteStats, hp: d.hp * (1 + (tt.hpPct + gp.hpPct) / 100), critChance,
         critTier: M.critTier(critChance), critDmg,
-        blockDr: d.blockDr + tt.dr + gp.dr + ma.dr + pv.dr + setupDr,
+        blockDr: d.blockDr + tt.dr + (gp.dr - inertDr) + ma.dr + pv.dr + setupDr,
         outHeal: d.outHeal, incHeal: d.incHeal,
         // Avoidance is not damage reduction and must not be added to it: an
         // attack that misses does nothing at all, so it multiplies how long you
@@ -1433,7 +1443,8 @@
       };
       const budget = M.pointBudget(build);
       const legal = () => STATS.every(s => (build.invested[s] | 0) >= 0) &&
-                          STATS.reduce((a, s) => a + (build.invested[s] | 0), 0) <= budget;
+                          STATS.reduce((a, s) => a + (build.invested[s] | 0), 0) <= budget &&
+                          (!floor || M.allStats(bare(build)).spd >= floor);
       const score = () => legal() ? decayedScore(build, spec) : -Infinity;
 
       // Luck sitting on a crit-tier threshold is there on purpose.
@@ -1448,6 +1459,20 @@
         return below < tier;
       };
 
+      // Solo on a boss, about 40 Speed is a REQUIREMENT - most of the fight has
+      // to be dodged (owner) - not a preference for the score to price away. It
+      // used to be met by gear tier points the gear could never really carry;
+      // with real tiers the penalty alone stopped reaching it. So the line is
+      // raised to the floor first, from the largest invested stats, and legal()
+      // refuses any step that would take it back below.
+      if (floor && M.allStats(bare(build)).spd < floor) {
+        let need = investedForTotal(build, 'spd', floor) - (build.invested.spd | 0);
+        for (const s of STATS.filter(x => x !== 'spd').sort((a, b) => (build.invested[b] | 0) - (build.invested[a] | 0))) {
+          if (need <= 0) break;
+          const take = Math.min(need, build.invested[s] | 0);
+          build.invested[s] -= take; build.invested.spd += take; need -= take;
+        }
+      }
       const start = Object.assign({}, build.invested);
       let bestLine = null, bestSc = -Infinity;
       for (const r of STATS) {
@@ -1673,7 +1698,12 @@
     // each: the measured one and the same with its top two swapped, so a
     // [5, 3] can go either way round.
     function bestTierAlloc(build, spec, slotRef, isWeapon) {
-      const tier = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
+      // The item's OWN max tier, not the game's. Most gear stops short of T6 -
+      // Crystal Sphere tops out at T3, which is 4 points, not 9 - and forcing
+      // every item to the global cap handed stat points to gear that can never
+      // carry them, which biased every search toward low-tier items.
+      const cap = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
+      const tier = K.maxTierFor ? K.maxTierFor(slotRef && slotRef.name, cap) : cap;
       const shapes = M.shapesFor(tier, isWeapon);
       const order = tierOrder(build, spec);
       const swapped = order.slice(); [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
@@ -1774,6 +1804,35 @@
     }
 
     // ── the pipeline ─────────────────────────────────────────────────────────
+    // Gear is picked before the capstones, tier points and traits settle, and
+    // those move what a gear is worth. After the price-everything audit
+    // re-priced 31 capstones, the Berserker golden came out wearing DeathBeak
+    // Dagger - a bare stat stick - while Shard of Blight, +25% on its Dark
+    // Carnage, scored 2% higher on the FINISHED build. One pass over each slot's
+    // recorded runners-up against the settled build puts the right item back.
+    // Bounded to what the slot already ranked, so it is a couple of dozen
+    // evaluations rather than a second search. A swapped slot keeps its trait
+    // orbs: traits belong to the slot's choice of orbs, not to the item.
+    function refineGear(build, spec) {
+      const fixed = new Set(D.FIXED_GEAR || []);
+      let score = evaluate(build, spec).score;
+      for (let i = 0; i < (build.gear || []).length; i++) {
+        if (spec.forceGear && build.gear[i].name === spec.forceGear) continue;
+        const alts = ((build._alts || {})['gear' + (i + 1)] || []).map(a => a.name);
+        for (const name of alts) {
+          if (!name || !usable(name) || build.gear.some(g => g.name === name)) continue;
+          const prev = build.gear[i];
+          const entry = { name, tier: fixed.has(name) ? 0 : D.MAX_GEAR_TIER, alloc: {},
+                          traits: prev.traits ? prev.traits.slice() : [] };
+          build.gear[i] = entry;
+          if (!fixed.has(name)) bestTierAlloc(build, spec, entry, false);
+          const sc = evaluate(build, spec).score;
+          if (improves(sc, score)) score = sc;
+          else build.gear[i] = prev;
+        }
+      }
+    }
+
     function buildFor(klass, race, spec) {
       const b = M.emptyBuild();
       b.level = spec.level;
@@ -2158,7 +2217,7 @@
         // broke the check that every counted passive traces back to a
         // knowledge entry, and that check is worth more than a tidier label.
         out.active.push(Object.assign({ name, kind, value: e.value, effective: eff, uptime: up,
-                                        needsStatus: e.needsStatus || null,
+                                        needsStatus: e.needsStatus || null, elements: e.elements || null,
                                         statuses: kind === 'status' ? (e.self || []).concat(e.enemy || []) : undefined,
                                         party: !!e.party, onSite: kind === 'onSite' }, extra || {}));
       };
@@ -3208,14 +3267,31 @@
       const built = [];
       for (const f of finalists) {
         const b = buildFor(f.k, f.r, spec);
-        const ctx = evaluate(b, spec);
-        built.push({ k: f.k, r: f.r, score: ctx.score });
-        if (!best || ctx.score > bestCtx.score) { best = b; bestCtx = ctx; }
+        built.push({ k: f.k, r: f.r, score: evaluate(b, spec).score, b });
       }
 
-      // The winner's stat line goes "perfect" here, once, and its ctx is
-      // re-read afterwards so everything downstream sees the finished totals.
-      finishLine(best, spec);
+      // The finishing passes - gear re-checked against the settled build, then
+      // the stat line perfected - can move a build several percent, and they
+      // used to run on the winner ONLY, after it had already won on an
+      // unfinished score. With real gear tiers that got the healer slot wrong:
+      // Calvariae led unfinished by 1%, while a finished Sheea scores 10% higher
+      // and heals 93 a turn to Calvariae's 71. So every finalist within reach of
+      // the lead is finished, and the winner is chosen among FINISHED builds
+      // only (finishing can lower a score, so an unfinished one is no rival).
+      // Gear goes first: a swapped item changes the totals, so the line is
+      // perfected on the gear the build ends up wearing.
+      const FINISH_MARGIN = 0.05;
+      const lead = Math.max(...built.map(x => x.score));
+      for (const x of built) {
+        if (x.score < lead * (1 - FINISH_MARGIN)) continue;
+        refineGear(x.b, spec);
+        finishLine(x.b, spec);
+        x.score = evaluate(x.b, spec).score;
+        x.finished = true;
+      }
+      for (const x of built) {
+        if (x.finished && (!best || x.score > bestCtx.score)) { best = x.b; bestCtx = { score: x.score }; }
+      }
       bestCtx = evaluate(best, spec);
 
       // What came second. Races for the winning class from the finalists are
@@ -3268,7 +3344,7 @@
              gearPassiveTotals, passiveTotals,
              masteryAbilityTotals, masteryNotation, classesForLevel,
              snapToBreakpoints, goPerfect, finishLine, decayedScore, investedForTotal, statLineFor, tierOrder,
-             speedFloor };
+             speedFloor, refineGear };
   }
 
   return { Optimizer };
