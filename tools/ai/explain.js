@@ -468,10 +468,12 @@
     }
 
     if (c.critChance >= 100) {
+      // Each tier past a normal crit adds +1 to the multiplier (Withered Grove).
       why.push('Crit chance of ' + n1(c.critChance) + '% is past the ' + (c.critTier * 100) +
                '% threshold, so every hit is a guaranteed tier-' + c.critTier + ' crit at ' +
-               c.critDmg.toFixed(2) + 'x rather than an average. That is why Luck is worth so much here — ' +
-               'it converts to Crit Chance 1:1.');
+               (c.critDmg + c.critTier - 1).toFixed(2) + 'x rather than an average' +
+               (c.critTier > 1 ? ' (' + c.critDmg.toFixed(2) + 'x, +1 for each tier past a normal crit)' : '') +
+               '. Luck converts to Crit Chance 1:1, but each tier past 100% now adds only +1 to the multiplier.');
     } else if (c.critChance > 0) {
       why.push('Crit chance sits at ' + n1(c.critChance) + '%, below the 100% threshold, so damage is ' +
                'an expected value rather than guaranteed.');

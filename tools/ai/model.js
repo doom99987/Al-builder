@@ -396,22 +396,26 @@
     // Between thresholds the next colour is a chance roll equal to the overflow.
     const critTier = critChance => Math.floor(critChance / 100);
 
-    // Expected damage multiplier for one hit.
+    // Expected damage multiplier for one hit. Mirrors builder.js
+    // getExpectedCritMult.
     //
-    //   below 100   the usual blend, matching getExpectedMultiHitDmg()
+    //   below 100   the usual blend
     //   at/above    the crit is guaranteed at critMult, and the overflow is the
-    //               chance of stepping up a colour: orange x2, red x3, purple x4
-    //               of critMult. So the expectation is critMult x (tier + p).
+    //               chance of stepping up a colour. Each higher tier ADDS 1 to
+    //               the multiplier (Withered Grove rework: "Getting a higher
+    //               tier of critical hit will increase the Crit Damage
+    //               multiplier by 1"), so the expectation is
+    //               critMult + (tier - 1) + p.
     //
-    //   cc 100 -> critMult x 1     guaranteed crit, no overcrit
-    //   cc 150 -> critMult x 1.5   half the hits orange
-    //   cc 200 -> critMult x 2     guaranteed orange
-    //   cc 313 -> critMult x 3.13  guaranteed red, 13% purple
+    //   cc 100 -> critMult         guaranteed crit, no overcrit
+    //   cc 150 -> critMult + 0.5   half the hits orange
+    //   cc 200 -> critMult + 1     guaranteed orange (2.25x -> 3.25x, not 4.50x)
+    //   cc 313 -> critMult + 2.13  guaranteed red, 13% purple
     function expectedMultiplier(critChance, critMult) {
       if (critChance <= 100) return 1 + (critChance / 100) * (critMult - 1);
       const tier = Math.floor(critChance / 100);
       const p    = (critChance % 100) / 100;
-      return critMult * (tier + p);
+      return critMult + (tier - 1) + p;
     }
 
     // Base damage and hit count. `damage` is usually a number but may be a
