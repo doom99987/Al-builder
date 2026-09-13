@@ -815,6 +815,8 @@
         // A bugged ability carries no value, so there is no number for a unit
         // to label. It is reported by its note alone, which says it does not work.
         const unit = a => a.kind === 'bugged'       ? ''
+                        : a.kind === 'onSite'       ? ' (already in the site\'s own maths)'
+                        : a.kind === 'status'       ? ' statuses applied'
                         : a.kind === 'critChance'   ? ' crit chance'
                         : a.kind === 'dr'           ? '% DR'
                         : a.kind === 'dodge'        ? '% autododge'

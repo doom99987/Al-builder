@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 43;
+  const ENGINE_V = 44;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -977,7 +977,9 @@
         // Third copy of this switch, and the third time it has had to learn a
         // kind. A flat +23 Speed rendered here as "+23% damage" and 100 dodge as
         // "+100% damage" - wrong in the way that reads as perfectly plausible.
-        const unit = a.kind === 'critChance'   ? ' crit chance'
+        const unit = a.kind === 'onSite'       ? ' (already in the site\'s own maths)'
+                   : a.kind === 'status'       ? ' statuses applied'
+                   : a.kind === 'critChance'   ? ' crit chance'
                    : a.kind === 'dr'           ? '% DR'
                    : a.kind === 'dodge'        ? '% autododge'
                    : a.kind === 'statFlat'     ? ' flat ' + String(a.stat || 'spd').toUpperCase()

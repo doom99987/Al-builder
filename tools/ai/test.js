@@ -1364,6 +1364,61 @@ describe('random and flavour', () => {
     }
   });
 
+  it('puts every item at its own max tier, not the global cap', () => {
+    // Owner-stated: most gear stops short of T6. Crystal Sphere tops out at T3
+    // (4 points, not 9), Yar'thul's Wrath at T4, Stellian Core does reach T6.
+    // Forcing every item to the global cap handed out stat points no player can
+    // put on those items, and biased every search toward low-tier gear.
+    eq(K.maxTierFor('Crystal Sphere', 6), 3, 'Crystal Sphere max tier');
+    eq(K.maxTierFor("Yar'thul's Wrath", 6), 4, "Yar'thul's Wrath max tier");
+    eq(K.maxTierFor('Stellian Core', 6), 6, 'Stellian Core max tier');
+    eq(K.maxTierFor('Primordial Dagger', 4), 4, 'a weapon never exceeds the site cap');
+    eq(K.maxTierFor('Not A Real Item', 6), 6, 'an unlisted item keeps the global cap');
+
+    // A tier has several legal shapes with different totals (T6 is [9], [5,3]
+    // or [2,2,2,2]), so the check is "one of this tier's totals", not the first.
+    const totals = tier => (data.GEAR_TIER_SHAPES[tier] || [[]]).map(s => s.reduce((a, v) => a + v, 0));
+    const fixed = new Set(data.FIXED_GEAR || []);
+    for (const q of ['assassin nuke biggest single hit', 'saint healer', 'berserker carnage max damage']) {
+      const b = ask(q).build;
+      const worn = (b.gear || []).filter(g => !fixed.has(g.name)).concat(b.artifact ? [b.artifact] : []);
+      for (const g of worn) {
+        const want = K.maxTierFor(g.name, data.MAX_GEAR_TIER);
+        eq(g.tier, want, q + ': ' + g.name + ' tier');
+        const spent = Object.values(g.alloc || {}).reduce((a, v) => a + (v || 0), 0);
+        ok(totals(want).includes(spent),
+           q + ': ' + g.name + ' carries ' + spent + ' tier points, not a legal T' + want + ' shape (' + totals(want).join('/') + ')');
+      }
+    }
+  });
+
+  it('re-checks gear against the finished build', () => {
+    // Gear is picked before capstones, tier points and traits settle, so a
+    // winner can end up wearing an item a runner-up beats on the FINISHED build
+    // - the Berserker golden once wore DeathBeak Dagger, a bare stat stick,
+    // while Shard of Blight scored 2% higher. refineGear is what fixes that.
+    // A check on real requests passes whether or not it exists once the search
+    // happens to pick well, so this PLANTS a clearly worse item and requires the
+    // re-check to replace it - and requires run() to re-check before it
+    // perfects the stat line, or a swapped item slides totals off breakpoints.
+    const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden', 'berserker-crit.json'), 'utf8'));
+    const r = engine.ask(golden.request.text, golden.request.overrides || {});
+    const O = engine.optimizer;
+    ok(typeof O.refineGear === 'function', 'refineGear is not exported');
+    const b = JSON.parse(JSON.stringify(r.build));
+    const slot = (b.gear || []).findIndex((g, i) => ((b._alts || {})['gear' + (i + 1)] || []).length > 1);
+    ok(slot >= 0, 'no gear slot recorded any runners-up');
+    b.gear[slot] = Object.assign({}, b.gear[slot], { name: 'Chocolate Egg' });
+    const planted = O.evaluate(b, r.spec).score;
+    O.refineGear(b, r.spec);
+    ok(b.gear[slot].name !== 'Chocolate Egg', 'a planted stat stick survived the re-check in slot ' + (slot + 1));
+    ok(O.evaluate(b, r.spec).score > planted, 'the re-check did not improve on the planted item');
+
+    const src = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
+    const at = src.indexOf('refineGear(x.b, spec)'), fin = src.indexOf('finishLine(x.b, spec)');
+    ok(at !== -1 && fin !== -1 && at < fin, 'run() must re-check gear before it perfects the stat line');
+  });
+
   it('does not number a bonus action as a turn', () => {
     // Heresy spends Light Force as a bonus action. Calling it "Turn 3" directly
     // contradicted the note beside it saying it costs no turn.
@@ -2459,9 +2514,12 @@ describe('Luck buys crit chance at half rate', () => {
     // it parks on 110 and takes tier 0. Two rules disagreeing, not a broken snap.
     // If this ever starts tiering, the decay rule or the crit maths has moved and
     // both deserve a look.
+    // Read on the site's stat row (`siteStats`), not the in-fight total: a ramp
+    // item such as Crystalized Star adds Luck as the fight goes on, which is
+    // not a stat-line choice and is exactly what the decay rule does not govern.
     const r = ask('', { klass: 'Lancer (N)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
-    ok(r.ctx.stats.lck <= 130,
-       'the Lancer now climbs past the last Luck breakpoint to ' + Math.round(r.ctx.stats.lck) +
+    ok(r.ctx.siteStats.lck <= 130,
+       'the Lancer now climbs past the last Luck breakpoint to ' + Math.round(r.ctx.siteStats.lck) +
        ' - the decay rule and the crit tier stopped disagreeing, which is worth a look');
   });
 
@@ -4148,7 +4206,7 @@ describe('boss targeting', () => {
     const solo = engine.ask('', Object.assign({ play: 'solo' }, base));
     const team = engine.ask('', Object.assign({ play: 'team' }, base));
     ok(solo.ctx.stats.spd >= K.BOSS_SOLO_MIN_SPEED,
-       'a solo boss build came out on ' + Math.round(solo.ctx.stats.spd) + ' Speed, under the ' +
+       'a solo boss build came out on ' + solo.ctx.stats.spd.toFixed(1) + ' Speed, under the ' +
        K.BOSS_SOLO_MIN_SPEED + ' floor');
     ok(team.ctx.stats.spd < K.BOSS_SOLO_MIN_SPEED,
        'the team build was pushed to a Speed floor it does not need');

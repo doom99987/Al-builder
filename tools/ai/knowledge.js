@@ -6,7 +6,6 @@
   shards are worth nothing in this builder, or that a Vastic proc rolls off your
   highest stat and the SPD outcome is bugged. That is what lives here.
 
-  ─────────────────────────────────────────────────────────────────────────────
   THIS IS THE FILE TO EDIT.
 
   Everything here is a declarative table. Adding knowledge should never require
@@ -20,7 +19,6 @@
 
   Unknown items still work without an entry here: the engine scores their base
   stat block. Knowledge makes it smarter, it is never required to make it run.
-  ─────────────────────────────────────────────────────────────────────────────
 */
 'use strict';
 
@@ -3069,6 +3067,166 @@
     },
   ];
 
+
+
+  // ── MAX TIER PER ITEM (owner, 2026-09-13) BEGIN ─────────────────────────────────
+  // The highest tier each item can actually reach in game. The site lets any
+  // gear be set to T6 and any tiered weapon to T4, and the search used those
+  // global caps for everything - so Crystal Sphere (max T3: 4 points) was
+  // priced at T6 (9 points) and every low-tier item was handed stat points it
+  // can never carry. Owner-stated; "T3-T5" is recorded as its top, 5.
+  //
+  // Not in the site data at all, so not listed: Soul and Heart, The Hand of Thuriaz, Dragonflame Shield, Darkblight Sword, Darkblight Centus, Darkblight Spear, Overgrowth Axe, Curseblood Knife, Icerind Shield, Ivory Shield, Sandstone Shield, Broadsword, Maul of Brotherhood, Targe, Slimy Buckler, Ferrus Towershield.
+  // Weapon tiers only matter for the tiered series (D.TIERED_WEAPON_SERIES);
+  // Primordial reaches T5 in game but the site stops weapons at T4.
+  const MAX_TIER = {
+    'Arkhaia\'s Visage': 6, 'Chaos Orb': 6, 'Metrom\'s Amulet': 6, 'Paranoxian Crux': 6,
+    'Stellian Core': 6,
+    'Ancient Insignia': 5, 'Celestial Emblem': 5, 'Coagulated Finger Nail': 5,
+    'Darkblood Hexer': 5, 'Darksigil': 5, 'Dread Fang': 5, 'Heaven\'s Authority': 5,
+    'Imbuement Reliquary': 5, 'Madseer\'s Codex': 5, 'Narthana\'s Sigil': 5, 'Primordial Axe': 5,
+    'Primordial Dagger': 5, 'Primordial Gauntlets': 5, 'Primordial Greatsword': 5,
+    'Primordial Hammer': 5, 'Primordial Spear': 5, 'Primordial Staff': 5, 'Primordial Sword': 5,
+    'Reality Watch': 5, 'Shifting Hourglass': 5, 'Vainglorious Locket': 5,
+    'Ages Pages': 4, 'Blazing Perforator': 4, 'Blightrock Dagger': 4, 'Blightrock Gauntlets': 4,
+    'Blightrock Spear': 4, 'Blightrock Sword': 4, 'Blightwood Staff': 4, 'Blooming Eye': 4,
+    'Crystalized Star': 4, 'Crystalline Spike': 4, 'Darkblood Cestus': 4, 'Darkblood Dagger': 4,
+    'Darkblood Spear': 4, 'Darkblood Staff': 4, 'Darkblood Sword': 4, 'DeathBeak Dagger': 4,
+    'Dragon Memoir': 4, 'Dragonbone Gauntlets': 4, 'Dragonbone Hammer': 4, 'Dragonbone Spear': 4,
+    'Dragonpyre Axe': 4, 'Dragontooth Blade': 4, 'Dragontooth Dagger': 4, 'Dragontooth Staff': 4,
+    'Empty Blade': 4, 'Everbeating Drums': 4, 'Frostburned Rune': 4, 'Frozen Diadem': 4,
+    'Imbued Chains': 4, 'Impure Crown': 4, 'Infected Skin': 4, 'Lucky Horns': 4,
+    'Narthana\'s Leaf': 4, 'Ptera\'s Heart': 4, 'Shadow Gauntlets': 4, 'Shard of Blight': 4,
+    'The Last Straw': 4, 'Vow of Ruin': 4, 'Yar\'thul\'s Wrath': 4,
+    '7 Leafed Everthistle': 3, 'Aspect of Maladaptation': 3, 'Band of Crushing Force': 3,
+    'Blacksteel Axe': 3, 'Blacksteel Claws': 3, 'Blacksteel Knife': 3, 'Blacksteel Sabre': 3,
+    'Blacksteel Spear': 3, 'Blacksteel Staff': 3, 'Blazing Brand': 3, 'Corealloy Manablade': 3,
+    'Corealloy Manaclaws': 3, 'Corealloy Manadagger': 3, 'Crystal Sphere': 3, 'Cursed Brand': 3,
+    'Delicate Purse': 3, 'Desert Escutcheon': 3, 'Divine Promise': 3, 'Dust Devil\'s Eye': 3,
+    'Dust Storm': 3, 'Egg Shelmet': 3, 'Elemental Infuser': 3, 'Elementary Resonance': 3,
+    'Eroded Blade': 3, 'Expedite Anklet': 3, 'Focused Mind': 3, 'Forest Charm': 3,
+    'Gilded Pouch': 3, 'Grain Of Balance': 3, 'Icerind Cestus': 3, 'Icerind Greatsword': 3,
+    'Icerind Sai': 3, 'Icerind Spear': 3, 'Icerind Staff': 3, 'Icerind Sword': 3,
+    'Imperial Headband': 3, 'Ivory Axe': 3, 'Ivory Dagger': 3, 'Ivory Greatsword': 3,
+    'Ivory Hammer': 3, 'Ivory Spear': 3, 'Ivory Sword': 3, 'Lethal Blackjack': 3, 'Magma Charm': 3,
+    'Molten Carapace': 3, 'Open Hand': 3, 'Parasitic Leech': 3, 'Pathfinder Mark': 3,
+    'Phantom Ooze': 3, 'Ramizcan Idol': 3, 'Ring of Heroism': 3, 'Sanguine Fang': 3,
+    'Shattered Clock Hand': 3, 'Spiked Steel Ball': 3, 'Spore Root': 3, 'Star-Seeing Hammer': 3,
+    'Stone Brand': 3, 'Sun Dagger': 3, 'Sun Greatsword': 3, 'Sun Spear': 3, 'Sun Staff': 3,
+    'Sun Sword': 3, 'Tainted Quiver': 3, 'Tear Blood Crystal': 3, 'Traveler\'s Lamp': 3,
+    'Vulcan Knuckle': 3, 'Wicked Crown': 3,
+    'Frosty Topper': 2, 'Gelat Band': 2, 'Golem Rune Core': 2, 'Jade Broadsword': 2,
+    'Jade Prayerstaff': 2, 'Rabbit Pelt': 2, 'Rabbit\'s Foot': 2, 'Sandstone Axe': 2,
+    'Sandstone Dagger': 2, 'Sandstone Gauntlets': 2, 'Sandstone Hammer': 2, 'Sandstone Spear': 2,
+    'Sandstone Staff': 2, 'Snorb': 2, 'The Smallest Boulder': 2, 'Vastic Glaive': 2,
+    'Arbusta Tear': 1, 'Chocolate Egg': 1, 'Faded Heirloom': 1, 'Ferrus Axe': 1,
+    'Ferrus Cestus': 1, 'Ferrus Dagger': 1, 'Ferrus Spear': 1, 'Ferrus Tenderizer': 1,
+    'Gleaming Carrot': 1, 'Greatsword': 1, 'Old Staff': 1, 'Party Egg': 1, 'The Biggest Pebble': 1,
+  };
+  function maxTierFor(name, globalCap) {
+    const t = MAX_TIER[name];
+    return t == null ? globalCap : Math.min(t, globalCap);
+  }
+  // ── MAX TIER PER ITEM END ───────────────────────────────────────────────
+
+  // ── AUDIT 2026-09-13 BEGIN ──────────────────────────────────────────────
+  // Entries from the price-everything audit: every race, gear, artifact,
+  // armour, enchant, weapon series, mark, covenant and capstone read against
+  // its game text, then checked by rule (tools/ai/LEARNING.md). Applied as
+  // overrides so the hand-written entries above stay readable; a key here
+  // wins. Delete this block to revert the whole audit.
+  Object.assign(ARTIFACT_ABILITIES, {
+    'Reality Watch': { uptime: 0, effects: [{ kind: 'note' }], note: 'Chronos (0 energy, 12 turn cooldown) saves your HP and energy and rewinds both to those values 3 turns later - so cast it at full HP and a full pool, dump everything for 3 turns, and get the pool and the health back; it will not revive you inside the window, and it rewinds heals and energy you gained too. Not counted: the heal is whatever you lost, which needs incoming damage the engine does not model, and the energy refund needs a sustained energy ledger it does not have.' },
+  });
+  Object.assign(ENCHANTS, {
+    'Inferno': { kind: 'dmgPct', value: 20, uptime: 0.58, needsStatus: /burn|inferno/i, note: '25% chance per attack (even on a dodge) to apply 3 Burning, and +20% damage while the enemy is Burning, including the hit that applies it. Up the whole time on a kit that already burns; otherwise about 58% of a fight and 25% on the opening hit.' },
+    'Midas': { kind: 'dmgPct', value: 15, uptime: 0.166, note: '16.6% chance per attack for +15% damage, which averages to about +2.5%. The drop-rate and gold halves are farming utility and are not scored.' },
+    'Reaper': { kind: 'note', note: 'When it procs: up to +25% damage, scaled by the enemy\'s current HP, and a heal for 10% of damage dealt. The proc chance is not given. The regen is 1% max HP per missing life (bonus lives from Daminos, Sheea and Dullahan count), which is zero at full lives. None of it can be priced without those numbers.' },
+    'Spectral': { kind: 'note', note: 'Each attack has a chance to ignore all enemy defence. The chance is not given, and this model does not track enemy defence, so it is reported, not scored.' },
+    'Frosted': { kind: 'status', self: [], enemy: ['cold'], uptime: 0.5, note: 'Attacks have a chance, stated only as \'~16?%, needs testing\', to put 2 Cold on the enemy. That Cold is what satisfies Cold-gated passives. A crit on a Cold enemy also sets off a 10-base AoE that scales with damage buffs, once per attack before a cooldown; that part is not priced because no flat proc-damage kind exists.' },
+    'Storm (mod)': { kind: 'note', note: 'Each attack can either stun or deal +50% damage, never both, but both chances are \'?%\'. Not counted until someone measures the proc rates.' },
+    'Frost Burn (mod)': { kind: 'note', note: 'The site text is word-for-word Storm (mod): a \'?%\' stun or a \'?%\' +50% damage, never both. Both chances are unstated and the duplicate text is probably a transcription error, so it is not counted.' },
+  });
+  Object.assign(GEAR_PASSIVES, {
+    'Lethal Blackjack': { kind: 'note', note: 'D20 spends your turn on a roll where 9 faces in 20 cost you HP, energy or put Vulnerable/Hexed/Cursed on yourself and only 10 in 20 help; averaged over the table it is about +1% damage and about -6% of max HP per roll at full health, so it is a trap on any build that is not already at 10% HP. It cannot be entered as a setup move, because setups are not charged for the turn.' },
+    'Egg Shelmet': { kind: 'multi', effects: [{ kind: 'hpPct', value: 10 }, { kind: 'dr', value: 8 /* 10 @0.8 folded */ }], uptime: 1, note: 'Start every fight with a shield worth 10% of max HP, and once it breaks you keep a permanent 10% DR; the shield is counted at full, the DR at 0.8 because it is not up until the first hit or two land. The current entry prices the shield and drops the DR half entirely.' },
+    'Chocolate Egg': { kind: 'note', party: true, note: 'Easter Snack heals one ally 7.5 HP and gives them 1% of their max HP regen for 2 turns, once per fight, for your whole turn; roughly 10-13 HP total, scaled by your outgoing healing, which is not worth a turn on any build. It is a LCK 1 stat stick.' },
+    'Party Egg': { kind: 'note', note: 'Egg Throw is a 2-energy, 6-cooldown Physical hit of 5 + SPD/80 that puts 2 random statuses (ghostflame among them) on the target and gives you +7.5% Speed for 3 turns; the pool is unstated and 7.5% of a stat is not a flat number, so neither half can be scored. It costs a turn that a 5-damage attack does not repay.' },
+    'Gleaming Carrot': { kind: 'note', note: 'Carrot Munch costs a turn and 2 energy, once per fight, for +1% crit per turn over 6 turns - zero on the opener, +6 at the peak, about +3.5 on average - which no attack turn is worth giving up for. The engine has no crit ramp kind and should not price it as a setup because setups are not charged for the turn.' },
+    'Elementary Resonance': { kind: 'dmgPct', value: 10, uptime: 0.11, note: 'The gear changes colour every turn and an attack of the matching element does +10% plus a per-element rider, so on a kit that attacks with one element it is a 1-in-9 shot each turn - about +1.1% damage on average, with the riders (Dark 25% lifesteal, Ice 3 Cold, Physical 2 Weakened + 2 Vulnerable, Arcane +1 energy, Nature 10% heal) landing at the same rate and not priced.' },
+    '7 Leafed Everthistle': { kind: 'note', note: 'x1.85 drop rate and gold at the end of the fight. A farming item - it does nothing inside a fight, so it is worn as a 3-Luck stat stick and scored as one.' },
+    'The Biggest Pebble': { kind: 'note', note: 'Pebble: 0 energy, 4-turn cooldown, +300% chance to escape the fight. A flee button - it spends a turn and contributes nothing to any combat goal. The slot is a 1-Speed stat stick.' },
+    'Spore Root': { kind: 'status', self: [], enemy: ['poison', 'weakened'], uptime: 0.5, note: 'When you block a melee attack: 2 Poison on the attacker, and a 30% chance of 2 Weakened. The poison damage itself is not priced; what it FEEDS is - the enemy Poison and Weakened it puts up are what Impure Crown, Oppression and the status-reading enchants see. Only ever fires on a build that blocks, so it stays gated to tank goals.' },
+    'Forest Charm': { kind: 'dmgPct', value: 25, uptime: 1, elements: /nature/i, note: '+25% to Nature attacks, everywhere - all of it on Nature moves and nothing on the rest. The +15% \'while in the forest\' half is zone-gated and is not counted: the engine has no idea where you are fighting.' },
+    'Gilded Pouch': { kind: 'note', note: 'No passive text exists for this item - it is a plain 3 Luck stat stick and the stat block is already scored. The name suggests a gold effect; that is unstated and would be out of combat anyway, so nothing is priced.' },
+    'Band of Crushing Force': { kind: 'multi', effects: [{ kind: 'dmgPct', value: 25 }, { kind: 'dmgPct', value: 10 }], uptime: 0.35, note: '+25% against a blocking enemy, and +10% until the end of your next turn once an enemy blocks a hit of yours - both fire on the same event, so they share one assumed block rate. The 15% desert damage reduction printed in game does not work.' },
+    'Grain Of Balance': { kind: 'bugged', uptime: 0, note: 'BUGGED: it should move 25% of your highest stat onto the other four, but currently seems to grant negative stat points instead - a downside, not a neutral. Avoid until fixed; Gilded Pouch is the same 3 Luck without the bug, and even fixed it would only suit an all-round spread.' },
+    'Madseer\'s Codex': { kind: 'note', elements: /magic|fire|ice|hex/i, party: true, note: 'On Magic, Fire, Ice and Hex attacks: an unstated chance to apply one random status from Poisoned, Cursed, Blinded, Crippled, Weakened, Vulnerable. Not priced: the chance is never given. It also makes your QTEs HARDER, which is a cost - more failed blocks and dodges.' },
+    'Imbued Chains': { kind: 'bugged', uptime: 0, note: 'Currently bugged - the passive does nothing in game. Worn only for its Speed 4.' },
+    'Delicate Purse': { kind: 'note', note: 'A random amount of gold at the end of an encounter, reduced by damage taken during it. Economy, not combat - never scored. Worn for the Luck 3.' },
+    'Cursed Brand': { kind: 'summonDmgPct', value: 5, uptime: 0, note: 'Active, 2 energy, 5 turn cooldown: spend 10% of your summon\'s HP to consume the target\'s statuses (not Heavy Stun) for +5% summon damage per status consumed. Duration unstated, so it cannot be scored; it costs the summon health, costs you the turn, and strips the DoTs and debuffs your own kit put on the target.' },
+    'Phantom Ooze': { kind: 'note', note: 'Gear ACTIVE Gluttony (0 energy, 14 cooldown) eats up to 10 negative stacks on you and applies 1 Cursemaw per stack; Cursemaw is -5% DR per stack while it lasts. Not counted: the text does not say whether Cursemaw lands on you (a cost) or the enemy (a shred), and the cleanse has no number.' },
+    'Imperial Headband': { kind: 'note', note: 'Gear ACTIVE Self Destruct (2 energy, no cooldown): once your summons are under 90% HP, detonate them for AoE damage equal to twice their total HP, with an unstated chance of 2 Stun and 2 Weakened. Not counted: the engine has no summon HP to double, and it costs the summons.' },
+    'Vulcan Knuckle': { kind: 'dmgPct', value: 15, uptime: 1, elements: /fire/i, note: '+15% to Fire moves - all of it, on Fire moves, and nothing on the rest. It also turns Strike into a Fire move (so Strike takes the 15%, Cast Amplify and the Dragon series, and loses Fractured\'s Physical bonus); the 15% Volcano defence is location-gated and not counted.' },
+    'Dragon Memoir': { kind: 'status', self: [], enemy: ['bleed', 'fractured'], uptime: 0.5, party: true, note: 'Your first Strike or Magic Missile puts 2 Bleed on the target, the next three put 2 Fractured (the site\'s x1.35 on Physical/Magic hits), then 2 Bleed per basic for the rest of the fight. Counted as a Bleed and Fractured applier for the gates it opens; the x1.35 window is not priced because it costs Strike turns.' },
+    'Blazing Brand': { kind: 'status', self: [], enemy: ['burn'], uptime: 0.5, party: true, note: 'When enemies attack your summons they take unstated small damage and 3 Burn. Counted as a Burn applier for the gates it opens, only on a kit that summons; the reflect damage has no number and is not priced.' },
+    'Gelat Band': { kind: 'note', note: 'No combat effect: it lets you speak with the King Slime statue. Worn for ARC 2 and nothing else.' },
+    'Blazing Perforator': { kind: 'note', note: 'Half of all burn damage becomes healing instead, Ghostflame excluded - but the text never says whose burn (the Burn you take, or the Burn you deal), so it is reported, not priced. The site\'s Burn tick is 0.7% max HP +0.2% per stack, so \'half\' is at most 0.35% + 0.1%/stack a turn.' },
+    'Vow of Ruin': { kind: 'note', party: true, note: 'Party-only active (1 energy, cd 3): link an ally for 3 turns, take 25% of the damage dealt to them, then explode for an unstated amount that scales with what you absorbed. Costs your turn and your HP; solo it does nothing.' },
+    'Imbuement Reliquary': { kind: 'note', note: 'Summons get the full effects of your enchant. Worth whatever the enchant is worth, on the summons only - no number of its own, and nothing at all on a kit that summons nothing (GEAR_NEEDS already refuses it there).' },
+    'Focused Mind': { kind: 'multi', effects: [{ kind: 'dmgPct', value: 20 }, { kind: 'dr', value: -15 }], uptime: 0.3, note: '+20% damage and 15% MORE damage taken for the turn after a Meditate. Both halves counted at the same 0.3 uptime; the Meditate turn itself is a turn you do not attack, which the engine does not charge.' },
+    'Tainted Quiver': { kind: 'status', self: [], enemy: ['sundered'], uptime: 0.5, note: 'Your first attack always puts 1 Sundered on the enemy and steals 1 energy; later attacks have an unstated chance to do it again. The Sundered lands ON the first hit, so it feeds follow-up attacks, not a nuke opener; the energy half is not priced.' },
+    'Open Hand': { kind: 'note', note: 'Poison, Bleed, Burn, Cold, Ghostflame and Weakened on YOU decay 2 a turn instead of 1. Halves the damage-over-time you eat and the Weakened you carry - no number for how much, so not scored - and halves the self-stacks that Reversing, Deranged Fighter and Lasting Life are paid by.' },
+    'Dread Fang': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (STR 2 / LCK 2). Re-price when the text lands.' },
+    'Empty Blade': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (STR 4). Re-price when the text lands.' },
+    'Faded Heirloom': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (LCK 1, the weakest stat block of any gear). Re-price when the text lands - with 1 stat point its passive will be the whole item.' },
+    'Ring of Heroism': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (STR 3). Re-price when the text lands.' },
+  });
+  Object.assign(MARK_ABILITIES, {
+    'Venia': { uptime: 0, effects: [{ kind: 'note' }], note: 'Permuth trades 5% HP, 2 energy and a turn for a random +40% stat buff for 3 turns (the data field says 2) every 10, landing on your top invested stat about half the time; Muto (artifact shop) and Venian (gold 5x level) do nothing in a fight. The current note\'s "crit-and-status engine" wording describes Astra\'s Starborn, not Venia.' },
+  });
+  Object.assign(MASTERY_ABILITIES, {
+    'Simple Domain Proficiency': { kind: 'note', note: 'Simple Domain can now parry ranged attacks (not ultimates), so it counters Justice or Styx; scaling is unchanged. A boss-tactic defence with no number to price.' },
+    'Flowing Dance Proficiency': { kind: 'onSite', note: 'Flowing Dance rescales to SPD/50 in place of STR/75 + SPD/75; that is already applied by the move override. It only gains when Speed exceeds twice Strength, and the bonus against bleeding targets is dead text.' },
+    'Delayed Hex': { kind: 'note', party: true, note: 'When an ally or your own summon dies, its killer gets 2 Hexed, so the next two hits on it deal double. A Hexer has no summons, so solo it never triggers. In a party it depends on a teammate dying, which a build should not plan for, and the count is unstated.' },
+    'Inverse Abyss Proficiency': { kind: 'note', party: true, note: 'Each Inverse Abyss proc gives you +1 energy and puts 3 random statuses at 3 stacks on the debuffer. Procs depend on how often enemies debuff your team and are capped at ARC/65 per cast. The statuses are random, so no status gate can rely on them.' },
+    'Death Edge': { kind: 'note', note: '-1 cooldown on Darklight Drain each time anything on the field dies. How many deaths a fight has is unstated, and masteries have no cooldown-cut column. Free skeletons (Call Skeleton Proficiency) and multi-mob encounters are what feed it.' },
+    'Raise Death Proficiency': { kind: 'note', party: true, note: 'Raise Dead revives at 80% HP instead of 60%, the ally cannot die until their next turn, and the cooldown drops from 16 to 11. The revived ally still loses their turn. The engine has no revive, and solo it does nothing.' },
+    'Trapper': { kind: 'note', party: true, note: 'Poison Trap can go on allies, and a proc spreads half its poison to the whole enemy team. It is reactive (needs an enemy melee hit), and DoT is not modelled, so no number.' },
+    'Poison Trap Proficiency': { kind: 'status', self: [], enemy: ['weakened', 'vulnerable'], uptime: 0.3, party: true, note: 'The trap\'s final proc bursts for more damage (unstated) and applies 2 Weakened and 2 Vulnerable. It only fires if an enemy melees the trapped unit, so the uptime is a guess. [assumed]' },
+    'Dagger Spread Proficiency': { kind: 'status', self: [], enemy: ['poison'], uptime: 0.4, note: 'Dagger Spread now applies 2 Poisoned to every enemy it hits (full AoE). A kill with it bursts poison for small, unstated damage.' },
+    'Slash Barrage Proficiency': { kind: 'status', self: [], enemy: ['sundered'], uptime: 0.4, needsStatus: /poison/i, party: true, note: 'Against a poisoned target, Slash Barrage deals extra damage (amount unstated) and applies 2 Sundered. Only the Sundered is scoreable, as a status.' },
+    'Shadow Form Proficiency': { kind: 'status', self: [], enemy: ['sundered', 'poison'], uptime: 1, note: 'The attack out of Shadow Form applies 2 Sundered and 3 Poison BEFORE its damage, so that same hit already counts as poisoned and sundered. It adds no damage number of its own; its value is turning on poison-gated effects on the opener.' },
+    'Toxic Vitality': { kind: 'note', note: 'Every auto-dodge fires a poison dagger back: \'a small amount\' of damage (no number given) and 3 Poison. It triggers off Shadow\'s unconfirmed 15%(?) phase chance, and the kit already poisons, so there is nothing to price.' },
+    'Risk Taker': { kind: 'note', note: 'Raises Shadow\'s autododge chance while below 40% HP, by an unstated amount. It is never up on an opener, since fights start at full health.' },
+    'Holy Mantra Proficiency': { kind: 'note', party: true, note: 'When Holy Mantra\'s resist blocks a status during its defence buff, the target heals 15% of max HP. The heal size is stated, but how often it procs depends on enemy debuffs, which the data does not give. It can be cast on an ally.' },
+    'Fire Sutra Proficiency': { kind: 'note', party: true, note: 'Fire Sutra\'s target becomes immune to Burning, Ghostflame and Inferno and gets a higher (unstated) chance to burn on hit. The immunity only matters against enemy fire or self-burn; the burn chance raises uptime for the Monk\'s burn-gated masteries.' },
+    'Burst Combo Proficiency': { kind: 'status', self: [], enemy: ['sundered'], uptime: 0.7, needsStatus: /vulnerab/i, note: 'Burst Combo also applies 2 Sundered if the target is already Vulnerable (the text is unsure whether this still happens on a dodge). It adds no damage by itself; its value is in what reads Sundered.' },
+    'Call Darkbeast Proficiency': { kind: 'status', self: [], enemy: ['weakened', 'vulnerable'], uptime: 0.5, party: true, note: 'The Darkbeast\'s Void Bite now always applies 2 Weakened and 2 Vulnerable, whatever the core count. The damage and energy buff at 5+ cores has no number and is suspected bugged, so it is not counted.' },
+    'Jolting Dodges': { kind: 'note', note: 'Dodging a ranged attack fires a shockwave. No damage figure is given and it only triggers on ranged attacks, so it is reported, not scored.' },
+    'Rallying Shout Proficiency': { kind: 'note', party: true, note: 'The aggro increase is bugged in game (the text says so). Rallying Shout also gives all allies 10% HP Regen for 3 turns, but the text does not say whether that is 10% of max HP a turn or a 10% regen buff, so it is not scored.' },
+    'Discharge Proficiency': { kind: 'note', note: 'Discharge fires 4 projectiles at 100% / 38% / 33% / 33%, about 2.05x the single hit on one target (10 base becomes 20.47), and each applies 2 Weakened. Priced as a move rewrite that mirrors the site\'s own calculator.' },
+    'Blood Mastery': { kind: 'bugged', uptime: 0, note: 'Does nothing in the game right now. It raises the stack cap on the old Bloody Berserker, and that version was reverted. Bloody Berserker is now +1% damage per 1% HP missing, with no stacks. Worth nothing, and the 5 points go elsewhere.' },
+    'Daybreak Proficiency': { kind: 'note', note: 'Each Daybreak cast grants 10 temporary Courage stacks for 3 turns, and they can exceed the Courage cap. Nothing in the site\'s data says what a Courage stack does or where the cap sits, so it cannot be priced. On Daybreak\'s 6-turn cooldown it would be up about half the time.' },
+    'Courageous Heart': { kind: 'note', openerFull: true, note: '5 Courage stacks for the whole fight, still subject to Courage scaling. It would be up on turn one, but nothing in the data says what a Courage stack is worth, so it is reported, not scored.' },
+    'Puristic Heart': { kind: 'note', note: 'Each Torrefy (shield guard) halves how well your defence buffs work and converts an unstated portion of that into max-HP regen for 3 turns, stacking multiplicatively. The defence loss is certain; the regen gained has no number. On a Lionheart stacking Vulcanised Vigor DR this is likely a net loss until the conversion rate is known.' },
+    'Cauterisation Proficiency': { kind: 'note', note: 'When Cauterisation ends, all damage Vulcanised Vigor has stored gets its duration reset to 3 turns, so your Vigor stacks last longer. While Cauterisation is up, any DR you gain heals you for 3% max HP instead of being wasted; that heal ignores healing bonuses. Neither half has a frequency the data states: Vigor stacks held, DR gains per cast, and the move\'s duration are all unknown. The base move\'s self-Sunder is the cost it builds on.' },
+    'Blinding Vow Proficiency': { kind: 'note', party: true, note: 'When you take damage, the ally you blessed with Sonority also gains a defence buff equal to the damage buff Sonority gave them, and that defence ignores DR negation. Sonority\'s buff has no stated number, so it is not priced, and it is worth nothing solo.' },
+    'Weight of Sin': { kind: 'note', needsStatus: /karma/i, note: 'When Karma triggers, the target takes Pressure stacks equal to half the Karma consumed (Pronouncement consumes 1/3/5, so 0-2 Pressure). Pressure has no stated effect in the data and nothing here reads it, so it is not scored.' },
+    'Litigate Proficiency': { kind: 'status', self: [], enemy: ['weakened', 'vulnerable'], uptime: 0.8, needsStatus: /karma/i, party: true, note: 'Litigate now always triggers Karma if the target has any, keeps the stacks, and instead applies 1 Weakened and 1 Vulnerable per stack that would have been consumed. That puts Vulnerable into an Arbiter kit that otherwise never applies it; the stack count is not stated.' },
+    'Tetradeath': { kind: 'note', note: 'Every 4 negative statuses you put on an enemy also give it 1 Karma. Arbiter already gets Karma from Affidavit (1 per 5 base damage) and Litigate (+5 per cast), so this small trickle only matters to Pronouncement\'s stack thresholds. Not scored: the engine does not model Karma.' },
+    'Injunction Proficiency': { kind: 'note', note: 'Injuction\'s base damage goes from 2 to 5 (2.5x the hit, still on ARC/185), which also makes Affidavit put 1 Karma per cast. If it applies more than 4 negative statuses it keeps the target\'s Karma; that part is not scored.' },
+    'The Bell Tolls': { kind: 'note', needsStatus: /karma/i, note: 'An activated Karma lasts 2 turns longer. Neither Karma\'s effect nor its base duration is stated in the data, so there is nothing to extend in the model.' },
+  });
+  Object.assign(WEAPON_PASSIVES, {
+    'Jade': { kind: 'onSite', party: true, note: '+30% incoming and outgoing healing. Already applied by the site (weaponBonuses to model.js pctSources), so it is listed, not priced again.' },
+    'Dragon': { kind: 'dmgPct', value: 15, uptime: 0.45, needsStatus: /burn/i, note: '+15% damage only while the enemy has Burn. The weapon does not apply Burn itself, so it pays only on a kit or enchant that does. Burn is not on the target for the first hit unless something applied it earlier.' },
+    'Sandstone': { kind: 'status', self: [], enemy: ['sundered'], uptime: 0.2, note: '20% chance per attack to apply 2 Sundered, with no damage of its own. It pays through the Cursed enchant (+20% vs Sundered) and the Shattering shard (per debuff on target). It does NOT feed Blight, which gates on Weakened/Vulnerable.' },
+    'Icerind': { kind: 'dmgPct', value: 20, uptime: 0.45, needsStatus: /cold|freez/i, note: '+20% damage while the enemy has Cold. Its own Cold chance is unstated, so it only counts on a kit that applies Cold. The series is currently unavailable.' },
+    'Ivory': { kind: 'onSite', note: 'The site already adds +15% crit (weaponBonuses), so that part is listed, not priced. The on-crit proc (~15%: +1 energy and a 5% max-HP heal, at most twice a turn) is reported, not scored. The series is unavailable (event ended).' },
+  });
+  // ── AUDIT 2026-09-13 END ────────────────────────────────────────────────
+
   return { VOCAB, ALIASES, FLAVOUR, ARCHETYPES, DEFAULT_GOAL, GOAL_PRIORITY, CLASS_WEAPONS,
            CLASS_ROLE, classRole,
            ROLES, roleOf, ROLE_ITEMS, roleItemNote, ROLE_ITEM_MARGIN, SCROLL_NOTES,
@@ -3089,7 +3247,7 @@
            ENERGY, SUSTAIN, DR_CAP, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
-           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit,
+           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit, MAX_TIER, maxTierFor,
            SELF_STUN, selfStunTurns,
            CORRUPTION_ENTRY_TURNS, TRAPS };
 }));
