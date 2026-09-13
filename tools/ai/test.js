@@ -1186,12 +1186,23 @@ describe('random and flavour', () => {
     // And the finding that broke it, kept as a test of its own: a physical class
     // whose race buffs magic elements really does prefer the covenant's Dark
     // attack for its opener. If that stops being true, something changed.
+    // Scrolls off here too. Crystalline Spike's +5 lands on every hit, so the
+    // 4-hit Ice Shards scroll out-gains the 2-hit Death Curtain and takes the
+    // opener - correctly, per the site's per-hit flat damage, but it is a scroll,
+    // not the covenant move this is about.
     const dark = engine.ask('', { race: 'Corvolus (3%)', klass: 'Lancer (N)', goal: 'burst',
-                                  covenant: 'Cult of Thanasius' });
+                                  covenant: 'Cult of Thanasius', sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' });
     eq(String((dark.ctx.burstMove || {}).name), 'Death Curtain',
        'a Corvolus Lancer no longer opens on the covenant move');
     ok(dark.ctx.bestBurst > dark.ctx.bestHit,
        'the element-gated buff paid nothing on a move its gate admits');
+    ok(dark.ctx.rotation.length && dark.ctx.rotation.every(rt => rt.elements),
+       'the burst gain came from an element-blind buff, not a gated one');
+    // Left to choose scrolls, the opener may be a scroll - but never a move the gate refuses.
+    const auto = engine.ask('', { race: 'Corvolus (3%)', klass: 'Lancer (N)', goal: 'burst', covenant: 'Cult of Thanasius' });
+    const amv = auto.ctx.burstMove || {};
+    ok(def.elements.test(String(amv.moveType) + ' ' + String(amv.element || '')),
+       'with scrolls chosen, the Lancer opens on ' + amv.name + ' (' + amv.moveType + '), a move the gate refuses');
   });
 
   it('explains the rotation whenever there is one', () => {
@@ -1324,10 +1335,17 @@ describe('random and flavour', () => {
     const r = engine.ask('', { klass: 'Assassin (Ch)', goal: 'burst' });
     const mv = r.ctx.moves.find(m => m.name === 'Stealth Strike');
     ok(mv, 'no Stealth Strike in the kit');
-    const asAssassin = M.moveDamage(r.build, mv, { stats: r.ctx.stats });
-    const asOther = M.moveDamage(Object.assign({}, r.build, { klass: 'Rogue (N)' }), mv, { stats: r.ctx.stats });
+    // Flat damage (Crystalline Spike, +5 a hit) is added after the base scales,
+    // as the site does, so the owner's "doubles the base" rule does not double
+    // it. Measured without flat damage the override's own effect is exactly 2x,
+    // and with it the flat part must be the same on both sides.
+    const rogue = Object.assign({}, r.build, { klass: 'Rogue (N)' });
+    const asAssassin = M.moveDamage(r.build, mv, { stats: r.ctx.stats, flat: 0 });
+    const asOther = M.moveDamage(rogue, mv, { stats: r.ctx.stats, flat: 0 });
     ok(asAssassin > asOther * 1.8,
        'the doubling never reached the damage: ' + asAssassin.toFixed(1) + ' vs ' + asOther.toFixed(1));
+    const gap = M.moveDamage(r.build, mv, { stats: r.ctx.stats }) - M.moveDamage(rogue, mv, { stats: r.ctx.stats });
+    ok(Math.abs(gap - (asAssassin - asOther)) < 1e-9, 'flat damage differs between the two classes');
   });
 
   it('counts full-health and setup crit on the opening turn only', () => {
@@ -2181,8 +2199,18 @@ describe('roles', () => {
     const tank = byRole(['Tank']);
     const both = byRole(['DPS', 'Tank']);
 
-    ok(both.ctx.hp > dps.ctx.hp * 1.5,
-       'DPS+Tank is as fragile as pure DPS: ' + Math.round(both.ctx.hp) + ' vs ' + Math.round(dps.ctx.hp));
+    // Toughness as the TANK archetype scores it (effective HP with sustain,
+    // block DR, incoming healing), measured against a pure tank. Raw HP missed
+    // lifesteal: with Crystalline Spike's flat damage a Berserker's Shadow
+    // Gauntlets heal ~150 a turn, and the blend spends its tank half there. A bar
+    // set from pure DPS had no teeth - one lifesteal item cleared it.
+    const tankScore = r => K.ARCHETYPES.tank.score(r.ctx);
+    ok(tankScore(both) >= tankScore(tank) * 0.4,
+       'DPS+Tank is barely a tank: ' + Math.round(tankScore(both)) + ' against a pure tank ' + Math.round(tankScore(tank)));
+    ok(tankScore(both) < tankScore(tank),
+       'DPS+Tank is as tough as a pure tank: ' + Math.round(tankScore(both)) + ' vs ' + Math.round(tankScore(tank)));
+    ok(tankScore(both) > tankScore(dps) * 1.5,
+       'DPS+Tank is as fragile as pure DPS: ' + Math.round(tankScore(both)) + ' vs ' + Math.round(tankScore(dps)));
     ok(both.ctx.bestHit > tank.ctx.bestHit * 1.5,
        'DPS+Tank hits no harder than a pure tank');
     ok(both.ctx.bestHit < dps.ctx.bestHit,
@@ -2195,14 +2223,17 @@ describe('roles', () => {
   // Endurance, so for a Saint the two answers genuinely coincide and the blend
   // costing nothing is the correct result. Healer and DPS actually conflict.
   it('a healer told to also deal damage heals less and hits harder', () => {
-    // Compared on what it HEALS per turn - the figure the healer score reads -
-    // not on the outgoing percentage: a blend that frees Endurance for the
-    // Luck 60 milestone can show a higher percentage while healing less.
+    // Compared on what the healer score reads - healing per turn times the turns
+    // the healer stays up (K.ARCHETYPES.heal) - not on a percentage or on heal
+    // per turn alone. With Crystalline Spike the damage half goes to Luck, and
+    // Luck 60 is +35% outgoing healing, so heal per turn tied (93 vs 93) while
+    // the Endurance it gave up cut the healer's HP from 195 to 135.
     const pure = byRole(['Healer']);
     const both = byRole(['Healer', 'DPS']);
-    ok(both.ctx.healPerTurn < pure.ctx.healPerTurn,
-       'the damage half was free: ' + Math.round(both.ctx.healPerTurn) +
-       ' vs ' + Math.round(pure.ctx.healPerTurn) + ' healed a turn');
+    const healing = r => K.ARCHETYPES.heal.score(r.ctx);
+    ok(healing(both) < healing(pure) * 0.9,
+       'the damage half was free: ' + Math.round(healing(both)) +
+       ' vs ' + Math.round(healing(pure)) + ' healing over a fight');
     ok(both.ctx.bestHit > pure.ctx.bestHit * 2,
        'the damage half bought nothing');
   });
@@ -2560,7 +2591,7 @@ describe('Luck buys crit chance at half rate', () => {
     eq(M.critTier(r.ctx.critChance) >= 1, true, 'crit tier never reached 1');
   });
 
-  it('a class whose damage does not scale on Luck stops at the last Luck breakpoint', () => {
+  it('a Lancer climbs past the last Luck breakpoint only when the climb pays', () => {
     // The tension worth knowing about: the owner's stat-decay rule counts points
     // past the last breakpoint at half rate, and crit tier 1 needs roughly 200
     // Luck. For a class whose moves scale on Strength, the climb never pays, so
@@ -2571,16 +2602,55 @@ describe('Luck buys crit chance at half rate', () => {
     // item such as Crystalized Star adds Luck as the fight goes on, which is
     // not a stat-line choice and is exactly what the decay rule does not govern.
     const r = ask('', { klass: 'Lancer (N)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
-    ok(r.ctx.siteStats.lck <= 130,
-       'the Lancer now climbs past the last Luck breakpoint to ' + Math.round(r.ctx.siteStats.lck) +
-       ' - the decay rule and the crit tier stopped disagreeing, which is worth a look');
+    if (r.ctx.siteStats.lck <= 130) return;   // parked on the breakpoint: nothing to justify
+    // It climbed - with Crystalline Spike its Ice Shards line reaches a crit tier
+    // (668.6 against 633.9 parked). Then the climb has to beat the same build
+    // parked back at 110 Luck with the points in its best other stat.
+    const O = engine.optimizer;
+    let parkedBest = -Infinity, parkedAt = '';
+    for (const to of ['str', 'arc', 'end', 'spd']) {
+      const inv = Object.assign({}, r.build.invested);
+      const b = Object.assign({}, r.build, { invested: inv });
+      let guard = 0;
+      while (O.evaluate(b, r.spec).siteStats.lck > 110 && inv.lck > 0 && guard++ < 200) { inv.lck -= 1; inv[to] += 1; }
+      const sc = O.evaluate(b, r.spec).score;
+      if (sc > parkedBest) { parkedBest = sc; parkedAt = to; }
+    }
+    ok(r.ctx.score >= parkedBest * 0.999,
+       'the Lancer climbed to ' + Math.round(r.ctx.siteStats.lck) + ' Luck for ' + Math.round(r.ctx.score) +
+       ', but parked at 110 with the rest in ' + parkedAt + ' it scores ' + Math.round(parkedBest));
   });
 
   it('and a crit build that stops short of a tier does so because the tier costs more than it pays', () => {
     const r = ask('crit wizard');
-    if (r.ctx.critChance >= 100) return;   // it tiered; nothing to explain
+    const O = engine.optimizer;
+    // Move Luck in or out one point at a time, from or to the largest other stat.
+    const shifted = (wantTier) => {
+      const inv = Object.assign({}, r.build.invested);
+      const b = Object.assign({}, r.build, { invested: inv });
+      let guard = 0;
+      const at = () => O.evaluate(b, r.spec).critChance >= 100;
+      while (at() !== wantTier && guard++ < 300) {
+        const others = ['str', 'arc', 'end', 'spd'].sort((x, y) => inv[y] - inv[x]);
+        if (wantTier) { const d = others.find(x => inv[x] > 0); if (!d) break; inv[d] -= 1; inv.lck += 1; }
+        else { if (inv.lck <= 0) break; inv.lck -= 1; inv[others[0]] += 1; }
+      }
+      return at() === wantTier ? O.evaluate(b, r.spec) : null;
+    };
+    if (r.ctx.critChance >= 100) {
+      // It tiered. Then stopping one point short of the tier must not score better.
+      const short = shifted(false);
+      ok(!short || r.ctx.score >= short.score * 0.999,
+         'the wizard tiered for ' + Math.round(r.ctx.score) + ' but one point short scores ' + Math.round(short.score));
+      return;
+    }
+    // It stopped short. Then neither the cheapest tier line nor all-Luck may score better.
+    const cheapest = shifted(true);
+    ok(!cheapest || r.ctx.score >= cheapest.score * 0.999,
+       'the cheapest tier line scores ' + Math.round(cheapest.score) + ' against ' + Math.round(r.ctx.score) +
+       ' - the tier was affordable and the search still passed it up');
     const allLuck = Object.assign({}, r.build, { invested: { str: 0, arc: 0, end: 0, spd: 0, lck: M.pointBudget(r.build) } });
-    const c = engine.optimizer.evaluate(allLuck, r.spec);
+    const c = O.evaluate(allLuck, r.spec);
     ok(c.critChance >= 100, 'the all-Luck line does not even reach a tier: ' + c.critChance);
     ok(r.ctx.score > c.score, 'the all-Luck line scores ' + Math.round(c.score) + ' against ' +
        Math.round(r.ctx.score) + ' - the tier was affordable and the search still passed it up');
@@ -6002,6 +6072,177 @@ describe('cache busting', () => {
 });
 
 // ── 8. performance ──────────────────────────────────────────────────────────
+// ── flat damage, and gear buffs the calculator could not see ───────────────
+describe('flat damage and gear actives', () => {
+  const M = engine.model, O = engine.optimizer;
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  const fresh = klass => { const b = M.emptyBuild(); b.klass = klass; b.level = data.Max_Lvl; return b; };
+  const wearing = (b, name) => {
+    b.gear = [{ name, tier: 0, alloc: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 } }];
+    return b;
+  };
+  const specFor = klass => ask('', { klass, goal: 'burst', level: data.Max_Lvl }).spec;
+
+  it('adds Crystalline Spike flat damage to every hit, as the site does', () => {
+    // The site: dmgPerHit = base * (1 + contrib) + getFlatDmgBonus(), and the
+    // Spike gives 5 unless its Corrupt Power toggle is on. verify.js caught the
+    // model leaving it out: 5 short per hit on every move.
+    ok(/dmgPerHit = baseDmgNum \* \(1 \+ totalContrib\) \+ _flatDmg/.test(src),
+       'the site no longer adds flat damage per hit; re-read builder.js');
+    ok(/return crystallineSpikeSpend \? 40 : 5;/.test(src), 'the site Spike values changed; re-read getFlatDmgBonus');
+    const b = fresh('Berserker (Ch)');
+    b.invested.str = 60;
+    const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
+    ok(carnage && carnage.damage === '1x20', 'Carnage is no longer 1x20; this test needs revisiting');
+    const s = M.allStats(b);
+    const without = M.moveDamage(b, carnage, { stats: s });
+    const withSpike = M.moveDamage(wearing(b, 'Crystalline Spike'), carnage, { stats: s });
+    ok(Math.abs(withSpike - without - 5 * 20) < 1e-6,
+       'Carnage (20 hits) gained ' + (withSpike - without).toFixed(2) + ' from the Spike, not 100');
+  });
+
+  it('adds flat damage to a move with no stat scaling, on the site and in the model', () => {
+    ok(/const _hit0\s*= baseDmgNum \+ _flat0;/.test(src), 'the no-scaling branch no longer adds flat damage');
+    const b = fresh('Lionheart (N)');
+    const cleave = O.movesFor('Lionheart (N)').find(m => m.name === 'Cleave');
+    ok(cleave && !/\//.test(String(cleave.scaling || '')), 'Cleave is not an unscaled move any more; pick another');
+    const s = M.allStats(b);
+    const without = M.moveDamage(b, cleave, { stats: s });
+    const withSpike = M.moveDamage(wearing(b, 'Crystalline Spike'), cleave, { stats: s });
+    ok(Math.abs(withSpike - without - 5) < 1e-9, 'Cleave gained ' + (withSpike - without) + ', not 5');
+  });
+
+  it('adds no flat damage to a two-part attack, which the site computes directly', () => {
+    const b = fresh('Ranger (Or)');
+    const stinger = O.movesFor('Ranger (Or)').find(m => m.name === 'Stinger');
+    ok(stinger, 'Stinger not found');
+    const s = M.allStats(b);
+    const without = M.moveDamage(b, stinger, { stats: s });
+    const withSpike = M.moveDamage(wearing(b, 'Crystalline Spike'), stinger, { stats: s });
+    ok(without > 0, 'Stinger deals no damage; the two-part override is not applying');
+    ok(Math.abs(withSpike - without) < 1e-9, 'Stinger picked up ' + (withSpike - without).toFixed(2) + ' flat damage');
+  });
+
+  it('prices the Spike +40 on a form nuke, and never in Heresy', () => {
+    const c = { worn: ['Crystalline Spike'], burstPerHit: 20, critChance: 50, critDmg: 2 };
+    const bl = K.formGearCrit(c, 'Blasphemy', M);
+    ok(Math.abs(bl.mult - 60 / 25) < 1e-9, 'Blasphemy multiplier ' + bl.mult + ', expected ' + (60 / 25));
+    ok(bl.lines.some(l => /Crystalline Spike/.test(l)), 'no write-up line for the Spike');
+    ok(Math.abs(K.formGearCrit(c, 'Tyranny', M).mult - 60 / 25) < 1e-9, 'Tyranny does not see the Spike');
+    eq(K.formGearCrit(c, 'Heresy', M).mult, 1, 'Heresy priced a Corrupt Power spend that is bugged there');
+    eq(K.formGearCrit(Object.assign({}, c, { burstPerHit: null }), 'Tyranny', M).mult, 1,
+       'a two-part nuke took flat damage');
+    const b = wearing(fresh('Berserker (Ch)'), 'Crystalline Spike');
+    b.invested.str = 60;
+    const ctx = O.evaluate(b, specFor('Berserker (Ch)'));
+    ok(ctx.burstMove && ctx.burstPerHit > 0, 'evaluate does not report the burst move damage per hit');
+    const hits = M.effectiveShape(b, ctx.burstMove).hits;
+    const bare = M.moveDamage(b, ctx.burstMove, { stats: ctx.stats, flat: 0 }) / hits;
+    ok(Math.abs(ctx.burstPerHit - bare) < 1e-6,
+       'burstPerHit is not the burst move per hit without flat damage: ' + ctx.burstPerHit + ' vs ' + bare);
+    ok(Math.abs(M.moveDamage(b, ctx.burstMove, { stats: ctx.stats }) / hits - bare - 5) < 1e-6,
+       'the Spike is not +5 a hit on the burst move');
+    // The form pass puts the +40 on the nuke and never on the per-turn figure.
+    const ty = O.corruptionDamage('Tyranny', ctx);
+    const fg = K.formGearCrit(ctx, 'Tyranny', M);
+    ok(fg.flatMult > 1, 'Tyranny sees no Spike flat bonus');
+    ok(Math.abs(ty.burstHit / (ctx.bestBurst * ty.formBurst) - fg.mult) < 1e-6, 'the Spike did not reach the form burst');
+    ok(Math.abs(ty.sustainedHit / (ctx.sustainedHit * ty.formSustained) - fg.critMult) < 1e-6,
+       'the one-attack +40 was spread over every turn');
+    const he = O.corruptionDamage('Heresy', ctx);
+    ok(!he || Math.abs(he.burstHit / (ctx.bestBurst * he.formBurst) - 1) < 1e-6, 'Heresy priced the Spike spend');
+  });
+
+  it('gives a move with no damage no flat damage', () => {
+    // parseDamage reads an unscoreable string ("5x(Darkcores)", or none at all)
+    // as base 0. The site shows no damage for those, so +5 would invent a hit.
+    const b = wearing(fresh('Berserker (Ch)'), 'Crystalline Spike');
+    const s = M.allStats(b);
+    for (const dmg of [undefined, '5x(Darkcores)', '0']) {
+      eq(M.moveDamage(b, { name: 'Probe', damage: dmg, scaling: 'STR/100' }, { stats: s }), 0,
+         'a move with damage ' + JSON.stringify(dmg) + ' picked up flat damage');
+    }
+  });
+
+  it('prices the Spike on the move a form actually nukes with', () => {
+    // Blasphemy spends its Notch on the 3+ energy dump, so the +40 lands on the
+    // dump, not on the best hit. A dump at 10 a hit gains (10+40)/(10+5); the
+    // best hit at 20 would have given only (20+40)/(20+5).
+    const c = { worn: ['Crystalline Spike'], critChance: 0, critDmg: 2, energyCap: 5,
+                moves: [{ name: 'Dump', cost: 3 }], dumpMove: { name: 'Dump', cost: 3 },
+                bestBurst: 100, bestHit: 100, bestDump: 100, sustainedHit: 100,
+                burstPerHit: 20, dumpPerHit: 10 };
+    const d = O.corruptionDamage('Blasphemy', c);
+    ok(d && d.formBurst > 1, 'the probe ctx did not make Blasphemy fire');
+    ok(Math.abs(d.burstHit / (c.bestBurst * d.formBurst) - 50 / 15) < 1e-9,
+       'Blasphemy priced the Spike on the wrong move: x' + (d.burstHit / (c.bestBurst * d.formBurst)).toFixed(3));
+  });
+
+  it('never recommends a form while telling the reader to pick another', () => {
+    for (const q of ['assassin nuke biggest single hit', 'berserker crit', 'max damage']) {
+      const best = ask(q).corruption.best;
+      const lines = ((best && best.damage) || {}).lines || [];
+      ok(!lines.some(l => /Pick another form/.test(l)),
+         '"' + q + '" recommends ' + best.form + ' and its own lines say to pick another form');
+    }
+  });
+
+  it('keeps what a form itself adds when worn gear pays in several forms', () => {
+    // Crystalline Spike's +40 fires in Blasphemy and Tyranny alike. Under one cap
+    // over form gain and gear gain, that shared bonus filled the cap for both and
+    // Tyranny's own +10% (Condemned) stopped counting. The two are capped apart.
+    const r = ask('assassin nuke biggest single hit');
+    ok(r.build.gear.some(g => g.name === 'Crystalline Spike'), 'the Assassin nuke no longer wears the Spike; pick another probe');
+    const nudge = form => {
+      const entry = r.corruption.all.find(f => f.form === form);
+      const fit = K.CORRUPTION.find(e => e.form === form).fit(r.ctx).score;
+      return { entry, n: entry.score / fit };
+    };
+    const bl = nudge('Blasphemy'), ty = nudge('Tyranny');
+    ok(ty.entry.damage.formBurst > bl.entry.damage.formBurst, 'the probe needs Tyranny to add more than Blasphemy on its own');
+    ok(ty.n > bl.n + 1e-9,
+       'Tyranny adds x' + ty.entry.damage.formBurst.toFixed(2) + ' of its own but its damage nudge (x' + ty.n.toFixed(3) +
+       ') is no better than Blasphemy\'s (x' + bl.n.toFixed(3) + ')');
+  });
+
+  it('lists the Spike as counted, not as gear doing nothing', () => {
+    const gp = O.gearPassiveTotals(wearing(fresh('Berserker (Ch)'), 'Crystalline Spike'));
+    ok(gp.active.some(a => a.name === 'Crystalline Spike' && a.onSite), 'the Spike is not listed as counted');
+    ok(!gp.unmodelled.some(x => x.name === 'Crystalline Spike'), 'the Spike is still listed as not counted');
+  });
+
+  it('gives Crystalline Spike a shortlist seat, so a crit Berserker can find it', () => {
+    // rankGear values gear by its stat block and priced passives; flat damage
+    // is neither, so the Spike (4 STR) was cut before the real scorer saw it.
+    const r = ask('berserker crit', { klass: 'Berserker (Ch)', goal: 'crit', play: 'solo', level: data.Max_Lvl });
+    const names = r.build.gear.map(g => g.name);
+    ok(names.indexOf('Crystalline Spike') !== -1,
+       'a crit Berserker does not wear Crystalline Spike: ' + names.join(', '));
+  });
+
+  it('Elemental Infuser is a buff the damage calculator can switch on', () => {
+    // Tester report: it never showed up. From Sky to Soul gives its buff as
+    // "(10% / 20% / 30%)", which no parseDmgBonus pattern reads, and it has no
+    // Buff category, so the calculator skipped it.
+    ok(/hasGearEquipped\("Elemental Infuser"\)[\s\S]{0,300}const fstsKey = "buff:From Sky to Soul"[\s\S]{0,200}key: fstsKey, name: "From Sky to Soul", bonus: 10,/.test(src),
+       'no From Sky to Soul toggle in the DMG calc, or its name no longer matches the element gate');
+    ok(/"From Sky to Soul":\s*\["Magic", "Fire", "Ice", "Hex"\]/.test(src),
+       'From Sky to Soul is not gated to Magic, Fire, Ice and Hex');
+  });
+
+  it('prices Elemental Infuser as a setup on Magic, Fire, Ice and Hex only', () => {
+    const def = (K.SETUP_MOVES || {})['From Sky to Soul'];
+    ok(def && def.owner === 'Elemental Infuser' && def.value === 10, 'no From Sky to Soul setup');
+    ok(def.elements.test('Magic') && def.elements.test('Hex') && !def.elements.test('Physical'), 'wrong element gate');
+    const ctx = O.evaluate(wearing(fresh('Elementalist (Or)'), 'Elemental Infuser'), specFor('Elementalist (Or)'));
+    const rt = (ctx.rotation || []).find(r => r.move === 'From Sky to Soul');
+    ok(rt && rt.gain === 10, 'wearing Elemental Infuser adds no From Sky to Soul to the rotation');
+    const listed = O.gearPassiveTotals(wearing(fresh('Elementalist (Or)'), 'Elemental Infuser'))
+      .unmodelled.find(x => x.name === 'Elemental Infuser');
+    ok(listed && /priced as a setup/.test(listed.note), 'the write-up does not say the Infuser active is priced');
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms

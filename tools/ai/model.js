@@ -496,6 +496,13 @@
                rawBase: parsed.base, rawHits: parsed.hits, rawScaling: String(move.scaling || '') };
     }
 
+    // builder.js getFlatDmgBonus. Crystalline Spike is the only flat damage in
+    // the game: +5 on every hit. Its +40 (spend 60 Corrupt Power in a form) is
+    // a toggle the site leaves off, so it is priced by K.FORM_GEAR, not here.
+    function flatDmgBonus(build) {
+      return (build.gear || []).some(g => g && (g.name || g) === 'Crystalline Spike') ? 5 : 0;
+    }
+
     function moveDamage(build, move, opts) {
       opts = opts || {};
       // Reuse the caller's stats when it has them. Recomputing all five per move
@@ -538,6 +545,14 @@
         for (const [st, dv] of scaleTerms(second.scaling)) c2 += s[st] / dv;
         dmg += (second.base || 0) * (1 + c2);
       }
+
+      // Flat damage lands on the SCALED base of each hit, before any multiplier
+      // (builder.js: dmgPerHit = base * (1 + contrib) + flat), so it rides every
+      // buff and crit. The site's two-part attacks - Stinger and Crucible, the
+      // moves with a `second` part here - compute their raw damage directly
+      // and add none. A move with no stat scaling takes it too (the page's
+      // no-scaling branch). `opts.flat` overrides the amount (0 = without it).
+      if (!second && parsed.base > 0) dmg += opts.flat != null ? opts.flat : flatDmgBonus(build);
 
       const ctx = { move, stats: s, base: parsed.base, hits: parsed.hits };
       for (const fn of hooks.damage) dmg = fn(build, dmg, ctx);
@@ -751,7 +766,7 @@
 
     return {
       STATS, emptyBuild, data: D, register, effectiveShape,
-      totalStat, allStats, derived, moveDamage, moveHealing,
+      totalStat, allStats, derived, moveDamage, moveHealing, flatDmgBonus,
       traitRawTotals, siteTraitTotals,
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,

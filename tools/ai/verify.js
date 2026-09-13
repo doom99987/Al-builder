@@ -270,7 +270,11 @@
         for (let i = 0; i < dmgCalcMoveList.length; i++) {
           const mv = dmgCalcMoveList[i];
           if (!mv || mv.damage === undefined) continue;
-          if (typeof parseScaling !== 'function' || !parseScaling(mv.scaling)) continue;
+          if (typeof parseScaling !== 'function') continue;
+          // A scaling the page cannot parse sends the move down its no-scaling
+          // branch. Compare those only when the model reads no stat term in the
+          // string either - a string each side half-reads is a separate question.
+          if (!parseScaling(mv.scaling) && /[A-Za-z]{3}\s*\/\s*[\d.]+/.test(String(mv.scaling || ''))) continue;
           // Per-move multipliers the site applies and moveDamage deliberately
           // does not: element gates and the Darkbeast bonus.
           const eff = typeof getEffectiveMoveType === 'function'
@@ -282,6 +286,10 @@
           ];
           if (!perMove.every(v => Math.abs(v - 1) < 1e-9)) continue;
           if (mv.slot === 'Darkbeast') continue;
+          // The engine prices Stealth Strike out of Invisible on purpose (owner,
+          // 2026-09-11: an Assassin fires it from Shadow Form). The page shows the
+          // plain move, so the two differ by design, not by a model error.
+          if (mv.name === 'Stealth Strike') continue;
           const row = [...document.querySelectorAll('.dc-row[data-idx]')]
             .find(r => +r.dataset.idx === i);
           if (!row) continue;
@@ -296,9 +304,15 @@
           const summed = txt.match(/Total:[^=]*=\s*([\d.]+)/);
           const total  = txt.match(/[×x]\s*(\d+)\s*hits\s*=\s*([\d.]+)/);
           const perHit = txt.match(/\)\s*=\s*([\d.]+)/);
+          // The no-scaling branch: "Base damage: 16", or "Base damage: 16 + 5 [flat] = 21".
+          // Anchored on the "+ flat" form: a looser "Base damage ... = N" ran on into
+          // the crit line below it and read "All crits: 16 x 2.10x = 33.6" as the hit.
+          const flatForm = txt.match(/Base damage:\s*[\d.]+\s*\+\s*[\d.]+\s*(?:\[flat\])?\s*=\s*([\d.]+)/);
+          const baseOnly = flatForm || txt.match(/Base damage:\s*([\d.]+)/);
           const real = summed ? parseFloat(summed[1])
                      : total  ? parseFloat(total[2])
-                     : perHit ? parseFloat(perHit[1]) : null;
+                     : perHit ? parseFloat(perHit[1])
+                     : baseOnly ? parseFloat(baseOnly[1]) : null;
           if (real === null || !isFinite(real)) continue;
           const mine = M.moveDamage(build, mv);
           dmgChecked++;
