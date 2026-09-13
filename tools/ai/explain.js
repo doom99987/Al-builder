@@ -483,9 +483,20 @@
                'pick for this goal, and why **' + spec.tech.enables + '** is locked into a gear slot.');
     }
 
-    const rr = (K.RACE_ROLES || {})[b.race];
-    if (rr && rr.note) {
-      why.push('**' + b.race + '** — ' + rr.note + '.');
+    // Read off what the race does for THIS build (K.raceReasonFor), never its
+    // general blurb: "highest base Arcane" was printed on a Strength Carnage
+    // build that gets nothing from Arcane. When nothing applies, it says so.
+    if (b.race) {
+      const reason = K.raceReasonFor ? K.raceReasonFor(b, c, data) : null;
+      if (reason) {
+        why.push('**' + b.race + '** — ' + reason + '.');
+      } else {
+        const next = ((((result.plan || {}).slots || {}).race || {}).alternatives || [])
+          .filter(a => a && a.name !== b.race)[0];
+        why.push('**' + b.race + '** — none of its race abilities do anything for this kit; it won on the ' +
+                 'measured total' + (next && next.delta != null
+                   ? ', ' + (next.delta * 100).toFixed(1) + '% ahead of ' + next.name : '') + '.');
+      }
     }
 
     if (b.permuth) {

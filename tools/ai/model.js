@@ -369,7 +369,7 @@
         _ctx: C,          // so callers can reuse it instead of rebuilding
         hp: round1(hp),
         critChance: round1(critChance),
-        critDmg: critMultiplier(build),
+        critDmg: critMultiplier(build, C),
         blockDr:    round1(rawStat(build, 'str', C) * D.STAT_IDENTITY_RATIO),
         // Conduit and Preemptive add on top of the identity formula, after its
         // own rounding — mirroring the page, which parses the formatted value
@@ -383,9 +383,12 @@
 
     // Crit damage is a FLAT base (2) plus percentage sources — it does not grow
     // with crit tier. The tier multiplier is separate and layers on top.
-    function critMultiplier(build) {
+    function critMultiplier(build, C) {
       const pct = pctSources(build);
-      return D.CRIT_DMG_BASE + (pct['crit-dmg'] ?? 0);
+      // Luck 25 milestone: +0.1 crit damage, read off the same Luck total crit
+      // chance uses - mirrors builder.js updatePecents (_lckMsCritDmg).
+      const ms = (D.STAT_MILESTONE_TIERS || [25])[0];
+      return D.CRIT_DMG_BASE + (pct['crit-dmg'] ?? 0) + (rawLuck(build, C) >= ms ? 0.1 : 0);
     }
 
     // Overcrit tier, per buildOvercritLines (builder.js:4067). Note what counts

@@ -189,7 +189,9 @@
                decidedBy: (spec.locked || {}).klass ? 'locked' : 'measured',
                why: arch.blurb || null },
       race: Object.assign(slot(b.race, raceAlts), {
-        why: ((K.RACE_ROLES || {})[b.race] || {}).note || null,
+        // What the race does for THIS build, not its general blurb.
+        why: (K.raceReasonFor && K.raceReasonFor(b, result.ctx, data)) ||
+             (b.race ? 'none of its race abilities do anything for this kit; it won on the measured total' : null),
         tech: spec.tech ? { name: spec.tech.name, why: spec.tech.why } : null,
         decidedBy: (spec.locked || {}).race ? 'locked' : 'measured',
       }),
