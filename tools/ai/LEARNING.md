@@ -281,9 +281,11 @@ meaningless), the tank bar set against a pure tank; the Lancer and crit-wizard
 tier tests now require the chosen line to beat the nearest line on the other side
 of the tier. Every new guard was mutation-tested.
 
+**Owner-confirmed (2026-09-13):** flat damage lands on every hit of a many-hit
+move. Keep it per hit.
+
 **Open, for the owner:** whether Invisible's +100% multiplies the final hit (it
-would then double the Spike's +5 too); whether flat damage really lands per hit
-on many-hit moves (the site says so and the Berserker reference agrees).
+would then double the Spike's +5 too).
 
 ## When the game updates
 
