@@ -6479,6 +6479,35 @@ describe('Enhanced Bloodlust stacks and move crit bonuses', () => {
   });
 });
 
+// ── Cold registers as a status a kit applies ─────────────────────────────────
+describe('Cold is a status a kit can apply', () => {
+  const O = engine.optimizer, M = engine.model;
+  const fresh = (klass, extra) => Object.assign(M.emptyBuild(), { klass, level: data.Max_Lvl }, extra || {});
+
+  it('is a status word, so "applies 3 Cold" registers', () => {
+    ok(K.STATUS_WORDS.indexOf('cold') !== -1, "'cold' is not in STATUS_WORDS");
+  });
+
+  it("reads Boreas's Cold Application and Ice Shards as applying Cold", () => {
+    const boreas = fresh('Assassin (Ch)', { race: 'Boreas (1%)' });
+    ok(O.buildDoes(boreas).enemyStatuses.has('cold'), 'a Boreas kit does not read as applying Cold');
+    const iceScroll = Object.keys(data.scrollMoves || {}).find(n => n === 'Ice Shards');
+    ok(iceScroll, 'no Ice Shards scroll in the data; pick another probe');
+    const withScroll = fresh('Assassin (Ch)', { race: 'Amorus (Ob)', scroll1: 'Ice Shards' });
+    ok(O.buildDoes(withScroll).enemyStatuses.has('cold'), 'Ice Shards does not read as applying Cold');
+  });
+
+  it('pays a Cold-gated item only on a kit that applies Cold', () => {
+    const spec = ask('', { klass: 'Assassin (Ch)', goal: 'crit', level: data.Max_Lvl }).spec;
+    const wear = b => Object.assign(b, { gear: [{ name: 'Frozen Diadem', tier: 0, alloc: {}, traits: [] }] });
+    const cold = O.evaluate(wear(fresh('Assassin (Ch)', { race: 'Boreas (1%)' })), spec);
+    const dry  = O.evaluate(wear(fresh('Assassin (Ch)', { race: 'Amorus (Ob)' })), spec);
+    const fd = c => (c.gearPassives.active || []).find(a => a.name === 'Frozen Diadem') || {};
+    ok(!fd(cold).inert, 'Frozen Diadem was switched off on a Boreas kit that applies Cold');
+    ok(fd(dry).inert, 'Frozen Diadem paid on a kit that applies no Cold');
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms
