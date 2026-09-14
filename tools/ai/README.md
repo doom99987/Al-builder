@@ -492,7 +492,7 @@ any share link made from it afterwards, verified to round-trip byte-identical. A
 build with no explanation is just a list of items.
 
 **A limitation worth knowing:** for a *named* request the maths still decides,
-and it usually lands on Dullahan, because +3 stat points every 10 levels is a
+and it usually lands on Dullahan, because +1 stat point every 10 levels is a
 real quantified effect while most racial passives are not modelled at all. That
 is honest rather than ideal. Each build now prints why its race was chosen, so a
 wrong-looking pick is at least legible.

@@ -2945,6 +2945,22 @@ describe("Dullahan's bonus points", () => {
        'the bonus arrives before the first bracket is complete');
   });
 
+  it('every text the site and the AI show says one point per 10 levels', () => {
+    // The maths moved from 3 to 1 and the words did not: the Build AI kept printing
+    // the race-role note "+3 stat points every 10 levels", and the race card kept
+    // the game text "3 more stat points ... 12 more at level 40".
+    const rr = ((K.RACE_ROLES || {})['Dullahan (1%)'] || {}).note || '';
+    ok(/\+1 stat point every 10 levels/.test(rr) && !/\b3 stat points\b/.test(rr),
+       'the race-role note the AI shows still gives the old rate: ' + rr);
+    const passive = (((data.raceMoves || {})['Dullahan (1%)'] || {}).innatePassives || [])
+      .find(p => p.name === 'Bonus Stat Points');
+    ok(passive, 'no Bonus Stat Points passive on Dullahan in the data snapshot');
+    const text = passive.description || passive.effect || '';
+    ok(/1 more stat point/.test(text) && !/3 more stat points|12 more/.test(text),
+       'the race card still gives the old rate: ' + text);
+    ok(!/\+3 stat points every 10 levels/.test(read('tools/ai/README.md')), 'the README still gives the old rate');
+  });
+
   it('the engine reads the rate rather than repeating it', () => {
     // A literal 3 was hard-coded in pointBudget. Reading it from the data means
     // the next balance change only has to touch the site.
@@ -3291,7 +3307,7 @@ describe('races are more than a stat block', () => {
       if (!(data.races || {})[race]) continue;
       for (const p of list) {
         if (p.kind === 'note') continue;
-        // `points` is not an overlay. Dullahan's +3 per 10 levels is computed by
+        // `points` is not an overlay. Dullahan's +1 per 10 levels is computed by
         // model.js itself, mirroring builder.js, and the entry exists to say so -
         // its own note is "already in the point budget". Nothing is being priced
         // from nothing there.

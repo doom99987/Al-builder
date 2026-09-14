@@ -1227,7 +1227,7 @@
     'Vastayan (9%)':  { roles: ['summon', 'magic'],
                         note: 'summons get +20% HP, Skeletons +50% — the summoner race' },
     'Dullahan (1%)':  { roles: ['allround', 'dps', 'tank'],
-                        note: '+3 stat points every 10 levels, which helps literally any build' },
+                        note: '+1 stat point every 10 levels (5 at max level), which helps any build' },
     'Amorus (Ob)':    { roles: ['allround', 'dps', 'tank'],
                         note: 'the best raw stat block in the game, 4 in everything' },
     'Boreas (1%)':    { roles: ['status', 'tank'],
