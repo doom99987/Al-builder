@@ -47,6 +47,7 @@ const classMoves = {
         category: "Attack",
         damage: 6,
         scaling: "STR/75",
+        critBonus: 40,
         effect: "Stab deep into the enemy, inflict 2 stacks of Bleed. This has a 40% extra chance to crit.",
         image: "https://trello.com/1/cards/67b3291ea782e28bbc86acf6/attachments/69788fa838e26d910277122c/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127151243.png"
       },
@@ -925,7 +926,7 @@ const classMoves = {
         moveType: "Fire",
         category: "Attack",
         damage: "2x8",
-        scaling: "STR/55",
+        scaling: "STR/75",
         effect: "Deals multi-hit damage to a single enemy. Each hit has a 25% chance to apply Burn.\n\nFlaming Overdrive: Has a chance to apply Ghostflame.",
         image: "https://trello.com/1/cards/67b329593631658cda777210/attachments/6980579e00a70394afe62013/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123424.png"
       }

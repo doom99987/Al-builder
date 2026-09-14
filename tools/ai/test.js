@@ -4361,8 +4361,31 @@ describe('boss targeting', () => {
     const base = { klass: 'Monk (Or)', goal: 'damage', play: 'team', dmg: 'average' };
     const a = engine.ask('', base);
     const b = engine.ask('', Object.assign({ boss: 'Arkhaia' }, base));  // blocks, no tactics
+    // A Monk attacks with Fire, which Arkhaia does not resist, so no damage figure may move.
     eq(a.ctx.bestHit, b.ctx.bestHit, 'an unmodelled boss changed the damage');
-    eq(b.ctx.bossFit.mult, 1, 'an unmodelled boss applied a penalty');
+
+    // Arkhaia's Burn immunity IS stated ("Immune to Ghostflame and Burn"), and it
+    // is priced: once 'burn' became a status word, Fire Sutra and Blazing
+    // Barrage read as Burn moves. A priced mechanic has to say which of this
+    // kit's moves it is about.
+    const O = engine.optimizer;
+    const learned = k => (((data.classMoves || {})[k] || {}).learns || []).map(m => m.name);
+    const kit = new Set(O.kitFor(b.build, b.build.klass).map(m => m.name)
+      .concat(learned(b.build.klass), learned(O.baseOf(b.build.klass))));
+    ok(b.ctx.bossFit.reasons.some(r => r.kind === 'immune'),
+       "Arkhaia's stated Burn immunity was not priced for a kit that applies Burn");
+    for (const rsn of b.ctx.bossFit.reasons) {
+      ok((rsn.moves || []).length && rsn.moves.every(n => kit.has(n)),
+         'a boss penalty that names no move of this kit: ' + JSON.stringify(rsn));
+    }
+
+    // And a kit Arkhaia has nothing against draws no penalty at all. A Brawler
+    // applies Vulnerable and Bleed, neither of which Arkhaia is immune to. Its
+    // damage is not compared: Arkhaia resists Physical, a modelled resistance.
+    const br = engine.ask('', { klass: 'Brawler (N)', goal: 'damage', play: 'team', dmg: 'average', boss: 'Arkhaia' });
+    eq(br.ctx.bossFit.reasons.length, 0, 'a kit Arkhaia has nothing against was given a reason: ' +
+       JSON.stringify(br.ctx.bossFit.reasons));
+    eq(br.ctx.bossFit.mult, 1, 'a kit Arkhaia has nothing against was penalised');
   });
 
   it('applies the solo Speed floor to bosses, and only solo', () => {
@@ -4678,6 +4701,20 @@ describe('corruption damage', () => {
     ok(n > K.CORRUPTION_ENTRY_TURNS,
        'the payoff lands on turn ' + n + ', at or before the ' + K.CORRUPTION_ENTRY_TURNS +
        ' it takes to enter the form');
+    // Buffs are cast after the entry, so they are still up when the finisher
+    // lands. Listed first, a 3-turn buff expired during the 7-turn entry.
+    for (const su of (r.ctx.rotation || [])) {
+      const line = rot.list.find(l => l.indexOf('— ' + su.move + '.**') !== -1);
+      if (!line) continue;
+      ok(rot.list.indexOf(line) > rot.list.indexOf(entryLine),
+         su.move + ' is cast before the form entry, so it has run out before the finisher');
+      const at = Number((line.match(/Turn (\d+)/) || [])[1]);
+      const def = (r.ctx.setups || []).find(x => x.move === su.move) || {};
+      if (def.duration > 0) {
+        ok(at + def.duration - 1 >= n,
+           su.move + ' cast on turn ' + at + ' for ' + def.duration + ' turns has ended before the turn-' + n + ' finisher');
+      }
+    }
   });
 
   it('says the in-form damage is a late-fight number', () => {
@@ -6330,6 +6367,115 @@ describe('crit tiers add +1 to the multiplier', () => {
   it('Overcore upgrades a crit one tier: +1, not squared', () => {
     ok(/return overcoreActive \? base \+ 1 : base;/.test(siteFn('getCritDmgMultEffective')),
        'Overcore does not add +1 to the crit multiplier');
+  });
+});
+
+// ── Monk against Burning, and Blazing Barrage's real scaling ────────────────
+describe('Monk against burning targets', () => {
+  const root = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(root, 'js', 'builder.js'), 'utf8');
+  const classSrc = fs.readFileSync(path.join(root, 'js', 'data-class-moves.js'), 'utf8');
+
+  it('Blazing Barrage scales on STR/75', () => {
+    // Owner, 2026-09-13: it was entered as STR/55 to match observed hits, but
+    // those hits carried Monk's unlisted x1.2 against a Burning target.
+    ok(/name: "Blazing Barrage",[\s\S]{0,200}scaling: "STR\/75",/.test(classSrc),
+       'js/data-class-moves.js does not give Blazing Barrage STR/75');
+    const mv = (((data.classMoves || {})['Monk (Or)'] || {}).learns || []).find(m => m.name === 'Blazing Barrage');
+    ok(mv, 'no Blazing Barrage in the data snapshot');
+    eq(mv.scaling, 'STR/75', 'Blazing Barrage scaling in the data snapshot');
+  });
+
+  it('the DMG calc offers a Monk the Burning Target toggle', () => {
+    ok(/if \(superPicker\.value === "Monk \(Or\)"\) \{\s*const mbKey = "passive:Burning Target";[\s\S]{0,200}key: mbKey, name: "Burning Target", bonus: 20,/.test(src),
+       'no x1.2 Burning Target toggle for a Monk in the DMG calc');
+  });
+
+  it('prices it for a Monk, whose kit applies Burn', () => {
+    const r = ask('', { klass: 'Monk (Or)', goal: 'damage', level: data.Max_Lvl });
+    ok(r.ctx.passiveList.known.some(p => p.name === 'Burning Target'), 'Burning Target is not listed for a Monk');
+    ok(engine.optimizer.statusesOf(r.build).enemy.has('burn'), 'the Monk kit does not read as applying Burn');
+    ok((r.ctx.passives.statusGated || []).some(g => g.name === 'Burning Target' && Math.abs(g.value - 10) < 1e-9),
+       'Burning Target is not priced at 20% x the assumed 0.5 uptime');
+    eq(r.ctx.inertPassiveDmg, 0, 'Burning Target was taken back out although the kit applies Burn');
+  });
+
+  it('takes a Burn-gated passive back out on a kit that applies no Burn', () => {
+    // No class but Monk has the passive, so it is lent to an Assassin (poison,
+    // no Burn) on fresh engines whose passive caches are empty, then removed.
+    const before = Engine(data), after = Engine(data);
+    const spec = before.ask('', { klass: 'Assassin (Ch)', goal: 'damage', level: data.Max_Lvl }).spec;
+    const mk = en => { const b = en.model.emptyBuild(); b.klass = 'Assassin (Ch)'; b.level = data.Max_Lvl; b.invested.str = 60; return b; };
+    const hit0 = before.optimizer.evaluate(mk(before), spec).bestHit;
+    const had = Object.prototype.hasOwnProperty.call(K.PASSIVES, 'Assassin (Ch)');
+    const list = K.PASSIVES['Assassin (Ch)'] = K.PASSIVES['Assassin (Ch)'] || [];
+    const lent = Object.assign({}, K.PASSIVES['Monk (Or)'].find(p => p.name === 'Burning Target'));
+    list.push(lent);
+    try {
+      const b = mk(after);
+      ok(!after.optimizer.statusesOf(b).enemy.has('burn'), 'the Assassin kit applies Burn; pick another probe');
+      const c = after.optimizer.evaluate(b, spec);
+      ok(c.passiveList.known.some(p => p.name === 'Burning Target'), 'the lent passive was not picked up');
+      ok(Math.abs(c.inertPassiveDmg - 10) < 1e-9, 'a Burn-gated passive was not taken out: ' + c.inertPassiveDmg);
+      ok(Math.abs(c.bestHit - hit0) < 1e-6,
+         'a Burn-gated passive changed the damage of a kit with no Burn: ' + c.bestHit + ' vs ' + hit0);
+    } finally {
+      list.splice(list.indexOf(lent), 1);
+      if (!had) delete K.PASSIVES['Assassin (Ch)'];
+    }
+  });
+});
+
+// ── Enhanced Bloodlust stacks, and Stab's innate crit ───────────────────────
+describe('Enhanced Bloodlust stacks and move crit bonuses', () => {
+  const root = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(root, 'js', 'builder.js'), 'utf8');
+  const classSrc = fs.readFileSync(path.join(root, 'js', 'data-class-moves.js'), 'utf8');
+  const raceSrc = fs.readFileSync(path.join(root, 'js', 'data-race-moves.js'), 'utf8');
+
+  it('the DMG calc counts Enhanced Bloodlust per kill: +15% damage and +15% Speed each', () => {
+    // Owner, 2026-09-14: each kill grants 15% damage and 15% Speed, and it stacks.
+    ok(/if \(raceName === "Drauga \(6%\)"\) \{\s*const eblKey = "passive:Enhanced Bloodlust";[\s\S]{0,200}bonus: 15 \* enhancedBloodlustStacks,/.test(src),
+       'no Enhanced Bloodlust entry that scales with kills');
+    ok(/else if \(p\.name === "Enhanced Bloodlust"\)\s*\{ mult \*= \(1 \+ 0\.15 \* enhancedBloodlustStacks\); return; \}/.test(src),
+       'Enhanced Bloodlust damage does not scale with kills');
+    ok(/"Drauga \(6%\)" && dmgBonusActive\["passive:Enhanced Bloodlust"\]\) \? 15 \* enhancedBloodlustStacks : 0/.test(src),
+       'Enhanced Bloodlust does not add its Speed per kill');
+    ok(/onclick="changeEnhancedBloodlustStacks\(-1\)"[\s\S]{0,160}onclick="changeEnhancedBloodlustStacks\(1\)"/.test(src),
+       'no - / + kill counter for Enhanced Bloodlust');
+    ok(/const _manualPassives = \[[^\]]*"Enhanced Bloodlust"/.test(src),
+       'Enhanced Bloodlust is still parsed from its text as well, which would add a second x1.15');
+    ok(/enhancedBloodlustStacks = 1;/.test(src.slice(src.indexOf('bloodlustStacks = 1;', src.indexOf('function changeEnhancedBloodlustStacks')))),
+       'the kill counter is not reset with the other stacks');
+    ok(/name: "Enhanced Bloodlust",[\s\S]{0,160}15% damage buff and a 15% speed buff[\s\S]{0,60}Stacks with multiple kills/.test(raceSrc),
+       'Enhanced Bloodlust text still reads 12.5-15% with no stacking');
+  });
+
+  it('the Build AI prices Enhanced Bloodlust at 15 per kill', () => {
+    const e = (K.PASSIVES['Drauga (6%)'] || []).find(p => p.name === 'Enhanced Bloodlust');
+    ok(e && e.value === 15 && e.kind === 'dmgPct', 'Enhanced Bloodlust is not +15% damage in the Build AI');
+  });
+
+  it('Stab has an innate +40 crit chance', () => {
+    ok(/name: "Stab",[\s\S]{0,260}critBonus: 40,/.test(classSrc), 'js/data-class-moves.js gives Stab no critBonus 40');
+    let found = 0;
+    for (const entry of Object.values(data.classMoves || {})) {
+      for (const m of (entry.learns || [])) if (m.name === 'Stab') { eq(m.critBonus, 40, 'Stab critBonus in the data snapshot'); found++; }
+    }
+    ok(found > 0, 'no Stab in the data snapshot');
+  });
+
+  it("the Build AI adds a move's own crit bonus to that move", () => {
+    const O = engine.optimizer, M = engine.model;
+    ok(typeof O.moveCritMult === 'function', 'moveCritMult is not exported');
+    eq(O.moveCritMult({ name: 'Stab', critBonus: 40 }, 50, 2.25, false), M.expectedMultiplier(90, 2.25), 'Stab at 50% crit');
+    eq(O.moveCritMult({ name: 'Slash' }, 50, 2.25, false), M.expectedMultiplier(50, 2.25), 'a move with no bonus');
+    eq(O.moveCritMult({ name: 'Stab', critBonus: 40 }, 50, 2.25, true), 2.25, 'the potential model is the crit multiplier');
+    const optSrc = fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8');
+    ok(/const plain = dmg \* mMult \/ stunDiv;/.test(optSrc) &&
+       /\(1 \+ openPct \/ 100\) \* mBuffed \/ stunDiv;/.test(optSrc) &&
+       /\(1 \+ sustPct \/ 100\) \* mMult \/ stunDiv;/.test(optSrc),
+       'the damage loop does not use the per-move crit multiplier for the hit, the opener and the sustained figure');
   });
 });
 

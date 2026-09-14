@@ -634,6 +634,15 @@
 
     // ── evaluation ───────────────────────────────────────────────────────────
     // One place turns a build into a score. Everything else just proposes builds.
+    // A move's own crit bonus - Stab's innate +40, Dark Smite's +25 - adds to the
+    // build's crit chance for that move alone, exactly as the DMG calc's
+    // moveCritBonus does. The engine used one crit figure for every move, so a
+    // move whose value is its crit was priced as if it had none.
+    function moveCritMult(mv, critChance, critDmg, potential) {
+      if (potential) return critDmg;
+      return M.expectedMultiplier(critChance + (+((mv && mv.critBonus) || 0)), critDmg);
+    }
+
     function evaluate(build, spec) {
       // Permuth is scored as NOTHING. model.js mirrors the site's stat row,
       // where Venia's Permuth reads as a permanent x1.4 on one stat; in game it
@@ -726,6 +735,11 @@
         else if (a.kind === 'dmgPct' && !a.elements) inertDmg += eff;
         else if (a.kind === 'dr') inertDr += eff;
         a.inert = true;
+      }
+      // Passives gated the same way - Monk's +20% needs Burn on the enemy.
+      let inertPassiveDmg = 0;
+      for (const a of (pv.statusGated || [])) {
+        if (![...statuses.enemy].some(s => a.needsStatus.test(String(s)))) inertPassiveDmg += a.value;
       }
       // Ramp stats are at zero when a fight opens, so the burst figure is taken
       // on stats with the ramp removed. The sustained figures keep it.
@@ -827,7 +841,7 @@
       let burstMoveStats = null, dumpMoveStats = null;
       for (const mv of moves) {
         let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * resFor(mv);
-        let pct = tt.dmgPct + pv.dmgPct + sh.dmgPct + enPct + (gp.dmgPct - inertDmg) + ma.dmgPct;
+        let pct = tt.dmgPct + (pv.dmgPct - inertPassiveDmg) + sh.dmgPct + enPct + (gp.dmgPct - inertDmg) + ma.dmgPct;
 
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
         // Affinity Boost — only pay on moves of that type.
@@ -858,7 +872,9 @@
         // Inner Frost - 21 base, and two turns of you standing there - outscored
         // every real nuke the moment race actives entered the kit.
         const stunDiv = 1 + (K.selfStunTurns ? K.selfStunTurns(mv) : 0);
-        const plain = dmg * mult / stunDiv;
+        const mMult   = mv.critBonus ? moveCritMult(mv, critChance, critDmg, potential) : mult;
+        const mBuffed = mv.critBonus && !potential ? moveCritMult(mv, buffedCrit, critDmg, false) : buffedMult;
+        const plain = dmg * mMult / stunDiv;
         if (plain > bestHit) { bestHit = plain; bestMove = mv; }
 
         // The same move with the setup up. Element-gated buffs only pay on
@@ -879,8 +895,8 @@
           ? M.moveDamage(build, mv, { stats: openerStats }) * resFor(mv) * (1 + pct / 100)
           : preMult;
         const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * resFor(mv) * (1 + pct / 100) : openerBase;
-        const burst = withStats * (1 + openPct / 100) * buffedMult / stunDiv;
-        const sust  = preMult   * (1 + sustPct / 100) * mult / stunDiv;
+        const burst = withStats * (1 + openPct / 100) * mBuffed / stunDiv;
+        const sust  = preMult   * (1 + sustPct / 100) * mMult / stunDiv;
         const burstStats = Object.keys(statBuffs).length ? buffedStats : (hasRamp ? openerStats : d.stats);
         if (burst > bestBurst) { bestBurst = burst; burstMove = mv; burstMoveStats = burstStats; }
         if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; dumpMoveStats = burstStats; }
@@ -918,7 +934,7 @@
         masteryBudget: build.masteryBudget || null,
         procs: procTotals(build),
         hpStance: K.hpStance ? K.hpStance(build.klass, build.race) : null,
-        passives: pv, passiveList: passivesFor(build),
+        passives: pv, passiveList: passivesFor(build), inertPassiveDmg,
         siteHp: d.hp, siteCritChance: d.critChance,   // what the site will show
       };
       const arch = K.ARCHETYPES[spec.goal] || K.ARCHETYPES[K.DEFAULT_GOAL];
@@ -2143,6 +2159,9 @@
 
       scan((D.raceMoves || {})[build.race], build.race);
       scan((D.classMoves || {})[build.klass], build.klass);
+      // Passives the game never names (Monk's +20% against Burning) are listed on
+      // the class with `innate`, since the data has nothing to match them to.
+      for (const e of (table[build.klass] || [])) if (e.innate) known.push(Object.assign({ owner: build.klass }, e));
       const base = baseOf(build.klass);
       if (base && base !== build.klass) scan((D.classMoves || {})[base], base);
       // A covenant is mostly passives - it is the whole reason to join one - and
@@ -2496,7 +2515,7 @@
       const { known } = passivesFor(build);
       const out = { dmgPct: 0, critChance: 0, dr: 0, summonHpPct: 0, summonDmgPct: 0,
                     outHealPct: 0, incHealPct: 0, selfHealFlat: 0, lifestealPct: 0,
-                    cdCut: 0, byMoveType: [], openerCritChance: 0 };
+                    cdCut: 0, byMoveType: [], openerCritChance: 0, statusGated: [] };
       const wepType = build.weapon ? ((D.weapons || {})[build.weapon.name] || {}).type : null;
       const stance = K.hpStance ? K.hpStance(build.klass, build.race) : null;
       const agreeUp = (K.HP_GATE_UPTIME || {}).agree ?? 0.8;
@@ -2515,6 +2534,9 @@
           // is held aside rather than added to the flat total.
           if (p.when) out.byMoveType.push({ when: p.when, value: v });
           else out.dmgPct += v;
+          // Gated on a status the enemy has to carry: evaluate takes it back out
+          // when this build puts no such status on the enemy.
+          if (p.needsStatus && !p.when) out.statusGated.push({ name: p.name, needsStatus: p.needsStatus, value: v });
         } else if (p.kind === 'critChance' && p.fullHp) {
           // Gated on being at max HP (Arborivia's Overgrowth). The sustained
           // figure keeps the uptime, but an OPENER happens at full health by
@@ -3481,7 +3503,7 @@
     return { run, evaluate, movesFor, covenantMovesFor, kitFor, baseOf, weightOf, rankGear,
              pickCorruption, pickCovenant,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, allRaces, techForRace,
-             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor,
+             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor, moveCritMult,
              passivesFor, setupsFor, healMovesFor, buildDoes, statusesOf, maxHealthSoul, inertFor, cautionFor,
              gearPassiveTotals, passiveTotals,
              masteryAbilityTotals, masteryNotation, classesForLevel,

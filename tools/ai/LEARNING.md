@@ -318,6 +318,66 @@ the old, bigger tiers had hidden started losing real score:
 The crit Assassin now finishes at 104.75% crit and 1,067 (it was 965 at 99%).
 Golden builds: unchanged. Every new guard was mutation-tested.
 
+## Blazing Barrage is STR/75; Monk's unlisted x1.2 against Burning (2026-09-13)
+
+**Owner fact:** Blazing Barrage scales on STR/75. It had been entered as STR/55
+to match observed hits, but those hits carried a Monk passive the game states
+nowhere: **20% more damage (x1.2) against a Burning enemy.** Two errors that
+cancelled on the hits someone happened to measure.
+
+| Where | Change |
+|---|---|
+| `js/data-class-moves.js` | Blazing Barrage `STR/55` back to `STR/75` |
+| DMG calc | a Monk gets a **Burning Target** toggle, x1.2 on every move while on |
+| `knowledge.js` `PASSIVES['Monk (Or)']` | `Burning Target`, +20% at an assumed 0.5 uptime, `needsStatus: /burn/`, `innate: true`, `source: 'owner'` |
+| `optimize.js` `passivesFor` | lists `innate` class passives, which have no game-data name to match |
+| `optimize.js` `evaluate` | a passive gated on an enemy status comes back out (`ctx.inertPassiveDmg`) when the build applies none |
+| `knowledge.js` `STATUS_WORDS` | **'burn' was missing** |
+
+**The missing status word was the bigger bug.** "a 25% chance to apply Burn" never
+registered, so no kit whose text says Burn read as applying it. 'burning' and
+'inferno' were listed and already folded to 'burn'; the word itself was not.
+With it in, a Monk's Fire Sutra and Blazing Barrage apply Burn, and the gated
+passive pays. It also made a stated boss immunity count: Arkhaia's "Immune to
+Ghostflame and Burn" had been filed as a non-status immunity and never priced,
+so a Monk against Arkhaia now takes the 12% immunity penalty that names those
+two moves. Golden builds are unchanged against the pushed commit.
+
+The test that no unmodelled boss moves a number was rewritten: a penalty is
+allowed only when it names moves the kit has, and at least one probe class must
+come out untouched.
+
+**Open:** 'cold' has the same gap - 'chilled' and 'frozen' fold to it, but "apply
+Cold" is not a status word, so Frozen Diadem's Cold gate and any Cold immunity
+never see an Ice kit.
+
+## Enhanced Bloodlust stacks, Stab's crit, per-move crit (2026-09-14)
+
+**Owner facts:** Drauga's Enhanced Bloodlust grants **+15% damage and +15% Speed per
+kill** for the rest of the fight, stacking with each kill (the game text said
+"12.5-15%" and nothing about stacking). **Stab has an innate +40% crit chance**
+("This has a 40% extra chance to crit").
+
+| Where | Change |
+|---|---|
+| DMG calc | Enhanced Bloodlust keeps its toggle and gains a 1-10 kill counter: x(1 + 0.15 per kill) damage and +15% Speed per kill in `getTotalStat`. Kills are added together, like Bloodlust's stacks - **additive is an assumption** |
+| `js/data-race-moves.js` | Enhanced Bloodlust text now states 15% damage and Speed per kill, stacking |
+| `js/data-class-moves.js` | Stab gets `critBonus: 40`, which the DMG calc's `moveCritBonus` already reads |
+| `knowledge.js` | Enhanced Bloodlust +15% (was 13.75), one kill for half the fight [assumed]; Speed not priced |
+| `optimize.js` `moveCritMult` | a move's own `critBonus` is added to the build's crit chance for that move - the engine used one crit figure for every move, so Stab's +40 and Dark Smite's +25 were never counted |
+
+**What per-move crit exposed.** With Dark Smite's +25 counted, the damage
+Darkwraith picks Corvolus, whose Cast Amplify and Arcane Ritual are setups. The
+in-form write-up listed the out-of-form buffs on turns 1-2, *before* the 7-turn
+Soul Ignition, so a 3-turn buff had expired long before the turn-10 finisher.
+The in-form rotation is now: form steps that cost turns, then the buffs, then
+bonus actions, then the finisher. The test checks every buff is cast after the
+entry and still covers the finisher's turn.
+
+**Open:** Dark Smite Proficiency is priced as +50 crit on *every* move at 0.3
+uptime; in the DMG calc it replaces Dark Smite's own +25 with +50 on that move
+alone. Now that per-move crit exists, it belongs there.
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →
