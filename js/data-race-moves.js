@@ -462,7 +462,7 @@ const raceMoves = {
       {
         level: 1,
         name: "Bonus Stat Points",
-        description: "Every 10 levels, Dullahans get 3 more stat points to allocate. This makes Dullahans have 12 more stat points than any other race at level 40."
+        description: "Every 10 levels, Dullahans get 1 more stat point to allocate. This makes Dullahans have 4 more stat points than any other race at level 40, and 5 more at level 50."
       },
       {
         level: 1,
