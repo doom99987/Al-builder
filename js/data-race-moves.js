@@ -330,7 +330,7 @@ const raceMoves = {
         type: "Passive",
         name: "Enhanced Bloodlust",
         quote: "Gain more benefits from the blood of your enemies.",
-        effect: "You now gain a 12.5-15% damage buff alongside a speed buff for the rest of the fight when you kill an enemy."
+        effect: "Each kill grants a 15% damage buff and a 15% speed buff for the rest of the fight. Stacks with multiple kills."
       },
       {
         slot: "3rd Learn",

@@ -577,25 +577,33 @@
       if (steps.length) {
         const lines = [];
         let turn = 1;
-        // The out-of-form setup still happens; the form's steps come on top.
-        for (const rt of (c.rotation || [])) {
-          lines.push('**Turn ' + (turn++) + ' — ' + rt.move + '.** ' + (rt.note || ''));
-        }
+        // The out-of-form setup buffs still happen, but AFTER the form is entered,
+        // right before the payoff. Listed first, a 3-turn Cast Amplify cast on
+        // turn 1 had long expired by the turn-10 finisher behind a 7-turn entry.
+        // So: the form's turn-costing steps, then the buffs, then any bonus
+        // action, then the finisher.
+        const pushSetups = () => {
+          for (const rt of (c.rotation || [])) {
+            lines.push('**Turn ' + (turn++) + ' — ' + rt.move + '.** ' + (rt.note || ''));
+          }
+        };
         // A step marked isFinisher IS the payoff move, so it must not be listed
         // and then listed again as the finisher — Blasphemy was showing Carnage
         // on two consecutive turns. Its note is folded into the finisher line.
         let finisherNote = '';
+        const bonusActions = [];
         for (const st of steps) {
           if (st.isFinisher) { finisherNote = st.note || ''; continue; }
           // turns: 0 is a bonus action. Numbering it as a turn contradicted the
           // note sitting right next to it saying it costs none.
           const span = st.turns === 0 ? 0 : Math.max(1, st.turns | 0);
-          const label = span === 0 ? 'Bonus action'
-                      : span > 1   ? 'Turns ' + turn + '–' + (turn + span - 1)
-                                   : 'Turn ' + turn;
+          if (span === 0) { bonusActions.push(st); continue; }
+          const label = span > 1 ? 'Turns ' + turn + '–' + (turn + span - 1) : 'Turn ' + turn;
           lines.push('**' + label + ' — ' + st.move + '.** ' + (st.note || ''));
           turn += span;
         }
+        pushSetups();
+        for (const st of bonusActions) lines.push('**Bonus action — ' + st.move + '.** ' + (st.note || ''));
         const finisher = c.burstMove || c.bestMove;
         if (finisher) {
           const gain = d.burstGain > 0 ? ', against ' + n0(c.bestBurst) + ' out of form'

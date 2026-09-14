@@ -849,6 +849,16 @@
   //
   // `uptime` discounts anything conditional, exactly as TRAITS does.
   const PASSIVES = {
+    // Monk: 20% more damage against a Burning enemy. Stated nowhere in the game
+    // data (owner, 2026-09-13, from play), so there is no passive to match by
+    // name - `innate` lists it on the class directly. Priced only when the kit
+    // or gear puts Burn on the enemy, at an assumed half uptime.
+    'Monk (Or)': [
+      { name: 'Burning Target', innate: true, source: 'owner', kind: 'dmgPct', value: 20, uptime: 0.5,
+        needsStatus: /burn/i,
+        note: '+20% damage against a Burning enemy - stated nowhere in game, confirmed from play ' +
+              '[uptime assumed 0.5]' },
+    ],
     'Nisse (20%)': [
       { name: 'Magically Charged', kind: 'dmgPct', value: 15, when: /magic|fire/i,
         note: 'Fire and Magic damage only' },
@@ -866,8 +876,12 @@
               'to Magic, Hex and Dark on no stated authority.' },
     ],
     'Drauga (6%)': [
-      { name: 'Enhanced Bloodlust', kind: 'dmgPct', value: 13.75, uptime: 0.5,
-        note: 'after a kill, rest of fight (12.5-15%)' },
+      // Owner (2026-09-14): +15% damage and +15% Speed per kill for the rest of the
+      // fight, stacking with each kill. A boss fight has no kills to stack, so it
+      // is counted as one kill for half the fight; the Speed is not priced.
+      { name: 'Enhanced Bloodlust', kind: 'dmgPct', value: 15, uptime: 0.5, source: 'owner',
+        note: '+15% damage and Speed per kill for the rest of the fight, stacking - counted as one kill ' +
+              'for half the fight [assumed]; the Speed is not priced' },
       { name: 'Vampiric Crits', kind: 'note', note: 'heals 15% of crit damage' },
     ],
     'Estella (24%)': [
@@ -1688,9 +1702,12 @@
   // turns is not computable. What is computable is which of two builds kills
   // faster, which is what the choice is actually for. The write-up says so
   // rather than implying a stopwatch.
+  // 'burn' itself was missing: "a 25% chance to apply Burn" (Blazing Barrage)
+  // never registered, so a Monk's kit read as applying no Burn and every
+  // Burn-gated bonus stayed off. 'burning' and 'inferno' already fold to it.
   const STATUS_WORDS = [
     'purified', 'weakened', 'blinded', 'cursed', 'hexed', 'vulnerable', 'sundered',
-    'bleed', 'bleeding', 'burning', 'inferno', 'stun', 'stunned', 'poison', 'poisoned',
+    'bleed', 'bleeding', 'burn', 'burning', 'inferno', 'stun', 'stunned', 'poison', 'poisoned',
     'frozen', 'chilled', 'shocked', 'heal down', 'defense down', 'silenced', 'rooted',
     'plague', 'hex',
   ];

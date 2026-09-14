@@ -4037,6 +4037,7 @@ let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let verdantArcherStacks = 1; // 1+: number of Verdant Archer procs (additive 7.5%/15% per stack)
 let runicShieldStacks = 1;   // 1+: number of Runic Shield block procs (additive 10% per stack, Holy only)
 let bloodlustStacks = 1;     // 1-8: Bloodlust stacks (1st=20%, each extra +10%, cap 65% at 6+)
+let enhancedBloodlustStacks = 1; // 1-10: Drauga Enhanced Bloodlust kills (+15% damage and +15% Speed each, added together)
 let looterStacks = 1;        // 1+: Looter kill stacks (15.75% LCK + 20% SPD per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
 let boreasStacks = 1; // 1-10: Boreas Frost Stacks (20% dmg per stack, max 10)
@@ -4282,7 +4283,8 @@ function getTotalStat(statKey) {
   const _ivoryMult = ivoryStatMult();
   if (_ivoryMult > 1) total = Math.round(total * _ivoryMult);
   if (statKey === "spd") {
-    const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0);
+    const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0)
+                 + ((racePicker.value === "Drauga (6%)" && dmgBonusActive["passive:Enhanced Bloodlust"]) ? 15 * enhancedBloodlustStacks : 0);
     const spdFlat = (statBuffsActive.flourishSpd ? _flourishSpdAmt : 0)
                   + (statBuffsActive.focusStepSpd ? Math.max(1, +lvlInput.value || 1) * 2 : 0);
     if (spdPct || spdFlat) total = Math.round(total * (1 + spdPct / 100)) + spdFlat;
@@ -5095,7 +5097,7 @@ function collectDmgBonusPassives() {
     (d.innatePassives || []).forEach(p => tryAdd(p.name, p.description || p.effect || "", "passive"));
     (d.learns || []).forEach(m => {
       // Passives handled manually below (stacking logic, bypass parseDmgBonus)
-      const _manualPassives = ["Bloodlust", "Aspect of Maladaptation"];
+      const _manualPassives = ["Bloodlust", "Aspect of Maladaptation", "Enhanced Bloodlust"];
       if (m.type === "Passive" && !_manualPassives.includes(m.name)) tryAdd(m.name, m.effect || "", "passive");
       if (m.type === "Active") {
         const text = m.effect || "";
@@ -5165,6 +5167,18 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Monk (Or): 20% more damage (x1.2) against a Burning enemy. The game states
+  // this nowhere; it was confirmed from play. It had been folded into Blazing
+  // Barrage's scaling, entered as STR/55 to match observed hits - the move is
+  // STR/75. A toggle, because it only applies while the target is Burning.
+  if (superPicker.value === "Monk (Or)") {
+    const mbKey = "passive:Burning Target";
+    if (!seen.has(mbKey)) {
+      seen.add(mbKey);
+      rawEntries.push({ key: mbKey, name: "Burning Target", bonus: 20, kind: "passive", desc: "Monk: deal 20% more damage (×1.2) to Burning enemies. Not stated anywhere in the game; confirmed from play." });
+    }
+  }
+
   // Boreas Frost Stacks — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
   if (raceName === "Boreas (1%)") {
     const fsKey = "passive:Frost Stacks";
@@ -5216,6 +5230,18 @@ function collectDmgBonusPassives() {
     if (!seen.has(blKey)) {
       seen.add(blKey);
       rawEntries.push({ key: blKey, name: "Bloodlust", bonus: Math.min(65, 20 + (bloodlustStacks - 1) * 10), kind: "passive", desc: "Stack 1: +20% dmg. Each additional stack: +10%, up to 8 stacks (65% cap). Below 30% HP: ×1.40 (multiplicative)." });
+    }
+  }
+
+  // Enhanced Bloodlust (Drauga (6%)) — manually added: each kill grants +15% damage
+  // and +15% Speed for the rest of the fight, stacking per kill (owner-stated).
+  // The game text gave "12.5-15%" and nothing about stacking, so the parsed
+  // entry was a fixed x1.15. Stacks add together, like Bloodlust's.
+  if (raceName === "Drauga (6%)") {
+    const eblKey = "passive:Enhanced Bloodlust";
+    if (!seen.has(eblKey)) {
+      seen.add(eblKey);
+      rawEntries.push({ key: eblKey, name: "Enhanced Bloodlust", bonus: 15 * enhancedBloodlustStacks, kind: "passive", desc: "Each kill: +15% damage and +15% Speed for the rest of the fight. Stacks with multiple kills (added together)." });
     }
   }
 
@@ -5438,6 +5464,7 @@ function getActiveDmgMult(moveType = null, energyAfter = null) {
                                                    const _caB = COREALLOY_PCT_PER_ENERGY * _caE;
                                                    if (_caB > 0) mult *= (1 + _caB / 100); return; }
     else if (p.name === "Bloodlust")             { mult *= (1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100); return; }
+    else if (p.name === "Enhanced Bloodlust")    { mult *= (1 + 0.15 * enhancedBloodlustStacks); return; }
     else if (p.name === "Frost Stacks")          { mult *= (1 + 0.20 * boreasStacks); return; }
     else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
     else if (p.name === "Rending Barrage") { bonus = 2.5 * rendingBarrageStacks; }
@@ -5695,6 +5722,11 @@ function changeRunicShieldStacks(delta) {
 
 function changeBloodlustStacks(delta) {
   bloodlustStacks = Math.min(8, Math.max(1, bloodlustStacks + delta));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function changeEnhancedBloodlustStacks(delta) {
+  enhancedBloodlustStacks = Math.min(10, Math.max(1, enhancedBloodlustStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6149,6 +6181,7 @@ function renderDmgBonusSection() {
     const isVerdantArcher     = p.name === "Verdant Archer";
     const isRunicShield       = p.name === "Runic Shield";
     const isBloodlust         = p.name === "Bloodlust";
+    const isEnhancedBloodlust = p.name === "Enhanced Bloodlust";
     const isEnergyManipulator = p.name === "Energy Manipulator";
     const isLooter            = p.name === "Looter";
     const isKarmaStacks       = p.name === "Karma Stacks";
@@ -6166,6 +6199,7 @@ function renderDmgBonusSection() {
                          : isVerdantArcher    ? p.bonus * verdantArcherStacks
                          : isRunicShield      ? 10 * runicShieldStacks
                          : isBloodlust        ? Math.min(65, 20 + (bloodlustStacks - 1) * 10)
+                         : isEnhancedBloodlust ? 15 * enhancedBloodlustStacks
                          : isEnergyManipulator ? Math.min(22.5, 3.75 * energyCount)
                          : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
                          : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
@@ -6175,6 +6209,7 @@ function renderDmgBonusSection() {
     const displayBonusStr = isLooter           ? `+${(looterStacks * 15.75).toFixed(2)}% LCK · +${looterStacks * 20}% SPD`
                          : isEnergyManipulator ? `×${(1 + Math.min(22.5, 3.75 * energyCount) / 100).toFixed(4).replace(/\.?0+$/, '')}`
                          : isBloodlust        ? `×${(1 + Math.min(65, 20 + (bloodlustStacks - 1) * 10) / 100).toFixed(2)}`
+                         : isEnhancedBloodlust ? `×${(1 + 0.15 * enhancedBloodlustStacks).toFixed(2)} · +${15 * enhancedBloodlustStacks}% SPD`
                          : isRunicShield      ? `×${(1 + 0.10 * runicShieldStacks).toFixed(2)} <span style="color:#888;font-size:11px">[Holy]</span>`
                          : isVerdantArcher    ? `×${(1 + (p.bonus / 100) * verdantArcherStacks).toFixed(2)}`
                          : isBulkUp          ? `×${(1 + 0.20 * bulkUpStacks).toFixed(2)}`
@@ -6290,6 +6325,16 @@ function renderDmgBonusSection() {
           <button class="dc-energy-btn" onclick="changeBloodlustStacks(-1)">−</button>
           <span class="dc-energy-val">${bloodlustStacks}</span>
           <button class="dc-energy-btn" onclick="changeBloodlustStacks(1)">+</button>
+        </div>
+      </div>`;
+    }
+    if (isEnhancedBloodlust) {
+      html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Kills (max 10)</span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeEnhancedBloodlustStacks(-1)">−</button>
+          <span class="dc-energy-val">${enhancedBloodlustStacks}</span>
+          <button class="dc-energy-btn" onclick="changeEnhancedBloodlustStacks(1)">+</button>
         </div>
       </div>`;
     }
@@ -9205,6 +9250,7 @@ function loadBuildState(state) {
   verdantArcherStacks = 1;
   runicShieldStacks = 1;
   bloodlustStacks = 1;
+  enhancedBloodlustStacks = 1;
   looterStacks = 1;
   hourglassStacks = 1;
   boreasStacks = 1;
