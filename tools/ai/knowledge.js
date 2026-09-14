@@ -1705,10 +1705,13 @@
   // 'burn' itself was missing: "a 25% chance to apply Burn" (Blazing Barrage)
   // never registered, so a Monk's kit read as applying no Burn and every
   // Burn-gated bonus stayed off. 'burning' and 'inferno' already fold to it.
+  // 'cold' had the same gap: "applies 3 Cold" (Ice Shards) and Boreas's Cold
+  // Application never registered, so Frozen Diadem and Icerind's Cold-gated
+  // bonuses never paid on an Ice kit. 'chilled' and 'frozen' already fold to it.
   const STATUS_WORDS = [
     'purified', 'weakened', 'blinded', 'cursed', 'hexed', 'vulnerable', 'sundered',
     'bleed', 'bleeding', 'burn', 'burning', 'inferno', 'stun', 'stunned', 'poison', 'poisoned',
-    'frozen', 'chilled', 'shocked', 'heal down', 'defense down', 'silenced', 'rooted',
+    'cold', 'frozen', 'chilled', 'shocked', 'heal down', 'defense down', 'silenced', 'rooted',
     'plague', 'hex',
   ];
 

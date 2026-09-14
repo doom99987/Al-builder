@@ -347,9 +347,13 @@ The test that no unmodelled boss moves a number was rewritten: a penalty is
 allowed only when it names moves the kit has, and at least one probe class must
 come out untouched.
 
-**Open:** 'cold' has the same gap - 'chilled' and 'frozen' fold to it, but "apply
-Cold" is not a status word, so Frozen Diadem's Cold gate and any Cold immunity
-never see an Ice kit.
+**Fixed (2026-09-14): 'cold' had the same gap.** 'chilled' and 'frozen' folded to
+it, but "applies 3 Cold" (Ice Shards) and Boreas's Cold Application never
+registered, so Frozen Diadem's and Icerind's Cold-gated bonuses never paid on an
+Ice kit. 'cold' is now a status word. No boss in the data is immune to Cold, so
+no fit penalty moved, and golden builds are unchanged. Yar'Thul's "Immune to the
+Inferno status" is deliberately still unread: Inferno folds to Burn here, and
+reading it would penalise every Burn kit for an immunity to a different status.
 
 ## Enhanced Bloodlust stacks, Stab's crit, per-move crit (2026-09-14)
 
