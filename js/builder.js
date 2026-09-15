@@ -4086,7 +4086,7 @@ let condemnedPct   = 10;  // 0..50   UNSTATED by the game — placeholder, set i
 let lightForceCrit = 0;   // 0..100  flat Crit Rate bought 1:1 with Light Force
 
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
-const enchantCondActive = { cursed: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
+const enchantCondActive = { cursed: false, cursedSundered: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
 let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> +40 flat instead of +5
@@ -5519,6 +5519,7 @@ function getBlizzardMult(effectiveMoveType) {
 function getEnchantMult() {
   const ench = enchantPicker.value;
   if (ench === 'Cursed'  && enchantCondActive.cursed)    return 1.30;
+  if (ench === 'Cursed'  && enchantCondActive.cursedSundered) return 1.20;
   if (ench === 'Inferno' && enchantCondActive.inferno)   return 1.20;
   if (ench === 'Midas'   && enchantCondActive.midasProc) return 1.15;
   if (ench === 'Reaper'  && enchantCondActive.reaperProc) return 1 + 0.25 * enchantReaperEnemyHp / 100;
@@ -5847,8 +5848,14 @@ function toggleShardCondition(key) {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
+// Cursed: "+30% against Cursed enemies or +20% against Sundered enemies. Does not
+// stack - only the highest buff applies." So its two toggles are exclusive:
+// turning one on turns the other off.
+const ENCHANT_COND_EXCLUSIVE = { cursed: 'cursedSundered', cursedSundered: 'cursed' };
 function toggleEnchantCond(key) {
-  enchantCondActive[key] = !enchantCondActive[key];
+  const turningOn = !enchantCondActive[key];
+  enchantCondActive[key] = turningOn;
+  if (turningOn && ENCHANT_COND_EXCLUSIVE[key]) enchantCondActive[ENCHANT_COND_EXCLUSIVE[key]] = false;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6568,7 +6575,8 @@ function renderDmgBonusSection() {
   // --- Enchant (shown only when a damage-boosting enchant is equipped) ---
   const _enchantName = enchantPicker.value;
   const _enchantDefs = {
-    'Cursed':  [{ key: 'cursed',           label: 'Enemy is Cursed',  desc: '+30% damage against Cursed enemies.' }],
+    'Cursed':  [{ key: 'cursed',           label: 'Enemy is Cursed',  desc: '+30% damage against Cursed enemies. Does not stack with Sundered - only the higher buff applies.' },
+                { key: 'cursedSundered',   label: 'Enemy is Sundered', desc: '+20% damage against Sundered enemies. Does not stack with Cursed - only the higher buff applies.' }],
     'Inferno': [{ key: 'inferno',          label: 'Enemy is Burning', desc: '+20% damage when Burn is applied (includes the attack that inflicts Burning).' }],
     'Midas':   [{ key: 'midasProc',        label: 'Midas Proc',       desc: '16.6% chance — +15% extra damage.' }],
     'Reaper':  [{ key: 'reaperProc',       label: 'Reaper Proc',      desc: 'On proc: up to +25% damage based on enemy current HP.' }],
@@ -6577,7 +6585,7 @@ function renderDmgBonusSection() {
   const _enchTogs = _enchantDefs[_enchantName];
   if (_enchTogs) {
     // Reset inactive enchant conditions when enchant changes
-    ['cursed','inferno','midasProc','reaperProc','frostedColdEnemy'].forEach(k => {
+    ['cursed','cursedSundered','inferno','midasProc','reaperProc','frostedColdEnemy'].forEach(k => {
       if (!_enchantDefs[_enchantName].find(t => t.key === k)) enchantCondActive[k] = false;
     });
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
@@ -6585,7 +6593,7 @@ function renderDmgBonusSection() {
       const on = enchantCondActive[tog.key];
       const multVal = tog.key === 'reaperProc'
         ? (1 + 0.25 * enchantReaperEnemyHp / 100).toFixed(2)
-        : tog.key === 'cursed' ? '1.30' : tog.key === 'inferno' ? '1.20' : '1.15';
+        : tog.key === 'cursed' ? '1.30' : tog.key === 'cursedSundered' ? '1.20' : tog.key === 'inferno' ? '1.20' : '1.15';
       html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-ench-key="${tog.key}" title="${tog.desc}">
         <div class="dc-bonus-check">${on ? "✓" : ""}</div>
         <span class="dc-bonus-name">${tog.label}</span>

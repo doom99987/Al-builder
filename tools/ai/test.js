@@ -6524,6 +6524,49 @@ describe('Cold is a status a kit can apply', () => {
   });
 });
 
+// ── Cursed enchant: Cursed and Sundered are exclusive toggles ───────────────
+describe('Cursed enchant toggles', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  // Pull one top-level function or const out of builder.js and run it.
+  const siteFn = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+
+  it('offers a Sundered toggle at x1.20 beside the Cursed one at x1.30', () => {
+    // Game text: "+30% damage against Cursed enemies or 20% against Sundered enemies.
+    // Does not stack - only the highest buff applies."
+    ok(/key: 'cursedSundered',\s*label: 'Enemy is Sundered'/.test(src), 'no Enemy is Sundered toggle on the Cursed enchant');
+    ok(/enchantCondActive\.cursedSundered\) return 1\.20;/.test(siteFn('getEnchantMult')), 'Sundered is not x1.20');
+    ok(/enchantCondActive\.cursed\)\s*return 1\.30;/.test(siteFn('getEnchantMult')), 'Cursed is no longer x1.30');
+  });
+
+  it('turning one on turns the other off', () => {
+    const exclusive = /const ENCHANT_COND_EXCLUSIVE = (\{[^}]*\});/.exec(src);
+    ok(exclusive, 'no exclusivity map for the Cursed toggles');
+    const run = new Function('ENCHANT_COND_EXCLUSIVE', 'enchantCondActive', 'renderDmgBonusSection', 'recalcOpenDetails',
+      siteFn('toggleEnchantCond') + '; return toggleEnchantCond;');
+    const state = { cursed: false, cursedSundered: false, inferno: false };
+    const toggle = run(new Function('return ' + exclusive[1])(), state, () => {}, () => {});
+    toggle('cursed');
+    ok(state.cursed && !state.cursedSundered, 'Cursed did not turn on');
+    toggle('cursedSundered');
+    ok(state.cursedSundered && !state.cursed, 'turning Sundered on left Cursed on as well');
+    toggle('cursed');
+    ok(state.cursed && !state.cursedSundered, 'turning Cursed on left Sundered on as well');
+    toggle('cursed');
+    ok(!state.cursed && !state.cursedSundered, 'turning Cursed off did not leave both off');
+    toggle('inferno');
+    ok(state.inferno && !state.cursed && !state.cursedSundered, 'an unrelated enchant toggle was affected');
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms
