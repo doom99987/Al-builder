@@ -1516,7 +1516,7 @@
     overlay.innerHTML = `
       <div class="sb-delete-confirm-box">
         <h3 class="sb-delete-confirm-title">Delete Account</h3>
-        <p class="sb-delete-confirm-body">This will permanently delete your account and all associated data. <strong>This cannot be undone.</strong></p>
+        <p class="sb-delete-confirm-body">This will permanently delete your account and its associated data. Donation records may be kept for the supporters list and our financial records. <strong>This cannot be undone.</strong></p>
         <p class="sb-delete-confirm-body" style="margin-top:6px">Type <strong>DELETE</strong> to confirm:</p>
         <input class="sb-input" id="sb-delete-confirm-input" type="text" placeholder="DELETE" autocomplete="off" style="margin-top:8px">
         <div class="sb-err" id="sb-delete-confirm-err"></div>
