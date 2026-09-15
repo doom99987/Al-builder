@@ -276,46 +276,19 @@
 
     el.innerHTML = '<div class="don-lb-loading">Loading...</div>';
 
-    // Fetch all donations and aggregate client-side.
-    // Aggregation rules:
-    //   - Logged-in donors (user_id != null): combine all their donations under one entry,
-    //     showing their most recent donor_name.
-    //   - Anonymous donors (user_id null): each row is its own separate entry.
-    const { data, error } = await sb
-      .from('donations')
-      .select('donor_name, amount_cents, user_id')
-      .order('created_at', { ascending: false });
+    // The list is built on the server by the top_supporters() function
+    // (supabase/donations-privacy.sql). It returns only a display name and an
+    // amount for the top entries. The browser used to read every donation row,
+    // including each logged-in donor's account ID, and add them up here - which
+    // sent those account IDs to every visitor, even for "Anonymous" donations.
+    const { data, error } = await sb.rpc('top_supporters', { max_rows: 10 });
 
-    if (error || !data) {
+    if (error || !Array.isArray(data)) {
       el.innerHTML = '<div class="don-lb-empty">Could not load supporters.</div>';
       return;
     }
 
-    const entries = []; // final list: { donor_name, amount_cents }
-
-    // Accumulator for logged-in users keyed by UUID
-    const byUuid = {};
-
-    data.forEach(row => {
-      const name = row.donor_name || 'Anonymous';
-      if (row.user_id) {
-        // Logged-in: combine under UUID, keep the first (most-recent) name we encounter
-        if (!byUuid[row.user_id]) {
-          byUuid[row.user_id] = { donor_name: name, amount_cents: 0 };
-        }
-        byUuid[row.user_id].amount_cents += row.amount_cents;
-      } else {
-        // Anonymous: keep as a separate entry
-        entries.push({ donor_name: name, amount_cents: row.amount_cents });
-      }
-    });
-
-    // Merge UUID-aggregated entries into the list
-    Object.values(byUuid).forEach(e => entries.push(e));
-
-    const sorted = entries
-      .sort((a, b) => b.amount_cents - a.amount_cents)
-      .slice(0, 10);
+    const sorted = data;
 
     if (!sorted.length) {
       el.innerHTML = '<div class="don-lb-empty">Be the first to support!</div>';

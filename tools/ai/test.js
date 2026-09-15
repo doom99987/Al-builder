@@ -6567,6 +6567,47 @@ describe('Cursed enchant toggles', () => {
   });
 });
 
+// ── the supporters list never sends account IDs to visitors ────────────────
+describe('supporters list privacy', () => {
+  const root = path.join(__dirname, '..', '..');
+  const read = f => fs.readFileSync(path.join(root, f), 'utf8');
+
+  it('the page asks the server for names and totals, not the donations table', () => {
+    // The list used to select donor_name, amount_cents AND user_id from every
+    // donation row, so each logged-in donor's account ID reached every visitor.
+    const js = read('js/donation.js');
+    const fn = js.slice(js.indexOf('async function loadDonorLeaderboard'), js.indexOf('// Expose to global scope'));
+    ok(fn.length > 100, 'loadDonorLeaderboard not found');
+    ok(/sb\.rpc\('top_supporters'/.test(fn), 'the supporters list does not call top_supporters');
+    ok(!/\.from\(\s*'donations'\s*\)/.test(js), 'the page still reads the donations table directly');
+    ok(!/user_id/.test(fn), 'the supporters list still handles account IDs');
+  });
+
+  it('the SQL returns only a name and an amount, and locks the table', () => {
+    const sql = read('supabase/donations-privacy.sql');
+    const fn = sql.slice(sql.indexOf('create or replace function public.top_supporters'), sql.indexOf('$$;') + 3);
+    ok(/returns table \(donor_name text, amount_cents bigint\)/.test(fn), 'top_supporters returns more than a name and an amount');
+    ok(/security definer/.test(fn) && /set search_path = public/.test(fn), 'top_supporters is not a security definer with a fixed search_path');
+    ok(/where d\.user_id is not null\s+group by d\.user_id/.test(fn), 'logged-in donations are not combined per account');
+    ok(/where d\.user_id is null/.test(fn), 'logged-out donations are not listed one by one');
+    ok(/order by d\.created_at desc/.test(fn), 'the combined entry does not use the most recent donor name');
+    ok(/limit greatest\(1, least\(coalesce\(max_rows, 10\), 10\)\)/.test(fn), 'the row count is not capped at the 10 entries the page shows');
+    ok(/order matters: run this file/i.test(sql), 'the SQL does not say to run it before the page change goes live');
+    ok(/revoke all on function public\.top_supporters\(int\) from public;/.test(sql), 'EXECUTE is not revoked from PUBLIC first');
+    ok(/grant execute on function public\.top_supporters\(int\) to anon, authenticated;/.test(sql), 'the website roles cannot call top_supporters');
+    ok(/revoke all on table public\.donations from anon, authenticated;/.test(sql), 'website visitors can still read the donations table');
+    ok(/alter table public\.donations enable row level security;/.test(sql), 'RLS is not enabled on donations');
+  });
+
+  it('the policy and the consent notice no longer say donations can be linked to accounts', () => {
+    const policy = read('html/privacy.html');
+    ok(!/log out before you donate/i.test(policy), 'the policy still tells donors to log out before donating');
+    ok(!/traced to your account/i.test(policy), 'the policy still says a donation can be traced to your account');
+    ok(/account IDs are not sent to visitors/.test(policy), 'the policy does not say account IDs are no longer sent to visitors');
+    ok(!/can be linked to your account/.test(read('js/trades.js')), 'the consent notice still says donations can be linked to your account');
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms
