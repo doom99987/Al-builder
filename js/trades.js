@@ -371,7 +371,9 @@
   let _prevUid       = null;
 
   // Bump this to force every user (logged in or not) to re-accept the policy.
-  const CHAT_CONSENT_VERSION = '2.0';
+  // 2.1 (2026-09-14): privacy policy updated for Stripe donations and the public
+  // supporters list, so everyone is shown the notice once more.
+  const CHAT_CONSENT_VERSION = '2.1';
   const CONSENT_LS_KEY = 'alb_consent_version';
 
   const hasLocalConsent = () => {
@@ -1132,6 +1134,7 @@
           <li>We use cookies and similar technologies for core site functionality.</li>
           <li>We show ads via <strong style="color:#ccc">Google AdSense</strong>, which may use cookies to personalize the ads you see.</li>
           <li>If you use messaging: messages are monitored for safety; harassment, spam, or abuse will result in account termination; message history is retained for moderation and deleted <strong style="color:#ccc">12 months</strong> after account termination.</li>
+          <li>If you donate: payments are processed by <strong style="color:#ccc">Stripe</strong>, and your donor name and amount appear on the public supporters list. Donations made while logged in can be linked to your account, even if listed as "Anonymous".</li>
           <li>You can withdraw consent at any time in your account settings.</li>
         </ul>
         <p style="font-size:11px;color:#555;margin-bottom:4px">
