@@ -19,8 +19,8 @@
   const n1 = v => (Math.round(v * 10) / 10).toLocaleString();
   const n0 = v => Math.round(v).toLocaleString();
 
-  // "60 End (+35% incoming healing) · 110 Arc (-1 cooldown on Holy Grace, Cleansing
-  // Prayer) · rest Str (84)" - the community's stat line, from build._statLine.
+  // "60 End (+35% incoming healing) · 110 Str (+20% Physical damage on Head
+  // Splitter) · rest Luck (84)" - the community's stat line, from build._statLine.
   function statLineText(line) {
     const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
     const parts = [];
@@ -214,7 +214,7 @@
 
     // Aimed at one fight. Says what was actually priced, what was only reported,
     // and that "fastest" here means faster than the alternatives rather than a
-    // number of turns — no boss in the data carries an HP figure.
+    // number of turns — the HP-based kill-turn estimate is only a rough guide.
     if (spec.boss && c.bossFit && c.bossFit.boss) {
       const b = c.bossFit.boss;
       const lines = [];
@@ -246,8 +246,9 @@
                    'from the encyclopedia, but nothing beyond the immunities above is priced — ' +
                    'so this is the general best build, filtered by what it is immune to.');
       lines.push('*"Fastest" here means faster than the other builds considered, not a number of ' +
-                 'turns: no boss in the game data carries an HP figure, so kill time cannot be ' +
-                 'computed. The penalties above are placeholders in `BOSS_PENALTIES`, sized ' +
+                 'turns: the kill-turn estimate under How to play is the boss HP divided by sustained ' +
+                 'damage and ignores its regeneration, blocks and heals. The penalties above are ' +
+                 'placeholders in `BOSS_PENALTIES`, sized ' +
                  'deliberately small because nobody has timed the fight both ways.*');
       L.push({ h: 'Built for ' + b.name, list: lines });
     }
@@ -409,7 +410,7 @@
       ['HP', n1(c.hp)],
       ['Crit chance', n1(c.critChance) + '%' + (c.critTier ? '  (tier ' + c.critTier + ' — every hit crits)' : '')],
       ['Crit damage', c.critDmg.toFixed(2) + 'x'],
-      ['Block DR / Initiative', n1(c.blockDr) + '%  ·  ' + n1(c.initiative) + '%'],
+      ['Block DR / Initiative', n1(c.blockDr) + ' DR  ·  ' + n1(c.initiative) + '%'],
       ['Heal out / in', n1(c.outHeal) + '%  ·  ' + n1(c.incHeal) + '%' +
         // The site does not apply class healing passives to its own
         // percentage, so neither do we - but the SCORE does, and hiding
@@ -842,6 +843,8 @@
                         : a.kind === 'dr'           ? '% DR'
                         : a.kind === 'dodge'        ? '% autododge'
                         : a.kind === 'statFlat'     ? ' flat ' + String(a.stat || 'spd').toUpperCase()
+                        : a.kind === 'statPct'      ? '% ' + String(a.stat || '').toUpperCase()
+                        : a.kind === 'statFromStat' ? '% of ' + String(a.from || 'arc').toUpperCase() + ' as flat ' + String(a.stat || 'spd').toUpperCase()
                         : a.kind === 'outHealPct'   ? '% outgoing healing'
                         : a.kind === 'incHealPct'   ? '% incoming healing'
                         : a.kind === 'lifestealPct' ? '% lifesteal'
@@ -932,7 +935,7 @@
           for (const e of Object.values(perClass)) {
             total++;
             const r = (K.MASTERY_ABILITIES || {})[e.name];
-            if ((r && r.kind !== 'note' && r.value != null) || (!r && e.bonus != null)) priced++;
+            if (K.masteryRulePriced(r) || (!r && e.bonus != null)) priced++;
           }
         }
         L.push({ h: 'What "not priced here" means', body:

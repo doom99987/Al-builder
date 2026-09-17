@@ -45,7 +45,7 @@
   -->
   <link rel="stylesheet" href="css/base.css?v=12">
   <link rel="stylesheet" href="css/nav.css?v=18">
-  <link rel="stylesheet" href="css/builder.css?v=30">
+  <link rel="stylesheet" href="css/builder.css?v=31">
   <link rel="stylesheet" href="css/qte.css?v=12">
   <link rel="stylesheet" href="css/mobile.css?v=17">
   <link rel="stylesheet" href="css/auth.css?v=24">
@@ -970,9 +970,9 @@
             </div>
             <!-- Reworked stat identities: each derives from another stat's total
                  at 10%, so they have no stat row of their own. -->
-            <div class="percent-item" data-stat="block-dr" title="Blocking reduces damage by an extra 10% of your Strength">
+            <div class="percent-item" data-stat="block-dr" title="Blocking adds an extra 10% of your Strength as damage reduction (DR points)">
               <span class="percent-val" id="block-dr-pct">—</span>
-              <span class="percent-label">block dr%</span>
+              <span class="percent-label">block dr</span>
             </div>
             <div class="percent-item" data-stat="nrg-chance" title="Chance at the start of your turn to gain an extra energy — 10% of your Arcane">
               <span class="percent-val" id="nrg-chance-pct">—</span>
@@ -1568,23 +1568,23 @@
     saved-builds.js    : saved builds (localStorage + account sync to player_builds)
 -->
 <script src="js/core.js?v=15"></script>
-<script src="js/data-class-moves.js?v=24"></script>
-<script src="js/data-race-moves.js?v=17"></script>
+<script src="js/data-class-moves.js?v=25"></script>
+<script src="js/data-race-moves.js?v=18"></script>
 <script src="js/move-renderer.js?v=13"></script>
-<script src="js/builder.js?v=101"></script>
+<script src="js/builder.js?v=102"></script>
 <script src="js/qte-guard.js?v=1"></script>
 <script src="js/qte.js?v=24"></script>
 <script src="js/saved-builds.js?v=16"></script>
 <script src="js/trades.js?v=52"></script>
 <script src="js/party.js?v=31"></script>
 <script src="js/builds.js?v=6"></script>
-<script src="js/encyclopedia.js?v=14"></script>
+<script src="js/encyclopedia.js?v=15"></script>
 <script src="js/bank.js?v=8"></script>
 <script src="js/overlay.js?v=3"></script>
 <script src="js/donation.js?v=5"></script>
 <!-- Matchmaking is disabled (2026-09-11)
 <script src="js/matchmaking.js?v=12"></script> -->
-<script src="js/build-ai.js?v=48"></script>
+<script src="js/build-ai.js?v=49"></script>
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
   (function () {
@@ -2107,7 +2107,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-15.2';
+  const SITE_VERSION    = '2026-09-17.1';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {

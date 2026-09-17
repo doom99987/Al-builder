@@ -1195,19 +1195,21 @@ describe('random and flavour', () => {
     // 4-hit Ice Shards scroll out-gains the 2-hit Death Curtain and takes the
     // opener - correctly, per the site's per-hit flat damage, but it is a scroll,
     // not the covenant move this is about.
-    const dark = engine.ask('', { race: 'Corvolus (3%)', klass: 'Lancer (N)', goal: 'burst',
+    // A Slayer, not a Lancer: since the 2026-09 patch Empowered Pierce deals
+    // x1.5 on its crits, which rightly out-bursts Death Curtain on a Lancer.
+    const dark = engine.ask('', { race: 'Corvolus (3%)', klass: 'Slayer', goal: 'burst',
                                   covenant: 'Cult of Thanasius', sub: 'none', scroll1: 'none', scroll2: 'none', lostScroll: 'none' });
     eq(String((dark.ctx.burstMove || {}).name), 'Death Curtain',
-       'a Corvolus Lancer no longer opens on the covenant move');
+       'a Corvolus Slayer no longer opens on the covenant move');
     ok(dark.ctx.bestBurst > dark.ctx.bestHit,
        'the element-gated buff paid nothing on a move its gate admits');
     ok(dark.ctx.rotation.length && dark.ctx.rotation.every(rt => rt.elements),
        'the burst gain came from an element-blind buff, not a gated one');
     // Left to choose scrolls, the opener may be a scroll - but never a move the gate refuses.
-    const auto = engine.ask('', { race: 'Corvolus (3%)', klass: 'Lancer (N)', goal: 'burst', covenant: 'Cult of Thanasius' });
+    const auto = engine.ask('', { race: 'Corvolus (3%)', klass: 'Slayer', goal: 'burst', covenant: 'Cult of Thanasius' });
     const amv = auto.ctx.burstMove || {};
     ok(def.elements.test(String(amv.moveType) + ' ' + String(amv.element || '')),
-       'with scrolls chosen, the Lancer opens on ' + amv.name + ' (' + amv.moveType + '), a move the gate refuses');
+       'with scrolls chosen, the Slayer opens on ' + amv.name + ' (' + amv.moveType + '), a move the gate refuses');
   });
 
   it('explains the rotation whenever there is one', () => {
@@ -1291,11 +1293,11 @@ describe('random and flavour', () => {
   });
 
   it('counts a move that stuns you per turn it costs you', () => {
-    // Boreas's Inner Frost heavy-stuns YOU for two turns and only then lands.
+    // Boreas's Inner Frost heavy-stuns YOU for a turn (two before the 2026-09 patch) and only then lands.
     // Nothing in the move data marks that as a cost, so a 21-base race move on a
     // 12 turn cooldown outscored every real nuke as soon as race actives entered
     // the scored kit.
-    eq(K.selfStunTurns({ name: 'Inner Frost' }), 2, 'Inner Frost is not listed as a self-stun');
+    eq(K.selfStunTurns({ name: 'Inner Frost' }), 1, 'Inner Frost is not listed as a one-turn self-stun');
     eq(K.selfStunTurns({ name: 'Poison Fan' }), 0, 'a normal move was treated as a self-stun');
     ok(K.selfStunTurns({ name: 'Unlisted', effect: 'Receive 2 stacks of Heavy Stun.' }) > 0,
        'an unlisted move whose own text stuns the user is still scored as free');
@@ -1982,7 +1984,7 @@ describe('fighting hurt', () => {
 
   it('does not give a low-HP class an artifact that needs high HP', () => {
     // The complaint this came from: Stellian Core only works above 95% max HP,
-    // and a Berserker is deliberately dropping under 50% to stack Bloodlust.
+    // and a Berserker fights hurt (Bloodlust heals only below 50%, Rage lowers Defense).
     for (const klass of LOW) {
       for (const goal of ['damage', 'burst', 'crit']) {
         const r = engine.ask('', { klass, goal, dmg: 'average' });
@@ -2164,14 +2166,15 @@ describe('class roles', () => {
     // is 78% block DR against 53%. Health and mitigation trade freely - only
     // their product says whether the tank build is doing its job.
     //
-    // And not on raw HP at all any more: with lifesteal, self-heals and a DR
-    // cap in the survival figure, the tank trades HP for mitigation and sustain
-    // (Calvariae in Aspect of Maladaptation: 418 HP at 80% DR against 467 at
-    // 35%), so only the figure the tank score actually reads is compared.
+    // And not on raw HP at all any more: with lifesteal, self-heals and DR read
+    // through the armour formula (effective HP x (100 + DR) / 100, uncapped
+    // since DR_CAP went), the tank trades HP for mitigation and sustain (a
+    // Calvariae Citadel: about 390 HP at 101 DR against 446 at 50 for the
+    // balanced default), so only the figure the tank score reads is compared.
     const citRole = ask('citadel build');
     const citOld  = ask('citadel build', { goal: K.DEFAULT_GOAL });
     // The tank archetype's own score is the only complete statement of "tougher":
-    // effective HP with sustain, capped DR, incoming healing.
+    // effective HP with sustain, DR through the armour formula, incoming healing.
     const tough = r => K.ARCHETYPES.tank.score(r.ctx);
     ok(tough(citRole) > tough(citOld) * 1.1,
        'a Citadel is no tougher for being built as a tank: ' +
@@ -2181,8 +2184,9 @@ describe('class roles', () => {
   it('a role build still has enough health to be worth playing', () => {
     // The floor was 200 while the search scored Venia's Permuth as a permanent
     // x1.4 on Endurance. It is scored as the 3-turn buff it is now, so the HP
-    // here is what the build actually has: a Saint healer on a perfect line
-    // (60-110 End, 110 Arc, rest Str) sits around 185.
+    // here is what the build actually has: a Saint healer (102 End for
+    // Narthana's Sigil, 60 Luck for +35% outgoing healing, 25 Arc, rest Str -
+    // no 110 Arc since the 2026-09-16 patch) sits around 212.
     for (const klass of Object.keys(ROLES)) {
       const r = ask(klass + ' build');
       if (r.build.klass !== klass) continue;   // base classes resolve upward
@@ -2247,10 +2251,14 @@ describe('roles', () => {
     // Toughness as the TANK archetype scores it (effective HP with sustain,
     // block DR, incoming healing), measured against a pure tank. Raw HP missed
     // lifesteal: with Crystalline Spike's flat damage a Berserker's Shadow
-    // Gauntlets heal ~150 a turn, and the blend spends its tank half there. A bar
+    // Gauntlets heal ~90 a turn, and the blend spends its tank half there. A bar
     // set from pure DPS had no teeth - one lifesteal item cleared it.
+    // The bar was 0.4 until the 2026-09-16 patch cut Shadow Gauntlets' lifesteal
+    // from 5% to 3% (the blend's sustain fell by about a third: 1832 -> 1284)
+    // while the pure Paladin tank started pricing its Warrior-tree capstones
+    // (2950 -> 3213), which left the blend at exactly 40%.
     const tankScore = r => K.ARCHETYPES.tank.score(r.ctx);
-    ok(tankScore(both) >= tankScore(tank) * 0.4,
+    ok(tankScore(both) >= tankScore(tank) * 0.35,
        'DPS+Tank is barely a tank: ' + Math.round(tankScore(both)) + ' against a pure tank ' + Math.round(tankScore(tank)));
     ok(tankScore(both) < tankScore(tank),
        'DPS+Tank is as tough as a pure tank: ' + Math.round(tankScore(both)) + ' vs ' + Math.round(tankScore(tank)));
@@ -3155,6 +3163,7 @@ describe('stat milestones', () => {
     // Exactly at the threshold counts; one under does not.
     eq(K.milestonesFor({ lck: tiers[1] }, tiers).outHealPct, 35, 'LCK 60 is not paying out');
     eq(K.milestonesFor({ lck: tiers[1] - 1 }, tiers).outHealPct, 0, 'LCK 59 is paying out');
+    eq(K.milestonesFor({ spd: tiers[2] }, tiers).dodgePct, 15, 'SPD 110 is not 15% autododge');
   });
 
   // The reason this was worth doing at all.
@@ -3264,23 +3273,121 @@ describe('healing is an amount, not a percentage', () => {
     ok(r.ctx.cdCutFlat >= 1, 'Sheea is equipped but its cooldown cut is not counted');
   });
 
-  it('a milestone cooldown cut applies to the moves the owner says it does', () => {
-    // The game text says STR 110 -> "Magic Element" and ARC 110 -> "Physical"
-    // (builder.js notes the two are swapped in game). The owner's reading from
-    // play, and what the community builds are written around: ARC 110 cuts
-    // every non-Physical move, Holy included, and STR 110 cuts Physical.
+  it('the STR and ARC 110 milestones buff Physical and magic damage, not cooldowns', () => {
+    // Patch rework (2026-09-16), read by type (owner, 2026-09-17): STR 110 is
+    // +20% on Physical moves and ARC 110 +20% on every other type. They used to
+    // be cooldown cuts, split the same way. The patch notes' "melee" and
+    // "ranged" wording is not what the game does.
     const tiers = data.STAT_MILESTONE_TIERS;
     const m = K.milestonesFor({ str: tiers[2], arc: tiers[2] }, tiers);
-    const str = m.cdCut.find(c => c.stat === 'str');
-    const arc = m.cdCut.find(c => c.stat === 'arc');
-    ok(str && arc, 'STR 110 or ARC 110 grants no cooldown cut');
-    ok(str.elements.test('Physical'), 'the STR cut does not apply to Physical');
-    ok(!str.elements.test('Holy') && !str.elements.test('Magic'), 'the STR cut applies to non-Physical moves');
-    ok(arc.elements.test('Holy') && arc.elements.test('Magic') && arc.elements.test('Fire'),
-       'the ARC cut misses a non-Physical element');
-    ok(!arc.elements.test('Physical'), 'the ARC cut applies to Physical');
-    eq(str.source, 'owner', 'the STR affinity does not say where it came from');
-    eq(arc.source, 'owner', 'the ARC affinity does not say where it came from');
+    eq(m.cdCut.length, 0, 'a 110 milestone still cuts a cooldown');
+    const str = m.typeDmg.find(c => c.stat === 'str');
+    const arc = m.typeDmg.find(c => c.stat === 'arc');
+    ok(str && arc, 'STR 110 or ARC 110 grants no damage perk');
+    eq(str.value, 20, 'STR 110 is not +20%'); eq(arc.value, 20, 'ARC 110 is not +20%');
+    eq(str.source, 'owner', 'the STR perk does not say where it came from');
+    eq(arc.source, 'owner', 'the ARC perk does not say where it came from');
+    const find = (k, n) => ((data.classMoves[k] || {}).learns || []).find(x => x.name === n);
+    const carnage = find('Berserker (Ch)', 'Carnage');     // Dark
+    const strike  = find('Arbiter (N)', 'Strike');         // Physical, slot 'Base Move' - the player's own
+    const smack   = find('Necromancer (Ch)', 'Smack');     // Physical, slot 'Skeleton' - a summon's
+    const grace   = find('Saint (Or)', 'Holy Grace');      // Holy
+    const stinger = find('Ranger (Or)', 'Stinger');        // Poison
+    ok(carnage && strike && smack && grace && stinger, 'a fixture move moved');
+    ok(arc.test(carnage) && !str.test(carnage), 'Carnage (Dark) is not a magic move');
+    ok(arc.test(grace) && !str.test(grace), 'Holy Grace (Holy) is not a magic move');
+    ok(arc.test(stinger) && !str.test(stinger), 'Stinger (Poison) is not a magic move');
+    // Arbiter's Base Move is the player's own strike, not a summon's.
+    ok(!K.isSummonSlot(strike), "Arbiter's Base Move Strike is treated as a summon attack");
+    ok(str.test(strike) && !arc.test(strike), "Arbiter's Physical Strike does not take STR's perk");
+    // A summon's attack is not yours, whatever its type.
+    ok(K.isSummonSlot(smack), 'a Skeleton attack is not recognised as a summon');
+    ok(!str.test(smack) && !arc.test(smack), 'a summon attack takes a milestone perk');
+    // The converted type wins: a Physical move Wicked Crown makes Dark is magic.
+    ok(arc.test(strike, 'Dark') && !str.test(strike, 'Dark'), 'a converted move still reads its written type');
+    eq(K.milestoneDmgStat('Physical'), 'str', 'Physical is not STR');
+    eq(K.milestoneDmgStat(' physical '), 'str', 'the type is not trimmed and case-folded');
+    for (const t of ['Magic', 'Fire', 'Ice', 'Hex', 'Holy', 'Dark', 'Poison', 'Nature'])
+      eq(K.milestoneDmgStat(t), 'arc', t + ' is not a magic type');
+    // One under the threshold pays nothing.
+    eq(K.milestonesFor({ str: tiers[2] - 1, arc: tiers[2] - 1 }, tiers).typeDmg.length, 0,
+       'STR/ARC 109 is paying the 110 perk');
+  });
+
+  it('the DMG calc applies the same Physical / magic perk, read the same way', () => {
+    // builder.js getMilestoneDmgMult is the site half of the rule above: the
+    // stat comes from the move's EFFECTIVE type (getEffectiveMoveType), summon
+    // attacks are skipped through isSummonAttack, and the stat is the buffed
+    // total from getTotalStat.
+    const root = path.join(__dirname, '..', '..');
+    const src = fs.readFileSync(path.join(root, 'js', 'builder.js'), 'utf8');
+    const mr  = fs.readFileSync(path.join(root, 'js', 'move-renderer.js'), 'utf8');
+    const grab = (text, head) => {
+      const start = text.indexOf(head);
+      ok(start !== -1, 'no ' + head);
+      let depth = 0, i = text.indexOf('{', start);
+      for (; i < text.length; i++) {
+        if (text[i] === '{') depth++;
+        else if (text[i] === '}') { depth--; if (!depth) return text.slice(start, i + 1); }
+      }
+      return '';
+    };
+    const from = src.indexOf('const MILESTONE_DMG_PCT');
+    const fnAt = src.indexOf('function getMilestoneDmgMult(');
+    ok(from !== -1 && fnAt > from, 'the STAT MILESTONE DAMAGE block moved');
+    const tiersSrc = /const STAT_MILESTONE_TIERS = (\[[^\]]*\]);/.exec(src);
+    ok(tiersSrc, 'no STAT_MILESTONE_TIERS in builder.js');
+    const stats = {};
+    let crown = false;   // stands in for Wicked Crown in getEffectiveMoveType
+    const site = new Function('STAT_MILESTONE_TIERS', 'getTotalStat', 'getEffectiveMoveType',
+      grab(mr, 'function isSummonMove(') + '\n' + src.slice(from, fnAt) +
+      grab(src, 'function getMilestoneDmgMult(') +
+      '; return { getMilestoneDmgStat, isSummonAttack, getMilestoneDmgMult };'
+    )(new Function('return ' + tiersSrc[1])(), s => stats[s] || 0,
+      t => (crown && /^physical$/i.test(String(t || '').trim())) ? 'Dark' : t);
+
+    const find = (k, n) => ((data.classMoves[k] || {}).learns || []).find(x => x.name === n);
+    const carnage = find('Berserker (Ch)', 'Carnage');     // Dark
+    const strike  = find('Arbiter (N)', 'Strike');         // Physical, the player's own
+    const smack   = find('Necromancer (Ch)', 'Smack');     // Physical, a Skeleton's
+    const grace   = find('Saint (Or)', 'Holy Grace');      // Holy
+    const sheea   = { name: 'Holy Light', slot: 'Sheea (Saint)', moveType: 'Magic', effect: '' };
+    ok(carnage && strike && smack && grace, 'a fixture move moved');
+
+    Object.assign(stats, { str: 110, arc: 0 });
+    eq(site.getMilestoneDmgMult(strike), 1.2, "STR 110 does not buff Arbiter's own Physical Strike");
+    eq(site.getMilestoneDmgMult(carnage), 1, 'STR 110 buffs Dark Carnage');
+    eq(site.getMilestoneDmgMult(smack), 1, 'STR 110 buffs a Skeleton attack');
+    eq(site.getMilestoneDmgMult(carnage, 'Physical'), 1.2, "a part priced as Physical did not take STR's perk");
+    crown = true;
+    eq(site.getMilestoneDmgMult(strike), 1, 'a Strike Wicked Crown makes Dark still takes the STR perk');
+    crown = false;
+    Object.assign(stats, { str: 109, arc: 110 });
+    eq(site.getMilestoneDmgMult(strike), 1, 'STR 109 pays the Physical perk');
+    eq(site.getMilestoneDmgMult(carnage), 1.2, 'ARC 110 does not buff Dark Carnage');
+    eq(site.getMilestoneDmgMult(grace), 1.2, 'ARC 110 does not buff Holy Grace');
+    eq(site.getMilestoneDmgMult(sheea), 1, "ARC 110 buffs a Heaven's Authority Sheea attack");
+    eq(site.getMilestoneDmgMult(carnage, 'Physical'), 1, 'the part type argument is ignored');
+    crown = true;
+    eq(site.getMilestoneDmgMult(strike), 1.2, 'a Strike Wicked Crown makes Dark misses the ARC perk');
+    crown = false;
+    ok(site.isSummonAttack(sheea) && !site.isSummonAttack(strike), 'isSummonAttack misreads a Sheea row or the Base Move');
+
+    // The site and the Build AI read every move's type and summon slot alike.
+    const bad = [];
+    for (const table of [data.classMoves || {}, data.raceMoves || {}]) {
+      for (const [owner, entry] of Object.entries(table)) {
+        for (const mv of (entry.learns || [])) {
+          if (site.isSummonAttack(mv) !== K.isSummonSlot(mv)) bad.push(owner + ' ' + mv.name + ' (summon)');
+          if (site.getMilestoneDmgStat(mv.moveType) !== K.milestoneDmgStat(mv.moveType)) bad.push(owner + ' ' + mv.name + ' (type)');
+        }
+      }
+    }
+    eq(bad.length, 0, 'the site and the Build AI disagree on: ' + bad.join(', '));
+    // Stinger is two parts, and each takes the perk of its own type.
+    ok(/const _stabRaw\s*=[^\n]*\n[\s\S]{0,600}getMilestoneDmgMult\(m, _stabEffType\)/.test(src) &&
+       /const _arrRaw\s*=[^\n]*\n[\s\S]{0,600}getMilestoneDmgMult\(m, _arrEffType\)/.test(src),
+       "the site no longer prices Stinger's stab and arrows by their own types");
   });
 });
 
@@ -3596,14 +3703,56 @@ describe('go perfect: breakpoints and stat decay', () => {
     }
   });
 
-  it('a cooldown perk on the line names the moves it shortens', () => {
-    const spec = Intent.applyOverrides(Intent.parse('', data, K), { roles: ['Healer'] }, data);
-    const b = fresh('Saint (Or)', 'Sheea (Ob)');
-    b.invested.arc = O.investedForTotal(b, 'arc', 110);
-    const arc = O.statLineFor(b, spec).find(x => x.stat === 'arc');
-    eq(arc.reason, 'perk', 'ARC 110 is not a perk on the line');
-    ok(/cooldown/.test(arc.perk), 'the perk is ' + arc.perk);
-    ok(arc.moves.indexOf('Holy Grace') !== -1, 'Holy Grace (Holy) is not among the shortened moves: ' + arc.moves.join(', '));
+  it('a damage perk on the line names the moves it buffs', () => {
+    // STR 110 is +20% on Physical moves since the patch rework (it used to be
+    // a cooldown cut), so the line names the Physical moves it pays on.
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const b = fresh('Berserker (Ch)');
+    b.invested.str = O.investedForTotal(b, 'str', 110);
+    const str = O.statLineFor(b, spec).find(x => x.stat === 'str');
+    eq(str.reason, 'perk', 'STR 110 is not a perk on the line');
+    ok(/Physical damage/.test(str.perk), 'the perk is ' + str.perk);
+    ok(str.moves.indexOf('Head Splitter') !== -1, 'Head Splitter (Physical) is not among the buffed moves: ' + str.moves.join(', '));
+    ok(str.moves.indexOf('Carnage') === -1, 'Carnage (Dark) is listed under the STR perk');
+    ok(!/cooldown/.test(str.perk), 'STR 110 is still described as a cooldown cut: ' + str.perk);
+  });
+
+  it('the 110 damage perk follows a converted type', () => {
+    // Wicked Crown makes a Physical move Dark, so ARC 110 - not STR 110 - pays
+    // on it: evaluate reads the converted type (optimize.js effectiveTypeOf).
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const hitAt = (arc, crown) => {
+      const b = fresh('Slayer');
+      if (crown) b.gear = [{ name: 'Wicked Crown', tier: 0, alloc: {}, traits: [] }];
+      b.invested.str = O.investedForTotal(b, 'str', 60);
+      b.invested.arc = O.investedForTotal(b, 'arc', arc);
+      return O.evaluate(b, spec).bestHit;
+    };
+    const crowned = hitAt(110, true) / hitAt(109, true);
+    const plain = hitAt(110, false) / hitAt(109, false);
+    ok(crowned > 1.1, 'ARC 110 does not buff a Physical move Wicked Crown makes Dark (x' + crowned.toFixed(3) + ')');
+    ok(plain < 1.05, 'ARC 110 buffs a plain Physical move (x' + plain.toFixed(3) + ')');
+  });
+
+  it('a 110 perk only a buff reaches is paid at that buff uptime', () => {
+    // Overload (Lancer cm1: +10% STR and Luck, 0.8 uptime). At 100 STR the
+    // buffed total is 110, so the Physical perk is up for 80% of the fight -
+    // not never, and not all fight long at 102, which is what reading the
+    // uptime-averaged total did.
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const strPerk = (total, overload) => {
+      const b = fresh('Lancer (N)');
+      if (overload) b.masteryNodes = ['cm1'];
+      b.invested.str = O.investedForTotal(b, 'str', total);
+      const p = O.evaluate(b, spec).milestones.typeDmg.find(x => x.stat === 'str');
+      return p ? p.value : 0;
+    };
+    const close = (a, b) => Math.abs(a - b) < 1e-9;
+    eq(strPerk(110, false), 20, 'STR 110 is not the full perk');
+    eq(strPerk(100, false), 0, 'STR 100 pays the perk with no buff');
+    ok(close(strPerk(100, true), 16), 'Overload at STR 100 pays ' + strPerk(100, true) + ', not 20 x 0.8');
+    ok(close(strPerk(104, true), 16), 'Overload at STR 104 pays ' + strPerk(104, true) + ', not 20 x 0.8');
+    eq(strPerk(110, true), 20, 'STR 110 with Overload is not the full perk');
   });
 
   it('a point past 110 is worth less than a point under the knee when the line is settled', () => {
@@ -3684,11 +3833,11 @@ describe('passives that were not counted', () => {
   it('prices lifesteal, heals from damage, flat self-heals and the stat ramp', () => {
     const b = wear(fresh('Impaler (Ch)', 'Calvariae (3%)'), 'Shadow Gauntlets', 'Parasitic Leech', 'Coagulated Finger Nail');
     const t = O.gearPassiveTotals(b);
-    eq(t.lifestealPct, 5, 'Shadow Gauntlets lifesteal');
+    eq(t.lifestealPct, 3, 'Shadow Gauntlets lifesteal');
     eq(t.healFromDmgPct, 2, 'Parasitic Leech heal from damage');
     eq(t.statFlat.str, 7.5, 'Coagulated Finger Nail ramp');
     const c = O.evaluate(b, spec('tank'));
-    ok(c.lifesteal >= 5, 'lifesteal did not reach the sustain figure: ' + c.lifesteal);
+    ok(c.lifesteal >= 3, 'lifesteal did not reach the sustain figure: ' + c.lifesteal);
     ok(c.stats.str >= M.allStats(b).str + 7, 'the stat ramp did not reach the scored totals');
     ok(c.sustainPerTurn > 0 && c.effectiveHpSustain > c.effectiveHp, 'nothing reached sustain');
     // Parasitic Leech heals the TEAM: nothing solo, something in a party.
@@ -3871,6 +4020,18 @@ describe('the BuildPlan', () => {
     ok(races.alternatives.every(a => a.name !== r.build.race), 'the chosen race is among its own alternatives');
     const full = races.alternatives.filter(a => a.full);
     for (let i = 1; i < full.length; i++) ok(full[i].delta >= full[i - 1].delta, 'full builds are not ranked');
+    // A full alternative is a FINISHED build, measured against the chosen one:
+    // an unfinished score is no rival, and it once read as a tie above the winner.
+    ok(full.every(a => a.delta != null && a.score <= r.ctx.score + 1e-9),
+       'an unfinished race is ranked as a full build: ' + JSON.stringify(full.map(a => [a.name, a.score, a.delta])));
+    // Measured alternatives lead; the unmeasured ones follow them.
+    const firstRough = races.alternatives.findIndex(a => !a.full);
+    ok(firstRough === -1 || races.alternatives.slice(firstRough).every(a => !a.full),
+       'an unmeasured race is listed ahead of a finished one: ' +
+       JSON.stringify(races.alternatives.map(a => [a.name, a.full])));
+    // And an unmeasured alternative cannot make the pick look optional.
+    ok(races.priority !== 'optional' || races.alternatives.some(a => a.delta != null && a.delta <= 0.01),
+       'an unmeasured race alternative made the race optional');
   });
 
   it('keeps what every slot measured, in the order it measured it', () => {
@@ -4284,8 +4445,10 @@ describe('boss targeting', () => {
   it('reads immunities out of the boss text without inventing any', () => {
     const p = K.bossProfile('Seraphon', data);
     ok(p, 'Seraphon has no profile');
-    for (const st of ['purified', 'weakened', 'blinded', 'cursed'])
+    for (const st of ['purified', 'weakened', 'blinded'])
       ok(p.statusImmune.includes(st), 'Seraphon immunity missed ' + st);
+    // The 2026-09 patch removed Seraphon's Cursed immunity; the parser must not keep it.
+    ok(!p.statusImmune.includes('cursed'), 'Seraphon is still read as immune to Cursed');
     ok(p.blocks && p.dodges, 'Seraphon can block and dodge and the profile missed it');
     // Not a status - it must not be filed as one.
     ok(!p.statusImmune.includes("metrom's amulet"), 'an item was parsed as a status');
@@ -4390,6 +4553,14 @@ describe('boss targeting', () => {
       .concat(learned(b.build.klass), learned(O.baseOf(b.build.klass))));
     ok(b.ctx.bossFit.reasons.some(r => r.kind === 'immune'),
        "Arkhaia's stated Burn immunity was not priced for a kit that applies Burn");
+    // Listed AND applied: the penalty reaches the multiplier and the score, and
+    // the "Counted as" % the write-up prints is the multiplier actually used.
+    const imm = b.ctx.bossFit.reasons.find(r => r.kind === 'immune');
+    ok(b.ctx.bossFit.mult < 1, "Arkhaia's Burn immunity was listed but never priced");
+    ok(b.ctx.score < a.ctx.score, 'the immunity penalty never reached the score');
+    if (b.ctx.bossFit.reasons.length === 1) {
+      eq(Math.round((1 - b.ctx.bossFit.mult) * 100), imm.pct, 'the "Counted as" % does not match the multiplier');
+    }
     for (const rsn of b.ctx.bossFit.reasons) {
       ok((rsn.moves || []).length && rsn.moves.every(n => kit.has(n)),
          'a boss penalty that names no move of this kit: ' + JSON.stringify(rsn));
@@ -4430,37 +4601,66 @@ describe('boss targeting', () => {
     }
   });
 
-  it('demotes a poison kit against a poison-immune boss', () => {
-    // Handaconda is fully immune to Poison - player knowledge, not in the
-    // encyclopedia - so an Assassin built on stacking it does nothing beyond its
-    // direct damage.
+  it("punishes a one-element kit against Thorian, by the converted type", () => {
+    // Thorian adapts to the last element used. Boreas turns a Lancer's Physical
+    // and Magic moves into Ice, so the whole kit is one element there; a
+    // Calvariae Lancer keeps both and is not charged.
+    ok(K.bossProfile('Thorian, The Rotten', data).punishesOneElement,
+       "Thorian's one-element rule never reaches the boss profile");
+    const base = { klass: 'Lancer (N)', boss: 'Thorian, The Rotten', play: 'solo', goal: 'damage', dmg: 'average' };
+    const ice = engine.ask('', Object.assign({ race: 'Boreas (1%)' }, base));
+    ok(ice.ctx.bossFit.reasons.some(r => r.kind === 'oneElement') && ice.ctx.bossFit.mult < 1,
+       'an all-Ice Boreas kit was not charged for one element: ' + JSON.stringify(ice.ctx.bossFit.reasons));
+    const mixed = engine.ask('', Object.assign({ race: 'Calvariae (3%)' }, base));
+    ok(!mixed.ctx.bossFit.reasons.some(r => r.kind === 'oneElement'),
+       'a Physical + Magic kit was charged for one element');
+  });
+
+  it('no longer demotes a poison kit against Handaconda', () => {
+    // Handaconda lost its Poison immunity in the 2026-09 patch, so an Assassin
+    // built on stacking Poison must not be charged an immunity penalty there.
+    // Immunity pricing (multiplier and score) is asserted in the Arkhaia test above.
     const base = { klass: 'Assassin (Ch)', goal: 'damage', play: 'solo', dmg: 'average' };
-    const free = engine.ask('', base);
     const vs   = engine.ask('', Object.assign({ boss: 'Handaconda' }, base));
-    eq(free.ctx.bossFit.mult, 1, 'penalised with no boss chosen');
-    ok(vs.ctx.bossFit.mult < 1, 'Handaconda did not demote a poison kit');
-    const why = vs.ctx.bossFit.reasons.find(r => r.kind === 'immune');
-    ok(why, 'no immunity reason given');
-    ok(why.moves.some(m => /poison/i.test(m)), 'the reason names no poison move: ' + why.moves);
-    ok(vs.ctx.score < free.ctx.score, 'the penalty never reached the score');
+    ok(!K.bossProfile('Handaconda', data).statusImmune.includes('poison'),
+       'Handaconda is still read as immune to Poison');
+    ok(!vs.ctx.bossFit.reasons.some(r => r.kind === 'immune'),
+       'Handaconda still charged an immunity penalty: ' + JSON.stringify(vs.ctx.bossFit.reasons));
+    // Handaconda is dodgeIrrelevant and punishes nothing else, so nothing is left to charge.
+    eq(vs.ctx.bossFit.mult, 1, 'Handaconda still penalised a poison kit');
   });
 
   it('says which immunities are player knowledge rather than game text', () => {
+    // No real boss carries a player-reported immunity since Handaconda's Poison
+    // immunity was patched out (2026-09), so feed one through a throwaway entry.
+    const fake = { BOSS_MOVE_DATA: { Testish: { passives: [
+      { name: 'Status Immunity', description: 'Immune to Cursed.' },
+    ], learns: [] } } };
+    K.BOSS_TACTICS.Testish = { immuneStatuses: ['poison'] };
+    try {
+      const p = K.bossProfile('Testish', fake);
+      ok(p.statusImmune.includes('poison'), 'a player-reported immunity was not merged in');
+      eq(JSON.stringify(p.fromPlayers), JSON.stringify(['poison']), 'fromPlayers: ' + JSON.stringify(p.fromPlayers));
+    } finally { delete K.BOSS_TACTICS.Testish; }
+    const src = fs.readFileSync(path.join(__dirname, 'explain.js'), 'utf8');
+    ok(/fromPlayers[\s\S]{0,200}player knowledge/.test(src),
+       'the write-up no longer flags player-knowledge immunities');
+    // And Handaconda itself no longer claims one.
     const r = engine.ask('', { klass: 'Assassin (Ch)', goal: 'damage', play: 'solo',
                                dmg: 'average', boss: 'Handaconda' });
     const sec = r.explanation.find(x => /^Built for Handaconda/.test(x.h));
-    ok(sec && sec.list.some(l => /player knowledge/i.test(l)),
-       'the Poison immunity is presented as if the encyclopedia stated it');
+    ok(sec && !sec.list.some(l => /player knowledge/i.test(l)),
+       'Handaconda still carries a player-knowledge immunity line');
   });
 
-  it('says what it priced, what it only reported, and that turns are not computable', () => {
+  it('says what it priced, what it only reported, and that its kill-turn figure is only an estimate', () => {
     const r = engine.ask('', { klass: 'Hexer (N)', goal: 'damage', play: 'solo',
                                dmg: 'average', boss: 'Seraphon' });
     const sec = r.explanation.find(x => /^Built for Seraphon/.test(x.h));
     ok(sec, 'nothing explains the boss targeting');
     ok(sec.list.some(l => /Counted as /.test(l)), 'does not say what was actually priced');
-    ok(sec.list.some(l => /HP figure|not a number of/.test(l)),
-       'does not admit kill time is not computable');
+    ok(sec.list.some(l => /not a number of[\s\S]*kill-turn estimate/.test(l)),
+       'does not say "fastest" is not a timed kill, or that the kill-turn estimate is only HP over sustained damage');
     ok(sec.list.some(l => /placeholder/i.test(l)), 'does not flag the penalties as placeholders');
   });
 
@@ -4911,7 +5111,8 @@ describe('Ivory stat multiplier', () => {
     // instead of reading undefined.
     // agesPagesSpend joined this list by crashing the builder the same way:
     // declared beside luckyHornsSpend, read by updatePecents at load.
-    const watched = ['UNRELEASED_GEAR', 'ivoryNrgStacks', 'luckyHornsSpend',
+    // midasLckStacks (Midas's Luck stacks) is read by updatePecents at load too.
+    const watched = ['UNRELEASED_GEAR', 'ivoryNrgStacks', 'midasLckStacks', 'luckyHornsSpend',
                      'corruptionBuffsActive', 'agesPagesSpend'];
     for (const name of watched) {
       const declRe = new RegExp('(?:const|let)\\s+' + name + '\\b');
@@ -5079,15 +5280,17 @@ describe('mastery abilities', () => {
   });
 
   it('says what it passed over when the goal cannot read it', () => {
-    // A damage goal scores survivability at exactly zero, so Lightspeed - the
-    // capstone a Ranger actually takes - reads as worthless to it. That is a
+    // A damage goal scores survivability at exactly zero, so Strategist - a
+    // Hexer's damage-reduction capstone - reads as worthless to it. That is a
     // real trade, and the answer to "why is the obvious mastery missing".
-    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'damage', play: 'solo' });
+    // (This used to pin a Ranger's Lightspeed, which the Ranger rework turned
+    // from autododge into Speed that Ranger moves scale on.)
+    const r = engine.ask('', { klass: 'Hexer (N)', goal: 'damage', play: 'solo' });
     const sec = r.explanation.find(x => x.h === 'Masteries it did not take');
     ok(sec, 'nothing explains the capstones it did not buy');
-    const row = (sec.table || []).find(t => /Lightspeed/.test(t[0]));
-    ok(row, 'Lightspeed is not among them');
-    ok(/Nothing towards/.test(row[1]), 'no reason given for Lightspeed: ' + row[1]);
+    const row = (sec.table || []).find(t => /Strategist/.test(t[0]));
+    ok(row, 'Strategist is not among them');
+    ok(/Nothing towards/.test(row[1]), 'no reason given for Strategist: ' + row[1]);
   });
 
   it('gives every capstone it skipped a reason, not just a name', () => {
@@ -5125,7 +5328,7 @@ describe('mastery abilities', () => {
           eq(x.reason, 'bugged', x.name + ' is bugged but was reported as ' + x.reason);
           continue;
         }
-        const priced = rule && rule.kind !== 'note' && rule.value != null;
+        const priced = K.masteryRulePriced(rule);
         if (!priced) {
           seen++;
           eq(x.reason, 'unmodelled', x.name + ' is unpriced but was reported as ' + x.reason);
@@ -5135,8 +5338,21 @@ describe('mastery abilities', () => {
     ok(seen > 0, 'no unpriced capstone was skipped anywhere, so this proves nothing');
   });
 
+  it('counts a multi-effect capstone as priced', () => {
+    // Overload became two statPct effects with no top-level value; the engine
+    // prices it, so the write-up must not call it "not priced here".
+    ok(K.masteryRulePriced(K.MASTERY_ABILITIES.Overload), 'Overload is read as unpriced');
+    ok(!K.masteryRulePriced({ kind: 'note', value: 5 }), 'a note is read as priced');
+    ok(!K.masteryRulePriced({ kind: 'multi', effects: [{ kind: 'note' }] }), 'a multi with no numbers is read as priced');
+    const r = engine.ask('', { klass: 'Lancer (N)', goal: 'damage', play: 'solo' });
+    const skip = (r.build.masteryPassedOver || []).find(x => x.name === 'Overload');
+    ok(!skip || skip.reason !== 'unmodelled', 'Overload was passed over as not priced');
+  });
+
   it('says out loud that an unpriced capstone is a gap here, not a weak ability', () => {
-    const r = engine.ask('', { klass: 'Saint (Or)', goal: 'damage', play: 'solo' });
+    // A Lancer skips capstones that are notes (Jolting Dodges, Rallying Shout
+    // and Discharge Proficiency), so the section always has something to explain.
+    const r = engine.ask('', { klass: 'Lancer (N)', goal: 'damage', play: 'solo' });
     const sec = r.explanation.find(x => /not priced here/i.test(x.h));
     ok(sec, 'nothing explains what "not priced here" means');
     ok(/not.{0,4}\*\* a judgement|not\*\* a judgement/i.test(sec.body) || /gap in this engine/.test(sec.body),
@@ -5193,29 +5409,69 @@ describe('mastery abilities', () => {
     void sections;
   });
 
-  it('takes the autododge capstone when survival is the goal', () => {
-    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'tank', play: 'solo' });
-    ok(r.ctx.masteryAbilities.active.some(a => a.name === 'Lightspeed'),
-       'a survival Ranger did not take Lightspeed');
-    ok(r.ctx.dodge > 0, 'dodge never reached the context');
-    ok(r.ctx.effectiveHp > r.ctx.hp, 'avoidance did not raise effective health');
+  it('turns Lightspeed into Speed worth a share of Arcane', () => {
+    // Ranger rework (patch 2026-09-16): Lightspeed's stacking autododge is gone.
+    // Every Verdant Archer proc now grants Speed equal to 10% of your Arcane,
+    // counted at 60% uptime [assumed]. The share reads the SITE Arcane and lands
+    // on the in-fight totals only, so the reported stat line stays the site's.
+    const rule = K.MASTERY_ABILITIES['Lightspeed'];
+    ok(rule && rule.kind === 'statFromStat' && rule.stat === 'spd' && rule.from === 'arc' && rule.value === 10,
+       'Lightspeed is not 10% of Arcane as Speed: ' + JSON.stringify(rule));
+    eq(((data.masteryAbilities['Ranger (Or)'] || {}).cm1 || {}).name, 'Lightspeed', 'the fixture capstone moved');
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'speed' }, data);
+    const tree = ['s1', 's2', 's3', 's4', 'c1', 'c2a', 'c3a', 'cb1'];
+    const mk = nodes => {
+      const b = M.emptyBuild();
+      b.level = 50; b.klass = 'Ranger (Or)'; b.race = 'Estella (24%)';
+      b.invested.arc = 100; b.masteryNodes = nodes;
+      return b;
+    };
+    const withLs = mk(tree.concat('cm1')), without = mk(tree.slice());
+    eq(JSON.stringify(O.masteryAbilityTotals(withLs, spec).statFromStat),
+       JSON.stringify([{ stat: 'spd', from: 'arc', pct: rule.value * rule.uptime }]),
+       'Lightspeed does not reach the stat-from-stat totals');
+    const a = O.evaluate(withLs, spec), b = O.evaluate(without, spec);
+    const want = a.siteStats.arc * rule.value * rule.uptime / 100;
+    ok(want > 0, 'the probe has no Arcane to take a share of');
+    ok(Math.abs((a.stats.spd - b.stats.spd) - want) < 1e-9,
+       'Lightspeed added ' + (a.stats.spd - b.stats.spd) + ' Speed, not ' + want);
+    eq(a.siteStats.spd, b.siteStats.spd, 'Lightspeed leaked into the site Speed total');
+    eq(a.dodge, 0, 'Lightspeed still grants autododge');
+    // And a Ranger building for Speed buys it for that.
+    const r = engine.ask('', { klass: 'Ranger (Or)', goal: 'speed', play: 'solo' });
+    ok(r.ctx.masteryAbilities.active.some(x => x.name === 'Lightspeed' && x.kind === 'statFromStat'),
+       'a speed Ranger did not take Lightspeed');
   });
 
   it('keeps avoidance out of the HP it reports', () => {
     // effectiveHp is for scoring only. The HP this build reports has to stay the
-    // HP the site will show, or the link and the write-up disagree.
-    const solo = engine.ask('', { klass: 'Ranger (Or)', goal: 'tank', play: 'solo' });
-    ok(solo.ctx.hp < solo.ctx.effectiveHp, 'the two figures are the same, so one of them is wrong');
-    ok(Number.isFinite(solo.ctx.hp) && solo.ctx.hp > 0, 'reported HP is not a number');
+    // HP the site will show, or the link and the write-up disagree. No capstone
+    // grants autododge since the Lightspeed rework, so the avoidance here is the
+    // SPD 110 milestone (15%).
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'tank' }, data);
+    const b = M.emptyBuild();
+    b.level = 50; b.klass = 'Ranger (Or)'; b.race = 'Estella (24%)';
+    b.invested.spd = O.investedForTotal(b, 'spd', data.STAT_MILESTONE_TIERS[2]);
+    const c = O.evaluate(b, spec);
+    eq(c.milestones.dodgePct, 15, 'SPD 110 does not grant 15% autododge');
+    ok(Number.isFinite(c.hp) && c.hp > 0, 'reported HP is not a number');
+    ok(Math.abs(c.hp - M.derived(b).hp) < 1e-9, 'the reported HP ' + c.hp + ' is not the site HP ' + M.derived(b).hp);
+    ok(c.hp < c.effectiveHp, 'the two figures are the same, so one of them is wrong');
+    ok(Math.abs(c.effectiveHp - c.hp / (1 - 0.15)) < 1e-9, 'effective HP does not carry the 15% avoidance: ' + c.effectiveHp);
+    // One point short of the milestone: no avoidance, and the figures agree.
+    b.invested.spd -= 1;
+    const short = O.evaluate(b, spec);
+    ok(short.siteStats.spd < data.STAT_MILESTONE_TIERS[2], 'the probe did not drop under 110');
+    eq(short.effectiveHp, short.hp, 'avoidance counted without the milestone');
   });
 
   it('discounts a conditional ability, and does not discount an unconditional one', () => {
-    // Uptime is the whole reason this table exists: a +100% that needs the
-    // target stunned first cannot be scored like a +100% that always applies.
+    // Uptime is the whole reason this table exists: a +50% that has to be
+    // charged first cannot be scored like a +50% that always applies.
     const r = engine.ask('', { klass: 'Lancer (N)', goal: 'damage' });
-    const overload = K.MASTERY_ABILITIES['Overload'];
-    ok(overload && overload.uptime < 0.35,
-       'Overload needs the enemy stunned, so it cannot be near full uptime');
+    const cell = K.MASTERY_ABILITIES['Cell Charge'];
+    ok(cell && cell.uptime < 0.35,
+       'Cell Charge needs 10 blocks or 20 dodges first, so it cannot be near full uptime');
 
     // Every entry with an uptime below 1 must contribute less than its face
     // value, and every entry at 1 must contribute exactly its face value.
@@ -6341,6 +6597,105 @@ describe('flat damage and gear actives', () => {
   });
 });
 
+// ── damage reduction is an armour formula (owner, 2026-09-17) ───────────────
+describe('damage reduction armour formula', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  const siteFn = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+  const near = (a, b, what) => ok(Math.abs(a - b) < 1e-9, what + ': expected ' + b + ', got ' + a);
+
+  it('takes 100 / (100 + DR) of a hit, and 2 - 100 / (100 - DR) below zero', () => {
+    const f = K.drDamageTakenMult;
+    eq(f(0), 1, 'no DR changes damage');
+    eq(f(100), 0.5, '100 DR does not halve damage');
+    eq(f(300), 0.25, '300 DR does not take a quarter');
+    near(f(50), 2 / 3, '50 DR');
+    eq(f(-100), 1.5, '-100 DR does not take 1.5x');
+    near(f(-50), 4 / 3, '-50 DR');
+    ok(f(1e6) > 0 && f(-1e6) < 2, 'the formula leaves its 0x-2x range');
+  });
+
+  it('the site and the engine use the same formula', () => {
+    const site = new Function(siteFn('drDamageTakenMult') + '; return drDamageTakenMult;')();
+    for (const dr of [-250, -100, -37.5, -1, 0, 1, 11, 50, 80, 106, 300]) {
+      near(site(dr), K.drDamageTakenMult(dr), 'at ' + dr + ' DR');
+    }
+  });
+
+  it('survival reads DR as effective health, with no cap', () => {
+    near(K.drSurvivalMult(106), 2.06, '106 DR is not 2.06x effective health');
+    // The old linear reading capped the sum at 80; the formula needs no cap.
+    const c = { hp: 400, blockDr: 80, incHeal: 100, outHeal: 100, bestHit: 100, healPerTurn: 10, stats: { spd: 0 } };
+    for (const a of ['tank', 'heal', 'balanced', 'party']) {
+      const score = K.ARCHETYPES[a].score;
+      ok(score({ ...c, blockDr: 106 }) > score(c), a + ' stops paying for DR past 80');
+      ok(score({ ...c, blockDr: -20 }) < score({ ...c, blockDr: 0 }), a + ' does not penalise negative DR');
+      // Tank and heal scale by the survival figure alone, so the negative
+      // branch shows exactly (the old linear reading gives 0.8, not 0.857).
+      if (a === 'tank' || a === 'heal') {
+        near(score({ ...c, blockDr: -20 }) / score({ ...c, blockDr: 0 }), K.drSurvivalMult(-20), a + ' negative DR');
+      }
+    }
+  });
+
+  it('the block DR readout says what its points stop', () => {
+    ok(/drDamageTakenMult\(_bdr\)/.test(src), 'the block DR tooltip does not use the formula');
+  });
+});
+
+// ── builder state the 2026-09 patch review found leaking ────────────────────
+describe('builder state after a load or a mastery change', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  const fnBody = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start);
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) return src.slice(start, i + 1); }
+    }
+    return '';
+  };
+
+  it('a loaded build starts with every stat buff switched off', () => {
+    // Overload's switch also reaches the Luck row's crit chance, so a leftover
+    // one inflated the next build loaded into the same page.
+    ok(/Object\.keys\(statBuffsActive\)\.forEach\(k => \{ statBuffsActive\[k\] = false; \}\);/.test(fnBody('loadBuildState')),
+       'loadBuildState does not reset statBuffsActive');
+  });
+
+  it("crit chance reads the same Luck multipliers as getTotalStat, in its order", () => {
+    const up = fnBody('updatePecents');
+    const at = re => { const m = re.exec(up); return m ? m.index : -1; };
+    const order = [/_looterLckMult = 1 \+ looterStacks \* 0\.1575/, /totalLck = Math\.round\(totalLck \* 1\.10\)/,
+                   /permuthStat === 'lck'[^\n]*totalLck \* 1\.4/, /_ivoryLckMult = ivoryStatMult\(\)/, /midasLckMult\(\)/];
+    const idx = order.map(at);
+    ok(idx.every(i => i !== -1), 'crit chance is missing a Luck multiplier: ' + JSON.stringify(idx));
+    ok(idx.every((v, i) => !i || v > idx[i - 1]), 'crit chance applies the Luck multipliers out of order: ' + JSON.stringify(idx));
+  });
+
+  it('a mastery change clears stale stat-buff switches before the stat pass', () => {
+    for (const fn of ['toggleMasteryNode', 'resetMastery']) {
+      ok(/renderDmgBonusSection\(\);[^\n]*\r?\n\s*updatePecents\(\);\r?\n\s*renderDmgBonusSection\(\);/.test(fnBody(fn)),
+         fn + ' runs the stat pass before clearing switches whose node is gone');
+    }
+  });
+
+  it('only a real summon gets a Self Destruct box, and its tag names the milestone', () => {
+    ok(/if \(hasIH && moves\.some\(isSummonAttack\)\) \{/.test(src), "Arbiter's own Base Move group gets a Self Destruct box");
+    ok(/buildBonusTag\(out\.activeMult, out\.energyMult, out\.milestoneMult, m\)/.test(fnBody('renderSelfDestruct')),
+       'the Self Destruct tag does not name the milestone multiplier');
+  });
+});
+
 // ── crit tiers add +1 (Withered Grove rework) ───────────────────────────────
 describe('crit tiers add +1 to the multiplier', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
@@ -6495,6 +6850,144 @@ describe('Enhanced Bloodlust stacks and move crit bonuses', () => {
   });
 });
 
+// ── Lancer and Ranger rework (patch 2026-09-16) ─────────────────────────────
+describe('Lancer and Ranger rework', () => {
+  const root = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(root, 'js', 'builder.js'), 'utf8');
+  const classSrc = fs.readFileSync(path.join(root, 'js', 'data-class-moves.js'), 'utf8');
+  const O = engine.optimizer, M = engine.model;
+  // Pull one top-level function out of builder.js by its name.
+  const siteFn = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+  // A DMG calc counter, run on its own: returns step(delta) -> the new count.
+  const noop = () => {};
+  const counter = (fn, v, start) => new Function('renderDmgBonusSection', 'recalcOpenDetails', 'updatePecents', v,
+    siteFn(fn) + '\nreturn d => { ' + fn + '(d); return ' + v + '; };')(noop, noop, noop, start);
+  const learn = (k, n) => (((data.classMoves || {})[k] || {}).learns || []).find(m => m.name === n);
+
+  it("Empowered Pierce's +50% on a crit multiplies only the crit share", () => {
+    // Patch: Empowered Pierce costs 3 and "Deals 50% more damage when this attack
+    // lands a Critical Hit"; Discharge costs 2 on a 4-turn cooldown.
+    const ep = learn('Lancer (N)', 'Empowered Pierce'), dis = learn('Lancer (N)', 'Discharge');
+    ok(ep && dis, 'no Empowered Pierce or Discharge in the data snapshot');
+    eq(ep.cost, 3, 'Empowered Pierce cost');
+    eq(ep.critDmgBonus, 50, 'Empowered Pierce critDmgBonus');
+    eq(dis.cost, 2, 'Discharge cost');
+    eq(dis.cooldown, 4, 'Discharge cooldown');
+    ok(/name: "Empowered Pierce",[^}]{0,300}critDmgBonus: 50,/.test(classSrc),
+       'js/data-class-moves.js gives Empowered Pierce no critDmgBonus 50');
+    eq(O.moveCritMult({ name: 'Empowered Pierce', critDmgBonus: 50 }, 50, 2.25, false), 0.5 + 0.5 * 2.25 * 1.5,
+       'Empowered Pierce at 50% crit');
+    eq(O.moveCritMult({ critDmgBonus: 50 }, 150, 2.25, false), M.expectedMultiplier(150, 2.25) * 1.5,
+       'Empowered Pierce at 150% crit');
+    eq(O.moveCritMult({ critDmgBonus: 50 }, 50, 2.25, true), 2.25 * 1.5, 'the potential model');
+    // The site's expectation (getExpectedMoveCritDmg, applied at the call sites
+    // so the pinned crit bodies stay as they are) and the model's agree.
+    const site = new Function(siteFn('getExpectedCritMult') + '\n' + siteFn('getExpectedMultiHitDmg') + '\n' +
+      siteFn('getExpectedMoveCritDmg') + '; return getExpectedMoveCritDmg;')();
+    for (const cc of [0, 30, 50, 99.5, 100, 150, 230]) {
+      const a = site(1, 2.25, cc, 1.5), b = O.moveCritMult({ critDmgBonus: 50 }, cc, 2.25, false);
+      ok(Math.abs(a - b) < 1e-9, 'at ' + cc + '% crit the site says ' + a + ' and the model ' + b);
+    }
+    eq(site(10, 2.25, 50, 1), 10 * 1.625, 'a move with no crit bonus is not the plain expectation');
+    ok(/const moveCritDmgMult = 1 \+ \(\+m\.critDmgBonus \|\| 0\) \/ 100;/.test(src),
+       'the DMG calc no longer reads critDmgBonus');
+    ok(/buildOvercritLines\(_resFinalDmg \* moveCritDmgMult, /.test(src),
+       'the overcrit lines do not carry the crit bonus');
+  });
+
+  it('Stinger and Perennial Canopy scale on SPD/80', () => {
+    for (const n of ['Stinger', 'Perennial Canopy']) {
+      ok(new RegExp('name: "' + n + '",[^}]{0,400}scaling: "ARC/70 \\+ SPD/80",').test(classSrc),
+         n + ' is not ARC/70 + SPD/80 in js/data-class-moves.js');
+      eq((learn('Ranger (Or)', n) || {}).scaling, 'ARC/70 + SPD/80', n + ' scaling in the data snapshot');
+    }
+    eq(K.MOVE_OVERRIDES.Stinger[0].second.scaling, 'ARC/70 + SPD/80', "the Build AI's Stinger arrows");
+    ok(/10 \* \(1 \+ _arcVal \/ 70 \+ _spdVal \/ 80\)/.test(src), "the DMG calc's Stinger arrows are not ARC/70 + SPD/80");
+    ok(/Arrows \(Poison\): 10\(1 \+ ARC\(\$\{_arcVal\}\)\/70 \+ SPD\(\$\{_spdVal\}\)\/80\)/.test(src),
+       'the Stinger formula label does not say SPD/80');
+  });
+
+  it('Verdant Archer and Poised Slayer stack up to their caps', () => {
+    ok(/const VERDANT_ARCHER_CAP = 150;/.test(src), 'Verdant Archer is not capped at 150%');
+    ok(/const POISED_SLAYER_CAP = 50;/.test(src), 'Poised Slayer is not capped at 50%');
+    const body = siteFn('getActiveDmgMult');
+    ok(/p\.name === "Verdant Archer"\)\s*\{ mult \*= \(1 \+ Math\.min\(VERDANT_ARCHER_CAP, p\.bonus \* verdantArcherStacks\) \/ 100\); return; \}/.test(body),
+       'Verdant Archer stacks are not capped');
+    ok(/p\.name === "Poised Slayer"\)\s*\{ mult \*= \(1 \+ Math\.min\(POISED_SLAYER_CAP, p\.bonus \* poisedSlayerStacks\) \/ 100\); return; \}/.test(body),
+       'Poised Slayer stacks are not capped');
+    // Nature's Wrath doubles the parsed per-stack bonus (15 -> 30) instead of
+    // writing a fixed figure over it.
+    ok(/const vaEntry = merged\.find\(e => e\.name === "Verdant Archer"\);\s*if \(vaEntry\) vaEntry\.bonus = vaEntry\.bonus \* 2;/.test(src),
+       "Nature's Wrath does not double Verdant Archer's bonus");
+    const va = counter('changeVerdantArcherStacks', 'verdantArcherStacks', 1);
+    eq(va(100), 10, 'the Verdant Archer counter does not stop at 10');
+    eq(va(-100), 1, 'the Verdant Archer counter goes under 1');
+    const ps = counter('changePoisedSlayerStacks', 'poisedSlayerStacks', 1);
+    eq(ps(100), 5, 'the Poised Slayer counter does not stop at 5 (+50%)');
+    eq(ps(-100), 1, 'the Poised Slayer counter goes under 1');
+    const sf = counter('changeSwiftFighterStacks', 'swiftFighterStacks', 1);
+    eq(sf(100), 2, 'the Swift Fighter counter does not stop at 2 dodges (the 30% cap)');
+    // The Build AI prices each as one stack.
+    const passive = (k, n) => (K.PASSIVES[k] || []).find(p => p.name === n) || {};
+    ok(passive('Lancer (N)', 'Poised Slayer').kind === 'dmgPct' && passive('Lancer (N)', 'Poised Slayer').value === 10,
+       'Poised Slayer is not +10% damage in the Build AI');
+    ok(passive('Ranger (Or)', 'Verdant Archer').kind === 'dmgPct' && passive('Ranger (Or)', 'Verdant Archer').value === 15,
+       'Verdant Archer is not +15% damage in the Build AI');
+  });
+
+  it('Overload is +10% Strength and Luck, on the site and in the Build AI', () => {
+    const o = K.MASTERY_ABILITIES.Overload;
+    ok(o && o.kind !== 'dmgPct', 'Overload is still priced as a damage bonus');
+    eq(JSON.stringify(o.effects), JSON.stringify([{ kind: 'statPct', stat: 'str', value: 10 },
+                                                   { kind: 'statPct', stat: 'lck', value: 10 }]),
+       'Overload is not +10% STR and +10% LCK');
+    eq(K.MASTERY_ABILITIES.Lightspeed.kind, 'statFromStat', 'Lightspeed is not a stat-from-stat ability');
+    eq(((data.masteryAbilities['Lancer (N)'] || {}).cm1 || {}).bonus, null,
+       "Overload's text still parses as a damage bonus");
+    // Site: both stats, and the Luck half reaches crit chance before Permuth.
+    ok(/if \(\(statKey === "str" \|\| statKey === "lck"\) && statBuffsActive\.overloadStrLck\) total = Math\.round\(total \* 1\.10\);/.test(src),
+       'getTotalStat does not apply Overload to STR and LCK');
+    const coag = src.indexOf('if (coagNailActive) totalLck += coagNailBonus;');
+    const over = src.indexOf('if (_overloadLck) totalLck = Math.round(totalLck * 1.10);');
+    const perm = src.indexOf("if (permuthStat === 'lck' && markPicker?.value === 'Venia') totalLck");
+    ok(coag !== -1 && over > coag && perm > over, 'the crit Luck total does not apply Overload between the nail and Permuth');
+    // Build AI: the percentage lands on the in-fight totals only, at its uptime.
+    const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const tree = ['s1', 's2', 's3', 's4', 'c1', 'c2a', 'c3a', 'cb1'];
+    const mk = nodes => {
+      const b = M.emptyBuild();
+      b.level = 50; b.klass = 'Lancer (N)'; b.race = 'Estella (24%)';
+      b.invested.str = 60; b.invested.lck = 40; b.masteryNodes = nodes;
+      return b;
+    };
+    eq((data.masteryAbilities['Lancer (N)'] || {}).cm1.name, 'Overload', 'the fixture capstone moved');
+    const withO = O.evaluate(mk(tree.concat('cm1')), spec), without = O.evaluate(mk(tree.slice()), spec);
+    const pct = 1 + 10 * o.uptime / 100;
+    ok(Math.abs(withO.stats.str - withO.siteStats.str * pct) < 1e-9, 'Overload STR: ' + withO.stats.str + ' from ' + withO.siteStats.str);
+    ok(Math.abs(withO.stats.lck - withO.siteStats.lck * pct) < 1e-9, 'Overload LCK: ' + withO.stats.lck + ' from ' + withO.siteStats.lck);
+    eq(withO.siteStats.str, without.siteStats.str, 'Overload leaked into the site Strength total');
+    ok(withO.critChance > without.critChance, "Overload's Luck does not reach crit chance");
+  });
+
+  it('Lightspeed and Swift Fighter are Speed buffs on the site', () => {
+    ok(/statBuffsActive\.lightspeedSpd \? Math\.round\(getTotalStat\("arc"\) \* 0\.10\) : 0/.test(src),
+       'Lightspeed is not a flat Speed buff of 10% of Arcane');
+    ok(/statBuffsActive\.swiftFighterSpd \? Math\.min\(30, 20 \* swiftFighterStacks\) : 0/.test(src),
+       'Swift Fighter is not 20% Speed a dodge capped at 30%');
+    ok(/const _hasLightspeed = _superClass === "Ranger \(Or\)" && !!masteryState\["cm1"\];/.test(src),
+       'the Lightspeed buff is not gated on the Ranger capstone');
+  });
+});
+
 // ── Cold registers as a status a kit applies ─────────────────────────────────
 describe('Cold is a status a kit can apply', () => {
   const O = engine.optimizer, M = engine.model;
@@ -6521,6 +7014,288 @@ describe('Cold is a status a kit can apply', () => {
     const fd = c => (c.gearPassives.active || []).find(a => a.name === 'Frozen Diadem') || {};
     ok(!fd(cold).inert, 'Frozen Diadem was switched off on a Boreas kit that applies Cold');
     ok(fd(dry).inert, 'Frozen Diadem paid on a kit that applies no Cold');
+  });
+});
+
+// ── Balance patch 2026-09-16: DMG calc stacks and conversions ───────────────
+// Shared by the next two groups: pull a top-level function out of builder.js
+// (or move-renderer.js), and run the DMG calc's multiplier chain on its own
+// with only the state a test names.
+const patchSite = (() => {
+  const root = path.join(__dirname, '..', '..');
+  const src = fs.readFileSync(path.join(root, 'js', 'builder.js'), 'utf8');
+  const renderer = fs.readFileSync(path.join(root, 'js', 'move-renderer.js'), 'utf8');
+  const fn = (name, text) => {
+    const from = text || src;
+    const start = from.indexOf('function ' + name + '(');
+    ok(start !== -1, 'no function ' + name);
+    let depth = 0, i = from.indexOf('{', start), end = -1;
+    for (; i < from.length; i++) {
+      if (from[i] === '{') depth++;
+      else if (from[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return from.slice(start, end);
+  };
+  const noop = () => {};
+  // A DMG calc counter, run on its own: returns step(delta) -> the new count.
+  const counter = (name, v, start) => new Function('renderDmgBonusSection', 'recalcOpenDetails', 'updatePecents', v,
+    fn(name) + '\nreturn d => { ' + name + '(d); return ' + v + '; };')(noop, noop, noop, start);
+  // getActiveDmgMult with every passive in `names` switched on. Identifiers a
+  // branch never reaches are never looked up, so only the always-read state
+  // and whatever the test passes in `state` need to exist.
+  const activeMult = (names, state) => {
+    const rows = names.map((name, i) => ({ key: 'k' + i, name, bonus: (state.bonus || {})[name] }));
+    const scope = Object.assign({
+      dmgBonusPassives: rows, dmgBonusActive: Object.fromEntries(rows.map(r => [r.key, true])),
+      statusEffectsActive: {}, TEAM_BUFFS: [], teamBuffsActive: {}, summonBuffsActive: {},
+      getCorruptionDmgMult: () => 1, sinisterGazeReflect: false, sinisterGazeBloodProf: false,
+    }, state);
+    delete scope.bonus;
+    return new Function(...Object.keys(scope), fn('getActiveDmgMult') + '; return getActiveDmgMult();')(...Object.values(scope));
+  };
+  const near = (a, b, what) => ok(Math.abs(a - b) < 1e-9, what + ': expected ' + b + ', got ' + a);
+  return { src, renderer, fn, counter, activeMult, near };
+})();
+
+describe('Boreas and Vydeer rework', () => {
+  const { src, renderer, fn: siteFn, counter, activeMult, near } = patchSite;
+  const O = engine.optimizer, M = engine.model;
+
+  it("Boreas turns your own Physical and Magic moves into Ice, and nobody else's", () => {
+    // Patch: Boreas's Physical and Arcane (the site's Magic) moves become Ice.
+    // Wicked Crown applies first [assumed], a summon's attacks keep their
+    // written type, and Arbiter's Base Move is the player's own.
+    const state = { race: 'Boreas (1%)', crown: false };
+    const get = new Function('hasGearEquipped', 'racePicker',
+      siteFn('isSummonMove', renderer) + '\n' + siteFn('isSummonAttack') + '\n' +
+      siteFn('getEffectiveMoveType') + '; return getEffectiveMoveType;'
+    )(n => n === 'Wicked Crown' && state.crown, { get value() { return state.race; } });
+    const own = { slot: '2nd Learn' };
+    eq(get('Physical', own), 'Ice', 'Boreas Physical');
+    eq(get('Magic', own), 'Ice', 'Boreas Magic');
+    eq(get('Fire', own), 'Fire', 'Boreas Fire');
+    eq(get('Holy', own), 'Holy', 'Boreas Holy');
+    eq(get('Physical'), 'Ice', "Stinger's stab (no move passed) under Boreas");
+    eq(get('Physical', { slot: 'Skeleton' }), 'Physical', 'a Skeleton attack under Boreas');
+    eq(get('Physical', { slot: 'Darkbeast' }), 'Physical', 'a Darkbeast attack under Boreas');
+    eq(get('Physical', { slot: 'Base Move' }), 'Ice', "Arbiter's Base Move under Boreas");
+    eq(get('Magic', { slot: 'Sheea (Elementalist)' }), 'Magic', "a Heaven's Authority Sheea attack under Boreas");
+    state.crown = true;
+    eq(get('Physical', own), 'Dark', 'a crowned Boreas Physical move (the crown goes first)');
+    eq(get('Magic', own), 'Ice', 'a crowned Boreas Magic move');
+    state.race = 'Amorus (Ob)';
+    eq(get('Magic', own), 'Magic', 'a crowned Amorus Magic move');
+    state.crown = false;
+    eq(get('Physical', own), 'Physical', 'an Amorus Physical move');
+    // Every caller that has the move passes it, or its summons would convert.
+    ok(!/getEffectiveMoveType\(m\.moveType\)/.test(src),
+       'a caller reads the effective type without passing the move');
+  });
+
+  it('the Build AI reads a Boreas kit as Ice, except its summons', () => {
+    const els = (klass, race) => O.buildDoes({ klass, race }).elements;
+    ok(els('Impaler (Ch)', 'Amorus (Ob)').has('physical'), 'fixture: the Impaler kit has no Physical attack');
+    const boreas = els('Impaler (Ch)', 'Boreas (1%)');
+    ok(boreas.has('ice') && !boreas.has('physical') && !boreas.has('magic'),
+       'a Boreas Impaler kit still reads as ' + [...boreas].join(', '));
+    const smack = (data.classMoves['Necromancer (Ch)'].learns || []).find(m => m.name === 'Smack');
+    ok(smack && smack.moveType === 'Physical' && K.isSummonSlot(smack), 'fixture: Smack is no longer a Physical Skeleton attack');
+    ok(els('Necromancer (Ch)', 'Boreas (1%)').has('physical'), "a Boreas Necromancer's Skeleton attacks were read as Ice");
+    ok(!K.isSummonSlot({ slot: 'Base Move' }), "K.isSummonSlot reads Arbiter's Base Move as a summon");
+    ok(K.isSummonSlot({ slot: 'Sheea (Saint)' }), "K.isSummonSlot misses a Heaven's Authority Sheea row");
+  });
+
+  it('a converted kit reads the Ice column, which no boss resists', () => {
+    // Handaconda resists Physical and Arcane at x0.5 and has no Ice column, so a
+    // Boreas Impaler's converted nuke lands in full while an Amorus one is halved.
+    const res = ((data.BOSS_DATA || {}).Handaconda || {}).res || {};
+    ok(res.Physical < 1 && res.Arcane < 1 && res.Ice === undefined,
+       'fixture: Handaconda no longer resists Physical and Arcane, or has an Ice column');
+    const plain = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
+    const vs = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage', boss: 'Handaconda' }, data);
+    const ratio = race => {
+      const b = M.emptyBuild();
+      b.level = 50; b.klass = 'Impaler (Ch)'; b.race = race; b.invested.str = 100;
+      return O.evaluate(b, vs).bestHit / O.evaluate(b, plain).bestHit;
+    };
+    near(ratio('Boreas (1%)'), 1, 'a Boreas Impaler against Handaconda');
+    ok(ratio('Amorus (Ob)') < 0.99, 'fixture: an Amorus Impaler is not resisted by Handaconda at all');
+  });
+
+  it('Frost Stacks: +10% damage a stack, five at most', () => {
+    ok(/p\.name === "Frost Stacks"\)\s*\{ mult \*= \(1 \+ 0\.10 \* boreasStacks\)/.test(siteFn('getActiveDmgMult')),
+       'Frost Stacks is not +10% a stack');
+    near(activeMult(['Frost Stacks'], { boreasStacks: 5 }), 1.5, 'five Frost Stacks');
+    near(activeMult(['Frost Stacks'], { boreasStacks: 1 }), 1.1, 'one Frost Stack');
+    const step = counter('changeBoreasStacks', 'boreasStacks', 1);
+    eq(step(100), 5, 'the Frost Stacks counter does not stop at 5');
+    eq(step(-100), 1, 'the Frost Stacks counter goes under 1');
+    ok(/const fsKey = "passive:Frost Stacks";[\s\S]{0,120}key: fsKey, name: "Frost Stacks", bonus: 10,/.test(src),
+       'no Frost Stacks entry at +10% a stack');
+    const fs_ = [...(data.raceMoves['Boreas (1%)'].innatePassives || []), ...(data.raceMoves['Boreas (1%)'].learns || [])]
+      .find(m => m.name === 'Frost Stacks');
+    ok(fs_, 'no Frost Stacks in the Boreas data');
+  });
+
+  it('Soul Reversal: +10% per Sense consumed, set with a counter', () => {
+    const body = siteFn('getActiveDmgMult');
+    ok(body.indexOf('p.name === "Soul Reversal"') !== -1 && body.indexOf('0.10 * vydeerSenseConsumed') !== -1,
+       'Soul Reversal is not +10% per Sense consumed');
+    near(activeMult(['Soul Reversal'], { vydeerSenseConsumed: 3 }), 1.3, 'three Sense consumed');
+    const step = counter('changeVydeerSense', 'vydeerSenseConsumed', 1);
+    eq(step(100), 10, 'the Sense counter does not stop at its UI limit of 10');
+    eq(step(-100), 1, 'the Sense counter goes under 1');
+    ok(/if \(raceName === "Vydeer \(1%\)"\) \{\s*const srKey = "buff:Soul Reversal";/.test(src),
+       'no Soul Reversal entry for a Vydeer');
+    ok(/^\s+vydeerSenseConsumed = 1;/m.test(src), 'the Sense counter is not reset when a build loads');
+    const sr = (data.raceMoves['Vydeer (1%)'].learns || []).find(m => m.name === 'Soul Reversal');
+    ok(sr && /10% per Sense consumed/.test(sr.effect), 'Soul Reversal no longer says 10% per Sense consumed');
+  });
+});
+
+describe('Berserker, Brawler, Midas and crit sources', () => {
+  const { src, fn: siteFn, counter, activeMult, near } = patchSite;
+  const M = engine.model;
+  const parse = new Function(siteFn('parseDmgBonus') + '; return parseDmgBonus;')();
+  const own = (k, n) => {
+    const e = (data.classMoves || {})[k] || {};
+    return [...(e.learns || []), ...(e.innatePassives || [])].find(m => m.name === n);
+  };
+
+  it('Bloodlust adds +5% a stack, +10% in Rage, and Rage Empower is only the switch', () => {
+    // Owner (patch 2026-09-16): stacks add up. 4 stacks = +20%, or +40% in Rage.
+    const pct = (stacks, rage) => new Function('bloodlustStacks', 'bloodlustRage',
+      siteFn('bloodlustPct') + '; return bloodlustPct();')(stacks, rage);
+    eq(pct(4, false), 20, 'four stacks out of Rage');
+    eq(pct(4, true), 40, 'four stacks in Rage');
+    near(activeMult(['Bloodlust'], { bloodlustPct: () => pct(4, false) }), 1.2, 'the multiplier at four stacks');
+    near(activeMult(['Bloodlust'], { bloodlustPct: () => pct(4, true) }), 1.4, 'the multiplier at four stacks in Rage');
+    // The counter runs 1-20 and the switch flips the per-stack figure.
+    const run = new Function('renderDmgBonusSection', 'recalcOpenDetails',
+      'let bloodlustStacks = 1, bloodlustRage = false;\n' + siteFn('bloodlustPct') + '\n' +
+      siteFn('changeBloodlustStacks') + '\n' + siteFn('toggleBloodlustRage') +
+      '\nreturn { pct: bloodlustPct, add: changeBloodlustStacks, rage: toggleBloodlustRage };')(() => {}, () => {});
+    run.add(100);
+    eq(run.pct(), 100, 'the Bloodlust counter does not stop at 20');
+    run.rage();
+    eq(run.pct(), 200, 'the In Rage switch does not double the per-stack figure');
+    run.add(-100);
+    eq(run.pct(), 10, 'the Bloodlust counter goes under 1');
+    run.rage();
+    eq(run.pct(), 5, 'the In Rage switch does not switch back');
+    const body = siteFn('getActiveDmgMult');
+    ok(/else if \(p\.name === "Bloodlust"\)\s*\{ mult \*= \(1 \+ bloodlustPct\(\) \/ 100\); return; \}/.test(body),
+       'the Bloodlust multiplier does not read bloodlustPct()');
+    ok(body.indexOf('Rage Empower') === -1, 'Rage Empower still has a damage branch of its own');
+    ok(/m\.name !== "Rage Empower" && \(m\.category === "Buff"/.test(src),
+       "Rage Empower's text can become a DMG toggle again");
+    ok(/'bloodlustRage' in row\.dataset\) \{\s*row\.addEventListener\("click", \(\) => toggleBloodlustRage\(\)\);/.test(src),
+       'the In Rage row is not wired to toggleBloodlustRage');
+    ok(/^\s+bloodlustStacks = 1;\r?\n\s+bloodlustRage = false;/m.test(src), 'Rage is not switched off when a build loads');
+    // The data: Rage Empower is a pure toggle, Bloodlust states the new sums.
+    const rage = own('Berserker (Ch)', 'Rage Empower'), bl = own('Berserker (Ch)', 'Bloodlust');
+    ok(rage && bl, 'no Rage Empower or Bloodlust in the data snapshot');
+    eq(rage.duration, undefined, 'Rage Empower still has a duration');
+    ok(/Toggles Rage on or off/.test(rage.effect) && !/\bHP\b|health/i.test(rage.effect),
+       'Rage Empower is not a pure Rage toggle: ' + rage.effect);
+    ok(/4 stacks = \+20% damage, or \+40% in Rage/.test(bl.effect), 'Bloodlust does not state the patch sums');
+    const frail = (data.raceMoves['Calvariae (3%)'].innatePassives || []).find(p => p.name === 'Frail Body');
+    ok(frail && !/Rage Empower/.test(frail.description), 'Frail Body still names Rage Empower');
+    // The Build AI: five stacks in Rage at half uptime, no longer HP-gated.
+    const p = (K.PASSIVES['Berserker (Ch)'] || []).find(x => x.name === 'Bloodlust') || {};
+    ok(p.kind === 'dmgPct' && p.value === 50 && p.uptime === 0.5 && p.source === 'patch' && !p.hpGate,
+       'the Build AI does not price Bloodlust at 50 x 0.5 from the patch: ' + JSON.stringify(p));
+    ok(/\[assumed\]/.test(p.note || ''), 'the assumed stack count is not flagged in the note');
+  });
+
+  it('Crusher counts every status applied, capped at +75%', () => {
+    const mult = n => new Function('crusherStacks', siteFn('getCrusherMult') + '; return getCrusherMult();')(n);
+    near(mult(1), 1.07, 'one status');
+    near(mult(8), Math.pow(1.07, 8), 'eight statuses');
+    eq(mult(9), 1.75, 'nine statuses (the first count the cap cuts)');
+    eq(mult(20), 1.75, 'twenty statuses');
+    ok(Math.pow(1.07, 8) < 1.75, 'the cap cuts earlier than nine; the counter limit is stale');
+    near(activeMult(['Crusher'], { getCrusherMult: () => mult(9) }), 1.75, 'the multiplier at the cap');
+    const step = counter('changeCrusherStacks', 'crusherStacks', 1);
+    eq(step(100), 9, 'the Crusher counter does not stop at 9');
+    eq(step(-100), 1, 'the Crusher counter goes under 1');
+    // The toggle exists because parseDmgBonus reads the 7, not the 75.
+    const crusher = own('Brawler (N)', 'Crusher');
+    ok(crusher && /including one the target already has/.test(crusher.effect) && /capped at 75%/.test(crusher.effect),
+       'Crusher no longer counts re-applied statuses up to a 75% cap');
+    eq(parse(crusher.effect), 7, 'the Crusher text does not parse as +7%');
+  });
+
+  it('Midas procs stack +5% Luck, four at most, into the Luck row and crit chance', () => {
+    const mult = (stacks, enchant) => new Function('document', 'midasLckStacks',
+      siteFn('midasLckMult') + '; return midasLckMult();')({ getElementById: () => ({ value: enchant }) }, stacks);
+    eq(mult(0, 'Midas'), 1, 'no stacks');
+    near(mult(1, 'Midas'), 1.05, 'one stack');
+    near(mult(4, 'Midas'), 1.2, 'four stacks');
+    near(mult(9, 'Midas'), 1.2, 'past four stacks');
+    eq(mult(4, 'Ivory'), 1, 'Midas stacks applied with another enchant');
+    const set = new Function('renderDmgBonusSection', 'recalcOpenDetails', 'updatePecents', 'midasLckStacks',
+      siteFn('setMidasLckStacks') + '\nreturn v => { setMidasLckStacks(v); return midasLckStacks; };')(() => {}, () => {}, () => {}, 0);
+    eq(set(9), 4, 'the Midas slider goes past 4');
+    eq(set(-2), 0, 'the Midas slider goes under 0');
+    eq(set('x'), 0, 'a bad slider value is not read as 0');
+    ok(/min="0" max="4" value="\$\{midasLckStacks\}" oninput="setMidasLckStacks\(this\.value\)"/.test(src),
+       'no 0-4 Midas Luck slider in the DMG calc');
+    ok(/if \(_ivoryMult > 1\) total = Math\.round\(total \* _ivoryMult\);\s*if \(statKey === "lck"\) \{ const _midasMult = midasLckMult\(\);/.test(src),
+       'getTotalStat does not apply the Midas stacks after Ivory');
+    const perm = src.indexOf("if (permuthStat === 'lck' && markPicker?.value === 'Venia') totalLck");
+    const midas = src.indexOf('const _midasMult = midasLckMult(); if (_midasMult > 1) totalLck = Math.round(totalLck * _midasMult);');
+    ok(perm !== -1 && midas > perm, 'the crit Luck total does not apply the Midas stacks after Permuth');
+    ok((src.match(/^\s+midasLckStacks = 0;/mg) || []).length >= 2,
+       'the Midas stacks are not reset on both an enchant change and a build load');
+    ok(/\+5% Luck/.test(((K.ENCHANTS || {}).Midas || {}).note || ''), "the Build AI's Midas note does not mention the Luck stacks");
+  });
+
+  it('Crystal Sphere adds +5% crit damage through gearPctBonuses', () => {
+    eq(((data.gearPctBonuses || {})['Crystal Sphere'] || {})['crit-dmg'], 0.05, 'Crystal Sphere crit-dmg in the data snapshot');
+    ok(/"Crystal Sphere":\s*\{ "crit-chance": 5, "crit-dmg": 0\.05 \}/.test(src), 'builder.js gearPctBonuses has no Crystal Sphere crit-dmg');
+    const b = M.emptyBuild();
+    b.level = data.Max_Lvl; b.klass = 'Lancer (N)'; b.race = 'Estella (24%)';
+    const before = M.derived(b).critDmg;
+    b.gear = [{ name: 'Crystal Sphere', tier: 0, alloc: {}, traits: [] }];
+    near(M.derived(b).critDmg - before, 0.05, 'the crit damage Crystal Sphere adds in the model');
+    // Its text must not read as a damage toggle.
+    eq(parse(String((data.itemPassives || {})['Crystal Sphere'] || '')), null, 'the Crystal Sphere text parses as a damage bonus');
+    eq(((K.GEAR_PASSIVES || {})['Crystal Sphere'] || {}).kind, 'onSite', 'Crystal Sphere is priced a second time');
+  });
+
+  it('Soul Tree Critical Point is +2% crit damage a rank', () => {
+    const node = (((data.soulTreeData || {})['Path of Destruction']) || []).find(n => n.id === 'crit_point');
+    ok(node, 'no Critical Point in the data snapshot');
+    eq(node.perRank, 2, 'Critical Point per rank');
+    eq((node.bonus || {})['crit-dmg'], 0.02, 'Critical Point crit-dmg per rank');
+    near(node.maxRank * node.bonus['crit-dmg'], 0.10, 'Critical Point at max rank');
+    // One line per node; its desc holds "{v}", so match within the line.
+    ok(/id: "crit_point",\s*name: "Critical Point",[^\n]*perRank: 2,[^\n]*bonus: \{"crit-dmg": 0\.02\}/.test(src),
+       'builder.js soulTreeData does not give Critical Point 2% a rank');
+  });
+
+  it('Holy Crash is 18 base, and 20 with its Proficiency on both sides', () => {
+    const hc = own('Paladin (Or)', 'Holy Crash');
+    ok(hc, 'no Holy Crash in the data snapshot');
+    eq(hc.damage, 18, 'Holy Crash base');
+    eq(hc.scaling, 'STR/75 + END/150', 'Holy Crash scaling');
+    eq(((K.MOVE_OVERRIDES['Holy Crash'] || [])[0] || {}).base, 20, 'the Build AI does not rewrite Holy Crash to 20');
+    // The site gates on the active tree's lm2, which a Paladin and a base
+    // Warrior share (verify.js caught a Warrior-tree mismatch).
+    const when = ((K.MOVE_OVERRIDES['Holy Crash'] || [])[0] || {}).when;
+    ok(when({ klass: 'Paladin (Or)', masteryNodes: ['lm2'] }) && when({ klass: 'Warrior', masteryNodes: ['lm2'] }),
+       'the rewrite does not follow the Warrior tree both classes read');
+    ok(!when({ klass: 'Paladin (Or)', masteryNodes: [] }) && !when({ klass: 'Berserker (Ch)', masteryNodes: ['lm2'] }),
+       'the rewrite applies without Holy Crash Proficiency');
+    ok(/m\.name === "Holy Crash" && masteryState\["lm2"\][^\n]*"Holy Crash Proficiency"\) \{\s*baseDmgNum = 20;/.test(src),
+       'the DMG calc does not rewrite Holy Crash to 20 with its Proficiency');
+    eq((K.MASTERY_ABILITIES['Holy Crash Proficiency'] || {}).kind, 'onSite', 'Holy Crash Proficiency is priced twice');
+  });
+
+  it('the Dark Slash scroll is open to Marauder', () => {
+    ok((((data.scrollClassRestrictions || {})['Dark Slash']) || []).indexOf('Marauder') !== -1,
+       'Dark Slash is not usable by Marauder');
   });
 });
 

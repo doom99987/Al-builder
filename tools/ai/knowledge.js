@@ -161,10 +161,11 @@
       label: 'Survivability',
       statWeights: { end: 5, str: 2, arc: 0, spd: 1, lck: 0 },
       kitWords: ['block','guard','shield','defen','armou','taunt','protect','fortif','resist','damage reduction'],
-      // Effective HP: raw HP scaled by block damage reduction and incoming heals.
+      // Effective HP: raw HP scaled by damage reduction (the armour formula,
+      // drSurvivalMult) and incoming heals.
       // effectiveHpSustain is that plus what lifesteal returns over a stretch
       // of the fight (SUSTAIN) — the figure All For One and Siphoning move.
-      score: c => (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * (1 + Math.min(c.blockDr, DR_CAP) / 100) *
+      score: c => (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * drSurvivalMult(c.blockDr) *
                   (1 + ((c.effectiveIncHeal ?? c.incHeal) - 100) / 400),
       blurb: 'Endurance drives HP, and Strength converts to block damage reduction.',
     },
@@ -199,7 +200,7 @@
       // applies it per move), so it must not be applied again here - doing that
       // squared it and bought Arcane at the expense of everything else.
       score: c => {
-        const surv = (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * (1 + Math.min(c.blockDr, DR_CAP) / 100);
+        const surv = (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * drSurvivalMult(c.blockDr);
         // No healing move means no healing. The multiplier multiplies nothing -
         // which is the whole lesson of the Paladin, and of the Necromancer that
         // won this role on a survivability score while healing zero per turn.
@@ -253,7 +254,13 @@
       label: 'Party support',
       statWeights: { end: 4, arc: 2, spd: 2, str: 1, lck: 1 },
       kitWords: ['ally','allies','party','team','rally','aura','shared','support'],
-      score: c => c.hp * 0.5 + (c.effectiveHeal ?? c.outHeal) * 2 + c.stats.spd,
+      // Survival is read like the tank's and healer's: effective health through
+      // the damage reduction formula. It used to be half of raw HP, which let a
+      // Saint on the Support role dump Endurance to 19 and Speed to 154 and build
+      // on 96 HP once the 2026-09 patch repriced the Berserker it had been losing
+      // to. A support that dies first keeps nobody alive.
+      score: c => (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * drSurvivalMult(c.blockDr) +
+                  (c.effectiveHeal ?? c.outHeal) * 2 + c.stats.spd,
       blurb: 'Built to keep a group alive rather than to top the damage chart.',
     },
     balanced: {
@@ -264,7 +271,8 @@
       // Block damage reduction belongs here. Scoring only damage and HP made the
       // optimiser dump Strength, which quietly cost a player 53 points of block
       // DR and still called the result an upgrade.
-      score: c => (c.bestHit * 0.6 + (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * 0.8) * (1 + Math.min(c.blockDr, DR_CAP) / 200),
+      // Half weight: half of what the DR adds to effective health.
+      score: c => (c.bestHit * 0.6 + (c.effectiveHpSustain ?? c.effectiveHp ?? c.hp) * 0.8) * (1 + (drSurvivalMult(c.blockDr) - 1) / 2),
       blurb: 'A build that does not fall apart when the fight goes badly.',
     },
   };
@@ -375,8 +383,8 @@
         'Curar Forte heals everyone around you for 7%, and Latir Minor hands out a damage and ' +
         'regen buff. It is the only subclass that does the healer\'s job',
       'Self Cure':
-        'strips every status off you for 5% of your max HP. A healer who is silenced, cursed or ' +
-        'stunned is healing nobody, and this is the only self-cleanse in the scroll list',
+        'strips every status off you for 5% of your max HP. A healer who is silenced or stunned is ' +
+        'healing nobody and a cursed one heals at half, and this is the only self-cleanse in the scroll list',
       'Wind Reflect':
         'a shield on yourself or an ally that stops physical attacks outright for 3 turns. It ' +
         'does not fully work on bosses, which is the honest caveat',
@@ -508,10 +516,11 @@
   //                    archetype weights Arcane at 5 and Luck at 1, so committing
   //                    it would have the build dump the exact stat that feeds
   //                    its summons.
-  //   Lancer (N)       Rooted Fighter blocks, Poised Slayer heals off dodges,
-  //                    Rallying Shout buffs the team, and Empowered Pierce and
-  //                    Discharge are ordinary attacks. Genuinely a bruiser; no
-  //                    single archetype is more right than `balanced`.
+  //   Lancer (N)       Rooted Fighter blocks, Poised Slayer heals and stacks
+  //                    damage off dodges, Rallying Shout buffs the team, and
+  //                    Empowered Pierce and Discharge pay off on crits (bonus
+  //                    damage, a stun). Genuinely a bruiser; no single
+  //                    archetype is more right than `balanced`.
   //   Impaler (Ch)     bleeds constantly, but Bloody Berserker is a straight
   //                    +1% damage per 1% HP missing. It is a damage class that
   //                    happens to bleed, and `damage` zeroes Endurance on a class
@@ -522,34 +531,48 @@
 
   // ── STAT MILESTONES ───────────────────────────────────────────────────────
   // Every stat crosses three thresholds - 25 / 60 / 110 - and each one grants a
-  // real effect. The SITE renders them and applies none of them. Neither did
+  // real effect. The SITE applies only a few (Luck 25, STR / ARC 110). Neither did
   // this engine, and the consequences were not small:
   //
   //   LCK 60 is +35% OUTGOING HEALING, and the healing archetype weighted Luck
   //   at zero. Every healer the AI has ever produced walked past a third of its
   //   own healing because base stats were the only thing being counted.
   //
-  //   STR 110 and ARC 110 each cut a cooldown, which is the whole of "casting it
-  //   more often" and was invisible.
+  //   STR 110 is +20% damage on Physical moves and ARC 110 +20% on magic moves
+  //   (they were cooldown cuts until the patch rework).
   //
-  // `text` is the game's own wording and is asserted against `statMilestones` in
+  // `text` is the site's wording and is asserted against `statMilestones` in
   // the tests - if a game update rewords one of these, that fails loudly rather
   // than the engine quietly pricing something that no longer exists.
   //
-  // ── which 110 milestone shortens which cooldowns ─────────────────────────
-  // The game text says STR 110 -> "Magic Element attacks" and ARC 110 ->
-  // "Physical Element attacks", and builder.js notes the two are swapped in
-  // game relative to the design. The site owner's reading, from play, and what
-  // every community build is written around ("110 Arc for -1 cd" on a Saint
-  // whose heals are Holy): ARC 110 cuts EVERY non-Physical move - Holy, Magic,
-  // Fire, Nature, Ice, Dark, Hex - and STR 110 cuts Physical. That is what the
-  // engine prices. One line each to flip if play proves otherwise; the game
-  // text stays in MILESTONES untouched, because the tests assert it.
-  const MILESTONE_CD_AFFINITY = {
-    str: { test: t => /physical/i.test(t),  source: 'owner',
-           label: 'Physical moves' },
-    arc: { test: t => !/physical/i.test(t), source: 'owner',
-           label: 'every non-Physical move (Holy, Magic, Fire, Nature, Ice, Dark, Hex)' },
+  // ── Physical or magic ─────────────────────────────────────────────────────
+  // STR 110 gives PHYSICAL moves +20% damage and ARC 110 gives MAGIC moves -
+  // every other type - +20% (owner, 2026-09-17; before the 2026-09-16 patch
+  // they cut cooldowns, split the same way). The patch notes said "melee" and
+  // "ranged"; the owner's reading from play is by type. The type is the
+  // EFFECTIVE one (optimize.js typeOf), so a move Wicked Crown makes Dark or
+  // Boreas makes Ice takes the ARC perk. Same rule as builder.js
+  // getMilestoneDmgStat.
+  function milestoneDmgStat(moveType) {
+    return /^physical$/i.test(String(moveType || '').trim()) ? 'str' : 'arc';
+  }
+  // A summon's attack is not yours: every summon slot ('Skeleton', 'Darkbeast',
+  // Heaven's Authority's 'Sheea (...)' rows). The same rule as builder.js
+  // isSummonAttack - move-renderer.js isSummonMove, minus Arbiter's 'Base Move'
+  // slot, whose Strike and Daze are the player's own. The STR / ARC 110 perk
+  // and optimize.js typeOf's element conversions both ask this one helper.
+  // Summon attacks get neither.
+  function isSummonSlot(mv) {
+    const s = String((mv && mv.slot) || '');
+    if (!s) return false;
+    if (/^(active|passive)$/i.test(s) || /^\d+$/.test(s)) return false;
+    if (/^base move$/i.test(s.trim())) return false;
+    return !/^\d+(st|nd|rd|th)\s+learn$/i.test(s) && !/^class\s+active$/i.test(s)
+        && !/^tier\s+\d+$/i.test(s) && !/^level\s+\d+$/i.test(s);
+  }
+  const MILESTONE_DMG_TYPE = {
+    str: { label: 'Physical moves' },
+    arc: { label: 'magic (non-Physical) moves' },
   };
 
   // Index is the TIER: 0 -> 25 points, 1 -> 60, 2 -> 110.
@@ -573,25 +596,25 @@
         note: 'not counted: Strike is the unarmed basic, and no optimised build uses it' },
       { kind: 'note', text: 'Take 10% less damage when blocking.',
         note: 'not counted separately - block damage reduction already comes from Strength' },
-      { kind: 'cdCut', value: 1, affinity: 'str', text: 'Magic Element attacks cost 1 less cooldown.' },
+      { kind: 'typeDmgPct', value: 20, source: 'owner', text: 'Physical damage increased by 20%.' },
     ],
     arc: [
       { kind: 'note', text: 'Use one extra potion.', note: 'potions are not modelled' },
       { kind: 'note', text: '15% chance to gain an extra energy at the start of your turn.',
         note: 'not counted: a chance at energy, and energy is a cap here rather than a flow' },
-      { kind: 'cdCut', value: 1, affinity: 'arc', text: 'Physical Element attacks cost 1 less cooldown.' },
+      { kind: 'typeDmgPct', value: 20, source: 'owner', text: 'Magic damage (every non-Physical type) increased by 20%.' },
     ],
     spd: [
       { kind: 'note', text: 'Enemies are less likely to dodge your attacks.', note: 'no number given' },
       { kind: 'note', text: 'The dodge bar gets bigger.', note: 'no number given' },
-      { kind: 'dodgePct', value: 5, text: '5% chance to auto-dodge attacks.' },
+      { kind: 'dodgePct', value: 15, text: '15% chance to auto-dodge attacks.' },
     ],
   };
 
   // Which milestones a set of finished stats has actually reached.
   function milestonesFor(stats, tiers) {
     const steps = tiers || [25, 60, 110];
-    const out = { outHealPct: 0, incHealPct: 0, dodgePct: 0, cdCut: [], reached: [], missed: [] };
+    const out = { outHealPct: 0, incHealPct: 0, dodgePct: 0, cdCut: [], typeDmg: [], reached: [], missed: [] };
     for (const [stat, list] of Object.entries(MILESTONES)) {
       const have = Math.max(0, (stats || {})[stat] || 0);
       list.forEach((def, i) => {
@@ -604,13 +627,20 @@
         else if (def.kind === 'incHealPct') out.incHealPct += def.value;
         else if (def.kind === 'dodgePct') out.dodgePct += def.value;
         else if (def.kind === 'cdCut') {
-          const aff = MILESTONE_CD_AFFINITY[def.affinity] || null;
-          out.cdCut.push({
-            // `elements.test(moveType)` is the shape every consumer reads, so
-            // the affinity is handed over in that shape.
-            elements: aff ? { test: t => aff.test(String(t || '')) } : (def.elements || null),
-            label: aff ? aff.label : null, source: aff ? aff.source : null,
-            value: def.value, stat, text: def.text,
+          // No milestone cuts a cooldown since the STR / ARC 110 rework; the
+          // branch stays for the shape (optimize.js cdFor reads cdCut).
+          out.cdCut.push({ elements: def.elements || null, label: null, source: null,
+                           value: def.value, stat, text: def.text });
+        }
+        else if (def.kind === 'typeDmgPct') {
+          out.typeDmg.push({
+            stat, value: def.value, text: def.text, source: def.source,
+            label: (MILESTONE_DMG_TYPE[stat] || {}).label || stat,
+            // test(move, type): does this perk pay on that move. Pass the
+            // move's effective type (optimize.js typeOf); the written one is
+            // the fallback.
+            test: (mv, type) => !!mv && !isSummonSlot(mv) &&
+                                milestoneDmgStat(type != null ? type : mv.moveType) === stat,
           });
         }
       });
@@ -630,10 +660,13 @@
   //
   // `pastRate` is how much a point PAST 110 is worth against a point under the
   // knee, when the finished line is being settled (optimize.js goPerfect). The
-  // owner does not know the real fall-off; half is the assumption that makes
-  // "60 End, 110 Arc, rest Str" beat "110 Arc, 142 End" for a Saint, which is
-  // the community's answer. It is used only there - the search itself stays
-  // on the site's linear maths.
+  // owner does not know the real fall-off; half is the assumption that made
+  // "60 End, 110 Arc, rest Str" beat "110 Arc, 142 End" for a Saint, the
+  // community's line from before the STR / ARC 110 rework. ARC 110 no longer
+  // cuts a cooldown (it is +20% magic damage now, and the owner says a Saint
+  // does not need it); the rate stays until a post-patch Saint line says
+  // otherwise. It is used only there - the search
+  // itself stays on the site's linear maths.
   const STAT_DECAY = { knee: 100, next: 110, deadZonePenalty: 0.04, pastRate: 0.5, assumed: true,
     note: 'stats fall off past ~100 - sit on a breakpoint (25 / 60 / 110) or stay at or under it' };
 
@@ -710,16 +743,17 @@
 
   // ── SELF-STUN ─────────────────────────────────────────────────────────────
   // Some moves buy their damage with your own turns. Boreas's Inner Frost reads
-  // "Heavy stun yourself for two turns. At the end, deal AoE dmg" - you lose two
-  // turns AND take hits through them, and nothing in the move data marks that as
-  // a cost. So a 21-base race move on a 12 turn cooldown outscored every real
-  // nuke in the game the moment race actives entered the scored kit.
+  // "Heavy stun yourself for one turn. At the end, deal AoE dmg" (two turns
+  // before the 2026-09 patch) - you lose the turn AND take hits through it, and
+  // nothing in the move data marks that as a cost. At two turns, a 21-base race
+  // move on a 12 turn cooldown outscored every real nuke in the game the moment
+  // race actives entered the scored kit.
   //
   // Priced as damage per turn occupied: a hit that costs N turns is divided by
   // (1 + N), so a two-turn self-stun is worth a third of the same hit landed now.
   // The turns are the honest part; whether being stunned also gets you killed is
   // not modelled and makes the real cost worse, never better.
-  const SELF_STUN = { 'Inner Frost': 2 };
+  const SELF_STUN = { 'Inner Frost': 1 };
   const SELF_STUN_TEXT = /stun yourself|heavy stun yourself|receive \d+ stacks? of heavy stun/i;
   const SELF_STUN_ASSUMED = 2;
   function selfStunTurns(mv) {
@@ -752,11 +786,21 @@
   const SUSTAIN = { horizon: 6, attackShare: 0.5, assumed: true };
 
   // Damage reduction sources add up here - block DR, gear, a capstone, a race
-  // passive, a setup - and past a point the sum stops meaning anything: a
-  // Citadel in Aspect of Maladaptation read 106% and the survival scores
-  // multiplied by it. Capped where the survival archetypes read it. The number
-  // is an assumption; the game's own cap is not stated anywhere in the data.
-  const DR_CAP = 80;
+  // passive, a setup - as points, and the game turns the total into damage
+  // taken with an armour formula (owner, 2026-09-17):
+  //   DR >= 0: damage x 100 / (100 + DR)       (never reaches zero)
+  //   DR <  0: damage x (2 - 100 / (100 - DR))  (between 1x and 2x)
+  // Same function as js/builder.js drDamageTakenMult. Read as survival, a
+  // positive total is worth exactly (100 + DR) / 100 more effective health, so
+  // no cap is needed any more: under the old linear reading a Citadel in Aspect
+  // of Maladaptation read 106% and was capped at 80; under this formula 106 DR
+  // simply takes 49% of every hit.
+  function drDamageTakenMult(dr) {
+    const v = +dr || 0;
+    return v >= 0 ? 100 / (100 + v) : 2 - 100 / (100 - v);
+  }
+  // How much longer a DR total keeps you alive: effective HP / HP.
+  function drSurvivalMult(dr) { return 1 / drDamageTakenMult(dr); }
 
   // ── TRAITS ────────────────────────────────────────────────────────────────
   // The site applies FOUR of these itself (builder.js TRAIT_APPLIES_TO):
@@ -904,8 +948,8 @@
     // same case; its passive text now states the figure.
     'Sheea (Ob)': [
       { name: 'Reduced Cooldowns', kind: 'cdCut', value: 1, source: 'owner',
-        note: 'every cooldown is 1 turn shorter, and it STACKS with the STR 110 and ARC 110 ' +
-              'milestones. On anything whose job is repeating a move - a healer above all - ' +
+        note: 'every cooldown is 1 turn shorter - the only cooldown cut left now that the STR and ' +
+              'ARC 110 milestones are damage buffs. On anything whose job is repeating a move - a healer above all - ' +
               'that is worth more than a stat block.' },
     ],
     'Daminos (3%)': [
@@ -948,14 +992,20 @@
     // and had no idea anything wanted the opposite. `hpGate: 'low'` marks a
     // passive that only pays while the build is fighting hurt.
     //
-    // All three numbers below are the ones the game text states, read at the
-    // 50% HP the stance assumes. None of them is a guess about the mechanic;
-    // the guess is that the build actually gets to 50% and stays there.
+    // Impaler's and Brawler's numbers below are the ones the game text states,
+    // read at the 50% HP the stance assumes. None of them is a guess about the
+    // mechanic; the guess is that the build actually gets to 50% and stays there.
     'Berserker (Ch)': [
-      { name: 'Bloodlust', kind: 'dmgPct', value: 65, uptime: 0.5, hpGate: 'low',
-        note: '+10% damage per stack from being hit below 50% HP, capped at +65%. Counted at ' +
-              'half, because it RAMPS - you have none of it on turn one. The further permanent ' +
-              '+40% below 30% HP is NOT counted at all.' },
+      // Reworked 2026-09-16 (patch): no longer HP-gated. A status from attacking or
+      // being attacked, +5% per stack, lost every turn unless you are in Rage, where
+      // each stack is +10%. Counted as a build that fights in Rage on 5 stacks
+      // [assumed]; Rage's extra aggro and lower Defense are not priced.
+      { name: 'Bloodlust', kind: 'dmgPct', value: 50, uptime: 0.5, source: 'patch',
+        note: '+5% damage per Bloodlust stack, +10% per stack in Rage (Rage Empower). Stacks come from ' +
+              'attacking or being attacked and are lost every turn outside Rage. Counted as 5 stacks in ' +
+              'Rage [assumed], at half, because it RAMPS - you have none of it on turn one. ' +
+              'Its heal below half health, the turn spent casting Rage Empower, and the extra aggro and ' +
+              'lower Defense of Rage are NOT counted.' },
     ],
     'Impaler (Ch)': [
       { name: 'Bloody Berserker', kind: 'dmgPct', value: 50, uptime: 1, hpGate: 'low',
@@ -1001,7 +1051,22 @@
     'Slayer': [
       { name: 'Spear Training', kind: 'dmgPct', value: 10, whenWeapon: 'Spear',
         note: '+10% with spear weapons' },
-      { name: 'Swift Fighter', kind: 'note', note: '20% Speed for 2 turns after a dodge' },
+      { name: 'Swift Fighter', kind: 'note', note: '20% Speed for 2 turns after a dodge, stacking with further dodges up to a 30% cap' },
+    ],
+    // Lancer rework (patch): Poised Slayer's dodge buff is now damage, +10% a
+    // dodge, stacking to +50%. It needs dodges first, so it gets the same caution
+    // as Enhanced Bloodlust: one stack for half the fight.
+    'Lancer (N)': [
+      { name: 'Poised Slayer', kind: 'dmgPct', value: 10, uptime: 0.5, source: 'patch',
+        note: '+10% damage per successful dodge, stacking to +50%, plus a 1.5-7% heal per dodge (more at low ' +
+              'Speed) - counted as one stack for half the fight [assumed]; the heal is not priced' },
+    ],
+    // Ranger rework (patch): Verdant Archer is +15% damage per crit or dodge,
+    // stacking to +150%, and +10% outgoing healing in place of its old +10 Speed.
+    'Ranger (Or)': [
+      { name: 'Verdant Archer', kind: 'dmgPct', value: 15, uptime: 0.6, source: 'patch',
+        note: '+15% damage for 2 turns on every crit or dodge, stacking to +150% - counted as one stack at ' +
+              '60% uptime [assumed]; Nature\'s Wrath doubles it. The +10% outgoing healing is not priced' },
     ],
     'Warrior': [
       { name: 'Sword Training', kind: 'dmgPct', value: 10, whenWeapon: 'Sword',
@@ -1231,7 +1296,7 @@
     'Amorus (Ob)':    { roles: ['allround', 'dps', 'tank'],
                         note: 'the best raw stat block in the game, 4 in everything' },
     'Boreas (1%)':    { roles: ['status', 'tank'],
-                        note: 'Cold application and a heavy Endurance block' },
+                        note: 'Cold application, a heavy Endurance block, and Physical/Magic moves turned into Ice for Frost Stacks (up to +50% damage and 20% DR)' },
     'Inferion (Ob)':  { roles: ['tank', 'dps'],
                         note: 'tanky and fire-flavoured, but frail to magic' },
     'Gynx (Ob)':      { roles: ['tank'],
@@ -1332,7 +1397,7 @@
     'Spirit Awakening': {
       owner: 'Vastayan (9%)', cost: 4, cd: 18, duration: 4, reliability: 1,
       kind: 'summonDmgPct', value: 50,
-      note: '+15% to all stats and +50% summon damage for 4 turns, then 27.5% self-damage and a heavy stun',
+      note: '+15% to all stats and +50% summon damage for 4 turns, then 27.5% self-damage (it no longer stuns you)',
     },
     // A COVENANT move rather than a race or class one. setupsFor scans the
     // covenant's learns with the covenant as the owner, so the only new thing
@@ -1455,7 +1520,8 @@
            'against Cold targets plus another 10% for applying it. On most races that ' +
            'gear is conditional and mostly dead; on Boreas the condition is always true, ' +
            'so it behaves like flat crit chance. Frostburned Rune extends the same trick ' +
-           'to Fire moves.',
+           'to Fire moves. Its +7.5% against a target with both Cold and Burn then needs ' +
+           'only a Burn on top of Boreas\'s Cold (the Rune\'s Ice moves apply one 30% of the time).',
     },
   ];
 
@@ -1503,10 +1569,12 @@
     // the item at +10. `onSite` lists it and adds nothing - the treatment
     // Narthana's Leaf already had. "Removes crit fatigue" is dead text: Crit
     // Fatigue stopped existing in the Section 9 rework (builder.js:465-467).
+    // Patch 2026-09 added +5% crit damage; it sits in gearPctBonuses as
+    // crit-dmg 0.05, so it is on-site too.
     'Crystal Sphere':      { kind: 'onSite',
-                             note: '+5% crit chance, unconditional - already in the site\'s own crit ' +
-                                   'figure. Its "removes crit fatigue" half does nothing: the mechanic ' +
-                                   'no longer exists' },
+                             note: '+5% crit chance and +5% crit damage (+0.05 on the multiplier), both ' +
+                                   'unconditional and both already in the site\'s own crit figures. Its ' +
+                                   '"removes crit fatigue" half does nothing: the mechanic no longer exists' },
     "Yar'thul's Wrath":    { kind: 'dmgPct',     value: 80, uptime: 0.5,
                              note: '+8% damage per Overheat stack, caps at 10 — ramps over a fight' },
     'Vainglorious Locket': { kind: 'dmgPct',     value: 10, uptime: 0.5,
@@ -1549,7 +1617,8 @@
     'Ages Pages':          { kind: 'onSite',
                              note: '+5 crit flat, already in the site\'s own crit figure. In Blasphemy or Tyranny, spending Corrupt Power adds up ' +
                                    'to +10 more (capped at 2 stacks by a bug); in Heresy it adds nothing, ' +
-                                   'because Corrupt Power is bugged there. That part is not counted' },
+                                   'because Corrupt Power is bugged there. That part is not counted. (The item text reads one spend as +5 -> +35 crit ' +
+                                   'for that attack; the 2026-09 patch cut it from +45.)' },
     'Crystalline Spike':   { kind: 'onSite',
                              note: '+5 flat damage on every hit, counted inside move damage exactly as the site adds it. ' +
                                    'The +40 for spending 60 Corrupt Power is priced on the form nuke (Blasphemy, Tyranny; ' +
@@ -1573,8 +1642,8 @@
                              note: '+5% damage always; 50 Corrupt Power in a Corruption Form raises ' +
                                    'it to +45% for one attack, once per turn — that half is not counted' },
 
-    'Shadow Gauntlets':    { kind: 'lifestealPct', value: 5, uptime: 1,
-                             note: '+5% lifesteal always; 45 Corrupt Power in a Corruption Form raises it ' +
+    'Shadow Gauntlets':    { kind: 'lifestealPct', value: 3, uptime: 1,
+                             note: '+3% lifesteal always; 45 Corrupt Power in a Corruption Form raises it ' +
                                    'to 25% for one attack a turn, and that half is not counted' },
     'Parasitic Leech':     { kind: 'healFromDmgPct', value: 2, uptime: 1, party: true,
                              note: 'heals every teammate for 2% of the damage you deal - a proper heal, so ' +
@@ -1606,9 +1675,13 @@
 
     // Real, but not scoreable as a number here.
     'Wicked Crown':   { kind: 'note', note: 'turns your Physical moves into Dark. That is priced — the scorer reads the converted type, so Dark-gated buffs (Corvolus\'s Cast Amplify) reach them and Physical ones stop. The Poison immunity and -15% incoming DoT are not priced' },
-    'Grain Of Balance': { kind: 'note', note: 'redistributes 25% of your highest stat — currently bugged' },
+    'Grain Of Balance': { kind: 'note', note: 'takes 25% of your highest stat and grants half of it to your other stats (a quarter before the 2026-09 patch)' },
     'Dust Storm':       { kind: 'note', note: '10% chance to phase through an attack' },
     'Shattered Clock Hand': { kind: 'note', note: '30% chance to cut cooldowns on Strike' },
+    // Not priced: needsStatus tests ONE enemy status at a time (optimize.js 731), so
+    // "both Cold and Burn" cannot be expressed, and a `status` entry ignores the
+    // element gate (the audit rejection in LEARNING.md). Listed with a real note.
+    'Frostburned Rune': { kind: 'note', note: 'Fire moves have a 30% chance to apply Cold and Ice moves a 30% chance to apply Burn, and it grants +7.5% damage against a target that has BOTH Cold and Burn. Not priced: the engine cannot gate on two statuses at once' },
   };
 
   // ── MASTERY ABILITIES ───────────────────────────────────────
@@ -1621,14 +1694,15 @@
   //
   //   1. extract-data.js runs builder.js's OWN parseDmgBonus over all 108
   //      ability descriptions and stores what it finds (`masteryAbilities`).
-  //      That covers 23 of them for free and cannot drift from the site.
+  //      That covers 21 of them for free and cannot drift from the site.
   //   2. This table, which overrides or adds. It exists because a parsed number
-  //      is only half the answer: "+100% against stunned enemies" and "+15% to
-  //      all your elements" both read as a percentage, and only one of them is
-  //      close to always on.
+  //      is only half the answer: "+50% once it charges" and "+15% to all your
+  //      elements" both read as a percentage, and only one of them is close to
+  //      always on.
   //
-  // `uptime` is the whole point. Without it the optimiser buys Overload for its
-  // +100% and never notices it needs the target stunned first.
+  // `uptime` is the whole point. Without it the optimiser buys Cell Charge for
+  // its +50% and never notices it has to charge off 10 blocks or 20 dodges
+  // first.
   //
   // Anything with no entry and no parsed number is reported under "Mastery
   // abilities NOT counted" rather than silently scored as zero.
@@ -1693,13 +1767,14 @@
   //
   //   derived   read out of the boss's own passive text in the snapshot, so it
   //             updates when the encyclopedia does. Only patterns the game
-  //             states flatly ("Immune to Purified, Weakened, Blinded, and
-  //             Cursed") are read this way - no guessing at prose.
+  //             states flatly ("Immune to Purified, Weakened, and Blinded")
+  //             are read this way - no guessing at prose.
   //   tactics   hand-written, for mechanics no parser can see. Each one names
   //             the move it comes from so it can be checked against the game.
   //
-  // WHAT THIS CANNOT DO: no boss in the data has an HP figure, so kill TIME in
-  // turns is not computable. What is computable is which of two builds kills
+  // WHAT THIS CANNOT DO: time the fight. BOSS_DATA has an HP figure, but the
+  // kill-turn estimate is only HP over sustained damage (no regeneration,
+  // blocks or heals). What the ranking decides is which of two builds kills
   // faster, which is what the choice is actually for. The write-up says so
   // rather than implying a stopwatch.
   // 'burn' itself was missing: "a 25% chance to apply Burn" (Blazing Barrage)
@@ -1743,13 +1818,13 @@
 
   const BOSS_TACTICS = {
     'Handaconda': {
-      // NOT in the encyclopedia - its entry lists only Thousand Screams. Player
-      // knowledge, recorded here so the engine can act on it, and worth adding
-      // to js/encyclopedia.js so the site says it too.
-      immuneStatuses: ['poison', 'poisoned'],
+      // Its Poison immunity (player knowledge, never in the encyclopedia) was
+      // removed by the 2026-09 damage-nerf patch, so there is no immuneStatuses
+      // entry any more and a Poison kit is priced at full value here.
       dodgeIrrelevant: true,
-      why: 'Fully immune to Poison, so a kit that wins by stacking it - an Assassin above all - ' +
-           'is doing nothing here beyond its direct damage.',
+      why: 'No longer immune to Poison (2026-09 patch), so a kit that stacks it - an Assassin ' +
+           'above all - gets full value here again. Its regeneration is down to 10 HP a turn ' +
+           '(was 50), so a slow fight loses far less to it.',
       // How the fight is played, from the community's Impaler farm build. None
       // of this is in any table; it is what a write-up needs and the numbers
       // cannot supply.
@@ -1758,7 +1833,8 @@
         'Lasting Life) going every turn while Handaconda bleeds out - about 0.6% of its max HP a turn.',
         'Guard the ultimates. Dodge Hand of Ramizca - it is the one move that can realistically kill ' +
         'you before you regenerate.',
-        'Once it is low and carrying Cursed, just guard and let the bleed finish it.',
+        'Once it is low and carrying Cursed, just guard and let the bleed finish it - Cursed also ' +
+        'halves its 10 HP a turn regeneration.',
       ],
       // The form the community runs for this fight, and why. Honoured by
       // pickCorruption as a bounded nudge, never an override.
@@ -1771,7 +1847,9 @@
       punishesDebuffs: true,
       why: 'High Retribution heals Seraphon in proportion to the debuff stacks on it, ' +
            'and its own note says the priority rises the more statuses Seraphon is carrying. ' +
-           'Stacking debuffs both heals it and makes it heal more often.',
+           'Stacking debuffs both heals it and makes it heal more often. Cursed now works on ' +
+           'Seraphon (it is no longer immune) and halves healing, so a Cursed Seraphon gets half ' +
+           'from each High Retribution - though the Cursed stacks still count toward that heal.',
       alsoWatch: 'It summons a Sheea Saint, Elementalist or Paladin every 9 turns, and two at ' +
                  'a time below 50% HP, so a long fight gets worse rather than better.',
     },
@@ -1823,6 +1901,7 @@
       blocks: /can block/i.test(text),
       dodges: /can (block & )?dodge|can dodge/i.test(text),
       punishesDebuffs: !!tac.punishesDebuffs,
+      punishesOneElement: !!tac.punishesOneElement,
       why: tac.why || null,
       alsoWatch: tac.alsoWatch || null,
       modelled: !!BOSS_TACTICS[name],
@@ -1931,8 +2010,8 @@
     // "10%" and moved on.
     'Paranoxian Crux': {
       kind: 'note',
-      note: 'Rewrites your health: max HP x1.5, then set to 10% of THAT - so you keep about ' +
-            '15% of your original HP as real health and the other ~135% becomes Shield HP. ' +
+      note: 'Rewrites your health: max HP is cut by 75% - you keep 25% of your original HP ' +
+            'as real health and the other 75% becomes Shield HP. ' +
             'Congeal Flesh restores 15xX% of the shield for X energy. Not counted, because the ' +
             'engine models HP but has no notion of Shield HP at all, and pretending the two are ' +
             'the same would badly misprice every tank build that wears this.',
@@ -1946,7 +2025,8 @@
     },
     "Heaven's Authority": {
       kind: 'note', party: true,
-      note: 'Summons a Sheea with 250 HP - Saint, Paladin or Elementalist at random - and it ' +
+      note: 'Calling Light (3 energy) summons a Sheea with 50 base HP - Saint, Paladin or ' +
+            'Elementalist at random - whose damage and health scale like a Skeleton\'s, and it ' +
             'gains its full Super Class kit if you carry the matching weapon type. Two of them ' +
             'below 20% HP. Not counted: the engine scores your sheet, not an ally\'s.',
     },
@@ -2011,10 +2091,10 @@
   // Four classes have passives that pay you for being HURT, and one artifact
   // pays you only for being untouched. Pricing both at a fixed uptime is wrong
   // in both directions at once: Stellian Core's "above 95% of your Max HP" is
-  // worth almost nothing to a Berserker who is deliberately dropping under 50%
-  // to stack Bloodlust, and Molten Carapace's "below 40% HP" is worth far more
-  // to that same build than to anything else. The engine used to hand Stellian
-  // Core to a Berserker on all 36 rolls.
+  // worth almost nothing to a Berserker, whose Bloodlust heals only below 50%
+  // and whose Rage lowers its Defense, and Molten Carapace's "below 40% HP" is
+  // worth far more to that same build than to anything else. The engine used
+  // to hand Stellian Core to a Berserker on all 36 rolls.
   //
   // Only a CLASS sets the stance. A race can want the same thing - Estella's
   // Hyper Rage is "below 50% health only" - but a race is an incentive and a
@@ -2022,8 +2102,8 @@
   // be reading far more into it than it says.
   const HP_STANCE = {
     'Berserker (Ch)': { side: 'low', passive: 'Bloodlust',
-      why: 'stacks 10% damage each time it is hit below 50% HP, to a 65% cap, and a further ' +
-           'permanent 40% below 30%' },
+      why: 'heals you only while you are below half health, and the Rage that keeps its stacks ' +
+           'raises your aggro and lowers your Defense, so the build spends the fight hurt' },
     'Impaler (Ch)': { side: 'low', passive: 'Bloody Berserker',
       why: '1% damage for every 1% of HP missing, up to 100% at 1 HP' },
     'Brawler (N)': { side: 'low', passive: 'Bruiser',
@@ -2383,11 +2463,22 @@
   //              not be picked up by that "unpriced beats stats" fallback, which
   //              is exactly how a Saint was spending 5 of its 35 mastery points
   //              on Piercing Grace.
+  // Does this rule give the engine a number? A plain rule needs a value; a
+  // `multi` one (Overload, One For All) needs a value on at least one effect.
+  // optimize.js's passed-over reasons, explain.js's "N of M priced" count and
+  // the tests all ask this one question.
+  function masteryRulePriced(rule) {
+    if (!rule || rule.kind === 'note') return false;
+    if (rule.value != null) return true;
+    return rule.kind === 'multi' && (rule.effects || []).some(ef => ef && ef.value != null);
+  }
+
   const MASTERY_ABILITIES = {
     // ── does not work in game ────────────────────────────────────────────────
     'Piercing Grace':       { kind: 'bugged',
                               note: 'the game says Cursed would only negate 75% of your healing ' +
-                                    'instead of 100%. Reported by the site owner as BUGGED and ' +
+                                    'instead of 100% - written before Cursed was reworked to halve ' +
+                                    'healing. Reported by the site owner as BUGGED and ' +
                                     'non-functional, so it is worth nothing and the 5 points it ' +
                                     'costs go elsewhere. Remove this entry if it is ever fixed.' },
 
@@ -2413,8 +2504,6 @@
                               note: 'currently does nothing — the passive it modifies was reverted' },
 
     // ── conditional on a status you have to apply ────────────────────────────
-    'Overload':             { kind: 'dmgPct', value: 100, uptime: 0.2,
-                              note: '+100% against STUNNED enemies only, and bosses resist stun' },
     'Vital Strike':         { kind: 'dmgPct', value: 20, uptime: 0.6,
                               note: '+20% against bleeding targets — reliable once your kit applies Bleed' },
     'Poison Fan Proficiency':      { kind: 'dmgPct', value: 10, uptime: 0.6,
@@ -2441,20 +2530,24 @@
                               note: '+20% for 3 turns after the move, and better scaling on it' },
 
     // ── single-move upgrades: real, but only on that one move ────────────────
-    'Holy Crash Proficiency':   { kind: 'dmgPct', value: 25, uptime: 0.3,
-                              note: '1.25x, on Holy Crash alone' },
+    // value 0: the node itself adds nothing on top of the rewrite, so it is
+    // priced (a Paladin measures the rewrite through the move) rather than an
+    // unknown the capstone fallback would buy blind for a base Warrior.
+    'Holy Crash Proficiency':   { kind: 'onSite', value: 0,
+                              note: 'Holy Crash goes from 18 to 20 base, about +11% on that move alone, plus guaranteed Taunt on every target hit. A Paladin gets it as a move rewrite (MOVE_OVERRIDES), measured through the move; a base Warrior has no Holy Crash, so for it the node is worth nothing' },
     'Light Burst Proficiency':  { kind: 'dmgPct', value: 30, uptime: 0.3,
                               note: '+30%, on Light Burst alone' },
     'Bloody Burst Proficiency': { kind: 'dmgPct', value: 50, uptime: 0.3,
                               note: '+50% shard damage and a third shard, on Bloody Burst alone' },
     'Flame Drop Proficiency':   { kind: 'dmgPct', value: 25, uptime: 0.3,
-                              note: '+25% base, and another 25% off absorbed flame stacks' },
+                              note: '+25% base, and up to another 40% off absorbed burn stacks (4% each, 10 max)' },
     'Blazing Barrage Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.3,
                               note: '+20% and 2 blinded against a burning target, on that move' },
     'Call Skeleton Proficiency':   { kind: 'dmgPct', value: 30, uptime: 0.4,
                               note: 'free to cast, and your NEXT skeleton gets +30% damage and +50% HP' },
     "Nature's Wrath":       { kind: 'dmgPct', value: 15, uptime: 0.6,
-                              note: 'doubles Verdant Archer from 7.5% to 15%' },
+                              note: 'doubles Verdant Archer\'s damage buff from 15% to 30% a stack (still capped at 150%) - ' +
+                                    'the extra 15% of the one stack Verdant Archer is counted at [assumed]' },
     'Rending Barrage Proficiency': { kind: 'dmgPct', value: 25, uptime: 0.5,
                               note: '+2.5% per combined Bleed stack, +25% at 10' },
     'Crucible Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.6,
@@ -2463,6 +2556,16 @@
                               note: '+40% Strike damage, greatsword only, plus 7.5% lifesteal that is always on' },
     'Berserkin Time':       { kind: 'dmgPct', value: 15, uptime: 0.5,
                               note: '+15% per Bloodlust stack instead of 10%, and 5% DR per stack up to 80%' },
+
+    // ── a percentage of your stats ───────────────────────────────────────────
+    // Reworked (Lancer patch): no longer +100% against stunned enemies. `statPct`
+    // multiplies the in-fight stat total, so the Luck half reaches crit chance.
+    'Overload':             { kind: 'multi', uptime: 0.8,
+                              effects: [{ kind: 'statPct', stat: 'str', value: 10 },
+                                        { kind: 'statPct', stat: 'lck', value: 10 }],
+                              note: '+10% Strength and +10% Luck for 3 turns whenever you use a move costing 2+ energy - ' +
+                                    'Empowered Pierce, Discharge, Triple Stab and Rallying Shout all qualify, so it is up ' +
+                                    'most of a fight [uptime assumed 0.8]' },
 
     // ── crit ─────────────────────────────────────────────────────────────────
     'Dark Smite Proficiency': { kind: 'critChance', value: 50, uptime: 0.3,
@@ -2504,10 +2607,11 @@
                                     'you — +7.5% at the five a self-poisoning, self-bleeding Impaler carries' },
     'Siphoning':            { kind: 'lifestealPct', value: 5, uptime: 0.8,
                               note: '5% lifesteal against bleeding targets, and an Impaler bleeds everything it touches' },
-    'Lightspeed':           { kind: 'dodge', value: 100, uptime: 0.5,
-                              note: '+10% autododge per dodge or Verdant Archer crit, with NO stack cap — ' +
-                                    'it ramps to total avoidance over a long fight. Counted at half, ' +
-                                    'because it starts at zero and has to build' },
+    'Lightspeed':           { kind: 'statFromStat', stat: 'spd', from: 'arc', value: 10, uptime: 0.6,
+                              note: 'reworked: every Verdant Archer proc (a crit or a dodge) also grants Speed equal to ' +
+                                    '10% of your Arcane for 3 turns - Speed that Stinger, Flourish and Perennial Canopy ' +
+                                    'scale on at SPD/80. The old stacking autododge is gone. Counted at 60% uptime, the ' +
+                                    'same as Verdant Archer [assumed]' },
     'Flourish Proficiency': { kind: 'statFlat', stat: 'spd', value: 23, uptime: 0.65,
                               note: 'Flourish gives a flat 48 Speed instead of 25 — the extra 23 is what ' +
                                     'this mastery is worth, and only while you are in the stance' },
@@ -2522,7 +2626,7 @@
   // ── MOVE OVERRIDES ──────────────────────────────────────────
   // A handful of moves do not use the damage and scaling printed on them. Some
   // masteries REPLACE both outright, and builder.js hard-codes the replacements
-  // (builder.js:4462-4479). No multiplier can express that, so these rewrite the
+  // (toggleDmgDetail in builder.js). No multiplier can express that, so these rewrite the
   // move before it is scaled.
   //
   // Everything here was found by verify.js comparing move damage against the
@@ -2581,8 +2685,17 @@
     'Stinger': [{
       when: () => true,
       base: 5, scaling: 'ARC/75',
-      second: { base: 10, scaling: 'ARC/70 + SPD/100' },
-      note: 'two-part attack: a 5-base stab on ARC/75, then 10-base arrows on ARC/70 + SPD/100',
+      second: { base: 10, scaling: 'ARC/70 + SPD/80' },
+      note: 'two-part attack: a 5-base stab on ARC/75, then 10-base arrows on ARC/70 + SPD/80',
+    }],
+    // Paladin has no tree of its own and uses the Warrior tree, whose lm2 is
+    // Holy Crash Proficiency. Patch: base damage becomes 20 (18 without it).
+    // The site gates on the active tree's lm2 name, and a base Warrior reads the
+    // same tree, so both classes are listed (verify.js caught the difference).
+    'Holy Crash': [{
+      when: b => (b.klass === 'Paladin (Or)' || b.klass === 'Warrior') && (b.masteryNodes || []).includes('lm2'),
+      base: 20,
+      note: 'Holy Crash Proficiency raises Holy Crash to 20 base (18 without it)',
     }],
   };
 
@@ -3258,7 +3371,7 @@
   });
   Object.assign(ENCHANTS, {
     'Inferno': { kind: 'dmgPct', value: 20, uptime: 0.58, needsStatus: /burn|inferno/i, note: '25% chance per attack (even on a dodge) to apply 3 Burning, and +20% damage while the enemy is Burning, including the hit that applies it. Up the whole time on a kit that already burns; otherwise about 58% of a fight and 25% on the opening hit.' },
-    'Midas': { kind: 'dmgPct', value: 15, uptime: 0.166, note: '16.6% chance per attack for +15% damage, which averages to about +2.5%. The drop-rate and gold halves are farming utility and are not scored.' },
+    'Midas': { kind: 'dmgPct', value: 15, uptime: 0.166, note: '16.6% chance per attack for +15% damage, which averages to about +2.5%. Each proc also gives +5% Luck for 2 turns, stacking to +20%; at that proc rate it averages about a third of a stack (about +1.7% Luck, under 2 crit chance even at 200 Luck), and enchants have no stat kind, so it is not scored. The drop-rate and gold halves are farming utility and are not scored.' },
     'Reaper': { kind: 'note', note: 'When it procs: up to +25% damage, scaled by the enemy\'s current HP, and a heal for 10% of damage dealt. The proc chance is not given. The regen is 1% max HP per missing life (bonus lives from Daminos, Sheea and Dullahan count), which is zero at full lives. None of it can be priced without those numbers.' },
     'Spectral': { kind: 'note', note: 'Each attack has a chance to ignore all enemy defence. The chance is not given, and this model does not track enemy defence, so it is reported, not scored.' },
     'Frosted': { kind: 'status', self: [], enemy: ['cold'], uptime: 0.5, note: 'Attacks have a chance, stated only as \'~16?%, needs testing\', to put 2 Cold on the enemy. That Cold is what satisfies Cold-gated passives. A crit on a Cold enemy also sets off a 10-base AoE that scales with damage buffs, once per attack before a cooldown; that part is not priced because no flat proc-damage kind exists.' },
@@ -3278,7 +3391,7 @@
     'Forest Charm': { kind: 'dmgPct', value: 25, uptime: 1, elements: /nature/i, note: '+25% to Nature attacks, everywhere - all of it on Nature moves and nothing on the rest. The +15% \'while in the forest\' half is zone-gated and is not counted: the engine has no idea where you are fighting.' },
     'Gilded Pouch': { kind: 'note', note: 'No passive text exists for this item - it is a plain 3 Luck stat stick and the stat block is already scored. The name suggests a gold effect; that is unstated and would be out of combat anyway, so nothing is priced.' },
     'Band of Crushing Force': { kind: 'multi', effects: [{ kind: 'dmgPct', value: 25 }, { kind: 'dmgPct', value: 10 }], uptime: 0.35, note: '+25% against a blocking enemy, and +10% until the end of your next turn once an enemy blocks a hit of yours - both fire on the same event, so they share one assumed block rate. The 15% desert damage reduction printed in game does not work.' },
-    'Grain Of Balance': { kind: 'bugged', uptime: 0, note: 'BUGGED: it should move 25% of your highest stat onto the other four, but currently seems to grant negative stat points instead - a downside, not a neutral. Avoid until fixed; Gilded Pouch is the same 3 Luck without the bug, and even fixed it would only suit an all-round spread.' },
+    'Grain Of Balance': { kind: 'note', note: 'Takes 25% off your highest stat and grants half of the points lost to your other stats (a quarter before the 2026-09 patch); the patch does not say whether that half is shared by the other four or given to each. Either way it takes from the stat a focused build is built on, so it only suits an all-round spread. Not priced: the engine has no stat-redistribution kind, so it is scored as a plain 3 Luck stat stick; Gilded Pouch is the same 3 Luck with no trade-off.' },
     'Madseer\'s Codex': { kind: 'note', elements: /magic|fire|ice|hex/i, party: true, note: 'On Magic, Fire, Ice and Hex attacks: an unstated chance to apply one random status from Poisoned, Cursed, Blinded, Crippled, Weakened, Vulnerable. Not priced: the chance is never given. It also makes your QTEs HARDER, which is a cost - more failed blocks and dodges.' },
     'Imbued Chains': { kind: 'bugged', uptime: 0, note: 'Currently bugged - the passive does nothing in game. Worn only for its Speed 4.' },
     'Delicate Purse': { kind: 'note', note: 'A random amount of gold at the end of an encounter, reduced by damage taken during it. Economy, not combat - never scored. Worn for the Luck 3.' },
@@ -3293,8 +3406,8 @@
     'Vow of Ruin': { kind: 'note', party: true, note: 'Party-only active (1 energy, cd 3): link an ally for 3 turns, take 25% of the damage dealt to them, then explode for an unstated amount that scales with what you absorbed. Costs your turn and your HP; solo it does nothing.' },
     'Imbuement Reliquary': { kind: 'note', note: 'Summons get the full effects of your enchant. Worth whatever the enchant is worth, on the summons only - no number of its own, and nothing at all on a kit that summons nothing (GEAR_NEEDS already refuses it there).' },
     'Focused Mind': { kind: 'multi', effects: [{ kind: 'dmgPct', value: 20 }, { kind: 'dr', value: -15 }], uptime: 0.3, note: '+20% damage and 15% MORE damage taken for the turn after a Meditate. Both halves counted at the same 0.3 uptime; the Meditate turn itself is a turn you do not attack, which the engine does not charge.' },
-    'Tainted Quiver': { kind: 'status', self: [], enemy: ['sundered'], uptime: 0.5, note: 'Your first attack always puts 1 Sundered on the enemy and steals 1 energy; later attacks have an unstated chance to do it again. The Sundered lands ON the first hit, so it feeds follow-up attacks, not a nuke opener; the energy half is not priced.' },
-    'Open Hand': { kind: 'note', note: 'Poison, Bleed, Burn, Cold, Ghostflame and Weakened on YOU decay 2 a turn instead of 1. Halves the damage-over-time you eat and the Weakened you carry - no number for how much, so not scored - and halves the self-stacks that Reversing, Deranged Fighter and Lasting Life are paid by.' },
+    'Tainted Quiver': { kind: 'status', self: [], enemy: ['sundered'], uptime: 0.3, note: 'Your first hit always puts 3 Sundered on the enemy; later hits no longer apply it, and instead have a 15% chance to take 1 energy off the target. The Sundered lands ON the first hit and lasts about 3 turns, so it feeds the follow-up attacks of the opening turns - not a nuke opener, and not a whole fight; the energy drain is not priced.' },
+    'Open Hand': { kind: 'note', note: 'Poison, Bleed, Burn, Cold, Ghostflame and Weakened on YOU decay 2 a turn instead of 1 (Poison itself now loses 20% of its stacks a turn, rounding unstated; how the item combines with that is unstated too). Shortens the damage-over-time you eat and the Weakened you carry - no number for how much, so not scored - and halves the self-stacks that Reversing, Deranged Fighter and Lasting Life are paid by.' },
     'Dread Fang': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (STR 2 / LCK 2). Re-price when the text lands.' },
     'Empty Blade': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (STR 4). Re-price when the text lands.' },
     'Faded Heirloom': { kind: 'note', note: 'Not in the game yet - the changelog lists it, no passive text exists anywhere. Stat block only (LCK 1, the weakest stat block of any gear). Re-price when the text lands - with 1 stat point its passive will be the whole item.' },
@@ -3304,12 +3417,12 @@
     'Venia': { uptime: 0, effects: [{ kind: 'note' }], note: 'Permuth trades 5% HP, 2 energy and a turn for a random +40% stat buff for 3 turns (the data field says 2) every 10, landing on your top invested stat about half the time; Muto (artifact shop) and Venian (gold 5x level) do nothing in a fight. The current note\'s "crit-and-status engine" wording describes Astra\'s Starborn, not Venia.' },
   });
   Object.assign(MASTERY_ABILITIES, {
-    'Simple Domain Proficiency': { kind: 'note', note: 'Simple Domain can now parry ranged attacks (not ultimates), so it counters Justice or Styx; scaling is unchanged. A boss-tactic defence with no number to price.' },
+    'Simple Domain Proficiency': { kind: 'note', note: 'Reworked: the Taunt Simple Domain puts on every enemy lasts 5 turns instead of 2, and the cooldown drops from 6 to 4, so the counter stance is up more often and more attacks are pulled into it - the parry build this node is meant to enable. The counter copies the base damage of the move it parries (capped at 25), which the data cannot supply, so it is reported, not scored.' },
     'Flowing Dance Proficiency': { kind: 'onSite', note: 'Flowing Dance rescales to SPD/50 in place of STR/75 + SPD/75; that is already applied by the move override. It only gains when Speed exceeds twice Strength, and the bonus against bleeding targets is dead text.' },
     'Delayed Hex': { kind: 'note', party: true, note: 'When an ally or your own summon dies, its killer gets 2 Hexed, so the next two hits on it deal double. A Hexer has no summons, so solo it never triggers. In a party it depends on a teammate dying, which a build should not plan for, and the count is unstated.' },
     'Inverse Abyss Proficiency': { kind: 'note', party: true, note: 'Each Inverse Abyss proc gives you +1 energy and puts 3 random statuses at 3 stacks on the debuffer. Procs depend on how often enemies debuff your team and are capped at ARC/65 per cast. The statuses are random, so no status gate can rely on them.' },
     'Death Edge': { kind: 'note', note: '-1 cooldown on Darklight Drain each time anything on the field dies. How many deaths a fight has is unstated, and masteries have no cooldown-cut column. Free skeletons (Call Skeleton Proficiency) and multi-mob encounters are what feed it.' },
-    'Raise Death Proficiency': { kind: 'note', party: true, note: 'Raise Dead revives at 80% HP instead of 60%, the ally cannot die until their next turn, and the cooldown drops from 16 to 11. The revived ally still loses their turn. The engine has no revive, and solo it does nothing.' },
+    'Raise Death Proficiency': { kind: 'note', party: true, note: 'Raise Dead revives at 80% HP instead of 60%, the ally cannot die until their next turn, and the cooldown drops from 16 to 11. The revived ally still loses their turn. Raise Dead now also summons a Skeleton for every death this combat, so the shorter cooldown means more of those summons, solo as well. The engine models neither revives nor deaths, so it is not scored.' },
     'Trapper': { kind: 'note', party: true, note: 'Poison Trap can go on allies, and a proc spreads half its poison to the whole enemy team. It is reactive (needs an enemy melee hit), and DoT is not modelled, so no number.' },
     'Poison Trap Proficiency': { kind: 'status', self: [], enemy: ['weakened', 'vulnerable'], uptime: 0.3, party: true, note: 'The trap\'s final proc bursts for more damage (unstated) and applies 2 Weakened and 2 Vulnerable. It only fires if an enemy melees the trapped unit, so the uptime is a guess. [assumed]' },
     'Dagger Spread Proficiency': { kind: 'status', self: [], enemy: ['poison'], uptime: 0.4, note: 'Dagger Spread now applies 2 Poisoned to every enemy it hits (full AoE). A kill with it bursts poison for small, unstated damage.' },
@@ -3349,12 +3462,13 @@
            CLASS_ROLE, classRole,
            ROLES, roleOf, ROLE_ITEMS, roleItemNote, ROLE_ITEM_MARGIN, SCROLL_NOTES,
            ROLE_GOALS, ROLE_ORDER, goalsForRoles, goalWeights,
-           MILESTONES, milestonesFor, MILESTONE_CD_AFFINITY, STAT_DECAY, PERMUTH,
+           MILESTONES, milestonesFor, MILESTONE_DMG_TYPE, milestoneDmgStat, isSummonSlot,
+           STAT_DECAY, PERMUTH,
            STAT_LINE_RULES, statCeilings,
            STAT_LINE_RULES, statCeilings,
            STAT_LINE_RULES, statCeilings,
            GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
-           UNAVAILABLE, AVOID, MASTERY_ABILITIES, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
+           UNAVAILABLE, AVOID, MASTERY_ABILITIES, masteryRulePriced, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
            BOSS_TACTICS, BOSS_PENALTIES, BOSS_SOLO_MIN_SPEED, STATUS_WORDS,
@@ -3362,7 +3476,7 @@
            ARTIFACT_ABILITIES, MARK_ABILITIES,
            COVENANTS, COVENANT_MIN_LEVEL, COVENANT_ASSUMED_RANK, COVENANT_BOSS_HOST,
            HP_STANCE, HP_GATED, HP_GATE_UPTIME, hpStance, hpGateFor,
-           ENERGY, SUSTAIN, DR_CAP, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
+           ENERGY, SUSTAIN, drDamageTakenMult, drSurvivalMult, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
            QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit, MAX_TIER, maxTierFor,

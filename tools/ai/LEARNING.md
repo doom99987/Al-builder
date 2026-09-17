@@ -30,7 +30,22 @@ what is next. Read it before pricing anything new.
 ## Verified facts (September 2026)
 
 - Stat decay past ~100; go to 110 only for the perk, else sit on 25/60/110.
-- ARC 110 cuts every non-Physical cooldown; STR 110 cuts Physical.
+- STR 110 is +20% damage on Physical moves and ARC 110 +20% on every other
+  type (2026-09-16 patch; they used to cut cooldowns). The patch notes said
+  "melee" and "ranged"; the owner corrected it from play (2026-09-17). The
+  move's converted type decides. Summon attacks get neither. A Saint no
+  longer needs 110 Arc (owner). SPD 110 is 15% autododge (was 5%).
+- Damage reduction is an armour formula (owner, 2026-09-17): DR sums as
+  points; a total takes 100 / (100 + DR) of a hit, or 2 - 100 / (100 - DR)
+  below zero. `K.drDamageTakenMult` = site `drDamageTakenMult` (tested). The
+  survival archetypes read it as 1 / drDamageTakenMult(DR) effective HP
+  ((100 + DR) / 100 when DR >= 0), uncapped - the
+  old `DR_CAP = 80` belonged to the linear reading and is gone.
+- Cursed halves outgoing and incoming healing. Poison loses 20% of its stacks
+  each turn [rounding unstated]. Paranoxian Crux cuts max HP by 75% (no x1.5
+  any more) and the removed HP becomes Shield HP [assumed].
+- Heaven's Authority: Calling Light costs 3 energy; its Sheeas have 50 base HP
+  and scale like Skeletons (text only).
 - 1 energy a turn flat; the energy-gain stat is a percent chance, counted as
   its average per turn. You open a fight with a full pool (assumed).
 - Blasphemy's Notch pays only a move costing 3+ energy. Ice Shards (scroll, 3)
@@ -39,14 +54,22 @@ what is next. Read it before pricing anything new.
   Light Force costs a Meditate turn first. Force per hit is unstated.
 - Ages Pages: +5 crit flat (already in `gearPctBonuses`); Corrupt Power stacks
   +10 more in Blasphemy/Tyranny, capped at 2 by a bug; nothing in Heresy
-  (Corrupt Power bugged there).
-- Crystal Sphere: +5 crit flat (in `gearPctBonuses`); "removes crit fatigue" is
-  dead text — the mechanic went away in the Section 9 rework.
-- Wicked Crown converts *Physical* moves to Dark (site: `builder.js:4487`);
+  (Corrupt Power bugged there). Patch 2026-09: the spend's crit bonus went
+  45 -> 35 (the site's DMG calc toggle now adds +30 over the standing +5).
+- Crystal Sphere: +5 crit flat and, since the 2026-09 patch, +5% crit damage
+  (+0.05 on the multiplier) — both in `gearPctBonuses`, so `onSite`;
+  "removes crit fatigue" is dead text — the mechanic went away in the Section 9
+  rework.
+- Wicked Crown converts *Physical* moves to Dark (site: `getEffectiveMoveType`);
   Shard of Blight is +25% to Dark moves only. Poison Fan is Poison — untouched.
+- Boreas (2026-09 patch) turns *Physical* and *Magic* moves into Ice (site:
+  `getEffectiveMoveType`; engine: `typeOf`), checked after Wicked Crown
+  [assumed]; a summon's own attacks keep their type. Frost Stacks: +10% damage
+  and +4% DR per Ice move, capped at +50% / 20% (5 stacks).
 - Arborivia: Overgrowth +10 crit/+10% DR/+20 SPD when cast at max HP; Leaf
   Thrust is 2×3 hits with +50 crit; Foliage is level 15; base 1/3/2/3/1.
-- Boreas's Inner Frost heavy-stuns *you* for two turns before it lands.
+- Boreas's Inner Frost heavy-stuns *you* for one turn before it lands (two
+  before the 2026-09 patch).
 - Absolute Radiance ramps 7.5/10/12.5/15/22.5 over five turns (cost 4, cd 18).
 - A Saint needs 60 End, or ~102 total with Astra to pop Narthana's Sigil.
 - Community builds assume maxed soul-tree health nodes.
@@ -382,6 +405,172 @@ entry and still covers the finisher's turn.
 uptime; in the DMG calc it replaces Dark Smite's own +25 with +50 on that move
 alone. Now that per-move crit exists, it belongs there.
 
+## Balance patch (2026-09-16)
+
+**Source:** the game's balance patch notes, pasted by the owner on 2026-09-16,
+and the owner's answers on five points: what Rage Empower still does (a pure
+Rage toggle), how Bloodlust stacks add up (they add), whether buffed stat
+totals reach a milestone (they do), and - correcting the notes' "melee" and
+"ranged" on 2026-09-17 - that the STR / ARC 110 perks go by type (Physical /
+everything else) and that a Saint no longer needs 110 Arc.
+Wherever the notes leave a point open, the reviewers' default was used; those
+defaults are listed under **Assumed**. `ai-data.*` has been regenerated and the
+suite run (see **Suite results**); the standing requests, the dated README and
+`knowledge.js` figures and the golden soft misses are still to be re-measured
+(see **Not modelled / open**).
+
+**Berserker**
+
+| Where | Change |
+|---|---|
+| `js/data-class-moves.js` | Bloodlust is a status: +5% damage a stack, gained by attacking or being attacked, heals you below half health, lost every turn unless you are in Rage, where each stack is +10%. Rage Empower only toggles Rage, which raises aggro and lowers Defense. Its 30%/65% HP-spend buff, 40% DR and 2-turn duration are gone; cost 1 and cooldown 5 are kept |
+| `js/data-race-moves.js` | Calvariae's Frail Body no longer names Rage Empower as a TrueDMG move |
+| DMG calc | Bloodlust row: a 1-20 stack counter and an "In Rage" switch, x(1 + 0.05 x stacks), or x(1 + 0.10 x stacks) in Rage, as one factor that multiplies with every other buff. Rage Empower is no longer its own toggle or an HP-slider readout. The old "x1.40 below 30% HP" was only ever tooltip text |
+| `knowledge.js` | Bloodlust 50 at 0.5 uptime, `source: 'patch'`, no HP gate (was 65 with `hpGate: 'low'`: +52% effective on a committed Berserker, now +25%). Berserker keeps its low-HP stance with a new reason: the heal fires only below half, and Rage lowers Defense. Bloodlust is deliberately not in `STATUS_WORDS`, because `buildDoes` would file it as an enemy status |
+
+Drauga's Enhanced Bloodlust is separate code and did not change. One side effect
+of keeping the stance: a committed Berserker is still denied Stellian Core's
+opener crit, although the toggle no longer costs HP before the first hit.
+
+**Classes**
+
+| Where | Change |
+|---|---|
+| Elementalist | Lightning Crash 20 (was 18), cooldown 8, Stun guaranteed when 6+ energy is spent; Blaze cooldown 4; Gale Uplift 7x2, cooldown 10 |
+| Impaler | Blood Eruption 18 (was 15.6), cooldown 8; Bloody Burst 4.5x2 |
+| Assassin | Poison Fan STR/75 + ARC/80 (was STR/200 + ARC/80 + LCK/100). The standing Assassin nuke below is therefore pre-patch |
+| Arbiter, Darkwraith | Pronouncement costs 3 (was 5); Call Darkbeast costs 0 |
+| Brawler | Crusher counts re-applied statuses and caps at +75%. The DMG calc keeps x1.07 per status and caps it at x1.75 (counter 1-9). Party Table hits Adjacent, and its Proficiency hits every enemy (Full AoE) |
+| Monk | Flame Drop hits every enemy (Full AoE). Flame Drop Proficiency: 4% per absorbed burn stack, up to 40% (was 2.5% / 25%); its +25% base part and the calc's x1.25 toggle stay |
+| Ranger | Verdant Archer: +15% damage a stack (was 7.5%), up to +150%, and +10% outgoing healing in place of the Speed buff; Nature's Wrath doubles the stack to 30%. Perennial Canopy and Stinger's arrows scale on SPD/80. Lightspeed: every Verdant Archer proc gives Speed equal to 10% of Arcane for 3T; its stacking autododge is gone |
+| Lancer | Empowered Pierce costs 3 and deals x1.5 on a crit (`critDmgBonus: 50`, applied at the call sites `moveCritDmgMult` / `moveCritMult`; the pinned crit bodies are untouched). Discharge costs 2, cooldown 4, and stuns only on a crit. Poised Slayer: +10% damage per dodge, up to +50%, and it keeps its heal. Swift Fighter's Speed caps at +30%. Overload: +10% STR and LCK for 3T after a move costing 2+ energy. Not in the patch: the Empowering Pierce Proficiency toggle is now gated on Lancer, not Impaler |
+| Build AI (Ranger, Lancer) | New PASSIVES entries: Poised Slayer (10 at 0.5) and Verdant Archer (15 at 0.6). New mastery kinds `statPct` (Overload, +10% STR and LCK at 0.8) and `statFromStat` (Lightspeed, Speed from 10% of Arcane at 0.6), with renderers in `explain.js` and `js/build-ai.js`. No mastery grants `dodge` any more. Overload's Luck reaches crit through the stat-row Luck, not the site's `rawLuck` |
+| Site Luck and Speed | Overload's +10% LCK and Midas's stacks feed crit chance (`updatePecents`, in the order coag -> Overload -> Permuth -> Midas) and `getTotalStat`. Swift Fighter, Lightspeed and Overload are Stat Buffs toggles |
+| Paladin | Holy Crash 18, STR/75 + END/150 (was 13, END/100). Holy Crash Proficiency is now a move rewrite to 20 base: the `builder.js` override and `MOVE_OVERRIDES['Holy Crash']` ship together, and `MASTERY_ABILITIES` lists it as `onSite` instead of +25% on every move. The 2026-09-13 audit rejected this rewrite only because the engine had no rewrites yet |
+| Citadel, Lionheart, Blade Dancer | Blinding Vow cooldown 6; Sanctified Protection cooldown 6, and the link never breaks; Cauterisation 1 Taunt per hit (was 2); Simple Domain Taunts every enemy for 2T. Simple Domain Proficiency is now: Taunt lasts 5T, cooldown 6 -> 4 (text only) |
+| Necromancer | Raise Dead also summons a Skeleton for every death this combat; Skeletons have 30 base HP. The Raise Death Proficiency note no longer says it "does nothing solo" |
+| Soul tree, Midas, scrolls | Critical Point is +2% crit damage a rank (was 5%; site only). Midas: each proc also gives +5% LCK for 2T, up to 4 stacks. The DMG calc has a 0-4 counter; the engine does not price it (about +1.7% Luck on average). Marauder can use the Dark Slash scroll |
+
+**Systems**
+
+| Where | Change |
+|---|---|
+| Milestones (`statMilestones`, `MILESTONES`) | STR 110 "Physical damage increased by 20%." and ARC 110 "Magic damage (every non-Physical type) increased by 20%." (were cooldown cuts; site wording, owner's reading); SPD 110 "15% chance to auto-dodge attacks." (was 5%) |
+| DMG calc | `getMilestoneDmgMult` joins the outside-multiplier chain: x1.20 on a Physical move at 110 STR and on any other type at 110 ARC, by the move's effective type (`getMilestoneDmgStat`), read from the buffed `getTotalStat`. Stinger's Physical stab and Poison arrows take their own perks. Summon attacks (`isSummonAttack`) get nothing. The milestone panel notes that a buff switched on in the calc can reach a milestone its total does not show |
+| Build AI | `MILESTONE_CD_AFFINITY` is gone. New: `K.milestoneDmgStat`, `K.MILESTONE_DMG_TYPE`, `K.isSummonSlot`, and `optimize.js` `effectiveTypeOf` (the converted type, shared by `evaluate` and the stat line). `milestonesFor` returns `typeDmg[]`, which is added to a move's `pct` (additive here; the site multiplies). Milestones are read on the buff-down totals and on the buff-up totals (Overload / Lightspeed at full strength); a perk only the buffed total reaches is paid at the buff's uptime. The stat line names the moves the perk buffs. `verify.js` skips moves the milestone multiplies. Sheea's flat cut is now the only cooldown cut |
+| Cursed status | Halves outgoing and incoming healing. The heal calculator gets "You are Cursed" and "Target is Cursed", x0.5 each (x0.25 together). The Seraphon tactic and the Self Cure and Piercing Grace notes are updated. Piercing Grace's game text, His Incandescence and the Cursed enchant are unchanged |
+| Poison | Loses 20% of its stacks each turn (encyclopedia text). Open Hand's note is updated; the Open Hand, Ecdysis and Ophimar row texts are unchanged |
+| Heaven's Authority | Calling Light costs 3 (was 2). Sheeas have 50 base HP and scale like Skeletons (text only). The move name, cooldown 9 and the Sheea attacks are unchanged, and the encyclopedia now lists it as a Summon (was Buff) |
+| Paranoxian Crux | Max HP -75% into Shield HP (was x1.5, then -90%). The site's HP split and the `verify.js` examples are updated; the engine still treats it as a note |
+
+**Races**
+
+| Where | Change |
+|---|---|
+| Boreas | Physical and Magic moves become Ice: on the site `getEffectiveMoveType(type, m)`, in the engine `typeOf` and `buildDoes`. Wicked Crown is checked first, and summon attacks are skipped. Frost Stacks: +10% damage and +4% DR a stack, capped at +50% / 20% (was 20% / 10% a stack, capped at 200% / 70%); the calc counter stops at 5. Inner Frost heavy-stuns you for 1 turn (`SELF_STUN` 1) |
+| Vydeer | Gains one Sense per dodge, at most once a turn; a hit taken above 4 Sense costs 4 Sense and is autododged. Sense Expansion: an extra Sense per dodge for 3T (no longer +3 Sense). Soul Reversal spends all your Sense for +10% damage per Sense (plus autododge) to all allies until your next turn: DMG calc x(1 + 0.10 x Sense spent), counter 1-10 |
+| Vastayan | Gale Pulse 10 (was 7); the Lesser Sylph learns Nature's Embrace; Spirit Awakening no longer stuns you afterwards (setup note updated) |
+| Ophimar, Amorus | Blacktongue lasts 3T; Sinister Gaze cooldown 12 |
+| Build AI smoke | `O.evaluate(b, { goal: 'damage', dmg: 'average', boss })`, Impaler (Ch), level 50, STR total 110 (`investedForTotal`): Calvariae 78.25 (39.12 against Handaconda), Boreas 78.72 either way (Blood Eruption). The Ice conversion bypasses Handaconda's 0.5 Physical/Arcane resistance, and no boss resists Ice |
+
+**Gears**
+
+| Where | Change |
+|---|---|
+| Ages Pages | The spend raises crit to +35 (was +45); the DMG calc toggle adds +30 on top of the standing +5. `FORM_GEAR` is unchanged |
+| Crystal Sphere | +5% crit damage: `gearPctBonuses` `"crit-dmg": 0.05`, mirrored by `model.js`, still `onSite` |
+| Shadow Gauntlets, Infected Skin | Lifesteal 3% (was 5%); DR +10 (was 15), with the +165 spend unchanged |
+| Stone Brand | Stone Skin cooldown 999, and its DR is permanent |
+| Tainted Quiver | The first hit always applies 3 Sundered; later hits have a 15% chance to drain 1 energy (not priced) |
+| Grain Of Balance | Grants half of the points lost, not a quarter; the "BUGGED" labels are gone |
+| Frostburned Rune | +7.5% damage against a target that has both Cold and Burn: a toggle in the DMG calc, only a note in the engine, which cannot gate on two statuses |
+| Encyclopedia | Crit Fatigue is described as removed |
+
+**Bosses**
+
+| Where | Change |
+|---|---|
+| `BOSS_DATA` HP (normal / Corrupted) | Sentient Darkness 250 / 375, Yar'Thul 800 / 1200, Thorian 2000 / 3000, Seraphon 3500 / 5250, Arkhaia 4000 / 6000, Handaconda 6000 / 18000; Metrom's Vessel unchanged at 10000 / 15000. HP changes only the reported kill turns, never the score |
+| Seraphon | No longer immune to Cursed. `bossProfile` stops reading that immunity, so a Cursed kit is no longer charged for it there; `punishesDebuffs` is unchanged |
+| Handaconda | No longer immune to Poison, and `BOSS_TACTICS.immuneStatuses` is removed, so no boss has an immunity known only from players any more. The `explain.js` line for such immunities is now tested with a throwaway entry. Thousand Screams 12.5%, One More Time cooldown 6, regen 10 |
+| Yar'Thul, Thorian, Metrom's Vessel | Inferno bypasses Resist. Overflowing Curse applies 2 Plague when the QTE is failed (its cooldown stays 4). Oblivion is true damage again: 75% of max HP when Corrupted, and the same for Shadow |
+| Thief, Grass Spirit, Zombie Mushroom | Can no longer dodge (text only) |
+
+The bosses changes should leave the goldens as they are: the Impaler kit never
+applies Poison, and an immunity charge is the same factor for every build of a
+class, so it cannot reorder them.
+
+**Suite results.** The hard `arc >= 110` in `golden/saint-healer.json` failed.
+Without the ARC 110 cooldown cut, the Saint healer line moves from STR 33 /
+ARC 110 / END 102 / LCK 10 to STR 60 / ARC 25 / END 102 / LCK 61, taking LCK 60
+for its +35% healing. The owner confirmed (2026-09-17) that a Saint no longer
+needs 110 Arc, so the golden no longer expects it; END 60 stays hard.
+
+The patch also exposed a scorer weakness: once the Berserker was repriced, the
+Support role went to a Saint on 96 HP (Endurance 19, Speed 154) - a build the
+engine had always made for a forced Saint Support, just never picked. The
+`party` archetype read half of raw HP; it now reads effective HP through the
+damage reduction formula like the tank and healer do, and Support builds a
+Blade Dancer on about 200 HP.
+
+The "two roles produce a build between the two" bar went from 0.4 to 0.35 of a
+pure tank: the lifesteal nerf cut the DPS+Tank blend's sustain (1832 -> 1284 on
+the tank score) while the pure Paladin tank got tougher once it priced its
+Warrior-tree capstones (2950 -> 3213). The blend is still 13x a pure DPS build's
+toughness and 74% of its damage.
+
+Two tests were re-pinned for intended changes: the Corvolus "opens on the
+covenant move" check uses a Slayer (Empowered Pierce's x1.5 crits now rightly
+out-burst Death Curtain on a Lancer), and the Critical Point source check
+matches within a line (its desc holds `{v}`).
+
+**Assumed** (reviewers' defaults, all [assumed]):
+
+- Summons: summon attacks get neither the STR/ARC perk nor the Boreas conversion. Heaven's Authority's Sheea rows count as summons; Arbiter's Base Move does not.
+- The patch's "Arcane" means the site's Magic.
+- Boreas: Wicked Crown converts first. Element-gated buffs follow the converted type, so Blizzard, Cast Amplify and Arcane Ritual now reach converted moves, while Elemental Master, Surprise Package and Fractured stop reaching them. No boss resists Ice (Handaconda has no Ice column, so x1.0). Big Sword lifesteal still reads the written type.
+- Bloodlust: counted as 5 stacks in Rage at 0.5 uptime. Berserker stays in the low-HP stance. The Bloodlust quote is a paraphrase, not the in-game one. Rage Empower keeps cost 1 and cooldown 5.
+- Crusher: stacks multiply (x1.07 each), capped at x1.75 (9 applications), and re-applied statuses count.
+- Poison Fan keeps ARC/80.
+- Flame Drop Proficiency keeps its +25% base part.
+- Nature's Wrath gives 30% a stack under the 150% cap.
+- Lancer: Poised Slayer +10% per dodge, capped at +50%, counted as one stack at 0.5. Swift Fighter +20% per dodge, capped at 30%. Discharge stuns on crits only. Empowered Pierce keeps its stun chance.
+- Lightspeed and Overload: Lightspeed is one refreshed buff, `Math.round(10% of ARC)`, at 0.6 uptime. Verdant Archer is one stack at 0.6. Overload's uptime is 0.8.
+- Midas: the damage proc stays, and each proc adds one Luck stack. The notes do not say whether a new proc refreshes the 2T timer, or whether Deep Focus affects the proc.
+- Skeletons and Heaven's Authority: only the text and cost changed. Call Skeleton keeps its ARC/4 HP scaling, Calling Light keeps its name and cooldown 9, and the Sheea attacks are not rescaled.
+- Cursed: x0.5 each way. Handaconda's regen counts as healing, so Cursed halves it (plan line).
+- Poison: removes 20% of the stacks.
+- Bosses: Corrupted HP is 1.5x the new HP, and Handaconda's is 3x (18000). Neither was checked in game. Arkhaia's Malfeasance summon keeps 360 HP, now more than a normal Sentient Darkness (250); not checked in game. Corrupted Oblivion is 75% (the repo had 60%). Inferno's Resist bypass is written for the status, so it covers Magma Pillar too. Handaconda's regen of 10 is HP a turn. One More Time has only its cooldown (6) and the Thousand Screams link.
+- Ages Pages: +30 per spend on the site; `FORM_GEAR` is kept.
+- Grain Of Balance: the patch wording is used; how the points are split is unconfirmed.
+- Tainted Quiver's 0.3 uptime is a descriptive estimate.
+- Simple Domain Proficiency replaces the ranged parry. Holy Crash Proficiency keeps its Taunt clause.
+- "The Axe class" is Marauder.
+- Paranoxian Crux: the removed 75% still becomes Shield HP.
+- Lesser Sylph's Nature's Embrace uses the Grass Spirit's figures (cost 2, cooldown 4, heals 40% of max HP). Sinister Gaze is 12; the repo had 7, though the patch says it was 8. "Blinding Vow" keeps the site's spelling.
+- Vydeer: "10X%" means 10% per Sense spent. The "above 4 Sense" wording is kept as written. The 1-10 Sense counter is a UI limit, not a game cap.
+
+**Not modelled / open:**
+
+- Berserker capstones: Berserkin Time, Intense Rage, Head Splitter Proficiency and Rage Empower Proficiency still describe the old Bloodlust and Rage Empower, with their texts and prices unchanged. Heavy Training, Carnage and Head Splitter are treated as unchanged.
+- Berserker unknowns: Bloodlust's heal amount, stack gain rate and stack cap; how much Rage raises aggro and lowers Defense; and the turn spent casting Rage Empower.
+- Ophimar "Chaos Orb: ?!": the notes give no effect, so nothing changed.
+- Boss drop-rate increase, and the dodge chances of Thief, Grass Spirit and Zombie Mushroom: neither is held anywhere in the data. VydeerScale is not in the repo.
+- The "new poison gears" the patch cites are not in the data.
+- Poison decay rounding is unstated, including whether 1 stack ever reaches 0. Poison damage over time is priced nowhere.
+- Skeleton and Sheea scaling: nothing computes summon HP, the ARC/4 string is never evaluated, and the DMG calc does not apply "Sheea damage scales like Skeletons". The patch says Heaven's Authority has its own move now, but gives no name or cooldown for it.
+- Corrupted HP scaling (1.5x, Handaconda 3x) is a reviewer default. Check it in game.
+- `index.html` race recommendation cards (Boreas, Vydeer, Stultus) still describe pre-patch reasoning.
+- Vydeer and Verdant Archer texts: Vydeer's Mind's Eye "extra 10% per Sense stack" is unconfirmed under the new Sense economy, and Verdant Archer's quote still mentions the removed Speed buff.
+- Not priced by the engine: Soul Reversal's autododge; Frost Stacks (Boreas `RACE_ROLES` are still status/tank); Verdant Archer's healing; Poised Slayer's heal; Crusher; Midas's Luck stacks; Tainted Quiver's energy drain. The engine fights a single target, so Party Table's Adjacent hits and Flame Drop's AoE do not register either.
+- `STAT_DECAY.pastRate` was tuned on "60 End, 110 Arc, rest Str" beating a higher-End Saint line. The removed ARC 110 cooldown cut justified that line, so re-check the rate along with the Saint golden.
+- Existing gap this patch makes more visible: `optimize.js` `resFor` maps Magic to 'Arcane', a column only Handaconda has.
+- Re-measure after `extract-data.js`:
+  - the four standing requests;
+  - the dated figures in README.md and `knowledge.js`;
+  - the ~150 heal a turn in the test.js Shadow Gauntlets comment, now about 90;
+  - every golden soft miss (berserker-crit, impaler-handa, paladin-tank), each recorded here with its reason.
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →
@@ -393,12 +582,19 @@ For every new move: does it cost *you* anything — HP, turns, a stun?
 
 ## Standing reference: the Assassin nuke
 
+**(pre-patch; re-measure)** The line and figures below date from 2026-09-13.
+In the 2026-09-16 patch, Poison Fan lost its Luck scaling (it is now STR/75 +
+ARC/80), and STR/ARC 110 became +20% damage perks. So the pure-Luck line and
+these numbers may no longer hold. Re-run "assassin nuke biggest single hit"
+after `extract-data.js`, write the new line and figures here, and keep these
+as history.
+
 Arborivia, 150 Luck (210 on the site row), Primordial Dagger, Stellian Core,
 Crystalline Spike / Yar'thul's Wrath / Band of Crushing Force / Coagulated Finger Nail,
 Arcane Robes,
 Traveling Pasmark, Miner, Absolute Radiance, Cursed, 3 Reversing + 2 Empowering
 + 2 Striking, mastery 2-0-0, Cult of Thanasius. Shadow Form → Absolute Radiance
-→ Poison Fan: 946 cold, 1,411 prepared, at 110% crit, with Crystalline Spike's flat
+→ Poison Fan: 946 cold, 1,411 prepared (pre-patch; re-measure), at 110% crit, with Crystalline Spike's flat
 damage per hit and crit tiers adding +1 (2026-09-13). It read 1,283 before the
 Spike was counted, 1,266 before the Luck 25 crit bonus, and 1,392 when every item
 was priced at T6. Permuth on Luck

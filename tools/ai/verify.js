@@ -222,12 +222,12 @@
       const el = document.querySelector('.percent-item[data-stat="' + key + '"] .percent-val');
       if (!el) return null;
       // Take the FIRST number only. Paranoxian Crux renders HP as
-      // "14.7 (83.1 Shield)", and stripping non-digits glued that into 14.783.
+      // "24.5 (73.5 Shield)", and stripping non-digits glued that into 24.573.
       const m = String(el.textContent).match(/-?\d+(?:\.\d+)?/);
       return m ? parseFloat(m[0]) : null;
     };
     const d = M.derived(build);
-    // Paranoxian Crux repaints HP as "15.0 (85.2 Shield)" — current health plus a
+    // Paranoxian Crux repaints HP as "25.0 (75.0 Shield)" — current health plus a
     // shield, not maximum health. There is no max-HP figure on the page to
     // compare against, so HP is skipped for that artifact rather than counted as
     // a mismatch.
@@ -276,13 +276,17 @@
           // string either - a string each side half-reads is a separate question.
           if (!parseScaling(mv.scaling) && /[A-Za-z]{3}\s*\/\s*[\d.]+/.test(String(mv.scaling || ''))) continue;
           // Per-move multipliers the site applies and moveDamage deliberately
-          // does not: element gates and the Darkbeast bonus.
+          // does not: element gates, the Darkbeast bonus and the 110 damage milestones.
           const eff = typeof getEffectiveMoveType === 'function'
-                    ? getEffectiveMoveType(mv.moveType) : mv.moveType;
+                    ? getEffectiveMoveType(mv.moveType, mv) : mv.moveType;
           const perMove = [
             typeof getShardOfBlightMult === 'function' ? getShardOfBlightMult(eff) : 1,
             typeof getBlizzardMult === 'function' ? getBlizzardMult(eff) : 1,
             typeof getActiveDmgMult === 'function' ? getActiveDmgMult(eff) : 1,
+            // STR / ARC 110 (+20% Physical / magic): the page applies it, moveDamage does not.
+            typeof getMilestoneDmgMult === 'function' ? getMilestoneDmgMult(mv) : 1,
+            // Stinger's stab is Physical although the move is Poison, so it takes STR's perk.
+            (typeof getMilestoneDmgMult === 'function' && mv.name === 'Stinger') ? getMilestoneDmgMult(mv, 'Physical') : 1,
           ];
           if (!perMove.every(v => Math.abs(v - 1) < 1e-9)) continue;
           if (mv.slot === 'Darkbeast') continue;

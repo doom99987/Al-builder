@@ -54,7 +54,7 @@
     ['Dust Devil\'s Eye',     'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.'],
     ['Dust Storm',            'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.'],
     ['Ramizcan Idol',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nGrants a 15% damage buff for 1 turn after blocking or parrying.'],
-    ['Grain Of Balance (BUGGED?)', 'Gear',       'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nTakes 25% off of your highest stat and distributes it across all stats.'],
+    ['Grain Of Balance',      'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nTakes 25% off your highest stat and grants half of the stat points lost to your other stats (it used to grant a quarter).'],
     ['Egg Shelmet',           'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Gigapascha">Gigapascha</button>. Can also be obtained from an <button class="enc-desc-link" data-enc-nav="Egg Basket">Egg Basket</button>.\n\nA helmet fashioned from a giant egg shell. Provides modest protection.'],
     ['Elemental Infuser',     'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Pterathanaian">Pterathanaian</button>.'],
     ['Elementary Resonance',  'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Frosted Slime">Frosted Slime</button> and <button class="enc-desc-link" data-enc-nav="Joyous Spirit">Joyous Spirit</button>.'],
@@ -111,11 +111,11 @@
        unconditional bonus on every attack. Once per turn, while in a Corruption
        Form with enough Corrupt Power banked, that bonus can be spent up to a
        much larger one. Dropped by the Withered Grove enemies. */
-    ['Ages Pages',            'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Crit Chance. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45 Crit Chance for that attack.'],
+    ['Ages Pages',            'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Crit Chance. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +35 Crit Chance for that attack.'],
     ['Blooming Eye',          'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 True Flat Damage. Once per turn while in a Corruption Form, spending 100 Corrupt Power raises this to +35 True Flat Damage for that attack.'],
     ['Crystalline Spike',     'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +40 Flat Damage for that attack.'],
-    ['Shadow Gauntlets',      'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5% Lifesteal. Once per turn while in a Corruption Form, spending 45 Corrupt Power raises this to +25% Lifesteal for that attack.'],
-    ['Infected Skin',         'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +15 DR. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +165 DR for that attack.'],
+    ['Shadow Gauntlets',      'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +3% Lifesteal. Once per turn while in a Corruption Form, spending 45 Corrupt Power raises this to +25% Lifesteal for that attack.'],
+    ['Infected Skin',         'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +10 DR. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +165 DR for that attack.'],
     ['Lucky Horns',           'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5% Damage. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45% Damage for that attack.'],
     /* Withered Grove gears. The changelog's stat table lists these without a
        source; the game dev confirmed the area. Effects are still undocumented. */
@@ -284,7 +284,7 @@
     ['Sentry',         'Base Class',  'A defensive support class focused on protection and battlefield control. Cost: 500g.\n\nEvolves into: <button class="enc-desc-link" data-enc-nav="Citadel (Or)">Citadel (Or)</button>, <button class="enc-desc-link" data-enc-nav="Arbiter (N)">Arbiter (N)</button>\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Lagolt, the Sentry">Lagolt, the Sentry</button>'],
 
     /* ── SUPER CLASSES ────────────────────────────────────────────────── */
-    ['Ranger (Or)',       'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Orthodox path. Cost: 2,000g.\n\nA mobile crit-and-speed-focused fighter with nature magic. Gains damage and speed buffs on every dodge or crit. Strike scales with Arcane.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orkin, Lifebound Archer">Orkin, Lifebound Archer</button>'],
+    ['Ranger (Or)',       'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Orthodox path. Cost: 2,000g.\n\nA mobile crit-and-speed-focused fighter with nature magic. Gains stacking damage buffs (up to +150%) and an outgoing healing buff on every dodge or crit. Strike scales with Arcane.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Orkin, Lifebound Archer">Orkin, Lifebound Archer</button>'],
     ['Rogue (N)',         'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Neutral path. Cost: 3,750g.\n\nA stealth and burst-damage specialist that excels at bleed stacking and high single-hit damage.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Aberon, Rogue Hunter">Aberon, Rogue Hunter</button>'],
     ['Assassin (Ch)',     'Super Class', '<button class="enc-desc-link" data-enc-nav="Thief">Thief (Base Class)</button> → Chaotic path. Cost: 2,000g.\n\nA high-damage finisher focused on critical bursts and eliminating targets before they can react.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Inette, Shadow Cloak">Inette, Shadow Cloak</button>'],
     ['Paladin (Or)',      'Super Class', '<button class="enc-desc-link" data-enc-nav="Warrior">Warrior</button> → Orthodox path. Cost: 2,400g.\n\nA holy warrior combining frontline tanking with healing and divine protection.\n\nTrainer: <button class="enc-desc-link" data-enc-nav="Dernon, Paladin Warrior">Dernon, Paladin Warrior</button>'],
@@ -321,8 +321,8 @@
     ['Corvolus (3%)',    'Race', 'Rare race (3% chance). An arcane race with 30% bonus damage to Holy and Magic affinity skills and 1.15x essence gain. Can give allies magic damage buffs.'],
     ['Daminos (3%)',     'Race', 'Rare race (3% chance). A resilient race with 4 lives (instead of 3) and 15% outgoing healing bonus. At ≤25% HP, gains passive 2% HP regen until hit again.'],
     ['Dullahan (1%)',    'Race', 'Legendary race (1% chance). A headless race with 4 lives, 20% fire resistance, extra essence from kills, and 3 additional stat points per 10 levels (12 extra by lv40).'],
-    ['Vydeer (1%)',      'Race', 'Legendary race (1% chance). A sensory race immune to Blind, gaining 1.5% crit per turn (cap 15%). Has the Sense status — at 3+ stacks, automatically dodges any damaging attack.'],
-    ['Boreas (1%)',      'Race', 'Legendary race (1% chance). A frost race that stacks ice power: each Ice affinity move grants 1 stack (+20% dmg, +10% DR per stack). Non-Ice moves remove 1 stack. Attacks have ~25% chance to apply 2 Cold.'],
+    ['Vydeer (1%)',      'Race', 'Legendary race (1% chance). A sensory race immune to Blind, gaining 1.5% crit per turn (cap 15%). Gains 1 Sense when dodging (once per turn); if hit while above 4 Sense, it spends 4 Sense to autododge the attack. Soul Reversal spends all Sense for a party-wide damage and autododge buff of 10% per Sense.'],
+    ['Boreas (1%)',      'Race', 'Legendary race (1% chance). A frost race that stacks ice power: its Physical and Magic moves become Ice, and each Ice affinity move grants 1 stack (+10% dmg, +4% DR per stack, up to +50% dmg and 20% DR). Non-Ice moves remove 1 stack. Attacks have ~25% chance to apply 2 Cold.'],
     ['Lentum (Obtainable)',      'Race', 'How to obtain:\n\nNote: Always have Gelat Band equipped and do it all in the same server.\n\n1. Equip Gelat Band and speak with King Slime Statue to get quest.\n2. Find 4 Slime Statues, speak with them and return to King Slime Statue.\n3. Give him 100 Slime Chunks. (Should get "my fallen subjects" dialogue)\n4. Kill King Slime and return to statue to obtain Lentum.'],
     ['Amorus (Obtainable)',      'Race', 'How to obtain:\n\n1. Have 35+ level and speak with Thanasius in <button class="enc-desc-link" data-enc-nav="Amoran Chasm">Amoran Chasm</button>.\n2. Offer him the following: Phoenix Tear, Lineage Shard, Memory Fragment, Soul Dust, Narthana\'s Sigil, Dark Sigil, Reality Watch, Stellian Core, Shifting Hourglass, Chaos Orb, Metrom\'s Amulet, Void Key.\n3. Speak with him again to obtain Amorus.'],
     ['Sheea (Obtainable)',       'Race', 'How to obtain:\n\n1. Speak with Sky Man, give him Mushroom Cap, Sand Core and Rot Core, then speak with him again and teleport.\n2. Join the Church of Raphion and progress it to Rank 20.\n3. Return to the Church and speak with Mael to start the Seraphon fight.\n4. Win the fight and speak with Mael to obtain Sheea.'],
@@ -336,7 +336,7 @@
     ['Thorian, The Rotten',          'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Cessgrounds">Cessgrounds</button>. This enemy can block attacks.'],
     ['Pterathanaian',                'Mini Boss', 'The mini boss of <button class="enc-desc-link" data-enc-nav="Deeproot Canopy">Deeproot Canopy</button>. Spawns upon using the Warbing Whistle.'],
     ['Seraphon',                     'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Illustris">Illustris</button>. Available in the Church of Raphion at rank 20. This enemy can block and dodge attacks.'],
-    ['Arkhaia',                      'Boss', 'The boss of the <button class="enc-desc-link" data-enc-nav="Temple of Norn">Temple of Norn</button>. Available in the Cult of Thanasius at rank 20. This enemy can block attacks.\n\nNote: Starting the fight with a Celestial Emblem equipped allows Arkhaia to summon a weak version of Sentient Darkness.'],
+    ['Arkhaia',                      'Boss', 'The boss of the <button class="enc-desc-link" data-enc-nav="Temple of Norn">Temple of Norn</button>. Available in the Cult of Thanasius at rank 20. This enemy can block attacks.\n\nNote: Starting the fight with a Celestial Emblem equipped allows Arkhaia to summon a Sentient Darkness for 3 turns (see Malfeasance).'],
     ["Metrom's Vessel",              'Boss', "A vessel containing Metrom's immense power. One of the game's strongest raid bosses. This enemy can block and dodge attacks."],
     ['Shadeblade',                   'Boss', 'A shade warrior wielding twin dark blades. A swift and dangerous mini boss.'],
     ['Handaconda',                   'Boss', 'A colossal serpentine raid boss. Resistant to physical, holy, and arcane damage. Vulnerable to fire.'],
@@ -399,7 +399,7 @@
     ['Simple Curse',      'Scroll', 'Class restriction: Wizard, Slayer, Martial Artist.\n\nCost: 2 NRG · Cooldown: 6\nType: Hex · Attack · Damage: 5 (ARC/75)\n\nApplies 2 Vulnerable and 3 Weakened on hit.'],
     ['Ice Shards',        'Scroll', 'Class restriction: Wizard, Thief, Slayer.\n\nCost: 3 NRG · Cooldown: 8\nType: Ice · Attack · Damage: 3.5×4 (ARC/75)\n\nApplies 1 Weakened and 3 Cold on hit.'],
     ['Wind Reflect',      'Scroll', 'Class restriction: Wizard, Slayer.\n\nCost: 2 NRG · Cooldown: 12\nType: Nature · Buff · Duration: 3\n\nPlace a shield on yourself or an ally, preventing physical attacks from hitting them. Does not fully work against bosses.'],
-    ['Dark Slash',        'Scroll', 'Class restriction: Thief, Warrior.\n\nCost: 2 NRG · Cooldown: 6\nType: Dark · Attack · Damage: 11 (STR/75)\n\nHas a chance to apply 2 Weakened.'],
+    ['Dark Slash',        'Scroll', 'Class restriction: Thief, Warrior, Marauder.\n\nCost: 2 NRG · Cooldown: 6\nType: Dark · Attack · Damage: 11 (STR/75)\n\nHas a chance to apply 2 Weakened.'],
     ['Fireball',          'Scroll', 'Class restriction: Wizard only.\n\nCost: 2 NRG · Cooldown: 4\nType: Fire · Attack · Damage: 9 (ARC/75)\n\nHas a chance to apply 3 Burning on hit.'],
     ['Blizzard',          'Scroll', 'Class restriction: Wizard only.\n\nCost: 2 NRG · Cooldown: 15\nType: Ice · Buff · Duration: 4\n\nCreates a snowstorm for 4 turns: all defense -20%, fire defense +25%, increasing ice damage by 20% for the team. Also increases the team\'s defense by 10%.'],
     ['Battleworn',        'Scroll', 'Drop only from <button class="enc-desc-link" data-enc-tab="Boss">Bosses</button>.\n\nUnlike other scrolls, this scroll does not give any skills and simply gives 7 mastery points.'],
@@ -489,7 +489,7 @@
     ['Gigapascha',        'Mob', 'Easter Events mini-boss mob. Spawns only in <button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button> during the day. This enemy can dodge attacks.'],
     ['Frosted Slime',     'Mob', 'Winter Solstice Events mob. This enemy can dodge attacks.'],
     ['Joyous Spirit',     'Mob', 'Winter Solstice Events mob. Currently disabled from encounters due to bugs. This enemy can dodge attacks.'],
-    ['Thief',             'Mob', '<button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button> mob. This enemy can block and dodge attacks.'],
+    ['Thief',             'Mob', '<button class="enc-desc-link" data-enc-nav="The Crossing">The Crossing</button> mob. This enemy can block attacks.'],
     /* Withered Grove, level 35-50 band. */
     ['Reanimant',         'Mob', 'Withered Grove mob (level 35-50). 145 HP, 15% Block, never dodges, 2.6 Essence multiplier.\n\nResists Physical (0.85), Poison (0.4), Dark (0.7). Weak to Ice (1.1), Fire (1.25), Holy (1.4). Drops nothing.\n\nShriek (1 NRG, 4T): +20% damage to itself for 3 turns, then 6 Poisoned to your whole team.\nDouble Slam (2 NRG, 3T): two hits of 11, each undodged hit adding a Weakened stack.\nRotten Swipe (0 NRG): flat 12, its energy-less filler.'],
     ['Infused Mushroom',  'Mob', 'Withered Grove mob (level 35-50). 110 HP, 10% Block, 12% Dodge, regenerates 2 HP per tick, 2.5 Essence multiplier.\n\nResists Poison (0.2), Nature (0.7), Physical (0.9). Weak to Ice (1.1), Holy (1.1), Fire (1.35).\n\nIts whole kit stacks and spreads Poison, with no zero-cost filler move.\n\nSpore Rupture (2 NRG, 3T): 20 base — dodging it increases the damage instead of avoiding it, and 2 Poisoned land regardless of block or dodge.\nPoison Perforation (2 NRG, 6T): doubles Poison on every poisoned enemy on its team, costing itself 15% max HP.\nCaustic Rupture (1 NRG, 4T): unblockable and undodgeable, 4 damage per Poison stack you carry, splashing 90% to anyone adjacent.\nInfested Slam (2 NRG, 8T): 22 base; if undodged and you already have Poison, adds a stack and copies your full stack count onto a nearby enemy.'],
@@ -498,8 +498,8 @@
     ['Magical Zealot',    'Mob', 'Withered Grove mob (level 35-50). 130 HP, 10% Block, 10% Dodge, 2.7 Essence multiplier.\n\nResists Fire (0.6), Magic (0.8), Nature (0.9), Dark (0.9). Weak to Physical (1.2), Holy (1.15). Drops nothing.\n\nFlame Packer (2 NRG, 1T): 14 with 2x adjacent splash, applying 2 turns of Burning on a clean hit.\nSealed Empowerment (3 NRG, 15T): casts a Domain giving both sides 1 energy per turn until 10 total energy has been spent in the fight.\nThorny Heal Scroll (3 NRG, 12T): heals its lowest-HP ally for 10% of that ally\'s max HP, costing itself 5% of its own.\nStrike (0 NRG): flat 5 filler.'],
     ['Arboreal Animant',  'Mob', 'Withered Grove mob (level 35-50). 175 HP, 15% Block, never dodges, regenerates 3 HP per turn, 3.0 Essence multiplier.\n\nResists Nature (0.4), Poison (0.6), Dark (0.75), Physical (0.85). Weak to Ice (1.15), Holy (1.1), Fire (1.5).\n\nOlden Growth (6 NRG, 15T): raises a Domain giving both sides 10% lifesteal and Seeding everyone with a 2-turn counter. A Seed reaching 0 unhealed applies Vulnerable for 2 turns; healing a Seeded character clears it and lashes a random enemy for 5% max HP true damage. The Domain ends once 15 cumulative Nature damage has been dealt.\nDark Seeded Soil (2 NRG, 3T): unblockable and undodgeable, 6 damage per Seeded target, consuming the Seed.\nEssence Tunement (2 NRG, 5T): three dodge-only volleys at your whole team, 7 each, every landed volley adding Weakened.\nGrown Ashes (0 NRG): team-wide filler, 12 base, halved if you dodge but unchanged if you block — so dodging is worse than blocking here. Seeds everyone it hits and heals itself for 50% of total damage dealt.'],
     ['Slime',             'Mob', 'Forest mob. This enemy can dodge attacks.'],
-    ['Grass Spirit',      'Mob', 'Forest mob. This enemy can dodge attacks.'],
-    ['Zombie Mushroom',   'Mob', 'Forest mob. This enemy can block and dodge attacks.'],
+    ['Grass Spirit',      'Mob', 'Forest mob. This enemy cannot block or dodge attacks.'],
+    ['Zombie Mushroom',   'Mob', 'Forest mob. This enemy can block attacks.'],
     ['Sand Elemental',    'Mob', 'Desert mob. This enemy can dodge attacks.'],
     ['Desert Bandit',     'Mob', 'Desert mob. This enemy can block and dodge attacks.'],
     ['Stray Sandstorm',   'Mob', 'Desert mob. This enemy can dodge attacks.'],
@@ -590,17 +590,18 @@
     ['Winter Solstice',     'Event', 'Limited event that occurred during Winter 2024/2025. Slimes were replaced with winter variants. Players earned Crystallized Joy exchangeable for Icerind Weapons, Frosted, and more.'],
     ['Easter',              'Event', 'Limited event that occurred during 2026. Introduced five new Bunny enemies that dropped Easter Eggs, exchangeable for the Ivory enchantment or Egg Basket.'],
 
-    ['Soul Tree',                       'Mechanic', 'The Soul Tree is a persistent upgrade tree purchased with Soul Points. Nodes can be purchased in any order.\n\nPATH OF DESTRUCTION (Leftmost Branch)\n\nDenature: DoT Damage +2% per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nCritical Point: Base crit damage +5% per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nStrike First, No Mercy: First attack +5% damage per rank, expires after 2 turns\nCosts: I:100  II:200  III:300  IV:400  V:500\n\nComeback: Gain +1 energy per turn when at or below 25% HP\nCost: I:1000\n\nEnergy-Back Guarantee: Killing an enemy grants 1 energy\nCost: I:750\n\nLil Bit of Crit: Base crit chance +1% per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nCombat Focus: After meditating, damage +2% per rank for 2 turns (one turn effectively)\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nRun That Back: Failing a minigame or having your attack dodged reduces the skill\'s cooldown by 1 turn\nCost: I:500\n\nPATH OF EMPOWERMENT (Middle Branch)\n\nEnduring Vessel: Base HP +2 per rank\nCosts: I:20  II:40  III:60  IV:80  V:100\n\nCalm Mind: Meditate damage vulnerability -5% per rank\nCosts: I:50  II:100  III:150\n\nBattle Renewal: Post-combat healing +2.5% per rank\nCosts: I:20  II:40  III:60  IV:80\n\nMending: Heal +0.5 HP at start of turn per rank (does not scale with outgoing healing)\nCosts: I:20  II:40  III:60  IV:80  V:100\n\nSwiftfoot: Allows dodging while guarding (if dodgeable)\nCost: I:1000\n\nImpervious: Start the fight with 1 Resist\nCost: I:750\n\nChug Chug Chug: Grants an additional potion slot per category per rank\nCosts: I:100  II:200  III:300\n\nLight Work, No Reaction: Minigame easier by 0.05 per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nPATH OF SUNDRY (Rightmost Branch)\n\nEssence Eater: Essence gain +10% per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nEven Further Beyond: Essence cap +1 per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nOverprepared Adventurer: Grants starting gear per rank\nI:25 + Small Healing Potion ×3, Matorr\'s Encyclopedia  |  II:100 + Pickaxe  |  III:200 + Minor Energy Elixir ×5  |  IV:300 + Explorer Blueprint  |  V:400 + Daze, Self Cure\n\nFriends in High Places: Illustris portal starts open (portal to Church of Raphion)\nCost: I:100\n\nShifting Origins: Choose respawn location from attuned spots\nCost: I:100\n\nPath Maker: Fast Travel spots carry over on death\nCost: I:250\n\nUninteresting Loan: Starting Gold +200 per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nEscape Artist: Escape chance +2% per rank (base is 20% without speed)\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nExpert Harvester: 25% chance for double harvest (stacks with Way of Life\'s Gatherer)\nCost: I:500\n\nRaphion\'s Resume: Covenant/Class level requirement -1 per rank (applies to Super, Base, and Sub classes)\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nSoul Vault: Unlocks the Soul Vault at the bank, carry 1 item through a wipe\nCost: I:500'],
+    ['Soul Tree',                       'Mechanic', 'The Soul Tree is a persistent upgrade tree purchased with Soul Points. Nodes can be purchased in any order.\n\nPATH OF DESTRUCTION (Leftmost Branch)\n\nDenature: DoT Damage +2% per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nCritical Point: Base crit damage +2% per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nStrike First, No Mercy: First attack +5% damage per rank, expires after 2 turns\nCosts: I:100  II:200  III:300  IV:400  V:500\n\nComeback: Gain +1 energy per turn when at or below 25% HP\nCost: I:1000\n\nEnergy-Back Guarantee: Killing an enemy grants 1 energy\nCost: I:750\n\nLil Bit of Crit: Base crit chance +1% per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nCombat Focus: After meditating, damage +2% per rank for 2 turns (one turn effectively)\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nRun That Back: Failing a minigame or having your attack dodged reduces the skill\'s cooldown by 1 turn\nCost: I:500\n\nPATH OF EMPOWERMENT (Middle Branch)\n\nEnduring Vessel: Base HP +2 per rank\nCosts: I:20  II:40  III:60  IV:80  V:100\n\nCalm Mind: Meditate damage vulnerability -5% per rank\nCosts: I:50  II:100  III:150\n\nBattle Renewal: Post-combat healing +2.5% per rank\nCosts: I:20  II:40  III:60  IV:80\n\nMending: Heal +0.5 HP at start of turn per rank (does not scale with outgoing healing)\nCosts: I:20  II:40  III:60  IV:80  V:100\n\nSwiftfoot: Allows dodging while guarding (if dodgeable)\nCost: I:1000\n\nImpervious: Start the fight with 1 Resist\nCost: I:750\n\nChug Chug Chug: Grants an additional potion slot per category per rank\nCosts: I:100  II:200  III:300\n\nLight Work, No Reaction: Minigame easier by 0.05 per rank\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nPATH OF SUNDRY (Rightmost Branch)\n\nEssence Eater: Essence gain +10% per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nEven Further Beyond: Essence cap +1 per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nOverprepared Adventurer: Grants starting gear per rank\nI:25 + Small Healing Potion ×3, Matorr\'s Encyclopedia  |  II:100 + Pickaxe  |  III:200 + Minor Energy Elixir ×5  |  IV:300 + Explorer Blueprint  |  V:400 + Daze, Self Cure\n\nFriends in High Places: Illustris portal starts open (portal to Church of Raphion)\nCost: I:100\n\nShifting Origins: Choose respawn location from attuned spots\nCost: I:100\n\nPath Maker: Fast Travel spots carry over on death\nCost: I:250\n\nUninteresting Loan: Starting Gold +200 per rank\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nEscape Artist: Escape chance +2% per rank (base is 20% without speed)\nCosts: I:25  II:50  III:75  IV:100  V:125\n\nExpert Harvester: 25% chance for double harvest (stacks with Way of Life\'s Gatherer)\nCost: I:500\n\nRaphion\'s Resume: Covenant/Class level requirement -1 per rank (applies to Super, Base, and Sub classes)\nCosts: I:50  II:100  III:150  IV:200  V:250\n\nSoul Vault: Unlocks the Soul Vault at the bank, carry 1 item through a wipe\nCost: I:500'],
     ['Triumphs \u2191',                  'Mechanic', 'Triumphs are objectives completed to earn Soul Points. Enabling Trials multiplies the Soul Points received.\n\nNote: Soul Points are only awarded after wiping and respawning as a new character. Wiping via Lineage Shard does not grant Soul Points.\n\nREPEATABLE TRIUMPHS\nBase Class — 15 Soul Points\nObtained a unique enchant — 30 Soul Points\n? (unknown)\n\nFIRST-TIME TRIUMPHS\nFirst Base Class — 20 Soul Points\nFirst Super Class — 50 Soul Points\nFirst Mid Rank Covenant — 50 Soul Points\nFirst Boss Completed — 50 Soul Points\nFirst Artifact Equipped — 75 Soul Points\nFirst Max Rank Covenant — 75 Soul Points'],
     ['Move Scaling',                    'Mechanic', 'Nearly every damage-dealing active in Arcane Lineage scales off stats. The formula is:\n\nBaseDMG × (1 + (stat / scaling))\n\nBaseDMG = base damage of the attack\nStat = the caster\'s relevant stat value\nScaling = a per-move number that controls stat influence\n\nExample: 200 STR, using Strike (BaseDMG: 5, scaling: STR/75)\n5 × (1 + (200/75)) ≈ 18.33 damage\n\nIf you have DMG multipliers, apply them at the end.\n\nDUAL/MULTI SCALING\nBaseDMG × (1 + (stat1/scaling1 + stat2/scaling2))\n\nExample: 100 STR and 100 ARC, using Lifeless Skull (BaseDMG: 13, both /80)\n13 × (1 + (100/80 + 100/80)) = 13 × (1 + 2.5) = 45.5 damage\n\nThis pattern continues for moves that scale with more than 2 stats.'],
     ['Alignment',                       'Mechanic', 'Alignment (also known as Reputation) is required to obtain Super Classes.\n\nOrderly Classes require Orderly alignment\nNeutral Classes require Any alignment\nChaotic Classes require Chaotic alignment\n\nAlignment can be obtained from Alignment Potions and Alignment Quests.\n\nAlignment Potions:\nHeartsoothing Remedy — Orderly Alignment\nHeartbreaking Elixir — Chaotic Alignment\n\nTip: Drink 8–9 potions BEFORE doing 2 quests for maximum efficiency when obtaining your class.'],
-    ['Status Effects',                  'Mechanic', 'Poison: Takes damage equal to stacks at start of turn. Lethal.\n\nBleed: Takes 3% max HP as DoT when acting or blocking a hit.\n\nBurn: Takes 0.7% max HP DoT per stack at turn start, increasing with stacks. Capped at 20 stacks.\n\nGhostflame: Takes 3.85% max HP as DoT at turn start.\n\nVulnerable: Intakes 20% more damage.\n\nHexed: Incoming attacks deal double damage, removing one stack per hit.\n\nBlinded: Increased QTE difficulty for dodging and class minigames.\n\nWeakened: Deals 20% less damage.\n\nCursed: Decreases incoming and outgoing healing by 20% per stack. (Currently bugged: any stack sets outgoing healing to 0.)\n\nStun: Unable to dodge or block; next turn skipped. Taking hits removes ONE stack.\n\nHeavy Stun: Unable to dodge or block; next turn skipped.\n\nCrippled: Unable to block or dodge; disables Guarding/Escape for players.\n\nCold: Using a skill makes its cooldown 50% longer.\n\nSundered: Incoming attacks ignore resistances.\n\nFractured: Intakes 35%+ Physical/Magic damage.\n\nTaunted: Will attack the player who applied it.\n\nResist: Immune to any status effect until one is received. Cannot resist Heavy Stun.\n\nInvisibility: Immune to damage and targeting; increases escape chance. Status effects still deal damage. Enemies skip their turn if the whole party is invisible. Next attack deals 20% more damage.\n\nOverheat: +8% damage and +7.5% speed per stack. Capped at 10 stacks.\n\nEnergized: 10X% chance to gain additional Energy (X = stacks).\n\nThorns: Reflects damage (needs testing).\n\nInferno: Lose HP per turn based on stacks; decreases outgoing and incoming healing per stack. Consumed by Blaze Core, Magma Beam, and Armageddon.\n\nPlague: Each stack decreases damage and defense by an increasing amount per stack.\n\nPurified: Any healing is redirected to Seraphon. Lifesteal (excluding Parasitic Leech) and passive regen are unaffected.\n\nSee DoT Info for detailed damage breakdowns.'],
+    ['Status Effects',                  'Mechanic', 'Poison: Takes damage equal to stacks at start of turn, then 20% of the stacks are removed. Lethal.\n\nBleed: Takes 3% max HP as DoT when acting or blocking a hit.\n\nBurn: Takes 0.7% max HP DoT per stack at turn start, increasing with stacks. Capped at 20 stacks.\n\nGhostflame: Takes 3.85% max HP as DoT at turn start.\n\nVulnerable: Intakes 20% more damage.\n\nHexed: Incoming attacks deal double damage, removing one stack per hit.\n\nBlinded: Increased QTE difficulty for dodging and class minigames.\n\nWeakened: Deals 20% less damage.\n\nCursed: Halves incoming and outgoing healing.\n\nStun: Unable to dodge or block; next turn skipped. Taking hits removes ONE stack.\n\nHeavy Stun: Unable to dodge or block; next turn skipped.\n\nCrippled: Unable to block or dodge; disables Guarding/Escape for players.\n\nCold: Using a skill makes its cooldown 50% longer.\n\nSundered: Incoming attacks ignore resistances.\n\nFractured: Intakes 35%+ Physical/Magic damage.\n\nTaunted: Will attack the player who applied it.\n\nResist: Immune to any status effect until one is received. Cannot resist Heavy Stun or Inferno.\n\nInvisibility: Immune to damage and targeting; increases escape chance. Status effects still deal damage. Enemies skip their turn if the whole party is invisible. Next attack deals 20% more damage.\n\nOverheat: +8% damage and +7.5% speed per stack. Capped at 10 stacks.\n\nBloodlust: From the Berserker passive of the same name. +5% damage per stack, or +10% per stack while in Rage (toggled with Rage Empower). Heals you while below half health. Gained by attacking or being attacked; lost every turn unless you are in Rage.\n\nEnergized: 10X% chance to gain additional Energy (X = stacks).\n\nThorns: Reflects damage (needs testing).\n\nInferno: Lose HP per turn based on stacks; decreases outgoing and incoming healing per stack. Consumed by Blaze Core, Magma Beam, and Armageddon. Bypasses Resist.\n\nPlague: Each stack decreases damage and defense by an increasing amount per stack.\n\nPurified: Any healing is redirected to Seraphon. Lifesteal (excluding Parasitic Leech) and passive regen are unaffected.\n\nSee DoT Info for detailed damage breakdowns.'],
     ['Mastery',                         'Mechanic', 'Mastery is the upgrade tree for your Super Class. Access via "I\'d like to learn more about myself." in Trainer dialogue.\n\nMastery Points: Earned by killing Bosses and Mobs (Bosses give more). Max 35 Mastery Points. Get progressively harder to earn the more you have.\n\nBreakthrough Points: Earned by consuming an Echo Shard. Maximum advisable: 3–4 breakthroughs.\n\nOn wipe: Last mastery point count is saved, along with 3 original breakthroughs.\n\nTree Structure (Left / Middle / Right):\n0-0-0 = Start (no Breakthrough points)\n1-1-1 = Passives (first Breakthrough per path)\n2-2-2 = Proficiencies (second Breakthrough per path)\n\nNote: Paths 2-2-0 and 0-2-2 are exceptions — the 1-0-0 and 0-0-1 nodes are skipped respectively to have enough mastery points for the rest.'],
     ['Day/Night Cycle',                 'Mechanic', 'The game swaps between day and night every 13 minutes. All servers share the same cycle unless broken by a Totem.\n\nPlayers receive early alerts before transitions.\n\nNight: Spawns special enemies; chance to trigger Astral Night.\nDay: Chance to trigger Corrupted Skies.\n\nIf a Totem is used during Night (no active Astral Night), it forces Day and triggers Corrupted Skies. If Astral Night is active, the Totem has no effect.'],
     ['Untradable Items',                'Mechanic', 'Untradable items cannot be traded in any way.\n\nList of Untradable Items:\nUnopened Present (unobtainable)\nRadiance Elixir\nCelestial Emblem\nAstral Shards\nMossy Rune'],
-    ['DoT Info',                        'Mechanic', 'BLEED\nDeals flat 3% of Max HP when the afflicted unit: uses a move, Guards, Meditates, or Escapes. Also triggers on blocking a hit. Not affected by modifiers.\n\nPOISON\nDeals damage equal to total stacks before turn start. Does not scale with DoT modifiers. Lethal.\n\nBURN\nDeals 0.7% Max HP on turn start, increasing by 0.2% per stack. Caps at 20 stacks. Based on stacks before the turn begins.\n\nGHOSTFLAME\nDeals 3.85% Max HP at base each turn. +0.35% per unique status on the target. Calculated before statuses decay.\n\nEXTRA INFO\nSummons do not inherit your DoT modifiers.\n\nIf multiple entities apply the same effect with different DoT modifiers, the value is set by the first source and stays until the effect is removed.\n\nGhostflame damage increases from new statuses (e.g. Blinded) scale with the modifier of whoever applies those statuses, regardless of who originally applied Ghostflame.\n\nDark Sigil and Spore Root have a NULL DoT value — their Weaken/Vulnerable/Poison will not increase Ghostflame damage. Chaos Orb and Enchants share your DoT value.\n\nMetrom\'s Vessel shares the same DoT resist as other bosses; wings do not change this.\n\nPoison resistance and fire resistance do not affect Burn/Poison damage respectively.'],
+    ['DoT Info',                        'Mechanic', 'BLEED\nDeals flat 3% of Max HP when the afflicted unit: uses a move, Guards, Meditates, or Escapes. Also triggers on blocking a hit. Not affected by modifiers.\n\nPOISON\nDeals damage equal to total stacks before turn start, then removes 20% of the stacks. Does not scale with DoT modifiers. Lethal.\n\nBURN\nDeals 0.7% Max HP on turn start, increasing by 0.2% per stack. Caps at 20 stacks. Based on stacks before the turn begins.\n\nGHOSTFLAME\nDeals 3.85% Max HP at base each turn. +0.35% per unique status on the target. Calculated before statuses decay.\n\nEXTRA INFO\nSummons do not inherit your DoT modifiers.\n\nIf multiple entities apply the same effect with different DoT modifiers, the value is set by the first source and stays until the effect is removed.\n\nGhostflame damage increases from new statuses (e.g. Blinded) scale with the modifier of whoever applies those statuses, regardless of who originally applied Ghostflame.\n\nDark Sigil and Spore Root have a NULL DoT value — their Weaken/Vulnerable/Poison will not increase Ghostflame damage. Chaos Orb and Enchants share your DoT value.\n\nMetrom\'s Vessel shares the same DoT resist as other bosses; wings do not change this.\n\nPoison resistance and fire resistance do not affect Burn/Poison damage respectively.'],
     ['Outgoing and Incoming Healing',   'Mechanic', 'Every player starts with 100% outgoing and 100% incoming healing. All in-combat healing buffs are ADDITIVE and affect both.\n\nExample: 150% outgoing + a 50% buff = 200% (not 225%).\n\nPassive regeneration scales with outgoing healing. Way of Life simply doubles the final regen result. A buff that heals over multiple turns does NOT scale with outgoing or incoming healing — it is a flat amount.\n\nLifesteal is not affected by outgoing or incoming healing, except for Parasitic Leech (considered a heal).\n\nWhen using a healing move on another player: caster\'s outgoing healing × receiver\'s incoming healing, plus any additional stat scaling (e.g. Arcane/Strength for Saint moves).'],
-    ['Diminishing Returns/Fatigues',    'Mechanic', 'Diminishing Returns (Weapon Shards): The same shard type becomes less effective after the first 2.\nEffectiveness order: 100% → 100% → 25% → 25% → 25% → 25% → 25%\n\nBlock/Dodge Fatigue: Each successful dodge or block reduces the QTE bar size by 10%. Minimum size: 40% of original.\n\nCrit Fatigue: Each successful crit reduces your crit chance. Failing to land a crit resets it.'],
+    ['Damage Reduction',                'Mechanic', 'Damage reduction (DR) from every source adds up as points, and the total decides how much damage you take.\n\nPositive DR: damage taken is multiplied by 100 / (100 + DR), so it never reaches zero. Damage reduced = DR / (100 + DR). 50 DR takes 67% damage, 100 DR takes half, 300 DR takes a quarter.\n\nNegative DR: damage taken is multiplied by 2 − 100 / (100 − DR), between 1× and 2×. Damage increased = 1 − 100 / (100 − DR). −50 DR takes 1.33× damage, −100 DR takes 1.5×.\n\nBlocking adds an extra 10% of your Strength as DR.'],
+    ['Diminishing Returns/Fatigues',    'Mechanic', 'Diminishing Returns (Weapon Shards): The same shard type becomes less effective after the first 2.\nEffectiveness order: 100% → 100% → 25% → 25% → 25% → 25% → 25%\n\nBlock/Dodge Fatigue: Each successful dodge or block reduces the QTE bar size by 10%. Minimum size: 40% of original.\n\nCrit Fatigue: Removed from the game. It used to lower your crit chance after each successful crit until a crit failed.'],
     ['Titles',                          'Mechanic', 'Titles are permanent text displayed next to your in-game name. Obtained by winning events or being the first to achieve something.\n\nFool — First to wipe 100 times\nSoul Wanderer — First to reroll race 50 times\nProdigy — First Super Class\nHero — First enchant\nLoyal — First max guilds\nHands of Midas — First 100k from selling items\nArchmage — First Lost Scroll\nRiftwalker — First Petent\nVenian Prince — First Venia\nAccursed One — First Amorus\nSlime Prince — First Lentum\nSlayer of Beasts — First Boss (not Slime King)\nTinkerer — First to wear full B2 (no longer exists)\nStarborn — First Astra'],
 
     /* ── WEAPON SHARDS ───────────────────────────────────────────────────── */
@@ -734,7 +735,7 @@
     { label: 'Easter Gears',          desc: 'Can only be obtained during Easter Events.',          names: new Set(['Rabbit Pelt', 'Egg Shelmet', 'Chocolate Egg', 'Party Egg', 'Gleaming Carrot', "Rabbit's Foot"]) },
     { label: 'Winter Solstice Gears', desc: 'Can only be obtained during Winter Solstice Events.', names: new Set(['Snorb', 'Elementary Resonance', 'Frosty Topper']) },
     { label: 'Forest Gears',          names: new Set(['7 Leafed Everthisel', 'Shattered Clockhand', 'The Biggest Pebble', 'Arbusta Tear', 'Parasitic Leech', 'Spore Root', 'Forest Charm', 'Elemental Infuser', 'Crystalized Star', "Pathfinder's Mark", 'Gilded Pouch']) },
-    { label: 'Desert Gears',          names: new Set(['Crystal Sphere', 'Dust Storm', 'Golem Rune Core', 'Spiked Steel Ball', 'Stone Brand', 'Ramizcan Idol', 'Band Of Crushing Force', 'Grain Of Balance (BUGGED?)', "Madseer's Codex", 'Impure Crown', 'The Last Straw', 'Imbued Chains', 'Delicate Purse', 'Desert Escutcheon']) },
+    { label: 'Desert Gears',          names: new Set(['Crystal Sphere', 'Dust Storm', 'Golem Rune Core', 'Spiked Steel Ball', 'Stone Brand', 'Ramizcan Idol', 'Band Of Crushing Force', 'Grain Of Balance', "Madseer's Codex", 'Impure Crown', 'The Last Straw', 'Imbued Chains', 'Delicate Purse', 'Desert Escutcheon']) },
     { label: 'Deeproot Gears',        names: new Set(['Cursed Brand', "Narthana's Leaf", 'Wicked Crown', 'Sanguine Fang', 'Coagulated Finger Nail', 'Shard of Blight', "Traveler's Lamp", 'Expedite Anklet', 'Phantom Ooze']) },
     { label: 'Volcano Gears',         names: new Set(['Imperial Headband', 'Magma Charm', 'Vulcan Knuckle', 'Dragon Memior', 'Blazing Brand', 'Molten Carapace']) },
     { label: 'Bosses/Minibosses Gears', names: new Set(['Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'Deathbeak Dagger', 'Blazing Perforator', "Yarthul's Wrath", 'Frostburned Rune', 'Vow of Ruin', 'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focused Mind', 'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket', 'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand']) },
@@ -849,7 +850,7 @@
 
   const MECHANIC_GROUPS = [
     { label: 'Important',       sectionHeader: true, names: new Set(['Soul Tree', 'Triumphs \u2191', 'Move Scaling', 'Alignment', 'Status Effects', 'Mastery']) },
-    { label: 'Additional Info', sectionHeader: true, names: new Set(['Day/Night Cycle', 'Untradable Items', 'DoT Info', 'Outgoing and Incoming Healing', 'Diminishing Returns/Fatigues', 'Titles']) },
+    { label: 'Additional Info', sectionHeader: true, names: new Set(['Day/Night Cycle', 'Untradable Items', 'DoT Info', 'Outgoing and Incoming Healing', 'Damage Reduction', 'Diminishing Returns/Fatigues', 'Titles']) },
   ];
 
   const MECHANIC_DATA = {
@@ -858,7 +859,7 @@
       branches: [
         { label: 'Path of Destruction', sublabel: 'Leftmost Branch', nodes: [
           { name: 'Denature',               effect: 'DoT Damage increases by 2% per rank.', costs: [25,50,75,100,125] },
-          { name: 'Critical Point',         effect: 'Base crit damage +5% per rank.', costs: [50,100,150,200,250] },
+          { name: 'Critical Point',         effect: 'Base crit damage +2% per rank (+10% at rank V).', costs: [50,100,150,200,250] },
           { name: 'Strike First, No Mercy', effect: 'First attack +5% damage per rank, expires after 2 turns.', costs: [100,200,300,400,500] },
           { name: 'Comeback',               effect: 'Gain +1 energy per turn when at or below 25% HP.', costs: [1000] },
           { name: 'Energy-Back Guarantee',  effect: 'Killing an enemy grants 1 energy.', costs: [750] },
@@ -937,7 +938,7 @@
     },
     'Status Effects': {
       statuses: [
-        { name: 'Poison',       desc: 'Takes damage equal to stacks at start of turn. Lethal.' },
+        { name: 'Poison',       desc: 'Takes damage equal to stacks at start of turn, then 20% of the stacks are removed. Lethal.' },
         { name: 'Bleed',        desc: 'Takes 3% max HP as DoT when acting or blocking a hit.' },
         { name: 'Burn',         desc: 'Takes 0.7% max HP DoT per stack at turn start, increasing with stacks. Capped at 20 stacks.' },
         { name: 'Ghostflame',   desc: 'Takes 3.85% max HP as DoT at turn start.' },
@@ -945,7 +946,7 @@
         { name: 'Hexed',        desc: 'Incoming attacks deal double damage, removing one stack per hit.' },
         { name: 'Blinded',      desc: 'Increased QTE difficulty for dodging and class minigames.' },
         { name: 'Weakened',     desc: 'Deals 20% less damage.' },
-        { name: 'Cursed',       desc: 'Decreases incoming and outgoing healing by 20% per stack. (Currently bugged: any stack sets outgoing healing to 0.)' },
+        { name: 'Cursed',       desc: 'Halves incoming and outgoing healing.' },
         { name: 'Stun',         desc: 'Unable to dodge or block; next turn skipped. Taking hits removes ONE stack.' },
         { name: 'Heavy Stun',   desc: 'Unable to dodge or block; next turn skipped.' },
         { name: 'Crippled',     desc: 'Unable to block or dodge; disables Guarding/Escape for players.' },
@@ -953,12 +954,13 @@
         { name: 'Sundered',     desc: 'Incoming attacks ignore resistances.' },
         { name: 'Fractured',    desc: 'Intakes 35%+ Physical/Magic damage.' },
         { name: 'Taunted',      desc: 'Will attack the player who applied it.' },
-        { name: 'Resist',       desc: 'Immune to any status effect until one is received. Cannot resist Heavy Stun.' },
+        { name: 'Resist',       desc: 'Immune to any status effect until one is received. Cannot resist Heavy Stun or Inferno.' },
         { name: 'Invisibility', desc: 'Immune to damage and targeting; increases escape chance. Status effects still deal damage. Enemies skip turn if the whole party is invisible. Next attack deals 20% more damage.' },
         { name: 'Overheat',     desc: '+8% damage and +7.5% speed per stack. Capped at 10 stacks.' },
+        { name: 'Bloodlust',    desc: 'From the Berserker passive of the same name. +5% damage per stack, or +10% per stack while in Rage (toggled with Rage Empower). Heals you while below half health. Gained by attacking or being attacked; lost every turn unless you are in Rage.' },
         { name: 'Energized',    desc: '10X% chance to gain additional Energy (X = stacks).' },
         { name: 'Thorns',       desc: 'Reflects damage. (Needs testing.)' },
-        { name: 'Inferno',      desc: 'Lose HP per turn based on stacks; decreases outgoing and incoming healing per stack. Consumed by Blaze Core, Magma Beam, and Armageddon.' },
+        { name: 'Inferno',      desc: 'Lose HP per turn based on stacks; decreases outgoing and incoming healing per stack. Consumed by Blaze Core, Magma Beam, and Armageddon. Bypasses Resist.' },
         { name: 'Plague',       desc: 'Each stack decreases damage and defense by an increasing amount per stack.' },
         { name: 'Purified',     desc: 'Any healing is redirected to Seraphon. Lifesteal (excluding Parasitic Leech) and passive regen are unaffected.' },
       ],
@@ -985,7 +987,7 @@
     'DoT Info': {
       dotTypes: [
         { name: 'Bleed',      desc: 'Deals flat 3% of Max HP when the afflicted unit: uses a move, Guards, Meditates, or Escapes. Also triggers on blocking a hit. Not affected by modifiers.' },
-        { name: 'Poison',     desc: 'Deals damage equal to total stacks before turn start. Does not scale with DoT modifiers. Lethal.' },
+        { name: 'Poison',     desc: 'Deals damage equal to total stacks before turn start, then removes 20% of the stacks. Does not scale with DoT modifiers. Lethal.' },
         { name: 'Burn',       desc: 'Deals 0.7% Max HP on turn start, increasing by 0.2% per stack. Caps at 20 stacks. Based on stacks before the turn begins.' },
         { name: 'Ghostflame', desc: 'Deals 3.85% Max HP at base each turn. +0.35% per unique status on the target. Calculated before statuses decay.' },
       ],
@@ -1007,11 +1009,18 @@
         { label: 'Healing Moves',       text: "Applies the caster's outgoing healing \u00d7 the receiver's incoming healing, plus any additional stat scaling (e.g. Arcane/Strength for Saint moves)." },
       ],
     },
+    'Damage Reduction': {
+      sections: [
+        { label: 'Adding Up',     text: 'Damage reduction (DR) from every source adds up as points. Blocking adds an extra 10% of your Strength.' },
+        { label: 'Positive DR',   text: 'Damage taken × 100 / (100 + DR). It never reaches zero: damage reduced = DR / (100 + DR). 50 DR takes 67% damage, 100 DR takes half, 300 DR takes a quarter.' },
+        { label: 'Negative DR',   text: 'Damage taken × (2 − 100 / (100 − DR)), between 1× and 2×: damage increased = 1 − 100 / (100 − DR). −50 DR takes 1.33× damage, −100 DR takes 1.5×.' },
+      ],
+    },
     'Diminishing Returns/Fatigues': {
       fatigues: [
         { name: 'Diminishing Returns (Weapon Shards)', desc: 'The same shard type becomes less effective after the first 2 shards.', progression: '100% \u2192 100% \u2192 25% \u2192 25% \u2192 25% \u2192 25% \u2192 25%' },
         { name: 'Block/Dodge Fatigue', desc: 'Each successful dodge or block reduces the QTE bar size by 10%. Minimum QTE size: 40% of original.' },
-        { name: 'Crit Fatigue',        desc: 'Each successful crit reduces your crit chance. Failing to land a crit resets it.' },
+        { name: 'Crit Fatigue',        desc: 'Removed from the game. It used to lower your crit chance after each successful crit until a crit failed.' },
       ],
     },
     'Titles': {
@@ -1230,7 +1239,7 @@
         { name: 'Inferno',           type: 'Active', cost: 0, cooldown: 0,  moveType: 'Fire',
           category: 'Status · AOE',
           condition: "It is Yar'thul's first turn",
-          effect: 'Applies 1 Inferno to all opponents. The stacks gradually increase over the course of the fight (may increase more when fighting solo).' },
+          effect: 'Applies 1 Inferno to all opponents. Inferno bypasses Resist. The stacks gradually increase over the course of the fight (may increase more when fighting solo).' },
         { name: 'Blaze Eruption',    type: 'Active', cost: 2, cooldown: 7,  moveType: 'Fire',
           category: 'Single Hit · AOE · Unblockable / Undodgeable',
           condition: 'An opponent has the Burning status and Yar\'thul has 2 energy',
@@ -1291,7 +1300,7 @@
         { name: 'Overflowing Curse',        type: 'Active', cost: 0, cooldown: 4,  moveType: 'Hex',
           category: 'Debuff · AOE · Unblockable / Undodgeable',
           condition: '',
-          effect: 'Puts all players into a QTE window. Players must defend their soul from Thorian\'s corruption — failing the QTE applies 1 Plague stack.\n\nIgnores traps and all forms of counter.' },
+          effect: 'Puts all players into a QTE window. Players must defend their soul from Thorian\'s corruption — failing the QTE applies 2 Plague stacks.\n\nIgnores traps and all forms of counter.' },
         { name: 'Hexing Burst',             type: 'Active', cost: 1, cooldown: 6,  moveType: 'Hex',
           category: 'Single Hit · AOE · Unblockable / Undodgeable',
           condition: '',
@@ -1368,7 +1377,7 @@
       passives: [
         { name: 'Can Block & Dodge',    description: 'This enemy can block and dodge attacks.' },
         { name: 'Amulet Immunity',      description: "Immune to Metrom's Amulet." },
-        { name: 'Status Immunity',      description: 'Immune to Purified, Weakened, Blinded, and Cursed.' },
+        { name: 'Status Immunity',      description: 'Immune to Purified, Weakened, and Blinded.' },
         { name: 'Energy Surge',         description: 'Chance to gain 2 energy instead of 1 per turn.' },
       ],
       learns: [
@@ -1485,7 +1494,7 @@
           effect: 'Applies 2 Hex and 3 Blinded to all opponents. Negates their energy gain for 2 turns and locks out their ability to meditate.' },
         { name: 'Oblivion',           type: 'Active', cost: 5, cooldown: 11, moveType: 'Dark',     category: 'Multihit · AOE · Unblockable / Undodgeable',
           condition: 'Offensive state with 5 energy',
-          effect: 'Hits everyone for exactly 50% of their total HP. Applies 1 Cursed, 2 Weakened, 2 Blinded. Reduces healing by 50% for 2 turns.\n\nCorrupted: Deals 60% HP. Applies 2 Cursed, 5 Weakened, 5 Blinded.' },
+          effect: 'Hits everyone for exactly 50% of their total HP as true damage (not affected by damage buffs or damage reduction). Applies 1 Cursed, 2 Weakened, 2 Blinded. Reduces healing by 50% for 2 turns.\n\nCorrupted: Deals 75% HP. Applies 2 Cursed, 5 Weakened, 5 Blinded.\n\nShadow (Darkened Totem): Also deals 75% HP, the same as Corrupted.' },
         { name: 'Invoke Shadeblades', type: 'Active', cost: 3, cooldown: 0,  moveType: 'Dark',     category: 'Status',
           condition: '3 energy + missing ≥1 summon',
           effect: 'Summons 2 Shadeblades (or 1 if 1 is already active). Max 2 Shadeblades at once.\n\nCorrupted: Shadeblades spawn with 300 HP instead of 200 HP.' },
@@ -1528,7 +1537,8 @@
     },
     'Handaconda': {
       passives: [
-        { name: 'Thousand Screams', description: "Gains a 5% damage increase every time Handaconda uses 'One More Time'." },
+        { name: 'Thousand Screams', description: "Gains a 12.5% damage increase every time Handaconda uses 'One More Time'." },
+        { name: 'HP Regeneration',  description: 'Regenerates 10 HP per turn.' },
       ],
       learns: [
         { name: 'Grand Slam',      type: 'Active', cost: 0, cooldown: 12, moveType: 'Physical',
@@ -1559,6 +1569,9 @@
           category: 'Stance',
           condition: '',
           effect: 'Has 3 modes. In scissors mode, Handaconda has thorns that deal damage to attackers (no longer reflects incoming damage).' },
+        { name: 'One More Time',   type: 'Active', cooldown: 6,
+          condition: '',
+          effect: 'Each use gives Handaconda another Thousand Screams stack (+12.5% damage). Cost, type and other effects unknown.' },
       ],
       loot: {
         categories: [
@@ -1867,7 +1880,7 @@
       loot: {
         categories: [
           { label: 'Ingredients', items: ['Restless Fragment'] },
-          { label: 'Gears',       items: ['Dust Storm', 'Ramizcan Idol', 'Grain Of Balance (BUGGED?)'] },
+          { label: 'Gears',       items: ['Dust Storm', 'Ramizcan Idol', 'Grain Of Balance'] },
         ],
         notes: ['Can drop all Basic Scrolls except Self Cure.', 'Can drop any droppable Blueprint Armors.', 'Can drop Weapon Arcanium Shards up to Pure rarity.'],
       },
@@ -2423,8 +2436,8 @@
       ],
       passives: [],
       moves: [
-        { name: 'Calling Light', cost: 2, cooldown: 9, type: 'N/A', category: 'Buff',
-          effect: 'Randomly summon one of three Sheeas: Saint, Paladin, or Elementalist. All summons have 250 HP and start with only Strike and Skyward Bolt. If you have their respective weapon type equipped, they gain all abilities of their Super Class.\n\nIf you are at or below 20% Max HP, summon 2 Sheeas instead of 1.' },
+        { name: 'Calling Light', cost: 3, cooldown: 9, type: 'N/A', category: 'Summon',
+          effect: 'Randomly summon one of three Sheeas: Saint, Paladin, or Elementalist. Summons have 50 base HP, and their damage and health scale the same way as a Necromancer\'s Skeletons. They start with only Strike and Skyward Bolt. If you have their respective weapon type equipped, they gain all abilities of their Super Class.\n\nIf you are at or below 20% Max HP, summon 2 Sheeas instead of 1.' },
       ],
     },
     "Arkhaia's Visage": {
@@ -2442,7 +2455,7 @@
         { label: 'Handaconda', target: 'Handaconda' },
       ],
       passives: [
-        { name: 'Crux Conversion', effect: 'When equipped, multiplies your max HP by 1.5×, then sets it to 10% of the new value. The remaining HP is converted into Shield HP. Can stack with other sources of Shield HP.' },
+        { name: 'Crux Conversion', effect: 'When equipped, reduces your max HP by 75%. The removed HP is converted into Shield HP. Can stack with other sources of Shield HP.' },
       ],
       moves: [
         { name: 'Congeal Flesh', cost: 'X', cooldown: 6, type: 'Ice', category: 'Buff',
@@ -2540,7 +2553,7 @@
     'Midas': {
       obtainableFrom: [],
       passives: [
-        { name: '', effect: 'Increased drop rates (untested).\n\nGain gold on enemy death.\n\nAttacks have a 16.6% chance to deal 15% extra damage.' },
+        { name: '', effect: 'Increased drop rates (untested).\n\nGain gold on enemy death.\n\nAttacks have a 16.6% chance to deal 15% extra damage.\n\nEach proc also grants a 5% LCK buff for 2 turns, stacking up to 20% (4 stacks).' },
       ],
       moves: [],
     },
