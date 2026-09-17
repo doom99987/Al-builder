@@ -1,6 +1,6 @@
 {
   "name": "Paladin tank/support - community build (owner: may be stale)",
-  "source": "site owner, community build post; marked possibly out of date. Paladin (Or) has no mastery tree in the site's data, so mastery is not asserted.",
+  "source": "site owner, community build post; marked possibly out of date, and it predates the 2026-09-16 Holy Crash change (18 base at STR/75 + END/150; Holy Crash Proficiency sets it to 20). Paladin (Or) has no mastery tree of its own in the site's data: it inherits the Warrior tree (test.js 'rm1 means something different in each Warrior tree'). Mastery is not asserted.",
   "stale": true,
   "request": {
     "text": "paladin tank",

@@ -77,7 +77,7 @@ const classMoves = {
         type: "Passive",
         name: "Verdant Archer",
         quote: "Become one with the winds, get a damage and speed buff on every dodge. Also makes strike scale with arcane.",
-        effect: "Grants the user a flat +10 Speed buff and +7.5% Damage buff for 2 turns whenever they crit or dodge. Strike now scales with the Arcane stat. This passive can also be triggered by summons' crits."
+        effect: "Grants the user a 15% Damage buff and a 10% Outgoing Healing buff for 2 turns whenever they crit or dodge. The damage buff stacks with each proc, up to a maximum of 150%. Strike now scales with the Arcane stat. This passive can also be triggered by summons' crits."
       },
       {
         slot: "2nd Learn",
@@ -104,7 +104,7 @@ const classMoves = {
         moveType: "Nature",
         category: "Attack",
         damage: 4,
-        scaling: "ARC/70 + SPD/100",
+        scaling: "ARC/70 + SPD/80",
         effect: "This move lasts for 4 turns, dealing damage on every turn except the turn it was casted."
       },
       {
@@ -118,7 +118,7 @@ const classMoves = {
         moveType: "Poison",
         category: "Attack",
         damage: "5 + 10",
-        scaling: "ARC/70 + SPD/100",
+        scaling: "ARC/70 + SPD/80",
         effect: "The opening stab is considered a strike (Melee, Single-target, Physical, ARC/75 scaling). The second part hits adjacent enemies for the same damage and can execute.\n\nApplies 2 poison and 2 vulnerable to the main target."
       },
       {
@@ -247,7 +247,7 @@ const classMoves = {
         moveType: "Poison",
         category: "Attack",
         damage: "3.5x4",
-        scaling: "STR/200 + ARC/80 + LCK/100",
+        scaling: "STR/75 + ARC/80",
         effect: "Applies 5 guaranteed Poison on the last hit.",
         image: "https://trello.com/1/cards/67b32956205bcc638e52a56b/attachments/69800f929957e45d84b99a74/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202074403.png"
       },
@@ -372,8 +372,8 @@ const classMoves = {
         cooldown: 4,
         moveType: "Holy",
         category: "Attack",
-        damage: 13,
-        scaling: "STR/75 + END/100",
+        damage: 18,
+        scaling: "STR/75 + END/150",
         effect: "Deals full AOE damage. Applies 3 turns of Taunt onto the main target. Has a 50% chance to apply 2 Taunt to adjacent targets. (Difficulty: 6 bars at base)",
         image: "https://trello.com/1/cards/67b3293ad5daa6959942a4cf/attachments/69803e0d0cd179680a4400b4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202110223.png"
       },
@@ -410,7 +410,7 @@ const classMoves = {
         category: "Buff",
         damage: "min(X,25)*1.6",
         scaling: "STR/60",
-        effect: "Denies an attack if it is targeted at you and instead attacks back. X is equal to the BaseDMG of whatever move you countered, capped at 25.\n\nSelf-Target | Unblockable and Undodgeable"
+        effect: "Applies 2 turns of Taunt to all enemies. Denies an attack if it is targeted at you and instead attacks back. X is equal to the BaseDMG of whatever move you countered, capped at 25.\n\nSelf-Target | Unblockable and Undodgeable"
       },
       {
         slot: "2nd Learn",
@@ -503,8 +503,8 @@ const classMoves = {
         level: 19,
         type: "Passive",
         name: "Bloodlust",
-        quote: "Berserk harder as you continually get close to falling (with a cooldown). Additionally deal 40% more dmg while low hp.",
-        effect: "When you go under 50% hp or take damage while under 50% hp, gain a 20% Bloodlust stack and enter a bloodlust state (triggers once, 2 turn cooldown).\n\nEach additional Bloodlust stack from taking damage while below 50% grants +10% damage, up to 8 stacks total (including the first 20% stack). Beyond 8 stacks damage is capped at a 65% buff and no more stacks can be gained. Bloodlust stacks additively.\n\nWhen you go below 30% hp, gain a permanent 40% damage buff (multiplicative with Bloodlust stacks). This buff is lost when you go above 30% hp; Bloodlust stacks remain regardless of health."
+        quote: "Gain Bloodlust when attacking or being attacked. You lose it every turn unless you are in Rage.",
+        effect: "Gain Bloodlust when you attack or are attacked. Bloodlust is a status: each stack makes you deal 5% more damage, and while you are below 50% HP it heals you.\n\nYou lose your Bloodlust every turn unless you are in Rage (toggled with Rage Empower). While in Rage, each Bloodlust stack grants 10% more damage instead of 5%.\n\nStacks add together (e.g. 4 stacks = +20% damage, or +40% in Rage)."
       },
       {
         slot: "4th Learn",
@@ -530,8 +530,7 @@ const classMoves = {
         cooldown: 5,
         moveType: "Physical",
         category: "Buff",
-        duration: 2,
-        effect: "Grants a 30% damage buff. If you are above 35% HP, decreases your HP down to 35% and grants up to a 65% damage buff based on HP consumed (full 65% if 65% of max HP is consumed).\n\nThis move triggers external effects (e.g. Bloodlust, Estella's Enduring Fighter). Grants 40% DR for the duration.\n\nSelf-target | Utility"
+        effect: "Toggles Rage on or off. While in Rage you keep your Bloodlust stacks between turns, and each stack grants 10% more damage instead of 5%.\n\nRage also increases your aggro and decreases your Defense.\n\nSelf-target | Utility"
       }
     ]
   },
@@ -583,7 +582,7 @@ const classMoves = {
         name: "Blaze",
         quote: "Fire off a burst of fire towards an enemy, if they are burning the fire explodes.",
         cost: 1,
-        cooldown: 5,
+        cooldown: 4,
         moveType: "Fire",
         category: "Attack",
         damage: 10,
@@ -598,11 +597,11 @@ const classMoves = {
         name: "Gale Uplift",
         quote: "A team wind buff that increases the speed stat of allies and gives them a chance to auto dodge attacks, and lowers the chance for the enemy to block and dodge.",
         cost: 2,
-        cooldown: 12,
+        cooldown: 10,
         moveType: "Nature",
         category: "Buff",
         duration: 3,
-        damage: "5x2",
+        damage: "7x2",
         scaling: "ARC/75",
         effect: "Grants a buff that makes all moves trigger the block/dodge QTE for both blockable and dodgeable attacks. Also grants a flat +32 speed buff to all allies for the duration.",
         image: "https://trello.com/1/cards/67b32945a9f9561ed5168d6b/attachments/697fc3d5dc683a13782a00ed/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202022020.png"
@@ -622,12 +621,12 @@ const classMoves = {
         name: "Lightning Crash",
         quote: "Call down bolts of lightning on all your enemies, has a chance to apply stun.",
         cost: "3+X",
-        cooldown: 9,
+        cooldown: 8,
         moveType: "Magic",
         category: "Attack",
-        damage: 18,
+        damage: 20,
         scaling: "ARC/45",
-        effect: "Consumes all energy; for each energy consumed over 3, this move gains a 12.5% damage buff. Fully AoE, has a chance to apply 1 Stun to each opponent.",
+        effect: "Consumes all energy; for each energy consumed over 3, this move gains a 12.5% damage buff. Fully AoE, has a chance to apply 1 Stun to each opponent; the Stun is guaranteed if 6 or more energy is spent.",
         energyScaling: { perEnergy: 12.5, past: 3 },
         image: "https://trello.com/1/cards/67b32945a9f9561ed5168d6b/attachments/697fc3d4b7830acd7f2af61b/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202022104.png"
       },
@@ -731,7 +730,7 @@ const classMoves = {
         cooldown: 16,
         moveType: "Dark",
         category: "Utility",
-        effect: "Resurrect a bleeding out (dead) ally and heal them to 60% HP. The revived ally will have a Stun effect for 1 turn.",
+        effect: "Resurrect a bleeding out (dead) ally and heal them to 60% HP. The revived ally will have a Stun effect for 1 turn. Also summons one Skeleton for every entity (ally, summon or enemy) that has died this combat.",
         image: "https://trello.com/1/cards/67b3294b205bcc638e528caa/attachments/69805412a5b3714e3740981d/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202114119.png"
       },
       {
@@ -760,7 +759,7 @@ const classMoves = {
         moveType: "Dark",
         category: "Utility",
         scaling: "ARC/4",
-        effect: "Summons a Skeleton with 60 base HP.",
+        effect: "Summons a Skeleton with 30 base HP.",
         image: "https://trello.com/1/cards/67b3294b205bcc638e528caa/attachments/69805411bda66bf0d6f17341/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202113956.png"
       },
       {
@@ -912,7 +911,7 @@ const classMoves = {
         category: "Attack",
         damage: 15,
         scaling: "STR/60",
-        effect: "Deals heavy damage to the target, deals non-lethal damage to one or multiple adjacent enemies.\n\nFlaming Overdrive: Makes Flame Drop deal even more damage, stacking with its own meditate damage buff.",
+        effect: "Deals heavy damage to all enemies. Fully AoE.\n\nFlaming Overdrive: Makes Flame Drop deal even more damage, stacking with its own meditate damage buff.",
         image: "https://trello.com/1/cards/67b329593631658cda777210/attachments/698057ee03955d68525779b3/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202125305.png"
       },
       {
@@ -941,7 +940,7 @@ const classMoves = {
         type: "Passive",
         name: "Crusher",
         quote: "Your attacks against vulnerable enemies are even better, inflicting status empowers you.",
-        effect: "When you apply a unique status (one the target does not currently have), gain a 7% damage buff for 3 turns.\n\nInstead of dealing 20% extra damage to vulnerable enemies, now deal 25%."
+        effect: "When you apply a status, including one the target already has, gain a 7% damage buff for 3 turns. The damage gained this way is capped at 75%.\n\nInstead of dealing 20% extra damage to vulnerable enemies, now deal 25%."
       },
       {
         slot: "2nd Learn",
@@ -977,7 +976,7 @@ const classMoves = {
         category: "Attack",
         damage: "1.5x8",
         scaling: "STR/50",
-        effect: "Single-target | Melee | Blockable"
+        effect: "Hits the main target and adjacent enemies.\n\nAdjacent | Melee | Blockable"
       },
       {
         slot: "5th Learn",
@@ -1035,7 +1034,7 @@ const classMoves = {
         type: "Active",
         name: "Call Darkbeast",
         quote: "Unleash the darkness in your arm, creating a malignant beast of darkness to do your bidding. Becomes empowered at 4+ cores.",
-        cost: 1,
+        cost: 0,
         cooldown: 4,
         moveType: "Dark",
         category: "Utility",
@@ -1108,7 +1107,7 @@ const classMoves = {
         type: "Passive",
         name: "Swift Fighter",
         quote: "",
-        effect: "Successful dodges grant a 20% Speed buff for 2 turns."
+        effect: "Successful dodges grant a 20% Speed buff for 2 turns. Further dodges stack the buff, but Swift Fighter can never grant more than a 30% Speed buff."
       },
       {
         slot: "2nd Learn",
@@ -1235,7 +1234,7 @@ const classMoves = {
         type: "Passive",
         name: "Poised Slayer",
         quote: "",
-        effect: "Heal 1.5–7% from dodges depending on speed stat. Lower speed = more healing; higher speed = less healing."
+        effect: "Heal 1.5–7% from dodges depending on speed stat. Lower speed = more healing; higher speed = less healing. Successful dodges also grant a stacking 10% Damage buff, which can not exceed 50%."
       },
       {
         slot: "3rd Learn",
@@ -1243,13 +1242,14 @@ const classMoves = {
         type: "Active",
         name: "Empowered Pierce",
         quote: "",
-        cost: 2,
+        cost: 3,
         cooldown: 6,
         moveType: "Physical",
         category: "Attack",
         damage: 15,
         scaling: "STR/80 + SPD/80",
-        effect: "Chance to apply Stun on hit.",
+        critDmgBonus: 50,
+        effect: "Chance to apply Stun on hit. Deals 50% more damage when this attack lands a Critical Hit.",
         image: "https://trello.com/1/cards/67b32967bc63ebd05c7741a0/attachments/6980583f9e86cca46d02a0db/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123616.png"
       },
       {
@@ -1271,13 +1271,13 @@ const classMoves = {
         type: "Active",
         name: "Discharge",
         quote: "",
-        cost: 3,
-        cooldown: 6,
+        cost: 2,
+        cooldown: 4,
         moveType: "Magic",
         category: "Attack",
         damage: 10,
         scaling: "STR/80 + SPD/80",
-        effect: "Chance to apply Stun on hit.",
+        effect: "Applies Stun when this attack lands a Critical Hit.",
         image: "https://trello.com/1/cards/67b32967bc63ebd05c7741a0/attachments/6980583bf4db5643df52821d/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123541.png"
       }
     ]
@@ -1331,10 +1331,10 @@ const classMoves = {
         name: "Blood Eruption",
         quote: "Encapsulate yourself in blood, and after a short delay explode outwards and damage all enemies, deals self damage.",
         cost: 3,
-        cooldown: 9,
+        cooldown: 8,
         moveType: "Magic",
         category: "Attack",
-        damage: 15.6,
+        damage: 18,
         scaling: "STR/65 + ARC/65",
         effect: "Deals 16.5% of max HP as self-damage on use. Applies 5 Bleeding to yourself and all enemies. Fully AoE.",
         image: "https://trello.com/1/cards/67b3296a59bf4c7eaa7b6db5/attachments/69803c1a9cae43b8b061db48/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105244.png"
@@ -1349,7 +1349,7 @@ const classMoves = {
         cooldown: 4,
         moveType: "Physical",
         category: "Attack",
-        damage: "5x2",
+        damage: "4.5x2",
         scaling: "STR/75 + ARC/75",
         effect: "Deals 8.25% of max HP as self-damage on use. Applies 1 Bleed per hit. If the target is already Bleeding, instead applies 1 Bleed, 1 Vulnerable, and 2 Weakened. Status effects are applied before the hit lands, allowing them to affect the damage.",
         image: "https://trello.com/1/cards/67b3296a59bf4c7eaa7b6db5/attachments/69803c189ae4ae526a618904/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105307.png"
@@ -1436,7 +1436,7 @@ const classMoves = {
         cooldown: 5,
         moveType: "Fire",
         category: "Buff",
-        effect: "Essentially gives yourself Sundered for (?) turns. Any enemy that attacks you during this phase has 2 Taunt stacks applied per hit (no cap). At the end of the duration, you gain a DR buff scaling with how much damage you took.",
+        effect: "Essentially gives yourself Sundered for (?) turns. Any enemy that attacks you during this phase has 1 Taunt stack applied per hit (no cap). At the end of the duration, you gain a DR buff scaling with how much damage you took.",
         image: "https://trello.com/1/cards/69cf75b991772964bba6ce25/attachments/69d04e845cbe9c137c3438a0/previews/69d04e845cbe9c137c3438c4/download/image.webp"
       },
       {
@@ -1445,7 +1445,7 @@ const classMoves = {
         type: "Passive",
         name: "Vulcanised Vigor",
         quote: "Damage taken is stored for 3 turns and empowers you, granting +1% DR, +1.75% ATKP, and 0.2 scaling Base Regen for each stack. Gain 1 stack every 10 damage stored up to 20 stacks, then 15 damage stored up to 40 stacks.",
-        effect: "Each Vigor stack lasts 3 turns. You gain 1 Vigor stack per 10 damage taken (up to 20 stacks), then per 15 damage (up to 40 stacks). Damage is counted AFTER damage reductions (e.g. 100 damage with 90% DR = 1 stack).\n\nEach stack grants: +1% DR, +1.75% ATKP, +0.2 base regen.",
+        effect: "Each Vigor stack lasts 3 turns. You gain 1 Vigor stack per 10 damage taken (up to 20 stacks), then per 15 damage (up to 40 stacks). Damage is counted AFTER damage reductions (e.g. 100 damage against 90 DR counts as about 53: 100 × 100 / 190, so 5 stacks).\n\nEach stack grants: +1% DR, +1.75% ATKP, +0.2 base regen.",
         image: "https://trello.com/1/cards/69cf75b991772964bba6ce25/attachments/69d04edab9dce2d5d817b67c/previews/69d04edab9dce2d5d817b6c4/download/image.webp"
       },
       {
@@ -1535,7 +1535,7 @@ const classMoves = {
         name: "Blinding Vow",
         quote: "",
         cost: 2,
-        cooldown: 7,
+        cooldown: 6,
         category: "Buff",
         effect: "Bless an ally with Sonority, granting 10% DR for 4T and bonding them to you. Whenever you resist damage through DR, they gain a 3T ATK buff scaling off the amount resisted."
       },
@@ -1545,9 +1545,9 @@ const classMoves = {
         name: "Sanctified Protection",
         quote: "",
         cost: 3,
-        cooldown: 8,
+        cooldown: 6,
         category: "Buff",
-        effect: "Call down a holy hammer, linking all allies to you for 3T. 75% of their damage is redirected to you. Breaks if you take more than 20% of your max HP as tanked damage."
+        effect: "Call down a holy hammer, linking all allies to you for 3T. 75% of their damage is redirected to you. The link does not break, however much damage you tank."
       }
     ]
   },
@@ -1592,7 +1592,7 @@ const classMoves = {
         type: "Active",
         name: "Pronouncement",
         quote: "Rush forward with your hammer and bring it down on a foe.",
-        cost: 5,
+        cost: 3,
         cooldown: 8,
         moveType: "Hex",
         category: "Attack",

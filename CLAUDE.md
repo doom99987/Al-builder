@@ -216,11 +216,23 @@ its empty box so the four rows don't jump.
 Reference data and stat maths are two different things here. Gear base stats,
 gear/artifact/weapon tier values and the crit rework **do** feed the damage
 calculator through the stat rows. The following are recorded and displayed but compute
-nothing: the stat milestones, Corruption Forms, the Corrupt Power gears' spend
-effects, and the new races' and enchants' passives. Wiring any of them up depends on the §12
+nothing: most stat milestones (Luck 25's crit damage and the STR / ARC 110 damage
+perks do compute), Corruption Forms, the Corrupt Power gears' spend effects, and
+most of the new races' and enchants' passives (a few are DMG-calculator controls
+that do compute, e.g. Boreas's Frost Stacks, Drauga's Enhanced Bloodlust, and
+Midas's Luck stacks, which also reach the Luck row and crit chance). Wiring the
+rest up properly depends on the §12
 damage-formula rewrite, which is not implemented — the calculator still uses the
-old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat` with
-`DRMultiplier = 100 / (100 + Reduc)`.
+old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat`.
+
+**Damage reduction is an armour formula** (owner, 2026-09-17): DR adds up as
+points, and a total takes `100 / (100 + DR)` of a hit, or `2 − 100 / (100 − DR)`
+when negative. `drDamageTakenMult()` in `builder.js` and the identical function
+in `tools/ai/knowledge.js` are the only implementations; a test proves they agree.
+The page keeps showing DR as points (the Block DR tooltip says what they stop),
+the Build AI reads a DR total as `1 / drDamageTakenMult(DR)` effective health with
+no cap (`(100 + DR) / 100` when DR >= 0),
+and the DMG calculator still models no enemy DR.
 
 `races` entries for **Arborivia and Calvariae** were placeholder zeros until
 2026-09-10; the owner supplied their base stats from the game (the changelog
@@ -280,28 +292,53 @@ silently leave "Points Remaining" stale.
 ### Stat rework (changelog §9)
 
 `statMilestones` + `STAT_MILESTONE_TIERS` (25 / 60 / 110) render at the bottom of
-each stat's Details panel, measured against the total that panel just derived.
-The developer notes the **Strength and Arcane final milestones are swapped in
-game** relative to intent; they are listed as they behave.
+each stat's Details panel, measured against the total that panel just derived,
+with a note that in-fight stat buffs count toward milestones (the DMG calculator
+measures them on the buffed `getTotalStat` totals, so a toggled buff can reach one
+the panel does not show).
+
+The **Strength and Arcane final milestones** were reworked into damage buffs in
+the 2026-09-16 balance patch (they used to be cooldown cuts, listed swapped as
+they behaved in game): 110 STR gives Physical moves +20% damage and 110 ARC
+gives every other type +20% (the owner's reading from play, 2026-09-17; the
+patch notes said "melee" and "ranged"), applied by the DMG calculator through
+`getMilestoneDmgMult` inside `getOutsideDmgMult` (§ STAT MILESTONE DAMAGE).
+`getMilestoneDmgStat(type)` picks the stat from the move's EFFECTIVE type, so a
+move Wicked Crown makes Dark or Boreas makes Ice takes the ARC perk. Stinger
+prices its Physical stab and Poison arrows separately. Summon attacks get no
+perk: `isSummonAttack(m)` is the one helper for that, shared with the Boreas Ice
+conversion in `getEffectiveMoveType` (Arbiter's "Base Move" slot counts as the
+player's own). 110 SPD is 15% autododge, which the site only lists. The Build AI
+mirrors the rule in `tools/ai/knowledge.js` (`milestoneDmgStat`,
+`isSummonSlot`) and reads the converted type through `optimize.js`
+`effectiveTypeOf`; a test proves the two sides agree on every move.
 
 Each stat also gained an identity, all at `STAT_IDENTITY_RATIO` (10%) of their
 source stat and shown as new items in the derived panel: `block-dr` from STR,
 `nrg-chance` from ARC, `initiative` from SPD. Endurance additionally grants
 `END / END_HEAL_DIVISOR` (4) to both healing stats. Luck now grants Crit Chance
 1:1 and **no longer scales Crit Damage**, which is a flat `CRIT_DMG_BASE` (2x)
-plus 1 per higher crit tier; Crit Fatigue is gone.
+plus 1 per higher crit tier; the Luck 25 milestone (+0.1) and flat `crit-dmg`
+percentages (e.g. Crystal Sphere's +0.05 in `gearPctBonuses`) add on top. Crit
+Fatigue is gone.
 
 **Load-order hazard, learned the hard way:** `updatePecents()` runs at file load,
 long before `dmgBonusActive` and friends are declared. Anything it calls must not
 touch them — `getTotalStat()` does, so calling it from inside the percent loop
 throws a TDZ `ReferenceError` and silently aborts the whole render. The identity
 stats therefore reuse values cached in `_statVals` during the same pass (relying
-on DOM order: str/arc/end/spd render before the items that read them).
+on DOM order: str/arc/end/spd render before the items that read them). Bindings
+`updatePecents()` does read (`ivoryNrgStacks`, `midasLckStacks`) are declared
+above its module-scope call, and `test.js`'s dead-zone guard watches them;
+Overload's `statBuffsActive` toggle and Looter's state are declared far below, so
+they are read inside a `try`.
 
 Crit Chance is the same story: it cannot call `getTotalStat('lck')`, so
 `updatePecents()` hand-rolls `totalLck` from the same parts. **Keep the two sums
 identical** — invested + race + mastery + gear + armour + level + Crystal Stars
-+ Coag. Nail, then Permuth. The gear and armour terms were missing once, and
++ Coag. Nail, then the multipliers in this order: Looter's kill stacks (Rogue
+rm1), Overload's +10% (Lancer cm1, while toggled), Permuth, Ivory, then Midas's
+Luck stacks (+5% each, up to 4). The gear and armour terms were missing once, and
 because nothing throws, the only symptom was crit builds quietly reading tens of
 points low (45 Luck of tier points through Permuth is 63 crit chance — a whole
 overcrit tier). The Luck stat row and `_buildStatDetail('lck')` both already

@@ -72,6 +72,14 @@
         if (base === klass || (supers || []).includes(klass)) { found = base; break; }
       return (_baseOfCache[klass] = found);
     }
+    // A class's capstone table: its own tree, else its base class's - the same
+    // super-then-base order as model.js masteryData and builder.js
+    // getActiveMasteryData. Paladin (Or) has no tree of its own and reads the
+    // Warrior one, whose Holy Crash Proficiency is a Paladin move's rewrite.
+    function abilitiesFor(klass) {
+      const t = D.masteryAbilities || {};
+      return t[klass] || t[baseOf(klass)] || {};
+    }
     // Called once per evaluate(), which is a few thousand times per request, and
     // it rebuilds the same list from the same static data every time.
     const _movesCache = {};
@@ -176,6 +184,27 @@
                           stunned: 'stun', hexed: 'hex', chilled: 'cold', frozen: 'cold' };
     const foldStatus = w => STATUS_FOLD[w] || w;
 
+    // Boreas (Frost Stacks) turns your Physical and Magic (the patch's "Arcane")
+    // moves into Ice, as the site's getEffectiveMoveType does. A summon's own
+    // attacks keep their written type (K.isSummonSlot; Arbiter's "Base Move"
+    // slot is the player's). Wicked Crown is not applied here - evaluate's
+    // typeOf runs the crown first, and buildDoes's cache key has no gear in it.
+    function boreasTypeOf(build, mv) {
+      const t = String((mv && mv.moveType) || '');
+      if (build && build.race === 'Boreas (1%)' && /^(physical|magic|arcane)$/i.test(t.trim()) &&
+          !K.isSummonSlot(mv)) return 'Ice';
+      return t;
+    }
+
+    // The type a move lands as: Wicked Crown first (Physical -> Dark), then
+    // Boreas. `wicked` is the crown check when the caller already has it.
+    // evaluate's typeOf and the stat line both read this.
+    function effectiveTypeOf(build, mv, wicked) {
+      const w = wicked ?? (build.gear || []).some(g => g && g.name === 'Wicked Crown');
+      if (w && /^physical$/i.test(String((mv && mv.moveType) || '').trim())) return 'Dark';
+      return boreasTypeOf(build, mv);
+    }
+
     function buildDoes(build) {
       const key = [build.klass, build.race, build.sub || '', build.covenant || '',
                    build.covenantRank | 0, build.scroll1 || '', build.scroll2 || '',
@@ -195,7 +224,9 @@
         // Breath of Fungyir - a once-per-20-turns team heal that happens to be
         // typed Magic - keep Madseer's Codex alive on a Holy healer.
         const isAttack = mv.damage !== undefined && mv.damage !== null && mv.damage !== 'N/A';
-        if (isAttack && mv.moveType) elements.add(String(mv.moveType).toLowerCase());
+        // Read through boreasTypeOf (build.race is in the key above), so a
+        // Boreas kit's converted Physical moves count as Ice.
+        if (isAttack && mv.moveType) elements.add(boreasTypeOf(build, mv).toLowerCase());
         const text = String(mv.name || '') + ' ' + String(mv.quote || '') + ' ' + String(mv.effect || '');
         // Deliberately narrow. A bare "call " matched "Call upon cleansing
         // light" and convinced the engine that a Saint had summons.
@@ -339,7 +370,7 @@
       // grantedMoves('raceMoves', build.race));`, plus `build.race` in the key --
       // and it was tried and reverted, because on its own it makes builds WORSE:
       //   - Boreas's Inner Frost became the best nuke in the game despite
-      //     heavy-stunning you for two turns first (now priced, see K.SELF_STUN).
+      //     heavy-stunning you first (two turns then, one since the 2026-09 patch; priced, see K.SELF_STUN).
       //   - The Impaler Handaconda golden flipped Calvariae -> Inferion on the
       //     strength of Inferno Rift (255 against Death Curtain's 214), against
       //     the community's own ranking of Calvariae >> Inferion - because the
@@ -560,8 +591,9 @@
         });
       }
       // A kit that wins by stacking a status the boss cannot take is doing
-      // nothing but its direct damage. Assassin into Handaconda is the case:
-      // three of its five moves are about Poison, and Handaconda is immune.
+      // nothing but its direct damage. Monk into Arkhaia is the case: Fire
+      // Sutra and Blazing Barrage apply Burn, and Arkhaia is immune to Burn.
+      // (Handaconda lost its Poison immunity in the 2026-09 patch.)
       if (boss.statusImmune.length) {
         const inert = statusLoadOf(build, boss);
         if (inert.applying > 0) {
@@ -597,7 +629,8 @@
       }
 
       if (boss.punishesOneElement) {
-        const els = [...new Set(moves.map(m => String(m.element || m.moveType || '')).filter(Boolean))];
+        // Converted types: a Boreas Physical + Magic kit deals Ice and nothing else.
+        const els = [...new Set(moves.map(m => String(m.element || effectiveTypeOf(build, m))).filter(Boolean))];
         if (els.length <= 1) {
           mult *= (1 - K.BOSS_PENALTIES.oneElement);
           reasons.push({ kind: 'oneElement', pct: Math.round(K.BOSS_PENALTIES.oneElement * 100), moves: [],
@@ -638,9 +671,17 @@
     // build's crit chance for that move alone, exactly as the DMG calc's
     // moveCritBonus does. The engine used one crit figure for every move, so a
     // move whose value is its crit was priced as if it had none.
+    // A crit-only damage bonus (Empowered Pierce: 50% more damage on a Critical
+    // Hit, `critDmgBonus: 50`) multiplies only the share of the expectation that
+    // crits, exactly as the DMG calc's getExpectedMoveCritDmg does.
     function moveCritMult(mv, critChance, critDmg, potential) {
-      if (potential) return critDmg;
-      return M.expectedMultiplier(critChance + (+((mv && mv.critBonus) || 0)), critDmg);
+      const cdb = 1 + (+((mv && mv.critDmgBonus) || 0)) / 100;
+      if (potential) return critDmg * cdb;
+      const cc = critChance + (+((mv && mv.critBonus) || 0));
+      const e = M.expectedMultiplier(cc, critDmg);
+      if (cdb === 1) return e;
+      const miss = 1 - Math.min(100, Math.max(0, cc)) / 100;
+      return miss + (e - miss) * cdb;
     }
 
     function evaluate(build, spec) {
@@ -681,17 +722,15 @@
       // Aimed at a fight: every hit is scaled by that boss's resistance to the
       // move's element. Physical is Physical; Magic reads the Arcane column.
       const bossData = spec.boss ? (D.BOSS_DATA || {})[spec.boss] : null;
-      // Wicked Crown turns every Physical move into a Dark one — the site does
-      // exactly this at js/builder.js:4487. Anything that reads a move's type has
-      // to read the CONVERTED type or it pays element-gated buffs on moves the
-      // game says they miss, and misses the ones they now cover: Corvolus's Cast
-      // Amplify reaching a converted Stealth Strike is the whole point of the
-      // crown on an Assassin.
+      // Wicked Crown turns every Physical move into a Dark one, and Boreas turns
+      // the remaining Physical and Magic moves into Ice (boreasTypeOf) — the site
+      // does exactly this in getEffectiveMoveType, crown first. Anything that
+      // reads a move's type has to read the CONVERTED type or it pays
+      // element-gated buffs on moves the game says they miss, and misses the
+      // ones they now cover: Corvolus's Cast Amplify reaching a converted Stealth
+      // Strike is the whole point of the crown on an Assassin.
       const wicked = (build.gear || []).some(g => g && g.name === 'Wicked Crown');
-      const typeOf = mv => {
-        const t = String(mv.moveType || '');
-        return (wicked && /^physical$/i.test(t.trim())) ? 'Dark' : t;
-      };
+      const typeOf = mv => effectiveTypeOf(build, mv, wicked);
       const bossRes = bossData && bossData.res ? bossData.res : null;
       const resFor = mv => {
         if (!bossRes) return 1;
@@ -711,11 +750,28 @@
       // are, it is what happens to them in a fight.
       const siteStats = d.stats;
       const maFlat = ma.statFlat, gpFlat = gp.statFlat;
+      // Mastery stat percentages (Overload's +10% STR and LCK) and stat-from-stat
+      // shares (Lightspeed: 10% of Arcane as Speed), both already weighted by
+      // uptime. The share reads the SITE total, before any overlay; the
+      // percentage multiplies the whole in-fight total, as builder.js's
+      // Overload line does.
+      const maPct = ma.statPct || {}, maFrom = ma.statFromStat || [];
+      const hasPct = STATS.some(k => maPct[k] > 0) || maFrom.length > 0;
+      const pctOverlay = st => {
+        for (const x of maFrom) if (st[x.stat] !== undefined) st[x.stat] += (siteStats[x.from] || 0) * x.pct / 100;
+        for (const k of STATS) if (maPct[k]) st[k] *= 1 + maPct[k] / 100;
+        return st;
+      };
       const hasFlat = STATS.some(k => maFlat[k] > 0 || gpFlat[k] > 0);
-      if (hasFlat) {
+      if (hasFlat || hasPct) {
         d.stats = Object.assign({}, d.stats);
         for (const k of STATS) d.stats[k] += (maFlat[k] || 0) + (gpFlat[k] || 0);
+        if (hasPct) pctOverlay(d.stats);
       }
+      // Overload's Luck share, as crit chance. The site's crit readout reads its
+      // own Luck total (model.js rawLuck); the stat-row Luck stands in for it
+      // here, a small approximation.
+      const maLuckCrit = maPct.lck ? (siteStats.lck || 0) * maPct.lck / 100 * (D.LUCK_CRIT_RATIO || 1) : 0;
 
       // A gear bonus gated on a status this kit never applies pays nothing, and
       // is marked inert rather than quietly counted - Frozen Diadem's crit needs
@@ -746,10 +802,10 @@
       const rampFlat = gp.rampFlat || null;
       const hasRamp = !!rampFlat && STATS.some(k => (rampFlat[k] || 0) > 0);
       const openerStats = hasRamp
-        ? (() => { const o = Object.assign({}, d.stats); for (const k of STATS) o[k] -= (rampFlat[k] || 0); return o; })()
+        ? (() => { const o = Object.assign({}, d.stats); for (const k of STATS) o[k] -= (rampFlat[k] || 0) * (1 + (maPct[k] || 0) / 100); return o; })()
         : d.stats;
 
-      const critChance = d.critChance + tt.critChance + pv.critChance + (gp.critChance - inertCrit) + ma.critChance;
+      const critChance = d.critChance + tt.critChance + pv.critChance + (gp.critChance - inertCrit) + ma.critChance + maLuckCrit;
       const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
       // The chosen damage model decides what "damage" means for the whole search.
       //
@@ -815,8 +871,10 @@
       if (Object.keys(statBuffs).length) {
         const bb = Object.assign({}, build, { buffs: Object.assign({}, build.buffs, statBuffs) });
         const bd = M.derived(bb);
-        buffedStats = bd.stats;
-        buffedCrit = bd.critChance + tt.critChance + pv.critChance + gp.critChance;
+        // The mastery percentages ride on the buffed stats too, or a build with a
+        // stat setup would lose Overload and Lightspeed on its burst figure.
+        buffedStats = hasPct ? pctOverlay(Object.assign({}, bd.stats)) : bd.stats;
+        buffedCrit = bd.critChance + tt.critChance + pv.critChance + gp.critChance + maLuckCrit;
         buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
       }
 
@@ -831,6 +889,38 @@
         buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
       }
 
+      // Stat milestones, needed in the move loop now that STR / ARC 110 are
+      // damage perks. Read on two real states, never on the uptime-weighted
+      // average in d.stats: the buff-down totals (the site's row plus flat
+      // mastery and gear stats), and the buff-up totals with Overload's +10%
+      // and Lightspeed's share at full strength, as the site's buffed
+      // getTotalStat has them. A perk only the buffed total reaches is paid at
+      // that buff's uptime; the reached/missed rows are the buff-down ones.
+      const downStats = {};
+      for (const k of STATS) downStats[k] = (siteStats[k] || 0) + (maFlat[k] || 0) + (gpFlat[k] || 0);
+      const noMs = { outHealPct: 0, incHealPct: 0, dodgePct: 0, cdCut: [], typeDmg: [], reached: [], missed: [] };
+      const msDown = K.milestonesFor ? K.milestonesFor(downStats, D.STAT_MILESTONE_TIERS) : noMs;
+      let ms = msDown;
+      if (hasPct && K.milestonesFor) {
+        const upStats = Object.assign({}, downStats), upUptime = {};
+        const buffs = (ma.active || []).filter(a => !a.onSite && upStats[a.stat] !== undefined);
+        for (const a of buffs) if (a.kind === 'statFromStat') {
+          upStats[a.stat] += Math.round((siteStats[a.from] || 0) * a.value / 100);
+          upUptime[a.stat] = Math.max(upUptime[a.stat] || 0, a.uptime);
+        }
+        for (const a of buffs) if (a.kind === 'statPct') {
+          upStats[a.stat] = Math.round(upStats[a.stat] * (1 + a.value / 100));
+          upUptime[a.stat] = Math.max(upUptime[a.stat] || 0, a.uptime);
+        }
+        const msUp = K.milestonesFor(upStats, D.STAT_MILESTONE_TIERS);
+        ms = Object.assign({}, msDown, { typeDmg: msDown.typeDmg.slice() });
+        for (const p of msUp.typeDmg) {
+          if (!msDown.typeDmg.some(q => q.stat === p.stat))
+            ms.typeDmg.push(Object.assign({}, p, { value: p.value * (upUptime[p.stat] || 0) }));
+        }
+        ms.dodgePct   += (msUp.dodgePct   - msDown.dodgePct)   * (upUptime.spd || 0);
+        ms.outHealPct += (msUp.outHealPct - msDown.outHealPct) * (upUptime.lck || 0);
+      }
       let bestHit = 0, bestMove = null, bestBurst = 0, burstMove = null, sustainedHit = 0;
       // Blasphemy's Notch pays out only on a move costing 3+ energy, so the form
       // has to be priced against the best of THOSE. Measured here because this
@@ -853,6 +943,9 @@
         for (const mt of (gp.byMoveType || [])) {
           if (mt.when.test(typeOf(mv) + ' ' + String(mv.element || ''))) pct += mt.value;
         }
+        // STR 110 / ARC 110: +20% on Physical / magic moves, by the CONVERTED
+        // type - a Wicked Crown or Boreas move is magic.
+        for (const md of (ms.typeDmg || [])) if (md.test(mv, typeOf(mv))) pct += md.value;
 
         // heavyHand only pays on skills costing 2+ energy; strip it otherwise.
         // Cost may be written "3+X", so parse rather than coerce.
@@ -869,11 +962,13 @@
 
         // A move that stuns YOU before it lands costs turns nobody else pays, so
         // it is counted per turn it occupies (K.SELF_STUN). Without this, Boreas's
-        // Inner Frost - 21 base, and two turns of you standing there - outscored
+        // Inner Frost - 21 base, and (then) two turns of you standing there - outscored
         // every real nuke the moment race actives entered the kit.
         const stunDiv = 1 + (K.selfStunTurns ? K.selfStunTurns(mv) : 0);
-        const mMult   = mv.critBonus ? moveCritMult(mv, critChance, critDmg, potential) : mult;
-        const mBuffed = mv.critBonus && !potential ? moveCritMult(mv, buffedCrit, critDmg, false) : buffedMult;
+        const mMult   = (mv.critBonus || mv.critDmgBonus) ? moveCritMult(mv, critChance, critDmg, potential) : mult;
+        const mBuffed = (mv.critBonus || mv.critDmgBonus)
+          ? (potential ? buffedMult * (1 + (+mv.critDmgBonus || 0) / 100) : moveCritMult(mv, buffedCrit, critDmg, false))
+          : buffedMult;
         const plain = dmg * mMult / stunDiv;
         if (plain > bestHit) { bestHit = plain; bestMove = mv; }
 
@@ -949,12 +1044,10 @@
       // HP the site will show.
       ctx.effectiveHp = ctx.hp / Math.max(0.05, 1 - ctx.dodge / 100);
 
-      // Stat milestones. The site renders these and applies none of them, so
-      // like the class passives they go into effective figures rather than into
-      // the numbers the site will show.
-      ctx.milestones = K.milestonesFor
-        ? K.milestonesFor(ctx.stats, D.STAT_MILESTONE_TIERS)
-        : { outHealPct: 0, incHealPct: 0, dodgePct: 0, cdCut: [], reached: [], missed: [] };
+      // Stat milestones (computed before the move loop, where the STR / ARC
+      // 110 damage perks were applied). The healing and dodge perks are not on
+      // the site's readout, so they go into effective figures below.
+      ctx.milestones = ms;
 
       if (ctx.milestones.dodgePct) ctx.effectiveHp = ctx.hp /
         Math.max(0.05, 1 - Math.min(95, ctx.dodge + ctx.milestones.dodgePct) / 100);
@@ -988,10 +1081,9 @@
 
       // ── how much you heal, and how often ──────────────────────────────────
       // A cooldown cut is worth exactly what it lets you repeat, so the two are
-      // computed together. Race cuts are flat; milestone cuts are element-gated
-      // the way the owner plays it (K.MILESTONE_CD_AFFINITY: ARC 110 shortens
-      // every non-Physical move, Holy heals included; STR 110 shortens
-      // Physical), and they stack with Sheea.
+      // computed together. Sheea's cut is flat. The STR and ARC 110 milestones
+      // no longer cut cooldowns (reworked into Physical / magic damage), so
+      // ctx.milestones.cdCut is empty unless a future milestone adds one.
       const flatCut = (ctx.passives || {}).cdCut || 0;
       ctx.cdCutFlat = flatCut;
       const cdFor = mv => {
@@ -1646,7 +1738,8 @@
     // The community's stat line - "60 End, 110 Arc, rest Str" - with the reason
     // for each number. Read off the finished totals, so it describes the build
     // rather than plans it. `perk` is the highest counted milestone the total
-    // reaches; `moves` are the kit moves a cooldown cut actually shortens.
+    // reaches; `moves` are the kit moves the perk buffs (or a cooldown cut
+    // shortens).
     function statLineFor(build, spec) {
       const ctx = evaluate(build, spec);
       const defFor = m => (((K.MILESTONES || {})[m.stat] || [])[m.tier - 1]) || {};
@@ -1656,6 +1749,7 @@
              : m.kind === 'incHealPct' ? '+' + (def.value || 0) + '% incoming healing'
              : m.kind === 'outHealPct' ? '+' + (def.value || 0) + '% outgoing healing'
              : m.kind === 'dodgePct'   ? (def.value || 0) + '% autododge'
+             : m.kind === 'typeDmgPct' ? '+' + (def.value || 0) + '% ' + (m.stat === 'str' ? 'Physical' : 'magic') + ' damage'
              : m.text;
       };
       const kit = (ctx.moves || []).concat(healMovesFor(build));
@@ -1669,10 +1763,21 @@
         }
         return out;
       };
+      // The damage-kit moves a STR / ARC 110 damage perk pays on, by their
+      // converted type. perk.test already leaves summon attacks out.
+      const buffs = perk => {
+        const out = [], seen = new Set();
+        for (const mv of (ctx.moves || [])) {
+          if (!mv || !mv.name || seen.has(mv.name)) continue;
+          if (perk && perk.test && perk.test(mv, effectiveTypeOf(build, mv))) { seen.add(mv.name); out.push(mv.name); }
+        }
+        return out;
+      };
       // A perk is only the reason for a number when the build can use it: a
       // cooldown cut that shortens nothing in the kit, or outgoing healing on
       // a build that heals nothing, is not why the points are there.
       const usable = (m, moves) => m.kind === 'cdCut'      ? moves.length > 0
+                               : m.kind === 'typeDmgPct' ? moves.length > 0
                                : m.kind === 'outHealPct' ? (ctx.healPerTurn || 0) > 0
                                : true;
       const site = ctx.siteStats || ctx.stats;
@@ -1690,7 +1795,8 @@
                       reason: 'none', perk: null, moves: [] };
         if (top) {
           const cut = top.kind === 'cdCut' ? ctx.milestones.cdCut.find(c => c.stat === s) : null;
-          const moves = cut ? shortens(s, cut) : [];
+          const dmgPerk = top.kind === 'typeDmgPct' ? (ctx.milestones.typeDmg || []).find(c => c.stat === s) : null;
+          const moves = cut ? shortens(s, cut) : dmgPerk ? buffs(dmgPerk) : [];
           // "Sits on" a breakpoint at or past the perk's own: within one,
           // since the percent sources step totals by more than a point. End
           // parked on 110 still holds the +35% incoming healing from 60, and
@@ -2306,9 +2412,10 @@
           // opening turn whatever its long-run uptime is, so the share the
           // uptime shaved off is held aside for the burst number.
           // ...but only when full health is where this build actually opens. A
-          // Berserker deliberately drops low before it hits, so its opener is
-          // not a full-health turn and it must not collect this - which is also
-          // why it should not be wearing the item in the first place.
+          // build committed to fighting hurt (a K.HP_STANCE class) is counted as
+          // leaving full health at once, so its opener is not a full-health turn
+          // and it must not collect this - which is also why it should not be
+          // wearing the item in the first place.
           if (kind === 'critChance' && (e.fullHp || (extra && extra.hpGate && extra.hpGate.agrees))) {
             out.openerCritChance += e.value * (1 - up);
           }
@@ -2435,7 +2542,7 @@
     }
     function masteryAbilityTotalsUncached(build, spec) {
       const table = K.MASTERY_ABILITIES || {};
-      const perClass = (D.masteryAbilities || {})[build.klass] || {};
+      const perClass = abilitiesFor(build.klass);
       // `dodge` is avoidance rather than reduction, and `statFlat` is a flat
       // stat rather than a percentage, so neither could be expressed before and
       // both were silently scored as nothing. The healing and lifesteal kinds
@@ -2444,6 +2551,11 @@
       const out = { dmgPct: 0, critChance: 0, dr: 0, dodge: 0,
                     outHealPct: 0, incHealPct: 0, lifestealPct: 0, openerDmgPct: 0,
                     statFlat: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+                    // A percentage of one stat (Overload) and a flat stat worth a
+                    // share of another (Lightspeed: 10% of Arcane as Speed). Both
+                    // hold percentages, never stats, so the cache above stays valid.
+                    statPct: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+                    statFromStat: [],
                     active: [], unmodelled: [] };
       const nodes = D.masteryNodes || [];
       const byId = {};
@@ -2470,7 +2582,7 @@
           ? (rule.effects || [])
           : [{ kind: rule ? rule.kind : 'dmgPct',
                value: rule && rule.value != null ? rule.value : entry.bonus,
-               stat: rule && rule.stat }];
+               stat: rule && rule.stat, from: rule && rule.from }];
         for (const ef of effects) {
           const kind   = ef.kind;
           const value  = ef.value;
@@ -2490,6 +2602,10 @@
             if (kind === 'statFlat') {
               const st = ef.stat || 'spd';
               if (out.statFlat[st] !== undefined) out.statFlat[st] += eff;
+            } else if (kind === 'statPct') {
+              if (out.statPct[ef.stat] !== undefined) out.statPct[ef.stat] += eff;
+            } else if (kind === 'statFromStat') {
+              if (ef.stat && ef.from) out.statFromStat.push({ stat: ef.stat, from: ef.from, pct: eff });
             } else if (typeof out[kind] === 'number') {
               out[kind] += eff;
             }
@@ -2503,7 +2619,7 @@
             out.openerDmgPct += value * (1 - uptime) * scale;
           }
           out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
-                            stat: ef.stat, party: scale > 1 ? scale : null,
+                            stat: ef.stat, from: ef.from, party: scale > 1 ? scale : null,
                             onSite: !!ef.onSite, note: rule && rule.note });
         }
       }
@@ -2569,8 +2685,9 @@
       const all = D.masteryNodes || [];
       const cd = M.masteryData(build);
       // masteryPassedOver is cleared here as well: a class with no tree in the
-      // site's data (Paladin (Or) today) must report an empty list rather than
-      // whatever the last build left on the object.
+      // site's data (M.masteryData finds neither its own nor its base class's)
+      // must report an empty list rather than whatever the last build left on
+      // the object.
       if (!all.length || !cd) {
         build.masteryNodes = []; build.masteryPoints = 0; build.masteryPassedOver = [];
         build.masteryBudget = null; build.masteryNotation = '0-0-0'; return;
@@ -2629,7 +2746,7 @@
       // whenever that changes (resync).
       let _abilityCache = {};
       let _current = _probeBase;
-      const abilityNames = (D.masteryAbilities || {})[build.klass] || {};
+      const abilityNames = abilitiesFor(build.klass);
       const resync = () => {
         build.masteryNodes = all.filter(n => taken.has(n.id)).map(n => n.id);
         try { _current = evaluate(build, spec).score || 1; } catch (e) { /* keep the last base */ }
@@ -2733,8 +2850,9 @@
       //
       // Five points is five stat nodes, so the choice is made on what the
       // ability actually does; picking by branch colour was choosing between
-      // Overload (+100%, but only against stunned enemies) and Element Mastery
-      // (+15% to a caster's entire kit) by which side of the tree they sat on.
+      // Cell Charge (+50%, but only once 10 blocks or 20 dodges charge it) and
+      // Element Mastery (+15% to a caster's entire kit) by which side of the tree
+      // they sat on.
       //
       // Buy on measured value when there is any. When every remaining capstone
       // measures zero, WHY it measures zero decides what happens next: a priced
@@ -2744,15 +2862,14 @@
       // for want of value, and a real in-game ability beats stat nodes the build
       // has already been measured not to want.
       const unpriced = x => {
-        const e = ((D.masteryAbilities || {})[build.klass] || {})[x.n.id];
+        const e = abilitiesFor(build.klass)[x.n.id];
         if (!e) return false;
         const r = (K.MASTERY_ABILITIES || {})[e.name];
         // A known-bugged ability is NOT an unknown. The fallback below exists to
         // back a real ability the engine merely cannot measure; backing one that
         // does not work is how five mastery points get spent on nothing.
         if (r && r.kind === 'bugged') return false;
-        return (r && r.kind === 'note') || (!r && e.bonus == null) ||
-               (r && r.kind !== 'note' && r.kind !== 'multi' && r.value == null);
+        return (!r && e.bonus == null) || (!!r && !K.masteryRulePriced(r));
       };
       // What the pass had to work with - the write-up's "it cost 7 to reach
       // and 4 were left" is measured from here.
@@ -2823,7 +2940,7 @@
       // is a trade you might want to make differently; "it cost more than was
       // left" is arithmetic; "something else measured higher" is a comparison
       // you can check. Reporting all four as the same shrug was the problem.
-      const perClass = (D.masteryAbilities || {})[build.klass] || {};
+      const perClass = abilitiesFor(build.klass);
       const abilityRules = K.MASTERY_ABILITIES || {};
       const pct1 = v => (Math.round(v * 10) / 10);
       build.masteryBudget = { cap: CAP, spent, leftAtCapstone,
@@ -2840,7 +2957,7 @@
         .map(x => {
           const name  = perClass[x.n.id].name;
           const rule  = abilityRules[name];
-          const known = (rule && rule.kind !== 'note' && rule.value != null) ||
+          const known = K.masteryRulePriced(rule) ||
                         (!rule && perClass[x.n.id].bonus != null);
           // Order matters. A capstone worth nothing to this goal was not
           // skipped for want of points — it would have been skipped with the
@@ -3458,15 +3575,21 @@
       }
       bestCtx = evaluate(best, spec);
 
-      // What came second. Races for the winning class from the finalists are
-      // FULL builds, ranked; the rest of the coarse pass fills in behind them
-      // and is marked as coarse. Classes are the best coarse pair per class.
-      const topScore = Math.max(...built.map(x => x.score), 1e-9);
+      // What came second. Races for the winning class from the FINISHED
+      // finalists are full builds, ranked against the chosen build's own score;
+      // an unfinished finalist's score is no rival (finishing moves scores by
+      // 15% either way), so it follows with no delta, like the coarse pass
+      // behind it. Classes are the best coarse pair per class.
+      const winScore = Math.max(bestCtx.score, 1e-9);
       const seenRace = new Set();
       const raceAlts = [];
-      for (const x of built.filter(x => x.k === best.klass).sort((a, b) => b.score - a.score)) {
+      const mine = built.filter(x => x.k === best.klass);
+      const ranked = mine.filter(x => x.finished).sort((a, b) => b.score - a.score)
+        .concat(mine.filter(x => !x.finished).sort((a, b) => b.score - a.score));
+      for (const x of ranked) {
         seenRace.add(x.r);
-        raceAlts.push({ race: x.r, score: x.score, delta: Math.max(0, (topScore - x.score) / topScore), full: true });
+        raceAlts.push({ race: x.r, score: x.score, full: !!x.finished,
+                        delta: x.finished ? Math.max(0, (winScore - x.score) / winScore) : null });
       }
       for (const x of coarse.filter(x => x.k === best.klass && !seenRace.has(x.r)).slice(0, 8)) {
         seenRace.add(x.r);

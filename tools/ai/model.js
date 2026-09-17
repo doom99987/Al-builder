@@ -381,7 +381,8 @@
       };
     }
 
-    // Crit damage is a FLAT base (2) plus percentage sources — it does not grow
+    // Crit damage is a FLAT base (2) plus percentage sources (Crystal Sphere's
+    // +0.05 arrives through gearPctBonuses) — it does not grow
     // with crit tier. The tier multiplier is separate and layers on top.
     function critMultiplier(build, C) {
       const pct = pctSources(build);

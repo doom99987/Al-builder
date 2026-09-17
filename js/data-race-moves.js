@@ -139,7 +139,7 @@ const raceMoves = {
         moveType: "Magic",
         category: "Summon",
         scaling: "STR/8 + ARC/8",
-        effect: "Summon Lesser Sylph when used, the Lesser Sylph has 35 base HP.\n\nSylph Moves:\n• Wind Bolt — Cost: 0 | CD: 0 | Type: Nature | Dmg: 5 | Scaling: STR/100 + ARC/100 — Hits the opponent with a bolt of wind.\n• Gale Pulse — Cost: 2 | CD: 6 | Type: Nature | Dmg: 7 | Scaling: STR/100 + ARC/100 — Hits all opponents with a pulse of gale.",
+        effect: "Summon Lesser Sylph when used, the Lesser Sylph has 35 base HP.\n\nSylph Moves:\n• Wind Bolt — Cost: 0 | CD: 0 | Type: Nature | Dmg: 5 | Scaling: STR/100 + ARC/100 — Hits the opponent with a bolt of wind.\n• Gale Pulse — Cost: 2 | CD: 6 | Type: Nature | Dmg: 10 | Scaling: STR/100 + ARC/100 — Hits all opponents with a pulse of gale.\n• Nature's Embrace — Cost: 2 | CD: 4 | Type: Nature — Heals itself and all allies for 40% of their max HP.",
         image: "https://trello.com/1/cards/67c264ba2e47733e7791287b/attachments/69760690c0c37b7beb634ec6/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125170212.png"
       },
       {
@@ -161,7 +161,7 @@ const raceMoves = {
         moveType: "Magic",
         category: "Buff",
         duration: 4,
-        effect: "Grants the user a 15% buff to all stats and a 50% damage buff to their summons for 4 turns. On the 4th turn, the user takes 27.5% HP damage and is unable to act for one turn, becoming heavily stunned until the end of their next turn. Endurance buffs convert to Damage Reduction. Self-Damage can be affected by Hex.",
+        effect: "Grants the user a 15% buff to all stats and a 50% damage buff to their summons for 4 turns. On the 4th turn, the user takes 27.5% HP damage. Endurance buffs convert to Damage Reduction. Self-Damage can be affected by Hex.",
         image: "https://trello.com/1/cards/67c264ba2e47733e7791287b/attachments/69760691fec445184249c03e/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125170310.png"
       },
       {
@@ -189,10 +189,22 @@ const raceMoves = {
         cooldown: 6,
         moveType: "Nature",
         category: "Attack",
-        damage: 7,
+        damage: 10,
         scaling: "STR/100 + ARC/100",
         effect: "Hits all of the opponents with a pulse of gale.",
         image: "https://trello.com/1/cards/67c264ba2e47733e7791287b/attachments/69760b0247b347bc21e64860/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172206.png"
+      },
+      {
+        slot: "Sylph",
+        level: 1,
+        type: "Active",
+        name: "Nature's Embrace",
+        quote: "",
+        cost: 2,
+        cooldown: 4,
+        moveType: "Nature",
+        category: "Utility",
+        effect: "Heals the Sylph and all allies for 40% of their max HP."
       }
     ]
   },
@@ -275,8 +287,8 @@ const raceMoves = {
         cooldown: 10,
         moveType: "Poison",
         category: "Utility",
-        duration: "?",
-        effect: "Your next attack on an enemy applies this debuff: deal additional damage equal to Poison stacks, then decay Poison by 1. Repeats per stack."
+        duration: 3,
+        effect: "Your next attack on an enemy applies 3 turns of Blacktongue: deal additional damage equal to Poison stacks, then decay Poison by 1. Repeats per stack."
       },
       {
         slot: "Level 20",
@@ -523,7 +535,7 @@ const raceMoves = {
       {
         level: 1,
         name: "Sense (Exclusive Status)",
-        description: "While you have 3 or more stacks of Sense you dodge any attack that would have dealt damage, even if you guarded or blocked it. When you autododge the attack you still receive the statuses."
+        description: "Gain 1 Sense when you dodge, at most once per turn. If you would be hit while above 4 Sense, you lose 4 Sense and autododge that attack, even if you guarded or blocked it. When you autododge the attack you still receive the statuses."
       }
     ],
     learns: [
@@ -532,12 +544,13 @@ const raceMoves = {
         level: 1,
         type: "Active",
         name: "Sense Expansion",
-        quote: "Heighten your senses, granting you 3 sense stacks.",
+        quote: "Heighten your senses, gaining extra Sense from dodging for 3 turns.",
         cost: 1,
         cooldown: 3,
         moveType: "Physical",
         category: "Buff",
-        effect: "Grants 3 Sense stacks always.",
+        duration: 3,
+        effect: "For 3 turns, whenever dodging grants you Sense, gain 1 additional Sense.",
         image: "https://trello.com/1/cards/68c4e8377457fe90caa1db35/attachments/69760bab3d9b18365e6e1df7/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172442.png"
       },
       {
@@ -559,12 +572,13 @@ const raceMoves = {
         level: 35,
         type: "Active",
         name: "Soul Reversal",
-        quote: "Enter a stance based on your Sense Expansion stacks. 0-2 stacks grants damage and speed buffs. 3 stacks grants party-wide invincibility.",
+        quote: "Consume all of your Sense to heighten your allies' strength and evasion until your next turn.",
         cost: 3,
         cooldown: 14,
         moveType: "Physical",
         category: "Buff",
-        effect: "The base buff is a 10% damage buff, increasing by 5% per Sense stack consumed. At 8+ Sense stacks, no damage buff is received but all stacks are consumed and all allies gain party-wide invincibility for 2 turns. (Invincibility requires 8 Sense stacks currently.)",
+        duration: 1,
+        effect: "Consumes all of your Sense. Until your next turn, all allies gain a Damage buff and an Autododge chance of 10% per Sense consumed (10X%, where X is the Sense consumed).",
         image: "https://trello.com/1/cards/68c4e8377457fe90caa1db35/attachments/69760ba864721dee19643e29/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172408.png"
       }
     ]
@@ -574,7 +588,7 @@ const raceMoves = {
       {
         level: 1,
         name: "Frost Stacks",
-        description: "When using an Ice affinity move, gain 1 stack. Each stack grants 20% Damage and 10% Damage Reduction, up to 200% Damage and 70% Damage Reduction. Using a non-Ice affinity move removes 1 stack. Buff moves do not change stacks."
+        description: "Your Physical and Magic affinity moves become Ice affinity moves. When using an Ice affinity move, gain 1 stack. Each stack grants 10% Damage and 4% Damage Reduction, up to 50% Damage and 20% Damage Reduction. Using a non-Ice affinity move removes 1 stack. Buff moves do not change stacks."
       },
       {
         level: 1,
@@ -603,14 +617,14 @@ const raceMoves = {
         level: 35,
         type: "Active",
         name: "Inner Frost",
-        quote: "Heavy stun yourself for two turns. At the end, deal AoE dmg to all enemies.",
+        quote: "Heavy stun yourself for one turn. At the end, deal AoE dmg to all enemies.",
         cost: 2,
         cooldown: 12,
         moveType: "Ice",
         category: "Attack",
         damage: 21,
         scaling: "STR/60 + ARC/60",
-        effect: "Receive 2 stacks of Heavy Stun. At the end of their duration, deal high damage to all enemies and apply 1 Vulnerable and 4 Cold. Status effects are applied before the attack lands, allowing them to affect the damage.",
+        effect: "Receive 1 stack of Heavy Stun. At the end of its duration, deal high damage to all enemies and apply 1 Vulnerable and 4 Cold. Status effects are applied before the attack lands, allowing them to affect the damage.",
         image: "https://trello.com/1/cards/67e06e6b711c06ba1cf30453/attachments/69760c2bc9d3e290ac9d359a/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172647.png"
       }
     ]
@@ -696,7 +710,7 @@ const raceMoves = {
         name: "Sinister Gaze",
         quote: "Stare at your enemy with your cursed eye to deal damage and copy their stat buffs while sharing your negative status effects.",
         cost: 2,
-        cooldown: 7,
+        cooldown: 12,
         moveType: "Hex",
         category: "Attack/Buff",
         duration: "2 turns",
@@ -935,7 +949,7 @@ const raceMoves = {
       {
         level: 20,
         name: "Frail Body",
-        description: "If an instance of damage would deal 15% or more of your max HP, halve it and take the other half on your next turn.\n\nThe calculation runs after DR and other factors, reducing the incoming hit by 50%. The delayed half is TrueDMG and ignores all DR. Moves dealing TrueDMG (e.g. Rage Empower) cannot trigger this, and it cannot trigger while damage is already stored."
+        description: "If an instance of damage would deal 15% or more of your max HP, halve it and take the other half on your next turn.\n\nThe calculation runs after DR and other factors, reducing the incoming hit by 50%. The delayed half is TrueDMG and ignores all DR. Moves dealing TrueDMG cannot trigger this, and it cannot trigger while damage is already stored."
       },
       {
         level: 30,

@@ -96,13 +96,13 @@ Two layers feed it now:
 1. `extract-data.js` runs **builder.js's own `parseDmgBonus`** over all 108
    ability descriptions and stores what it finds. The site already does this for
    its damage calculator; running the same function means the two agree by
-   construction instead of by a replica somebody has to keep in step. 23 of the
+   construction instead of by a replica somebody has to keep in step. 21 of the
    108 come out with a number for free.
 2. `MASTERY_ABILITIES` in knowledge.js overrides and extends. A parsed number is
-   only half an answer — `Overload` (+100%) and `Element Mastery` (+15%) both
+   only half an answer — `Cell Charge` (+50%) and `Element Mastery` (+15%) both
    read as a percentage, and only one is close to always on. **`uptime` is the
-   point of the table.** Without it the optimiser buys the +100% and never
-   notices it needs the target stunned first.
+   point of the table.** Without it the optimiser buys the +50% and never
+   notices it has to charge off 10 blocks or 20 dodges first.
 
 Anything neither layer can read is reported under "Mastery abilities NOT counted"
 rather than scored as zero, the same as gear passives.
@@ -182,7 +182,8 @@ writes them (`itemPassives['Primordial']`, not `'Primordial Spear'`).
 
 **Base classes were being rolled at max level.** About one build in ten. A
 superclass needs level 15 and is roughly four times stronger — measured, Warrior
-scores 552 against Berserker's 2279 — so those were not close calls. The class
+scores 552 against Berserker's 2279 (pre-2026-09-16 patch; re-measure) — so
+those were not close calls. The class
 pool now follows the level, an explicitly named class is still honoured, and
 asking for a superclass below 15 gets a warning rather than a silent yes.
 
@@ -202,14 +203,21 @@ needs somewhere to land or the ability probes as worthless and is never bought:
 | `dmgPct` | the damage multiplier | Element Mastery, Primordial |
 | `critChance` | crit chance, and so the overcrit tier | Dark Smite Proficiency |
 | `dr` | damage reduction | Holy Shield, Strategist |
-| `dodge` | **avoidance**, which is not reduction | Lightspeed |
+| `dodge` | **avoidance**, which is not reduction | none today (Lightspeed, before its rework) |
 | `statFlat` | a flat stat, `stat: 'spd'` | Flourish Proficiency |
+| `statPct` | a percentage of one stat, `stat: 'str'`; it multiplies the in-fight total, and a Luck share also moves crit chance | Overload (two of them, inside a `multi`) |
+| `statFromStat` | a flat stat worth a share of another, `stat: 'spd', from: 'arc'`, read from the site total | Lightspeed |
+| `multi` | several of the above at once, listed in `effects` | All For One, Overload |
 | `note` | nothing — reported, not scored | Overcore |
 
-Two of those exist because a Ranger's actual build needed them. **Lightspeed**
-grants 10% autododge per dodge with no stack cap, which ramps toward total
+`dodge` and `statFlat` exist because a Ranger's actual build needed them. **Lightspeed**
+used to grant 10% autododge per dodge with no stack cap, which ramps toward total
 avoidance — it was `kind: 'note'` and therefore worth exactly zero, so the engine
-never took the capstone every Ranger takes. Avoidance is deliberately NOT added
+never took the capstone every Ranger takes, and `dodge` was added for it. The
+2026-09-16 Ranger rework replaced the autododge with Speed worth 10% of your
+Arcane for 3 turns on every Verdant Archer proc, now priced as `statFromStat` at
+an assumed 60% uptime. No ability uses `dodge` today; the kind stays for
+avoidance sources. Avoidance is deliberately NOT added
 to `blockDr`: an attack that misses does nothing at all, so it multiplies how
 long you last (`effectiveHp`) rather than shaving a percentage off each hit. That
 figure is for scoring only — the HP a build *reports* stays the HP the site will
@@ -236,7 +244,7 @@ not the same admission:
 | Reason | What it means |
 |---|---|
 | **Not priced here** | `knowledge.js` has no numbers for the ability, so it never competed for the points at all. A gap in this engine, *not* a verdict on the ability. |
-| **Nothing towards `<goal>`** | Priced, measured, and worth zero to *this* goal. A real trade — a damage goal scores survivability at exactly zero, so a damage Ranger declines Lightspeed. |
+| **Nothing towards `<goal>`** | Priced, measured, and worth zero to *this* goal. A real trade — a damage goal scores survivability at exactly zero, so a damage Hexer declines Strategist. |
 | **Outscored** | It fit the budget and a different capstone measured higher. |
 | **Worth less per point** | Genuinely worth something and still not bought: 35 points is a real budget, and everything else paid better per point. The line shows both rates. |
 
@@ -245,7 +253,9 @@ zero, so testing "did it measure zero" before "is it even priced" reports every
 gap in `knowledge.js` as *your goal does not value it* — a confident, plausible
 lie that blames the goal for a hole in the engine. Unpriced is checked first.
 
-Only **38 of 108** capstone abilities are priced today, so *not priced here* is
+Only **42 of 108** capstone abilities are priced today (counted 2026-09-17, after
+the balance patch; a `multi` rule counts when one of its effects has a number,
+`K.masteryRulePriced`), so *not priced here* is
 by far the most common answer. That number is counted from the data at render
 time rather than written into the copy, and the section says plainly that it is
 a limitation here rather than a judgement, with an invitation to describe the
@@ -456,7 +466,9 @@ Corvolus is the case that prompted it. Nisse has a permanent +15% to Fire and
 Magic; Corvolus has **Cast Amplify** (+20% to six elements, 1 energy, 9 turn
 cooldown, 3 turn duration), **Arcane Ritual** (a chance at ~40%), and the best
 base Arcane in the game. Judged on passives alone Nisse wins. Judged on an actual
-turn sequence they split, and the engine now reflects that:
+turn sequence they split, and the engine now reflects that (figures
+pre-2026-09-16 patch, which changed Lightning Crash, Blaze and Gale Uplift;
+re-measure, and re-check the split below):
 
 | Elementalist | opener | sustained |
 |---|---|---|
@@ -784,7 +796,8 @@ byte-identical.
 ### Two rotations, not one number
 
 Every headline figure stays **out of form**, because that is the ordinary case
-and the one the build was optimised for. The form gets its own rotation instead:
+and the one the build was optimised for. The form gets its own rotation instead
+(the Carnage figures below are pre-2026-09-16 patch; re-measure):
 
 ```
 Opening rotation — out of form
@@ -865,9 +878,11 @@ a test checks both names still exist in `encounterKinds`.
 
 ## Builds that fight hurt
 
-Four classes have passives that pay you for being **injured**: Berserker's
-Bloodlust, Impaler's Bloody Berserker, Brawler's Bruiser, Darkwraith's Spirit
-Wraith. One artifact pays you only for being **untouched**: Stellian Core, which
+Four classes are built to fight **injured**: Berserker, whose Bloodlust heals
+only below half health while the Rage that keeps its stacks lowers Defense, and
+three whose passives pay you for it — Impaler's Bloody Berserker, Brawler's
+Bruiser, Darkwraith's Spirit Wraith. One artifact pays you only for being
+**untouched**: Stellian Core, which
 "only activates when you are above 95% of your Max HP".
 
 Pricing both at a fixed uptime is wrong in both directions at once, and the
@@ -887,9 +902,11 @@ say. Its uptime is lifted only when the class is committed too.
 
 The passives that justify the stance are now priced rather than listed under
 "not counted", because downgrading Stellian Core for a Berserker while still
-ignoring what a Berserker gets for being hurt is half an answer. The numbers are
-the ones the game text states, read at the 50% HP the stance assumes; Bloodlust's
-further +40% below 30% is still not counted, and says so.
+ignoring what a Berserker gets for being hurt is half an answer. Impaler's and
+Brawler's numbers are the ones the game text states, read at the 50% HP the
+stance assumes. Berserker's Bloodlust stopped being HP-gated in the 2026-09-16
+rework (+5% damage per stack, +10% per stack in Rage): it is priced at an assumed
+5 stacks in Rage at half uptime, and its heal below half health is not counted.
 
 ## Breakpoints and stat decay
 
@@ -898,7 +915,14 @@ Every community build the site owner supplied has the same stat shape: "60 End,
 stat takes whatever is left over and every other stat you put points in sits
 EXACTLY on a milestone (25 / 60 / 110). The owner's reason is stat decay: past
 about 100 a stat falls off, so you go to 110 for the milestone perk when the
-build uses it and otherwise stop under the knee.
+build uses it and otherwise stop under the knee. Those lines predate the
+2026-09-16 patch, which turned the STR and ARC 110 perks from cooldown cuts into
+damage (see "The 110 perks" below). The Saint's "110 Arc" was bought for the old
+cooldown cut, and the owner has since confirmed (2026-09-17) that a Saint no
+longer needs it: `golden/saint-healer.json` no longer expects ARC 110 (END 60
+stays hard), and the Build AI's Saint healer now comes out at 60 Str / 25 Arc /
+102 End / 61 Luck (Luck 60 buys +35% outgoing healing). `STAT_DECAY.pastRate`
+was tuned on the old line and still needs re-measuring.
 
 The site's maths is linear and `model.js` mirrors it, so none of this is a
 formula. It is a rule, in three parts:
@@ -911,9 +935,9 @@ formula. It is a rule, in three parts:
   stat as the rest, snaps every other invested stat onto a breakpoint, steps
   each one up or down a breakpoint while that pays, and keeps the best line -
   judged with points past 110 worth `STAT_DECAY.pastRate` of a point under the
-  knee, which is what makes "rest Str" beat "142 End" on a Saint. Luck sitting
-  on a crit-tier threshold and Speed sitting on the solo boss dodge floor are
-  breakpoints of their own.
+  knee, which is what makes "rest Str" beat "142 End" on a Saint (pre-2026-09-16
+  patch; re-measure). Luck sitting on a crit-tier threshold and Speed sitting on
+  the solo boss dodge floor are breakpoints of their own.
 - **The line is the SITE total.** Base + level + race + gear + mastery, the
   stat row the site shows with Venia's Permuth off. A Coagulated ramp or a
   Flourish stance is a combat overlay and is scored, not lined.
@@ -922,8 +946,22 @@ Venia's Permuth is scored as nothing: the site's row shows it as a permanent
 x1.4, in game it is a 3-turn buff every 10 with a coin-flip on the stat. The
 mark is still worn and the write-up prices it as the buff (`PERMUTH`).
 
+**The 110 perks.** Since the 2026-09-16 patch, STR 110 is +20% damage on
+Physical moves, ARC 110 +20% on every other ("magic") type - the owner's
+reading from play; the patch notes said melee and ranged - and SPD 110 a 15%
+autododge. The STR and ARC perks used to be cooldown cuts, split the same way;
+`MILESTONE_CD_AFFINITY` went with them, and no milestone cuts a cooldown now.
+`K.milestonesFor` returns the damage perks as `typeDmg[]`, each with a
+`test(move, type)`; `optimize.js` passes the move's converted type
+(`effectiveTypeOf`: Wicked Crown, then Boreas), so a converted move takes the
+ARC perk. `K.milestoneDmgStat` is builder.js `getMilestoneDmgStat`, and
+`K.isSummonSlot` keeps summon attacks out. Two differences from the site
+remain: `optimize.js` adds the perk to the move's damage percentage where the
+site multiplies it in, and it prices Stinger by its Poison type where the site
+gives the Physical stab STR's perk.
+
 `build._statLine` carries the reason for every number - the perk it sits on,
-the moves a cooldown cut shortens, "rest", "cap", "floor" - and `test.js`
+the moves a damage perk buffs, "rest", "cap", "floor" - and `test.js`
 holds every request to the rule: one rest stat, everything else on a
 breakpoint, nothing in the dead zone.
 

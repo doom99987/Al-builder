@@ -1,6 +1,7 @@
 {
   "name": "Saint healer/tank - the community reference (2026-09)",
   "source": "site owner, community build post",
+  "notes": "The post's '110 Arc' was for the -1 cooldown the ARC 110 milestone gave. The 2026-09-16 patch made ARC 110 +20% damage on magic moves instead, and the owner says (2026-09-17) a Saint no longer needs it, so it is no longer expected. The Build AI now builds 60 STR / 25 ARC / 102 END / 61 LCK (LCK 60 for +35% outgoing healing).",
   "request": {
     "text": "saint healer",
     "overrides": { "klass": "Saint (Or)", "roles": ["Healer"], "play": "team", "dmg": "average", "level": 50 }
@@ -9,7 +10,7 @@
     "class": "Saint (Or)",
     "raceIn": ["Sheea (Ob)", "Daminos (3%)", "Corvolus (3%)", "Arborivia (3%)"],
     "raceRankingTop4Has": ["Sheea (Ob)", "Daminos (3%)"],
-    "milestones": [{ "stat": "end", "min": 60 }, { "stat": "arc", "min": 110 }],
+    "milestones": [{ "stat": "end", "min": 60 }],
     "totalIn": { "end": [[60, 62], [102, 104]] },
     "noDeadZone": true,
     "gearMust": ["Narthana's Leaf"],

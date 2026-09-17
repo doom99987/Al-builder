@@ -23,7 +23,7 @@
   // reach these files because they are injected at runtime, so without this the
   // browser happily serves a stale engine after an update — exactly the trap the
   // rest of the site version-stamps against. Bump on every engine change.
-  const ENGINE_V = 51;
+  const ENGINE_V = 52;
 
   // tools/ai/ is the single home of the engine. Order matters — engine.js reads
   // the globals the others define.
@@ -731,7 +731,7 @@
           row('HP',          n1(c.hp),               n1(i.hp),               delta(c.hp, i.hp)) +
           row('Crit chance', n1(c.critChance) + '%', n1(i.critChance) + '%', delta(c.critChance, i.critChance, '%')) +
           row('Crit damage', c.critDmg.toFixed(2) + 'x', i.critDmg.toFixed(2) + 'x', delta(c.critDmg, i.critDmg, 'x')) +
-          row('Block DR',    n1(c.blockDr) + '%',    n1(i.blockDr) + '%',    delta(c.blockDr, i.blockDr, '%')) +
+          row('Block DR',    n1(c.blockDr),          n1(i.blockDr),          delta(c.blockDr, i.blockDr)) +
           row('Heal out',    n1(c.outHeal) + '%',    n1(i.outHeal) + '%',    delta(c.outHeal, i.outHeal, '%')) +
           row('Max energy',  c.energyCap,            i.energyCap,            delta(c.energyCap, i.energyCap)) +
         '</table>');
@@ -743,7 +743,7 @@
         ['damage',        c.bestHit,    i.bestHit,    ''],
         ['HP',            c.hp,         i.hp,         ''],
         ['crit chance',   c.critChance, i.critChance, '%'],
-        ['block DR',      c.blockDr,    i.blockDr,    '%'],
+        ['block DR',      c.blockDr,    i.blockDr,    ' DR'],
         ['outgoing heal', c.outHeal,    i.outHeal,    '%'],
         ['max energy',    c.energyCap,  i.energyCap,  ''],
       ].filter(([, a, b]) => b < a * 0.95 && (a - b) > 0.5)
@@ -983,6 +983,8 @@
                    : a.kind === 'dr'           ? '% DR'
                    : a.kind === 'dodge'        ? '% autododge'
                    : a.kind === 'statFlat'     ? ' flat ' + String(a.stat || 'spd').toUpperCase()
+                   : a.kind === 'statPct'      ? '% ' + String(a.stat || '').toUpperCase()
+                   : a.kind === 'statFromStat' ? '% of ' + String(a.from || 'arc').toUpperCase() + ' as flat ' + String(a.stat || 'spd').toUpperCase()
                    : a.kind === 'outHealPct'   ? '% outgoing healing'
                    : a.kind === 'incHealPct'   ? '% incoming healing'
                    : a.kind === 'lifestealPct' ? '% lifesteal'

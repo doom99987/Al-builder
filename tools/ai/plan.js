@@ -44,7 +44,11 @@
   function priorityOf(alts, chosen) {
     const others = alts.filter(a => !a.chosen);
     if (!others.length) return 'must';
-    const best = others.reduce((m, a) => Math.min(m, a.delta), Infinity);
+    // An unmeasured alternative (a coarse or unfinished race: delta null) says
+    // nothing about how close it is; Math.min would read its null as a tie.
+    const measured = others.filter(a => a.delta != null);
+    if (!measured.length) return 'preferred';
+    const best = measured.reduce((m, a) => Math.min(m, a.delta), Infinity);
     if (best >= 0.10) return 'must';
     if (best <= 0.01) return 'optional';
     return 'preferred';
