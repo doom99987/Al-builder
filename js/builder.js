@@ -1050,6 +1050,16 @@ function midasLckMult() {
   return (picker && picker.value === "Midas") ? 1 + Math.min(4, midasLckStacks) * 0.05 : 1;
 }
 
+// Lifesong enchant: each proc gives +20% incoming and outgoing healing for 3
+// turns, up to 3 stacks (owner). Up here for the same dead-zone reason: the
+// initial updatePecents() render reads it.
+let lifesongStacks = 0;
+function lifesongHealPct() {
+  if (!(lifesongStacks > 0)) return 0;
+  const picker = document.getElementById("enchant-picker");
+  return (picker && picker.value === "Lifesong") ? 20 * Math.min(3, lifesongStacks) : 0;
+}
+
 // DOM references built once at startup and reused on every updatePecents() call
 // to avoid repeated querySelectorAll hits during stat recalculation.
 const _pctCache = (() => {
@@ -1249,7 +1259,9 @@ function updatePecents() {
     // the milestone panel and never added here (reported from play). The build
     // AI's model.js critMultiplier mirrors this line.
     const _lckMsCritDmg = (stat === "crit-dmg" && totalLck >= STAT_MILESTONE_TIERS[0]) ? 0.1 : 0;
-    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct + _endHealPct + _lckMsCritDmg;
+    // Lifesong stacks (DMG calc tracker): +20% to both healing stats a stack.
+    const _lifesongHealPct = (stat === "out-heal" || stat === "inc-heal") ? lifesongHealPct() : 0;
+    const pctBonus = armourStatPct + (soulTreeBonuses[stat] ?? 0) + (weaponPct[stat] ?? 0) + (covPct[stat] ?? 0) + (gearPct[stat] ?? 0) + _masteryHealPct + _endHealPct + _lckMsCritDmg + _lifesongHealPct;
     let display;
     if (base === "—") {
       display = "—";
@@ -2006,7 +2018,8 @@ buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), () => {
   enchantReaperEnemyHp = 100;
   ivoryNrgStacks = 0;
   midasLckStacks = 0;
-  // updatePecents too: both enchants' stacks change the stat rows and crit chance.
+  lifesongStacks = 0;
+  // updatePecents too: the enchants' stacks change the stat rows, crit chance and healing.
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 });
 buildSimpleDropdown(artifactPicker, Object.keys(artifactItems), () => { onArtifactSwapped(); renderArtifactDesc(); renderMoves(); updatePecents(); renderDmgBonusSection(); recalcOpenDetails(); });
@@ -6125,6 +6138,11 @@ function setMidasLckStacks(val) {
   midasLckStacks = Math.max(0, Math.min(4, +val || 0));
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
+// The heal workings read the healing stats, so those move before the repaint.
+function changeLifesongStacks(delta) {
+  lifesongStacks = Math.min(3, Math.max(0, lifesongStacks + delta));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
 
 // Which statuses raise the damage of a move of THIS type. `moveType` must be
 // the EFFECTIVE type - the one the move actually deals damage as - not the type
@@ -6954,6 +6972,20 @@ function renderDmgBonusSection() {
       <span class="dc-energy-label">Stacks: <span>${ivoryNrgStacks}</span></span>
       <input type="range" class="dc-rage-slider" min="0" max="16" value="${ivoryNrgStacks}" oninput="setIvoryStacks(this.value)">
       <span class="dc-rage-slider-hint">+${ivoryNrgStacks * 4}% to all stats</span>
+    </div>`;
+    html += `</div>`;
+  }
+
+  // --- Lifesong Enchant stacks (the healing stats and every heal working follow them) ---
+  if (_enchantName === 'Lifesong') {
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
+    html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+      <span class="dc-energy-label">Lifesong stacks <span style="color:#aaa;font-size:11px">(+20% incoming and outgoing healing each, max 3)</span></span>
+      <div class="dc-energy-counter">
+        <button class="dc-energy-btn" onclick="changeLifesongStacks(-1)">−</button>
+        <span class="dc-energy-val">${lifesongStacks}</span>
+        <button class="dc-energy-btn" onclick="changeLifesongStacks(1)">+</button>
+      </div>
     </div>`;
     html += `</div>`;
   }
@@ -9662,6 +9694,7 @@ function loadBuildState(state) {
   enchantReaperEnemyHp = 100;
   ivoryNrgStacks = 0;
   midasLckStacks = 0;
+  lifesongStacks = 0;
   coagNailStacks = 1;
   ssbProcChance = 35;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
