@@ -7383,6 +7383,89 @@ describe('supporters list privacy', () => {
   });
 });
 
+// Utor (Astra, tier 5) heals a share of max HP set by the stars it spends, with
+// no base heal and no stat scaling: 20/33/40% for 2/3/4 stars (game text) and
+// 10% for 1 (owner). The DMG calc's Support list only took moves with a
+// `healing` figure, so it never showed; it now has a stars counter.
+describe("Astra's Utor in the DMG calc", () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  const siteFn = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+  // Marks are page data the Build AI snapshot does not carry, so read them off the page.
+  const marksAt = src.indexOf('const markMoves = ');
+  const markMoves = new Function(src.slice(marksAt, src.indexOf('const markPickers', marksAt)) + '\nreturn markMoves;')();
+  const utor = ((markMoves.Astra || {}).learns || []).find(m => m.name === 'Utor');
+  // Runs the heal working on its own; returns what it writes, with and without tags.
+  const working = (move, { maxHp = 200, out = 1, inc = 1, stat = 0, stars = 1 } = {}) => {
+    const detail = { classList: { contains: c => c === 'dc-detail' }, style: { display: 'none' }, innerHTML: '' };
+    const row = { nextElementSibling: detail, classList: { add() {}, remove() {} } };
+    const STAT_LABEL_MAP = { STR: 'str', ARC: 'arc', END: 'end', LCK: 'lck', SPD: 'spd' };
+    new Function('healCalcMoveList', 'STAT_LABEL_MAP', 'getTotalStat', 'getMaxHp', 'getOutHealMult', 'getIncHealMult',
+      'getCursedOutHealMult', 'getCursedIncHealMult', 'utorStars',
+      siteFn('parseScaling') + '\n' + siteFn('toggleHealDetail') + '\nreturn toggleHealDetail;')(
+      [move], STAT_LABEL_MAP, () => stat, () => maxHp, () => out, () => inc, () => 1, () => 1, stars)(row, 0);
+    return { html: detail.innerHTML, text: detail.innerHTML.replace(/<[^>]+>/g, '') };
+  };
+
+  it('Utor heals 10/20/33/40% of max HP for 1-4 stars', () => {
+    ok(utor, 'no Utor in markMoves.Astra');
+    eq(JSON.stringify(utor.healingPctHpByStars || null), '{"1":10,"2":20,"3":33,"4":40}', 'Utor heal per stars');
+  });
+
+  it('the Support list takes a heal that is only a share of max HP', () => {
+    const isHeal = new Function(siteFn('isHealMove') + '\nreturn isHealMove;')();
+    ok(isHeal(utor), 'Utor is not a heal move');
+    ok(isHeal({ type: 'Active', healing: 18 }), 'a heal with a base figure dropped out');
+    ok(!isHeal({ type: 'Active', damage: 10 }), 'an attack counts as a heal');
+    ok(!isHeal({ type: 'Passive', healingPctHpByStars: { 1: 5 } }), 'a passive counts as a heal');
+    ok(/\.filter\(isHealMove\)/.test(siteFn('renderDmgCalc')), 'renderDmgCalc does not list heals through isHealMove');
+  });
+
+  it('works out the heal for the stars on the counter, through both heal stats', () => {
+    // 200 max HP, x1.5 outgoing, x1.2 incoming: 1 star 20 -> 30 -> 36,
+    // 2 stars 40 -> 60 -> 72, 3 stars 66 -> 99 -> 118.8, 4 stars 80 -> 120 -> 144.
+    const cases = { 1: ['20.0', '30.0', '36.0'], 2: ['40.0', '60.0', '72.0'],
+                    3: ['66.0', '99.0', '118.8'], 4: ['80.0', '120.0', '144.0'] };
+    for (const [stars, nums] of Object.entries(cases)) {
+      const { text } = working(utor, { maxHp: 200, out: 1.5, inc: 1.2, stars: +stars });
+      for (const n of nums) ok(text.indexOf(n) !== -1, stars + ' star(s): the working is missing ' + n + ': ' + text);
+      const other = cases[stars === '4' ? 1 : 4][2];
+      ok(text.indexOf(other) === -1, stars + ' star(s): the working also shows another star count: ' + text);
+    }
+  });
+
+  it('the stars counter steps from 1 to 4 and repaints the working', () => {
+    const { html } = working(utor, { stars: 3 });
+    ok(html.indexOf('onclick="changeUtorStars(-1)"') !== -1 && html.indexOf('onclick="changeUtorStars(1)"') !== -1,
+       'no stars counter in the Utor working');
+    ok(/class="dc-energy-val">3</.test(html), 'the counter does not show the stars: ' + html);
+    let repaints = 0;
+    const step = new Function('recalcOpenDetails', 'let utorStars = 1;\n' + siteFn('changeUtorStars') +
+      '\nreturn d => { changeUtorStars(d); return utorStars; };')(() => { repaints++; });
+    eq(step(-1), 1, 'the counter went below 1 star');
+    eq(step(1), 2, 'the counter did not add a star');
+    eq(step(10), 4, 'the counter went past 4 stars');
+    eq(repaints, 3, 'the counter does not repaint the open working');
+  });
+
+  it('Holy Grace still works out as 18 x scaling + 4% of max HP', () => {
+    // 18 x (1 + 50/100 + 50/100) = 36, + 4% of 200 = 44, x1.5 = 66, x1.2 = 79.2.
+    const grace = { type: 'Active', healing: 18, healingPctHp: 4, scaling: 'STR/100 + ARC/100' };
+    const { text } = working(grace, { maxHp: 200, out: 1.5, inc: 1.2, stat: 50 });
+    for (const n of ['36.0', '44.0', '66.0', '79.2']) {
+      ok(text.indexOf(n) !== -1, 'the Holy Grace working is missing ' + n + ': ' + text);
+    }
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms
