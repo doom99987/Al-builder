@@ -7466,6 +7466,66 @@ describe("Astra's Utor in the DMG calc", () => {
   });
 });
 
+// Lifesong (enchant): each proc is +20% incoming and outgoing healing for 3
+// turns, stacking to 3 (owner). The DMG calc has a 0-3 tracker, and the stacks
+// add into both healing stats, which every heal working reads.
+describe('Lifesong stacks', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+  const siteFn = name => {
+    const start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'builder.js has no ' + name);
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+
+  it('adds 20% a stack to the healing stats, up to 3, only with Lifesong', () => {
+    const pct = (stacks, enchant) => new Function('document', 'lifesongStacks',
+      siteFn('lifesongHealPct') + '; return lifesongHealPct();')({ getElementById: () => ({ value: enchant }) }, stacks);
+    eq(pct(0, 'Lifesong'), 0, 'no stacks');
+    eq(pct(1, 'Lifesong'), 20, '1 stack');
+    eq(pct(3, 'Lifesong'), 60, '3 stacks');
+    eq(pct(5, 'Lifesong'), 60, 'more than 3 stacks');
+    eq(pct(3, 'Midas'), 0, 'the stacks count without Lifesong');
+  });
+
+  it('the tracker steps from 0 to 3 and moves the healing stats first', () => {
+    const calls = [];
+    const step = new Function('renderDmgBonusSection', 'updatePecents', 'recalcOpenDetails',
+      'let lifesongStacks = 0;\n' + siteFn('changeLifesongStacks') +
+      '\nreturn d => { changeLifesongStacks(d); return lifesongStacks; };')(
+      () => calls.push('render'), () => calls.push('stats'), () => calls.push('workings'));
+    eq(step(-1), 0, 'the tracker went below 0');
+    eq(step(1), 1, 'the tracker did not add a stack');
+    eq(step(10), 3, 'the tracker went past 3');
+    eq(calls.filter(c => c === 'stats').length, 3, 'the healing stats are not refreshed');
+    ok(calls.indexOf('stats') < calls.indexOf('workings'), 'the heal workings repaint before the healing stats move');
+  });
+
+  it('both healing stats read the stacks', () => {
+    const body = siteFn('updatePecents');
+    ok(body.indexOf('const _lifesongHealPct = (stat === "out-heal" || stat === "inc-heal") ? lifesongHealPct() : 0;') !== -1,
+       'the healing stats do not read Lifesong');
+    ok(/const pctBonus = [^;]*\+ _lifesongHealPct;/.test(body), 'Lifesong is not added into the healing stats');
+  });
+
+  it('the DMG calc has the tracker only with Lifesong, and it starts from 0', () => {
+    const body = siteFn('renderDmgBonusSection');
+    const at = body.indexOf("if (_enchantName === 'Lifesong')");
+    ok(at !== -1, 'no Lifesong section in the DMG calc');
+    const block = body.slice(at, at + 1000);
+    ok(block.indexOf('onclick="changeLifesongStacks(-1)"') !== -1 && block.indexOf('onclick="changeLifesongStacks(1)"') !== -1,
+       'no Lifesong tracker');
+    ok(block.indexOf('${lifesongStacks}') !== -1, 'the tracker does not show the stacks');
+    // An enchant change and a loaded build both clear it, beside Midas.
+    eq((src.match(/midasLckStacks = 0;\s*lifesongStacks = 0;/g) || []).length, 2,
+       'the stacks are not reset on an enchant change and on load');
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms
