@@ -1573,6 +1573,9 @@ const markMoves = {
         cooldown: 7,
         moveType: "Magic",
         category: "Buff",
+        // % of max HP by stars spent - no base heal, no stat scaling. 2-4 stars
+        // from the game text; 1 star at 10% from the owner.
+        healingPctHpByStars: { 1: 10, 2: 20, 3: 33, 4: 40 },
         effect: "Use 2–4 stars to restore 20%, 33%, or 40% of your max HP. Grants 2 energy if used at max stars. Affected by both Incoming and Outgoing heal stats.",
         image: "https://trello.com/1/cards/67c2f3cfa9460f3f089beb7a/attachments/69789bb279be04ca19c84ad2/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260127160357.png"
       }
@@ -4109,6 +4112,7 @@ let healCalcMoveList = [];
 // Cursed status on either end of a heal (Support section switches): self halves
 // your outgoing healing, target halves the healing it receives.
 const healCursedActive = { self: false, target: false };
+let utorStars = 1; // 1-4: Astra stars Utor spends (10/20/33/40% of max HP)
 let energyCount = 0;
 let darkCoreCount = 0;
 let playerHpPct = 100; // 1-100: current player HP% — used by Bloody Berserker, Stellian Core
@@ -4452,6 +4456,18 @@ function toggleHealCursed(key) {
   recalcOpenDetails();
 }
 
+// A move the DMG calc's Support list works out: a base heal figure (Holy Grace),
+// or only a share of max HP by stars spent (Astra's Utor).
+function isHealMove(m) {
+  return m.type === "Active" && (m.healing !== undefined || m.healingPctHpByStars !== undefined);
+}
+
+// The counter sits in Utor's own working, so repainting the open workings is enough.
+function changeUtorStars(delta) {
+  utorStars = Math.min(4, Math.max(1, utorStars + delta));
+  recalcOpenDetails();
+}
+
 function toggleHealDetail(rowEl, idx, forceOpen = false) {
   const detail = rowEl.nextElementSibling;
   if (!detail || !detail.classList.contains("dc-detail")) return;
@@ -4460,6 +4476,32 @@ function toggleHealDetail(rowEl, idx, forceOpen = false) {
   }
 
   const m = healCalcMoveList[idx];
+
+  // Utor: the share of max HP for the stars on its counter, through the same
+  // heal multipliers as below.
+  if (m.healingPctHpByStars) {
+    const pct = m.healingPctHpByStars[utorStars];
+    const maxHp = getMaxHp();
+    let v = maxHp * pct / 100;
+    let line = `${utorStars} star${utorStars === 1 ? "" : "s"}: ${pct}% of ${Math.round(maxHp)} max HP = <b>${v.toFixed(1)}</b>`;
+    [[getOutHealMult(), "outgoing heal"], [getCursedOutHealMult(), "you are Cursed"],
+     [getIncHealMult(), "incoming heal"], [getCursedIncHealMult(), "target is Cursed"]].forEach(([mult, tag]) => {
+      if (mult === 1) return;
+      v *= mult;
+      line += ` × ${mult.toFixed(2)} <span class="dc-bonus-tag">[${tag}]</span> = <b>${v.toFixed(1)}</b>`;
+    });
+    detail.innerHTML = `<div class="dc-energy-section" style="margin:4px 0 6px 0">
+        <span class="dc-energy-label">Stars spent <span style="color:#aaa;font-size:11px">(1–4)</span></span>
+        <div class="dc-energy-counter">
+          <button class="dc-energy-btn" onclick="changeUtorStars(-1)">−</button>
+          <span class="dc-energy-val">${utorStars}</span>
+          <button class="dc-energy-btn" onclick="changeUtorStars(1)">+</button>
+        </div>
+      </div><div class="dc-calc">${line}</div>`;
+    detail.style.display = "block"; rowEl.classList.add("dc-row-open");
+    return;
+  }
+
   const scalings = parseScaling(m.scaling);
   const baseHeal = +m.healing;
   // Some heals add a share of your own max HP on top of the scaled base —
@@ -7504,9 +7546,7 @@ function renderDmgCalc() {
     ..._sheeaExtraMoves.filter(m => m.damage !== undefined && /^\d/.test(String(m.damage)))
   ];
 
-  const healMoves = allData.flatMap(d => (d.learns || []).filter(m =>
-    m.type === "Active" && m.healing !== undefined
-  ));
+  const healMoves = allData.flatMap(d => (d.learns || []).filter(isHealMove));
 
   const allSummonMoves = allData.flatMap(d => (d.learns || []).filter(isSummonMove));
   const hasIH = gearSlots.includes("Imperial Headband");
@@ -7547,7 +7587,8 @@ function renderDmgCalc() {
     healMoves.forEach((m, hi) => {
       const effectiveMoveType = getEffectiveMoveType(m.moveType, m);
       const color    = MOVE_TYPE_COLORS[effectiveMoveType] || "#cccccc";
-      const healStr  = `<span class="dc-stat dc-heal-val">Heal: <b>${m.healing}</b></span>`;
+      const healAmt  = m.healingPctHpByStars ? Object.values(m.healingPctHpByStars).join("/") + "% max HP" : m.healing;
+      const healStr  = `<span class="dc-stat dc-heal-val">Heal: <b>${healAmt}</b></span>`;
       const sclStr   = m.scaling  ? `<span class="dc-stat">Scl: ${m.scaling}</span>` : "";
       const costStr  = m.cost     !== undefined ? `<span class="dc-stat">Cost: ${m.cost}</span>` : "";
       const cdStr    = m.cooldown !== undefined ? `<span class="dc-stat">CD: ${m.cooldown}</span>` : "";
