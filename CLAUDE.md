@@ -61,7 +61,9 @@ Files are internally divided by a header comment, but **the style varies per fil
 
 Client is created in `sb.js` and shared as `window._sbClient`; other modules must reuse it rather than constructing their own. The anon key is committed in several files by design (it is a public key; RLS is the actual boundary).
 
-SQL lives in `supabase/*.sql`, but **only some tables are checked in** — `banks.sql`, `builds.sql`, `matchmaking.sql`, `reports.sql`. The leaderboard, profile, trade, and party tables exist only in the dashboard. If a change needs schema you cannot see, ask rather than guess.
+SQL lives in `supabase/*.sql`, but **only some tables are checked in** — `banks.sql`, `builds.sql`, `matchmaking.sql`, `reports.sql`, and `qte-scores.sql` (the leaderboard RPCs, added after they silently ate scores for months). The leaderboard *tables*, profiles, trades and party still exist only in the dashboard. If a change needs schema you cannot see, ask rather than guess.
+
+**`submit_score` answers with a status** — `ok` / `no_session` / `capped` / `too_fast` / `wrong_user` — and `sendScore` in [sb.js](js/sb.js) acts on it: `no_session` arms a fresh session and retries, `too_fast` and `capped` stop and tell the player. Never make a rejection path a bare `RETURN` again: PostgREST reports that as success, so the site logs "submitScore ok" for a score the database threw away. `qte_min_seconds` holds a per-trainer floor derived from each trainer's own cadence in `qte.js`; if you change a trainer's speed, re-derive its floor or it will start discarding real runs.
 
 | Table | Owner |
 |---|---|
