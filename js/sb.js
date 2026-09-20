@@ -409,6 +409,10 @@
   function startQteSession(qteType) {
     if (!currentUser) return Promise.resolve(null);
     if (_arming[qteType]) return _arming[qteType];
+    // Drop the previous run's id straight away. The server times a score from
+    // its session's start, so letting a new run's first hits be validated
+    // against the last run's session would date them from before this run.
+    delete _sessionIds[qteType];
     const p = (async () => {
       const { data, error } = await sb.rpc('start_qte_session', {
         p_user_id:  currentUser.id,
@@ -467,17 +471,29 @@
     const score = _pending[qteType];
     if (!score) return false;
     _sending[qteType] = true;
-    let ok = false;
-    try { ok = await sendScore(qteType, score); }
+    let outcome = 'retry';
+    try { outcome = await sendScore(qteType, score); }
     catch (e) { console.error('[sb] submitScore threw', qteType, score, e && e.message); }
     finally { _sending[qteType] = false; }
-    if (!ok) { scheduleScoreRetry(qteType); return false; }
+    // 'refused' is the server saying it will never take this score. Retrying
+    // only spends requests, so drop it — but do NOT record it as confirmed.
+    if (outcome === 'refused') { delete _pending[qteType]; return false; }
+    if (outcome !== 'accepted') { scheduleScoreRetry(qteType); return false; }
     _confirmed[qteType] = Math.max(_confirmed[qteType] || 0, score);
     _retryN[qteType] = 0;
     if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; return true; }
     return pumpScore(qteType);
   }
 
+  // What a rejection means for the score in hand. A stale or missing session is
+  // worth another go with a fresh one; a verdict about the score itself (too
+  // fast for the game, above the trainer's cap) will never change.
+  const SCORE_REFUSALS = {
+    too_fast: 'Score not saved: it came in faster than this trainer allows.',
+    capped:   'Score not saved: above the maximum this trainer accepts.',
+  };
+
+  // 'accepted' | 'retry' | 'refused'
   async function sendScore(qteType, score) {
     let sessionId = _sessionIds[qteType] ?? null;
     // No session yet: the trainer's Start call may still be in flight, or the
@@ -486,8 +502,8 @@
       await startQteSession(qteType);
       sessionId = _sessionIds[qteType] ?? null;
     }
-    if (!sessionId) { console.warn('[sb] submitScore: no session for', qteType, '— keeping', score, 'to retry'); return false; }
-    const { error } = await sb.rpc('submit_score', {
+    if (!sessionId) { console.warn('[sb] submitScore: no session for', qteType, '— keeping', score, 'to retry'); return 'retry'; }
+    const { data, error } = await sb.rpc('submit_score', {
       p_user_id:    currentUser.id,
       p_qte_type:   qteType,
       p_score:      score,
@@ -497,12 +513,26 @@
     });
     if (error) {
       console.error('[sb] submitScore error', qteType, score, error.message);
-      delete _sessionIds[qteType];   // stale or rejected — the retry arms a fresh one
-      return false;
+      // Keep the session. The server times a score from the moment its session
+      // started, so a transport error must not cost us that clock: re-arming
+      // here would date a streak of 31 from a few milliseconds ago and the
+      // retry would be refused as impossibly fast. Only the server saying the
+      // session itself is gone (below) is worth a fresh one.
+      return 'retry';
+    }
+    // The server answers with a status. A deployment that still returns void
+    // says nothing at all — and that silence, which made a discarded score look
+    // exactly like a stored one, is the whole reason this contract exists.
+    const status = typeof data === 'string' ? data : 'ok';
+    if (status !== 'ok') {
+      console.warn('[sb] submitScore refused', qteType, score, status);
+      if (!SCORE_REFUSALS[status]) { delete _sessionIds[qteType]; return 'retry'; }
+      scoreToast(SCORE_REFUSALS[status]);
+      return 'refused';
     }
     console.log('[sb] submitScore ok', qteType, score, PLATFORM);
     await updatePersonalBest(qteType, score);
-    return true;
+    return 'accepted';
   }
 
   function scheduleScoreRetry(qteType) {

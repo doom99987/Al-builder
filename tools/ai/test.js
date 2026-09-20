@@ -7584,6 +7584,7 @@ describe('QTE score submission', () => {
   const mkPipe = (rpcImpl) => {
     const calls = [];
     const timers = [];
+    const toasts = [];
     const sb = {
       rpc: (name, args) => { calls.push({ name, score: args.p_score, session: args.p_session_id }); return rpcImpl(name, args); },
       // personal_bests: select(...).eq().eq().maybeSingle(), then upsert()
@@ -7594,19 +7595,25 @@ describe('QTE score submission', () => {
     };
     const retryMs = /const SCORE_RETRY_MS = (\[[^\]]*\]);/.exec(src);
     ok(retryMs, 'sb.js has no SCORE_RETRY_MS');
+    const refusals = /const SCORE_REFUSALS = (\{[\s\S]*?\n  \});/.exec(src);
+    ok(refusals, 'sb.js has no SCORE_REFUSALS');
     const api = new Function('sb', 'currentUser', 'PLATFORM', 'currentMonth', 'setTimeout', 'clearTimeout', 'console', 'scoreToast',
       'const _sessionIds = {}, _arming = {}, _pending = {}, _confirmed = {}, _sending = {}, _retryN = {}, _retryT = {};\n' +
       'const SCORE_RETRY_MS = ' + retryMs[1] + ';\n' +
+      'const SCORE_REFUSALS = ' + refusals[1] + ';\n' +
       siteFn('startQteSession') + '\n' + siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
       siteFn('sendScore') + '\n' + siteFn('scheduleScoreRetry') + '\n' + siteFn('updatePersonalBest') + '\n' +
       'return { submitScore, startQteSession, state: () => ({ pending: Object.assign({}, _pending), ' +
       'confirmed: Object.assign({}, _confirmed), sessions: Object.assign({}, _sessionIds) }) };'
     )(sb, { id: 'u1' }, 'C', () => '2026-09',
       (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {},
-      { log() {}, warn() {}, error() {} }, () => {});
-    return { api, calls, timers, scores: () => calls.filter(c => c.name === 'submit_score').map(c => c.score) };
+      { log() {}, warn() {}, error() {} }, (m) => toasts.push(m));
+    return { api, calls, timers, toasts, scores: () => calls.filter(c => c.name === 'submit_score').map(c => c.score) };
   };
+  // A deployment that still returns void: data is null, which must read as 'ok'.
   const okRpc = async (name) => ({ data: name === 'start_qte_session' ? 'sess-' + name : null, error: null });
+  const statusRpc = (status) => async (name) =>
+    name === 'start_qte_session' ? { data: 'sess-1', error: null } : { data: status, error: null };
 
   itAsync('a run that climbs to 31 leaves the server holding 31, not an early score', async () => {
     const p = mkPipe(okRpc);
@@ -7648,12 +7655,31 @@ describe('QTE score submission', () => {
     p.api.submitScore('spear-comp', 7);
     await tick(20);
     eq(p.api.state().pending['spear-comp'], 7, 'the failed score was dropped');
-    eq(Object.keys(p.api.state().sessions).length, 0, 'the rejected session was kept');
     eq(p.timers.length, 1, 'no retry was scheduled');
+    // The session must survive a transport error: the server times a score from
+    // the session's start, so a fresh one would make the retry look instant.
+    eq(p.api.state().sessions['spear-comp'], 'sess-1', 'a transport error threw the run session away');
     p.timers[0].fn();
     await tick(20);
+    eq(p.calls.filter(c => c.name === 'start_qte_session').length, 1, 'the retry armed a second session for the same run');
+    eq(p.calls.filter(c => c.name === 'submit_score')[1].session, 'sess-1', 'the retry did not reuse the run session');
     eq(p.api.state().confirmed['spear-comp'], 7, 'the retry did not land the score');
     eq(Object.keys(p.api.state().pending).length, 0, 'the score is still pending after a successful retry');
+  });
+
+  itAsync('a new run is never timed against the last run session', async () => {
+    let n = 0;
+    const p = mkPipe(async (name) => name === 'start_qte_session'
+      ? { data: 'sess-' + (++n), error: null } : { data: 'ok', error: null });
+    await p.api.startQteSession('spear-comp');
+    await p.api.submitScore('spear-comp', 4);
+    await tick(20);
+    await p.api.startQteSession('spear-comp');      // the next run
+    await p.api.submitScore('spear-comp', 9);
+    await tick(20);
+    const sent = p.calls.filter(c => c.name === 'submit_score');
+    eq(sent[0].session, 'sess-1', 'the first run used the wrong session');
+    eq(sent[1].session, 'sess-2', 'the second run was timed against the first run session');
   });
 
   itAsync('a lower score never goes out after a higher one is stored', async () => {
@@ -7667,6 +7693,38 @@ describe('QTE score submission', () => {
     await tick(20);
     eq(p.scores().length, before, 'a score at or below the stored best was sent again');
     eq(p.api.state().confirmed['spear-comp'], 31, 'the stored best moved backwards');
+  });
+
+  itAsync('a score the server says it will never take is not retried, and says why', async () => {
+    const p = mkPipe(statusRpc('too_fast'));
+    await p.api.startQteSession('spear-comp');
+    await p.api.submitScore('spear-comp', 31);
+    await tick(20);
+    eq(p.scores().length, 1, 'a refused score was sent more than once');
+    eq(p.timers.length, 0, 'a refused score was scheduled for a retry');
+    eq(Object.keys(p.api.state().confirmed).length, 0, 'a refused score was recorded as stored');
+    eq(Object.keys(p.api.state().pending).length, 0, 'a refused score is still queued');
+    eq(p.toasts.length, 1, 'the player was not told the score was refused');
+    ok(/faster than/.test(p.toasts[0]), 'the message does not say why: ' + p.toasts[0]);
+  });
+
+  itAsync('a rejection the client does not recognise is retried with a fresh session', async () => {
+    const p = mkPipe(statusRpc('no_session'));
+    await p.api.startQteSession('spear-comp');
+    await p.api.submitScore('spear-comp', 9);
+    await tick(20);
+    eq(p.api.state().pending['spear-comp'], 9, 'the score was dropped on an unknown rejection');
+    eq(Object.keys(p.api.state().sessions).length, 0, 'the session was kept after a rejection');
+    eq(p.timers.length, 1, 'no retry was scheduled');
+    eq(p.toasts.length, 0, 'a retryable rejection bothered the player');
+  });
+
+  itAsync('a server that answers nothing at all still counts as stored', async () => {
+    const p = mkPipe(okRpc);                 // data: null, as submit_score returns void today
+    await p.api.startQteSession('spear');
+    await p.api.submitScore('spear', 12);
+    await tick(20);
+    eq(p.api.state().confirmed['spear'], 12, 'the old void-returning server broke the client');
   });
 
   it('a local best the server never took is re-submitted, not deleted', () => {
@@ -7714,6 +7772,69 @@ describe('QTE score submission', () => {
     const guard = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'qte-guard.js'), 'utf8');
     ok(/toast:\s*toast/.test(guard) || /toast,/.test(guard), 'qte-guard does not share its toast, so sb.js cannot report a lost score');
     ok(src.indexOf('function scoreToast(') !== -1, 'sb.js never tells the player a score was not saved');
+  });
+});
+
+// supabase/qte-scores.sql is the server half of the same contract: the client
+// reads the statuses it returns, and its per-trainer timing floors decide which
+// scores the database keeps. They have to stay in step.
+describe('QTE score SQL', () => {
+  const root = path.join(__dirname, '..', '..');
+  const sql = fs.readFileSync(path.join(root, 'supabase', 'qte-scores.sql'), 'utf8');
+  const sb = fs.readFileSync(path.join(root, 'js', 'sb.js'), 'utf8');
+  const floor = t => {
+    const m = new RegExp("when '" + t + "'\\s+then\\s+([\\d.]+)").exec(sql);
+    return m ? +m[1] : null;
+  };
+
+  it('every trainer the site can submit has its own timing floor', () => {
+    const types = (/const QTE_TYPES = \[([^\]]*)\]/.exec(sb) || [])[1]
+      .split(',').map(s => s.trim().replace(/'/g, '')).filter(Boolean);
+    eq(types.length, 12, 'the trainer list changed - the SQL needs the same change');
+    const missing = [];
+    for (const t of types) for (const suffix of ['', '-comp']) {
+      if (floor(t + suffix) === null) missing.push(t + suffix);
+    }
+    eq(missing.join(','), '', 'these types fall through to the ELSE and are priced by guesswork');
+  });
+
+  it('an unlisted trainer fails open instead of eating scores', () => {
+    const els = /else\s+([\d.]+)\s*\n\s*end;/.exec(sql);
+    ok(els, 'no ELSE in qte_min_seconds');
+    const lowest = Math.min(...[...sql.matchAll(/when '[a-z-]+'\s+then\s+([\d.]+)/g)].map(m => +m[1]));
+    ok(+els[1] <= lowest, 'the ELSE (' + els[1] + ') is stricter than the loosest trainer needs (' + lowest + ')');
+  });
+
+  it('competitive spear can actually reach its own floor', () => {
+    // The game gives a target every ~0.85s at first, ~0.66s by streak 30; this
+    // is the conservative version of that, and the rule must stay under it.
+    const k = floor('spear-comp');
+    const rejected = [];
+    for (let n = 1; n <= 31; n++) if (k * n > 1.0 + 0.8 * (n - 1)) rejected.push(n);
+    eq(rejected.join(','), '', 'the timing rule discards competitive spear runs again');
+    ok(floor('spear') < 1.0, 'casual spear is back above the pace it can produce');
+  });
+
+  it('the client handles every status the function returns', () => {
+    const statuses = [...new Set([...sql.matchAll(/RETURN '([a-z_]+)'/g)].map(m => m[1]))];
+    ok(statuses.includes('ok') && statuses.includes('too_fast') && statuses.includes('no_session'),
+       'the function no longer answers with a status: ' + statuses.join(','));
+    const refusals = /const SCORE_REFUSALS = \{[\s\S]*?\n  \};/.exec(sb);
+    ok(refusals, 'sb.js has no SCORE_REFUSALS map');
+    for (const s of ['too_fast', 'capped']) {
+      ok(new RegExp('\\b' + s + ':').test(refusals[0]), 'the client would keep retrying a final "' + s + '"');
+    }
+    ok(!/\bno_session:/.test(refusals[0]), 'a lost session is treated as final instead of arming a new one');
+    ok(sb.indexOf("const status = typeof data === 'string' ? data : 'ok';") !== -1,
+       'the client ignores the status, so a discarded score looks stored again');
+  });
+
+  it('the function no longer drops scores in silence, or trusts the caller', () => {
+    ok(!/IF NOT FOUND THEN RETURN; END IF;/.test(sql), 'a silent RETURN is back in submit_score');
+    ok(/v_user\s+UUID\s*:=\s*auth\.uid\(\)/.test(sql), 'identity is not taken from the JWT');
+    ok(/p_user_id <> v_user THEN RETURN 'wrong_user'/.test(sql), 'a caller can still submit as another user');
+    ok(/GREATEST\(leaderboard\.score, EXCLUDED\.score\)/.test(sql), 'a lower score can overwrite a higher one again');
+    ok(/grant execute on function public\.submit_score/.test(sql), 'the DROP took the grants and nothing puts them back');
   });
 });
 
