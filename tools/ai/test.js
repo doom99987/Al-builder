@@ -56,6 +56,29 @@ function it(name, fn) {
     console.log('  FAIL ' + name + '\n         ' + e.message);
   }
 }
+// `it` calls fn() and moves on, so an async test's assertions would be thrown
+// inside a promise nobody waits for - it would "pass" whatever it found. Async
+// tests queue here instead and run, awaited, after the synchronous suite.
+const _asyncTests = [];
+function itAsync(name, fn) {
+  if (ONLY && name.indexOf(ONLY) === -1 && group.indexOf(ONLY) === -1) return;
+  _asyncTests.push({ group, name, fn });
+}
+async function runAsyncTests() {
+  let lastGroup = '';
+  for (const t of _asyncTests) {
+    if (t.group !== lastGroup) { console.log('\n' + t.group + ' (async)'); lastGroup = t.group; }
+    try {
+      await t.fn();
+      passed++;
+      if (VERBOSE) console.log('  ok   ' + t.name);
+    } catch (e) {
+      failed++;
+      failures.push({ group: t.group, name: t.name, message: e.message });
+      console.log('  FAIL ' + t.name + '\n         ' + e.message);
+    }
+  }
+}
 function eq(actual, expected, what) {
   if (actual !== expected) {
     throw new Error((what ? what + ': ' : '') + 'expected ' + JSON.stringify(expected) +
@@ -6274,15 +6297,24 @@ describe('cache busting', () => {
        'the Builds search is no longer debounced');
   });
 
+  // A casual high arrives twice: the trainer calls _sbSubmitScore and the
+  // core.js setItem hook fires for the same localStorage write. The duplicate
+  // used to be caught by a _lastSubmitted latch that also swallowed retries;
+  // the pending/confirmed pair in the submission queue does both jobs now
+  // (behaviour covered in 'QTE score submission').
   it('a QTE high is submitted once, and a failed submit stays retryable', () => {
     const sb = readRoot('js/sb.js');
-    const at = sb.indexOf('async function submitScore(');
+    const at = sb.indexOf('function submitScore(');
     ok(at !== -1, 'submitScore not found');
-    const body = sb.slice(at, at + 2200);
-    ok(body.indexOf('if (_lastSubmitted[qteType] === score) return;') !== -1,
-       'submitScore no longer dedupes the double-submit');
-    ok(body.indexOf('delete _lastSubmitted[qteType];') !== -1,
-       'a failed submit no longer clears the dedupe - the score would be stuck');
+    const body = sb.slice(at, at + 700);
+    ok(body.indexOf('if (score <= (_pending[qteType] || 0))') !== -1,
+       'submitScore no longer drops the duplicate high');
+    ok(body.indexOf('if (score <= (_confirmed[qteType] || 0))') !== -1,
+       'submitScore no longer skips a score the server already holds');
+    ok(sb.indexOf('function scheduleScoreRetry(') !== -1,
+       'a failed submit is no longer retried - the score would be stuck');
+    ok(!/_lastSubmitted/.test(sb),
+       'the old sent-before-it-was-sent latch is back');
     // Both callers must still exist; the fix is the dedupe, not removing one.
     ok(readRoot('js/core.js').indexOf('window._sbSubmitScore(m[1]') !== -1,
        'the core.js setItem hook is gone - comp scores are fine but this changes behaviour');
@@ -7526,6 +7558,165 @@ describe('Lifesong stacks', () => {
   });
 });
 
+// The QTE trainers call _sbSubmitScore on EVERY new high of a run (streak 1, 2,
+// 3 ... 31). The old sb.js fired one unordered RPC per high, marked a score as
+// sent before the server had seen it, and dropped any score that arrived while
+// a session was being armed - so a competitive spear run that reached 31 could
+// leave the board holding 2. These tests run the real functions out of sb.js
+// against a stub Supabase client.
+describe('QTE score submission', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'sb.js'), 'utf8');
+  const siteFn = name => {
+    let start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'sb.js has no ' + name);
+    // Keep the `async` - without it every await inside is a syntax error.
+    if (src.slice(Math.max(0, start - 6), start) === 'async ') start -= 6;
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } }
+    }
+    return src.slice(start, end);
+  };
+  const tick = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
+
+  // The submission pipeline on its own: real code, stub client, stub timers.
+  const mkPipe = (rpcImpl) => {
+    const calls = [];
+    const timers = [];
+    const sb = {
+      rpc: (name, args) => { calls.push({ name, score: args.p_score, session: args.p_session_id }); return rpcImpl(name, args); },
+      // personal_bests: select(...).eq().eq().maybeSingle(), then upsert()
+      from: () => ({
+        select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }),
+        upsert: async () => ({ error: null }),
+      }),
+    };
+    const retryMs = /const SCORE_RETRY_MS = (\[[^\]]*\]);/.exec(src);
+    ok(retryMs, 'sb.js has no SCORE_RETRY_MS');
+    const api = new Function('sb', 'currentUser', 'PLATFORM', 'currentMonth', 'setTimeout', 'clearTimeout', 'console', 'scoreToast',
+      'const _sessionIds = {}, _arming = {}, _pending = {}, _confirmed = {}, _sending = {}, _retryN = {}, _retryT = {};\n' +
+      'const SCORE_RETRY_MS = ' + retryMs[1] + ';\n' +
+      siteFn('startQteSession') + '\n' + siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
+      siteFn('sendScore') + '\n' + siteFn('scheduleScoreRetry') + '\n' + siteFn('updatePersonalBest') + '\n' +
+      'return { submitScore, startQteSession, state: () => ({ pending: Object.assign({}, _pending), ' +
+      'confirmed: Object.assign({}, _confirmed), sessions: Object.assign({}, _sessionIds) }) };'
+    )(sb, { id: 'u1' }, 'C', () => '2026-09',
+      (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {},
+      { log() {}, warn() {}, error() {} }, () => {});
+    return { api, calls, timers, scores: () => calls.filter(c => c.name === 'submit_score').map(c => c.score) };
+  };
+  const okRpc = async (name) => ({ data: name === 'start_qte_session' ? 'sess-' + name : null, error: null });
+
+  itAsync('a run that climbs to 31 leaves the server holding 31, not an early score', async () => {
+    const p = mkPipe(okRpc);
+    await p.api.startQteSession('spear-comp');
+    for (let s = 1; s <= 31; s++) p.api.submitScore('spear-comp', s);   // exactly what a run does
+    await tick(40);
+    eq(p.api.state().confirmed['spear-comp'], 31, 'the run best is not what the server was left with');
+    const sent = p.scores();
+    eq(sent[sent.length - 1], 31, 'the last score sent was not the run best');
+    ok(sent.length <= 4, 'one run still floods the server with ' + sent.length + ' submissions');
+    for (let i = 1; i < sent.length; i++) ok(sent[i] > sent[i - 1], 'scores were sent out of order: ' + sent.join(','));
+    eq(Object.keys(p.api.state().pending).length, 0, 'a score was left unsent');
+  });
+
+  itAsync('a score that arrives before the session is armed waits for it', async () => {
+    let release;
+    const p = mkPipe((name) => name === 'start_qte_session'
+      ? new Promise(r => { release = () => r({ data: 'sess-1', error: null }); })
+      : Promise.resolve({ data: null, error: null }));
+    p.api.startQteSession('spear-comp');          // the trainer does not await this
+    p.api.submitScore('spear-comp', 1);           // first hit lands while it is in flight
+    p.api.submitScore('spear-comp', 2);
+    await tick();
+    eq(p.scores().length, 0, 'a score was sent without a session');
+    release();
+    await tick(20);
+    eq(p.api.state().confirmed['spear-comp'], 2, 'the scores were dropped instead of waiting for the session');
+    eq(p.calls.filter(c => c.name === 'start_qte_session').length, 1, 'the session was armed more than once');
+  });
+
+  itAsync('a failed submission is retried, not thrown away', async () => {
+    let fail = true;
+    const p = mkPipe(async (name) => {
+      if (name === 'start_qte_session') return { data: 'sess-' + (fail ? 1 : 2), error: null };
+      if (fail) { fail = false; return { data: null, error: { message: 'session expired' } }; }
+      return { data: null, error: null };
+    });
+    await p.api.startQteSession('spear-comp');
+    p.api.submitScore('spear-comp', 7);
+    await tick(20);
+    eq(p.api.state().pending['spear-comp'], 7, 'the failed score was dropped');
+    eq(Object.keys(p.api.state().sessions).length, 0, 'the rejected session was kept');
+    eq(p.timers.length, 1, 'no retry was scheduled');
+    p.timers[0].fn();
+    await tick(20);
+    eq(p.api.state().confirmed['spear-comp'], 7, 'the retry did not land the score');
+    eq(Object.keys(p.api.state().pending).length, 0, 'the score is still pending after a successful retry');
+  });
+
+  itAsync('a lower score never goes out after a higher one is stored', async () => {
+    const p = mkPipe(okRpc);
+    await p.api.startQteSession('spear-comp');
+    p.api.submitScore('spear-comp', 31);
+    await tick(20);
+    const before = p.scores().length;
+    p.api.submitScore('spear-comp', 2);      // a later run, or the same score arriving twice
+    p.api.submitScore('spear-comp', 31);
+    await tick(20);
+    eq(p.scores().length, before, 'a score at or below the stored best was sent again');
+    eq(p.api.state().confirmed['spear-comp'], 31, 'the stored best moved backwards');
+  });
+
+  it('a local best the server never took is re-submitted, not deleted', () => {
+    const body = siteFn('reconcileServerScores');
+    ok(body.indexOf('submitScore(') !== -1, 'reconcileServerScores no longer re-submits local bests');
+    const wipeAt = body.indexOf("new Event('alb-scores-reset')");
+    ok(wipeAt !== -1, 'the reset fallback is gone - a local best the server refuses would gate every later run');
+    ok(body.indexOf('submitScore(') < wipeAt, 'the local bests are wiped before they are re-submitted');
+  });
+
+  it('a player with a PC and a mobile row is still given a rank', () => {
+    const body = siteFn('fetchMyRank');
+    ok(/\.order\('score', \{ ascending: false \}\)\.limit\(1\)\.maybeSingle\(\)/.test(body),
+       'fetchMyRank still calls maybeSingle() on a query that can return two rows');
+  });
+
+  it('the page gives a pending score one more chance before it goes away', () => {
+    ok(/visibilitychange[\s\S]{0,400}pumpScore\(/.test(src), 'nothing flushes a pending score when the tab is hidden');
+  });
+
+  it("the ping simulator's delayed keys are not treated as a macro", () => {
+    const guard = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'qte-guard.js'), 'utf8');
+    const core = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'core.js'), 'utf8');
+    ok(core.indexOf('ev._albSynthetic = true;') !== -1, 'core.js no longer marks its delayed key copies');
+    ok(guard.indexOf('_albSynthetic') !== -1,
+       'qte-guard still reads the ping simulator as automated input - it blocks the key and withholds scores for 2 minutes');
+    ok(/function isDelayedCopy\(e\) \{ return !!\(e && e\._albSynthetic\); \}/.test(guard),
+       'qte-guard has no delayed-copy test');
+    for (const fn of ['onKeyDown', 'onKeyUp']) {
+      const at = guard.indexOf('function ' + fn + '(');
+      ok(at !== -1, 'qte-guard has no ' + fn);
+      const body = guard.slice(at, at + 420);
+      const seen = body.indexOf('isDelayedCopy(e)');
+      ok(seen !== -1 && seen < body.indexOf('isTrusted'),
+         fn + ' flags the ping simulator before it recognises the delayed copy');
+    }
+  });
+
+  it('the "score not submitted" toast is actually visible', () => {
+    const qteCss = fs.readFileSync(path.join(__dirname, '..', '..', 'css', 'qte.css'), 'utf8');
+    ok(/\.qte-guard-toast\s*\{/.test(qteCss), 'the toast styles are not in a stylesheet the page loads');
+    ok(/\.qte-guard-toast\.show\s*\{/.test(qteCss), 'the toast has no shown state');
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
+    ok(/<link rel="stylesheet" href="css\/qte\.css\?v=\d+">/.test(html), 'index.html does not load css/qte.css');
+    const guard = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'qte-guard.js'), 'utf8');
+    ok(/toast:\s*toast/.test(guard) || /toast,/.test(guard), 'qte-guard does not share its toast, so sb.js cannot report a lost score');
+    ok(src.indexOf('function scoreToast(') !== -1, 'sb.js never tells the player a score was not saved');
+  });
+});
+
 describe('performance', () => {
   it('answers a request well inside budget', () => {
     // ~60ms when this was written; ~260ms after the trait work; 265-420ms
@@ -7545,13 +7736,15 @@ describe('performance', () => {
 });
 
 // ── report ──────────────────────────────────────────────────────────────────
-console.log('\n' + '─'.repeat(58));
-console.log(passed + ' passed, ' + failed + ' failed');
-if (failed) {
-  console.log('\nFailures:');
-  for (const f of failures) console.log('  ' + f.group + ' › ' + f.name + '\n    ' + f.message);
-  console.log('\nNote: this suite does not check model.js against builder.js.');
-  console.log('For that, run tools/ai/verify.js in the browser.');
-  process.exit(1);
-}
-console.log('\nAll good. Remember verify.js in the browser for the maths.');
+runAsyncTests().then(() => {
+  console.log('\n' + '─'.repeat(58));
+  console.log(passed + ' passed, ' + failed + ' failed');
+  if (failed) {
+    console.log('\nFailures:');
+    for (const f of failures) console.log('  ' + f.group + ' › ' + f.name + '\n    ' + f.message);
+    console.log('\nNote: this suite does not check model.js against builder.js.');
+    console.log('For that, run tools/ai/verify.js in the browser.');
+    process.exit(1);
+  }
+  console.log('\nAll good. Remember verify.js in the browser for the maths.');
+});

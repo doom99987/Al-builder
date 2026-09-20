@@ -383,6 +383,7 @@
   function clearLocalScores() {
     Object.keys(localStorage).filter(k => /^alb:[a-z]+-hs$/.test(k))
       .forEach(k => localStorage.removeItem(k));
+    resetScoreState();
     window.dispatchEvent(new Event('alb-scores-reset'));
   }
 
@@ -390,43 +391,102 @@
   async function signOut() {
     await sb.auth.signOut();
     currentUser = null; currentProfile = null;
+    resetScoreState();
     renderAuthBar();
   }
 
-  // ---- anti-cheat: session IDs keyed by qte_type, consumed on submission ----
+  // ---- anti-cheat: session IDs keyed by qte_type ----
   const _sessionIds = {};
+  const _arming     = {};   // qteType -> the start_qte_session call in flight
 
   // Called by each QTE trainer when the player clicks Start.
   // Fires a server-side timestamp so submit_score can validate elapsed time.
-  async function startQteSession(qteType) {
-    if (!currentUser) return;
-    const { data, error } = await sb.rpc('start_qte_session', {
-      p_user_id:  currentUser.id,
-      p_qte_type: qteType,
-    });
-    if (error) { console.warn('[sb] startQteSession error', error.message); return; }
-    _sessionIds[qteType] = data;
+  //
+  // Returns the promise, and remembers it while it is in flight, so a score
+  // from the first seconds of the run can WAIT for the session instead of being
+  // thrown away: the trainers do not await this (js/qte.js:556 and siblings),
+  // the run starts immediately, and the first hit can beat the round trip.
+  function startQteSession(qteType) {
+    if (!currentUser) return Promise.resolve(null);
+    if (_arming[qteType]) return _arming[qteType];
+    const p = (async () => {
+      const { data, error } = await sb.rpc('start_qte_session', {
+        p_user_id:  currentUser.id,
+        p_qte_type: qteType,
+      });
+      if (error) { console.warn('[sb] startQteSession error', error.message); return null; }
+      _sessionIds[qteType] = data;
+      return data;
+    })();
+    _arming[qteType] = p;
+    const done = () => {
+      delete _arming[qteType];
+      // A score from an earlier run may still be waiting for a session.
+      if (_pending[qteType]) pumpScore(qteType);
+    };
+    p.then(done, done);
+    return p;
   }
 
   // ---- submit score — server validates session timing before accepting ----
-  // The session is NOT consumed on success: scores submit on every new high
-  // DURING a run (streak 1, 2, 3 …), so the same session must cover all of
-  // them. Consuming it after the first submission made every later (higher)
-  // score get dropped, freezing leaderboard entries at the first new high.
-  const _lastSubmitted = {};   // qteType -> last score actually sent, see below
-  async function submitScore(qteType, score) {
-    if (!currentUser || !score) return;
-    // Every new high arrives here twice: the trainer calls _sbSubmitScore
-    // directly (js/qte.js:35 and 23 siblings) and the Storage.setItem hook in
-    // js/core.js:211 fires again for the same localStorage write. Identical
-    // (type, score), and each one costs an RPC plus a select plus a conditional
-    // upsert. Dropping either caller would be fragile - comp mode only has the
-    // explicit call, since the hook's /^alb:([a-z]+)-hs$/ does not match
-    // 'fist-comp' - so dedupe here instead, where both paths meet.
-    if (_lastSubmitted[qteType] === score) return;
-    _lastSubmitted[qteType] = score;
-    const sessionId = _sessionIds[qteType] ?? null;
-    if (!sessionId) { console.warn('[sb] submitScore: no valid session for', qteType, '— score not saved'); return; }
+  // The trainers call this on EVERY new high of a run (streak 1, 2, 3 … 31),
+  // so this is where a run's scores are kept honest:
+  //   · one send at a time per QTE type, always carrying the highest score;
+  //   · a score counts as sent only once the server has ACCEPTED it;
+  //   · a send that fails, or that finds no session, is retried, never dropped.
+  // Before this, every new high fired its own unordered RPC, a score was marked
+  // as sent before the server had seen it, and any score that arrived while a
+  // session was being armed or re-armed was discarded with a console warning —
+  // a competitive run that reached 31 could leave the board holding 2.
+  //
+  // The same score also arrives twice in casual: the trainer calls
+  // _sbSubmitScore directly (js/qte.js:406 and siblings) and the
+  // Storage.setItem hook in js/core.js:213 fires for the same write. The second
+  // one is not above the pending or confirmed value, so it costs nothing.
+  const _pending   = {};   // qteType -> highest score still to send
+  const _confirmed = {};   // qteType -> highest score the server has accepted
+  const _sending   = {};   // qteType -> true while an RPC is in flight
+  const _retryN    = {};   // qteType -> retries spent on the pending score
+  const _retryT    = {};   // qteType -> retry timer
+  const SCORE_RETRY_MS = [1500, 4000, 10000];
+
+  function submitScore(qteType, score) {
+    if (!currentUser || !score) return Promise.resolve(false);
+    if (score <= (_confirmed[qteType] || 0)) return Promise.resolve(true);
+    if (score <= (_pending[qteType] || 0))   return Promise.resolve(false);
+    _pending[qteType] = score;
+    _retryN[qteType]  = 0;
+    if (_retryT[qteType]) { clearTimeout(_retryT[qteType]); _retryT[qteType] = null; }
+    return pumpScore(qteType);
+  }
+
+  // Sends the pending score, then whatever higher score arrived while it was in
+  // flight. Resolves true once the server holds the highest value offered.
+  async function pumpScore(qteType) {
+    if (_sending[qteType]) return false;   // the send in flight will pick up the newest value
+    const score = _pending[qteType];
+    if (!score) return false;
+    _sending[qteType] = true;
+    let ok = false;
+    try { ok = await sendScore(qteType, score); }
+    catch (e) { console.error('[sb] submitScore threw', qteType, score, e && e.message); }
+    finally { _sending[qteType] = false; }
+    if (!ok) { scheduleScoreRetry(qteType); return false; }
+    _confirmed[qteType] = Math.max(_confirmed[qteType] || 0, score);
+    _retryN[qteType] = 0;
+    if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; return true; }
+    return pumpScore(qteType);
+  }
+
+  async function sendScore(qteType, score) {
+    let sessionId = _sessionIds[qteType] ?? null;
+    // No session yet: the trainer's Start call may still be in flight, or the
+    // last one was rejected. Wait for one rather than losing the score.
+    if (!sessionId) {
+      await startQteSession(qteType);
+      sessionId = _sessionIds[qteType] ?? null;
+    }
+    if (!sessionId) { console.warn('[sb] submitScore: no session for', qteType, '— keeping', score, 'to retry'); return false; }
     const { error } = await sb.rpc('submit_score', {
       p_user_id:    currentUser.id,
       p_qte_type:   qteType,
@@ -437,26 +497,62 @@
     });
     if (error) {
       console.error('[sb] submitScore error', qteType, score, error.message);
-      // Session likely rejected/expired server-side — re-arm so the next high can submit
-      delete _lastSubmitted[qteType];   // a failed submit must stay retryable
-      delete _sessionIds[qteType];
-      startQteSession(qteType);
-      return;
+      delete _sessionIds[qteType];   // stale or rejected — the retry arms a fresh one
+      return false;
     }
     console.log('[sb] submitScore ok', qteType, score, PLATFORM);
-    // upsert personal best — only update if new score is higher
+    await updatePersonalBest(qteType, score);
+    return true;
+  }
+
+  function scheduleScoreRetry(qteType) {
+    const n = _retryN[qteType] || 0;
+    if (n >= SCORE_RETRY_MS.length) {
+      // Out of attempts for now. The score STAYS pending: the next new high,
+      // the next run's Start, or the tab being hidden will offer it again.
+      console.warn('[sb] submitScore: holding', _pending[qteType], 'for', qteType, '— the server would not take it');
+      scoreToast('Score not saved yet — still trying.');
+      return;
+    }
+    _retryN[qteType] = n + 1;
+    if (_retryT[qteType]) clearTimeout(_retryT[qteType]);
+    _retryT[qteType] = setTimeout(() => { _retryT[qteType] = null; pumpScore(qteType); }, SCORE_RETRY_MS[n]);
+  }
+
+  // Personal best is its own table, read-then-write. Only ever raised, and only
+  // from inside a successful send, so the two are never in flight together.
+  async function updatePersonalBest(qteType, score) {
     const { data: pb, error: pbErr } = await sb.from('personal_bests')
       .select('score')
       .eq('user_id', currentUser.id)
       .eq('qte_type', qteType)
       .maybeSingle();
-    if (pbErr) return; // can't verify the existing best — don't risk overwriting it
-    if (!pb || score > pb.score) {
-      await sb.from('personal_bests').upsert(
-        { user_id: currentUser.id, qte_type: qteType, score, platform: PLATFORM, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id,qte_type' }
-      );
-    }
+    if (pbErr) return;                    // can't verify the existing best — don't risk overwriting it
+    if (pb && score <= pb.score) return;
+    await sb.from('personal_bests').upsert(
+      { user_id: currentUser.id, qte_type: qteType, score, platform: PLATFORM, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,qte_type' }
+    );
+  }
+
+  // Borrowed from the anti-macro guard so a lost score is as visible as a
+  // blocked one. Missing until qte-guard.js loads, which is after this file.
+  function scoreToast(msg) {
+    try { if (window._qteGuard && window._qteGuard.toast) window._qteGuard.toast(msg); } catch (e) {}
+  }
+
+  // A run usually ends with the player leaving the page. Give anything still
+  // pending one more chance on the way out.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'hidden') return;
+    Object.keys(_pending).forEach(t => pumpScore(t));
+  });
+
+  // Sign-out must not leave one account's scores queued against the next one.
+  function resetScoreState() {
+    Object.keys(_retryT).forEach(t => { if (_retryT[t]) clearTimeout(_retryT[t]); });
+    [_pending, _confirmed, _sending, _retryN, _retryT, _sessionIds, _arming]
+      .forEach(o => Object.keys(o).forEach(k => { delete o[k]; }));
   }
 
   // ---- fetch the current user's all-time personal best for a QTE ----
@@ -474,13 +570,12 @@
   function currentMonth() { return new Date().toISOString().slice(0, 7); }
 
   // ---- reconcile local bests vs the server leaderboard ----
-  // QTE trainers only submit when a score beats the LOCAL stored best. If the
-  // server's monthly entry fell behind the local best (the old single-use
-  // session bug dropped submissions), any score below the local best — even
-  // one far above the server entry — was never re-submitted, so the
-  // leaderboard stayed frozen. On load, if any local best is ahead of the
-  // server, reset the local bests so submissions flow again as the player
-  // climbs back up.
+  // QTE trainers only submit when a score beats the LOCAL stored best, so a
+  // best that never reached the server gates every later run: the player cannot
+  // beat it, nothing is sent, and the board stays frozen below it. This used to
+  // wipe the local bests so the player could climb back up — which threw a real
+  // score away. Offer them to the server instead, and only fall back to the
+  // wipe for the ones it will not take.
   let _reconciledScores = false;
   async function reconcileServerScores() {
     if (_reconciledScores || !currentUser) return;
@@ -492,7 +587,7 @@
     if (error) { _reconciledScores = false; return; }
     const serverBest = {};
     (data || []).forEach(r => { serverBest[r.qte_type] = Math.max(serverBest[r.qte_type] || 0, r.score || 0); });
-    let stale = false;
+    const behind = [];
     Object.keys(localStorage).forEach(key => {
       let type = null, m;
       if      ((m = key.match(/^alb:(.+)-hs-comp$/))) type = m[1] + '-comp';
@@ -500,10 +595,16 @@
       else if ((m = key.match(/^alb:(.+)-hs$/)))      type = m[1];
       if (!type) return;
       const local = parseInt(localStorage.getItem(key), 10) || 0;
-      if (local > (serverBest[type] || 0)) stale = true;
+      if (local > (serverBest[type] || 0)) behind.push({ type, local });
     });
-    if (stale) {
-      console.log('[sb] local bests are ahead of the server leaderboard — resetting local bests so scores re-submit');
+    if (!behind.length) return;
+    console.log('[sb] local bests the server never took — re-submitting:',
+                behind.map(b => b.type + ' ' + b.local).join(', '));
+    const results = await Promise.all(behind.map(b => submitScore(b.type, b.local)));
+    if (results.some(r => !r)) {
+      // The server would not take them — a session rule we cannot see from here.
+      // Clear the local bests so climbing back up submits normally again.
+      console.log('[sb] some local bests were refused — resetting them so scores re-submit as you climb');
       window.dispatchEvent(new Event('alb-scores-reset'));
     }
   }
@@ -603,13 +704,16 @@
   // platform: 'all' | 'M' | 'C' — rank is computed within that subset
   async function fetchMyRank(qteType, platform) {
     if (!currentUser) return null;
+    // One row per platform, so on the 'all' filter a player who has played on
+    // both has TWO rows. maybeSingle() errors on that and returns nothing, which
+    // told dual-platform players they had no score at all — take their best row.
     let mineQ = sb.from('leaderboard')
       .select('score, platform')
       .eq('user_id', currentUser.id)
       .eq('qte_type', qteType)
       .eq('score_month', currentMonth());
     if (platform && platform !== 'all') mineQ = mineQ.eq('platform', platform);
-    const { data: mine } = await mineQ.maybeSingle();
+    const { data: mine } = await mineQ.order('score', { ascending: false }).limit(1).maybeSingle();
     if (!mine) return null;
     let aboveQ = sb.from('leaderboard')
       .select('*', { count: 'exact', head: true })

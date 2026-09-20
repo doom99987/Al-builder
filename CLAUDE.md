@@ -82,7 +82,9 @@ RPCs: `start_qte_session`, `submit_score`, `mm_create_match`, `mm_apply_result`,
 
 Twelve trainers, all in `js/qte.js`, one IIFE each. `thorian-new`, `dagger-new`, and `yarthul-new` are the "New" tab group; the rest are "Old".
 
-**Scores are rejected without a session.** `submitScore` ([sb.js](js/sb.js)) drops any score whose `qteType` has no armed session, logging only a console warning — the trainer looks fine and the leaderboard silently never updates. Every trainer must call `_sbStartQteSession(type)` at the top of its start function, with the **same** type string it later submits, comp suffix included.
+**Submission is a queue, not a fire-and-forget call.** Trainers call `_sbSubmitScore` on *every* new high of a run (streak 1, 2, 3 …). `submitScore` ([sb.js](js/sb.js)) keeps one send in flight per `qteType` carrying the highest score so far, treats a score as sent only once the server accepts it, and retries (`SCORE_RETRY_MS`) anything that fails or that arrives before a session is armed. Never restore the old shape — one unordered RPC per new high, with a score marked as sent before the server saw it, is how a run that reached 31 left the board holding 2.
+
+Every trainer must still call `_sbStartQteSession(type)` at the top of its start function, with the **same** type string it later submits, comp suffix included: the server times the session from that call. Trainers do not await it — `submitScore` waits on the same promise when a score beats it.
 
 ### Adding a trainer — every touchpoint
 
@@ -102,7 +104,7 @@ Shared trainer contract: separate casual/competitive bests (`alb:<id>-hs` / `-hs
 - **`core.js` ping sim** intercepts QTE keys in the capture phase and re-dispatches them after `window._albPing` ms.
 - **`qte-guard.js`** inspects the same events for macro signatures (synthetic, robotic rhythm, impossible burst, identical hold times) and withholds leaderboard submissions while flagged.
 
-Both work on any trainer that listens for real `keydown`/`keyup` on `document`. A consequence worth knowing: **synthetic `KeyboardEvent`s are blocked by design**, so trainer input cannot be tested programmatically — it needs a human at a keyboard.
+Both work on any trainer that listens for real `keydown`/`keyup` on `document`. A consequence worth knowing: **synthetic `KeyboardEvent`s are blocked by design**, so trainer input cannot be tested programmatically — it needs a human at a keyboard. The one exception is the ping simulator's own delayed copy, which carries `_albSynthetic`: the guard ignores those (it already measured the real key on the way out), because otherwise switching the ping bar on blocked every key *and* withheld the player's scores for two minutes.
 
 ## Game data — where content lives
 

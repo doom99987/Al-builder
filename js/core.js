@@ -162,8 +162,13 @@ window._albPing     = 0;
 window._qteCompMode = false;
 window._toggleQteMode = function () {
   // Block mid-session switches — would let casual streaks credit to competitive scores.
+  // Say so: refusing in silence left players sure they had switched, playing one
+  // mode and then looking for their score on the other mode's board.
   const anyActive = Array.from(document.querySelectorAll('[id$="-qte-start-btn"]')).some(b => b.style.display === 'none');
-  if (anyActive) return;
+  if (anyActive) {
+    try { window._qteGuard && window._qteGuard.toast('Finish or leave the run in progress before switching mode.'); } catch (e) {}
+    return;
+  }
   window._qteCompMode = !window._qteCompMode;
   const btn = document.getElementById('qte-mode-btn');
   if (btn) {

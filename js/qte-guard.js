@@ -87,8 +87,17 @@
     }
   }
 
+  // The site's own ping simulator (js/core.js) swallows a QTE key and re-fires
+  // a copy _albPing ms later, marked with _albSynthetic. That copy is not a
+  // second press: this guard already saw and measured the real key on its way
+  // out — window capture runs before core.js's document-level listener. Without
+  // this, switching the ping bar on blocked every key AND flagged the player as
+  // a macro, which silently withheld their scores for the next two minutes.
+  function isDelayedCopy(e) { return !!(e && e._albSynthetic); }
+
   function onKeyDown(e) {
     if (!qteContextActive()) return;
+    if (isDelayedCopy(e)) return;
     if (!e.isTrusted) { e.stopImmediatePropagation(); e.preventDefault(); raise('synthetic'); return; }
     if (isTypingTarget(e) || e.repeat) return;
     const now = performance.now();
@@ -99,6 +108,7 @@
   }
   function onKeyUp(e) {
     if (!qteContextActive()) return;
+    if (isDelayedCopy(e)) return;
     if (!e.isTrusted) { e.stopImmediatePropagation(); e.preventDefault(); raise('synthetic'); return; }
     if (isTypingTarget(e)) return;
     const d = downAt[e.code];
@@ -168,5 +178,6 @@
     reason:  () => (flag ? flag.reason : null),
     reset:   () => { flag = null; times = []; holds = []; downAt = {}; },
     onFlag:  null, // optional hook — matchmaking sets this to update its UI
+    toast,         // shared: sb.js reports a score it could not save the same way
   };
 })();

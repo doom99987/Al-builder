@@ -934,3 +934,24 @@
   left: 50%;
   transform: translate(-50%, -50%);
 }
+
+
+/* Toast for anything a run needs to say: automated input detected
+   (js/qte-guard.js) and a score that could not be saved (js/sb.js).
+   The rules also live in css/matchmaking.css, which index.html does not
+   load while matchmaking is disabled - so without this copy the message
+   was created, shown, and invisible. */
+.qte-guard-toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 16px);
+  background: #170d11; border: 1px solid #6a2e40; border-radius: 7px;
+  color: #e8a0a0; font-size: 13px; font-weight: 600; padding: 11px 20px;
+  font-family: 'Rajdhani', Arial, sans-serif; letter-spacing: .8px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.6);
+  opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s;
+  z-index: 200;
+}
+.qte-guard-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .qte-guard-toast { transition: none; }
+}
