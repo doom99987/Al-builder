@@ -46,7 +46,7 @@
   <link rel="stylesheet" href="css/base.css?v=12">
   <link rel="stylesheet" href="css/nav.css?v=18">
   <link rel="stylesheet" href="css/builder.css?v=31">
-  <link rel="stylesheet" href="css/qte.css?v=12">
+  <link rel="stylesheet" href="css/qte.css?v=13">
   <link rel="stylesheet" href="css/mobile.css?v=17">
   <link rel="stylesheet" href="css/auth.css?v=24">
   <link rel="stylesheet" href="css/overlay.css?v=1">
@@ -1555,7 +1555,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=111"></script>
+<script src="js/sb.js?v=112"></script>
 <script src="js/reports.js?v=4"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
@@ -1567,12 +1567,12 @@
     qte.js             : all 12 QTE trainer IIFEs
     saved-builds.js    : saved builds (localStorage + account sync to player_builds)
 -->
-<script src="js/core.js?v=15"></script>
+<script src="js/core.js?v=16"></script>
 <script src="js/data-class-moves.js?v=25"></script>
 <script src="js/data-race-moves.js?v=18"></script>
 <script src="js/move-renderer.js?v=13"></script>
 <script src="js/builder.js?v=104"></script>
-<script src="js/qte-guard.js?v=1"></script>
+<script src="js/qte-guard.js?v=2"></script>
 <script src="js/qte.js?v=24"></script>
 <script src="js/saved-builds.js?v=16"></script>
 <script src="js/trades.js?v=52"></script>
@@ -2107,7 +2107,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-19.2';
+  const SITE_VERSION    = '2026-09-19.3';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
