@@ -467,6 +467,14 @@
                (c.bestMove.scaling ? ', scales ' + c.bestMove.scaling : '') + '), landing at about **' +
                n0(c.bestHit) + '** expected damage once crit is applied.');
     }
+    // A move priced with its own conditional bonus (K.MOVE_CONDITIONAL_DMG):
+    // Stealth Strike out of Invisible. Said once, for the nuke or the best hit,
+    // because it is the reason that move's number is what it is - and since
+    // Withered Grove it is +100% in the damage bonus sum, not a doubled base.
+    const cond = (c.burstTerms && c.burstTerms.cond) || c.bestCond;
+    if (cond && cond.note) {
+      why.push('**' + cond.move + '** — ' + cond.note + '.');
+    }
 
     if (c.critChance >= 100) {
       // Each tier past a normal crit adds +1 to the multiplier (Withered Grove).

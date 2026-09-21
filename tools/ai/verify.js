@@ -253,20 +253,30 @@
     }
 
     // ── and the damage those stats are supposed to produce ──────────────────
-    // Only where the site is doing the same job as moveDamage: no damage-bonus
-    // multipliers active, and a move whose damage and scaling it will both parse.
+    // Only where the site is doing the same job as moveDamage: nothing in the
+    // move's damage bonus sum, and a move whose damage and scaling it will
+    // both parse.
     try {
-      // moveDamage is the RAW scaled hit: base x (1 + scaling), no multipliers.
-      // The site multiplies by several things on top, and checking only
-      // getActiveDmgMult missed the rest — Shard of Blight's x1.25 on Dark moves
-      // showed up as Dark Smite being 25% "wrong" when both sides were right and
-      // simply measuring different things.
-      const mults = [
-        typeof getActiveDmgMult === 'function' ? getActiveDmgMult() : 1,
-        typeof getEnchantMult === 'function' ? getEnchantMult() : 1,
-      ];
-      const multClean = mults.every(v => Math.abs(v - 1) < 1e-9);
-      if (multClean && typeof dmgCalcMoveList !== 'undefined') {
+      // moveDamage is the RAW scaled hit: (base x (1 + scaling) + Flat) x hits,
+      // no bonuses. Since Withered Grove §12 the page ADDS every "+X% damage"
+      // - the switches, the enchant, Shard of Blight, Blizzard, STR / ARC 110,
+      // energy scaling, Spirit Awakening on a summon - into ONE sum per hit,
+      // totalled by getDmgMulti. So the gate is that sum being exactly 0, read
+      // from the function that builds it rather than from a list of old
+      // multipliers (checking only getActiveDmgMult once missed Shard of
+      // Blight's +25 on Dark moves, and Dark Smite read 25% "wrong").
+      //
+      // A page without those functions is a HARNESS ERROR, never a skip: a
+      // renamed accessor must not quietly close the gate and turn this into
+      // "0 compared, 0 wrong", which reads like a pass.
+      // (builder.js is a classic script, so its top-level functions are window's.)
+      for (const f of ['getDmgMulti', 'getActiveDmgTerms', 'sumDmgTerms', 'getEffectiveMoveType', 'dcEnergyAfter']) {
+        if (typeof window[f] !== 'function') {
+          throw new Error('the page has no ' + f + '(): the damage check cannot tell a bare hit from a buffed one');
+        }
+      }
+      const idle = Math.abs(sumDmgTerms(getActiveDmgTerms(null, null))) < 1e-9;
+      if (idle && typeof dmgCalcMoveList !== 'undefined') {
         for (let i = 0; i < dmgCalcMoveList.length; i++) {
           const mv = dmgCalcMoveList[i];
           if (!mv || mv.damage === undefined) continue;
@@ -275,25 +285,22 @@
           // branch. Compare those only when the model reads no stat term in the
           // string either - a string each side half-reads is a separate question.
           if (!parseScaling(mv.scaling) && /[A-Za-z]{3}\s*\/\s*[\d.]+/.test(String(mv.scaling || ''))) continue;
-          // Per-move multipliers the site applies and moveDamage deliberately
-          // does not: element gates, the Darkbeast bonus and the 110 damage milestones.
-          const eff = typeof getEffectiveMoveType === 'function'
-                    ? getEffectiveMoveType(mv.moveType, mv) : mv.moveType;
-          const perMove = [
-            typeof getShardOfBlightMult === 'function' ? getShardOfBlightMult(eff) : 1,
-            typeof getBlizzardMult === 'function' ? getBlizzardMult(eff) : 1,
-            typeof getActiveDmgMult === 'function' ? getActiveDmgMult(eff) : 1,
-            // STR / ARC 110 (+20% Physical / magic): the page applies it, moveDamage does not.
-            typeof getMilestoneDmgMult === 'function' ? getMilestoneDmgMult(mv) : 1,
-            // Stinger's stab is Physical although the move is Poison, so it takes STR's perk.
-            (typeof getMilestoneDmgMult === 'function' && mv.name === 'Stinger') ? getMilestoneDmgMult(mv, 'Physical') : 1,
-          ];
-          if (!perMove.every(v => Math.abs(v - 1) < 1e-9)) continue;
+          // The move's OWN sum: the element-gated terms, the Darkbeast cores,
+          // the 110 milestones, energy scaling, a summon's Spirit Awakening -
+          // everything the page adds and moveDamage deliberately does not.
+          // Stinger's two parts each take the sum of their own type.
+          const eff = getEffectiveMoveType(mv.moveType, mv);
+          const eAfter = dcEnergyAfter(mv);
+          const sums = [getDmgMulti(mv, eff, eAfter).pct];
+          if (mv.name === 'Stinger') {
+            sums.push(getDmgMulti(mv, getEffectiveMoveType('Physical'), eAfter).pct,
+                      getDmgMulti(mv, getEffectiveMoveType('Poison'), eAfter).pct);
+          }
+          if (!sums.every(v => Math.abs(v) < 1e-9)) continue;
           if (mv.slot === 'Darkbeast') continue;
-          // The engine prices Stealth Strike out of Invisible on purpose (owner,
-          // 2026-09-11: an Assassin fires it from Shadow Form). The page shows the
-          // plain move, so the two differ by design, not by a model error.
-          if (mv.name === 'Stealth Strike') continue;
+          // Stealth Strike is compared like any other move since 2026-09-21: the
+          // engine no longer rewrites its base (its +100% out of Invisible is a
+          // term of the sum, and the page's switch for it is inside the gate).
           const row = [...document.querySelectorAll('.dc-row[data-idx]')]
             .find(r => +r.dataset.idx === i);
           if (!row) continue;
@@ -334,6 +341,13 @@
     }
   }
 
+  // Nothing compared is a FAILURE, not a pass: it means the gate above never
+  // opened (a bonus left switched on, or an accessor that changed its
+  // meaning) and not one damage number was checked.
+  if (!dmgChecked && !dmgBad.length) {
+    dmgBad.push({ move: '(nothing compared)', real: 'the damage gate never opened in ' + TRIALS +
+                  ' trials - switch every DMG bonus off and re-run', mine: '' });
+  }
   console.log('move damage: ' + dmgChecked + ' compared, ' + dmgBad.length + ' wrong');
   if (dmgBad.length) console.table(dmgBad.slice(0, 10).map(x =>
     ({ move: x.move, damage: x.damage, scaling: x.scaling, site: x.real, model: x.mine })));
@@ -435,7 +449,7 @@
 
   console.log('comparisons: ' + n + '   mismatches: ' + mism.length);
   if (mism.length) console.table(mism.slice(0, 10).map(m => ({ stat: m.stat, real: m.real, model: m.mine })));
-  else if (!shareBad.length) console.log('%cmodel agrees with builder.js, and share links round-trip', 'color:#3c3');
+  else if (!shareBad.length && !dmgBad.length) console.log('%cmodel agrees with builder.js, and share links round-trip', 'color:#3c3');
   return { comparisons: n, mismatches: mism.length, detail: mism,
            shareChecked, shareBad,
            dmgChecked, dmgBad,

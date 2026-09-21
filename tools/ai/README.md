@@ -489,6 +489,13 @@ rather than a second implementation of the same arithmetic. That is how **Focus
 Step** finally counts: LVL x 2 flat Speed is +100 at level 50, which is enormous
 on anything scaling with Speed, and it had been unmodelled until now.
 
+A setup's damage buff is **added** to the move's damage bonus sum, never
+multiplied onto it (Withered Grove §12, 2026-09-21): the opener is
+`raw × M.dmgMulti(P + setup %) × crit + True Flat`, the sustained figure uses the
+setups' uptime share. A move's own conditional bonus that a setup meets
+(`MOVE_CONDITIONAL_DMG` - Stealth Strike's +100% out of Shadow Form's Invisible)
+is a term of the same sum. The opener figures in the table above predate this.
+
 Builds with an opener print it turn by turn, and it goes into the Summary box.
 
 ## The build's reasoning goes into the Summary box

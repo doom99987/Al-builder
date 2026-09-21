@@ -409,7 +409,7 @@ const covenantBonuses = {
 // into damage buffs (patch 2026-09-16): 110 STR is +20% damage on Physical
 // moves, 110 ARC is +20% on magic moves - every other type (owner, 2026-09-17;
 // the patch notes said "melee" and "ranged"). The DMG calculator applies them
-// (§ STAT MILESTONE DAMAGE: getMilestoneDmgMult).
+// as a +20 term of the Multi sum (§ STAT MILESTONE DAMAGE: getMilestoneDmgPct).
 // 110 SPD is 15% autododge (was 5%). In-fight stat buffs count toward every
 // milestone, so the calculator measures them on the buffed total.
 const STAT_MILESTONE_TIERS = [25, 60, 110];
@@ -4146,7 +4146,7 @@ let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 
 let boreasStacks = 1; // 1-5: Boreas Frost Stacks (10% dmg + 4% DR per stack, max 5 = +50% dmg / 20% DR)
 let vydeerCritStacks = 0; // 0-10: Vydeer Crit Buildup turns (1.5% crit per turn, max 15%)
 let vydeerSenseConsumed = 1; // 1-10: Sense consumed by Vydeer's Soul Reversal (+10% dmg per Sense, party-wide until your next turn)
-let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (×1.20 each)
+let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (+20% each, added together)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false, surprisePkg: false };
 const summonBuffsActive = { spiritAwakening: false };
@@ -4162,18 +4162,23 @@ let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive h
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
 let goldRushGold = 0; // 0-50000: gold amount for Veneri Gold Rush (0.2% per 500 gold, cap 20%)
+// `pct` is what the buff adds to a hit's Multi sum (Withered Grove §12: every
+// "+X% damage" is added, not multiplied). Metrom's Grasp is +40% for damage
+// over time only, so it is listed but never added to a direct hit.
 const TEAM_BUFFS = [
-  { key: 'mg',          label: "MG",            mult: 1.40, desc: "Metrom's Grasp: +40% damage for DoT effects." },
-  { key: 'rallying',    label: "Rallying Shout", mult: 1.15, desc: "Give all allies a 15% damage buff for 4 turns." },
-  { key: 'lesserEmp',  label: "Lesser Empower", mult: 1.15, desc: "+15% damage buff for 2 turns." },
-  { key: 'castAmplify',label: "Cast Amplify",   mult: 1.20, desc: "+20% damage buff to magic/holy/fire/nature/ice/dark moves for 3 turns." },
-  { key: 'blizzard',   label: "Blizzard",       mult: 1.20, desc: "+20% ice damage for the team for 4 turns." },
-  { key: 'arcaneRitual',label: "Arcane Ritual", mult: 1.40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
+  { key: 'mg',          label: "MG",            pct: 40, dotOnly: true, desc: "Metrom's Grasp: +40% damage for DoT effects. Damage over time only - not added to a direct hit." },
+  { key: 'rallying',    label: "Rallying Shout", pct: 15, desc: "Give all allies a 15% damage buff for 4 turns." },
+  { key: 'lesserEmp',  label: "Lesser Empower", pct: 15, desc: "+15% damage buff for 2 turns." },
+  { key: 'castAmplify',label: "Cast Amplify",   pct: 20, desc: "+20% damage buff to magic/holy/fire/nature/ice/dark moves for 3 turns. Stacks add: +20% each." },
+  { key: 'blizzard',   label: "Blizzard",       pct: 20, desc: "+20% ice damage for the team for 4 turns." },
+  { key: 'arcaneRitual',label: "Arcane Ritual", pct: 40, desc: "~40% damage buff to magic/holy/fire/nature/ice/dark moves for 5 turns." },
   // Surprise Package is a scroll (Thief, Martial Artist): a bomb planted for 3
   // turns that the next hit detonates. Only a Physical or Magic hit gets the
   // +35%; every other affinity sets off a different payload instead.
-  { key: 'surprisePkg', label: "Surprise Package", mult: 1.35, desc: "Scroll bomb (2 energy, 11 turn cooldown): the Physical or Magic hit that detonates it deals +35% bonus damage. The bomb itself deals 30% of max HP (5% on bosses). Other affinities trigger a different payload instead: Fire +15% fire damage and 10 Burning, Ice 6 Cold to all, Poison 20 Poison and 2 Weakened, Hex 1 Hex and 100 true damage, Dark 3 Vulnerable and 3 Weakened." },
+  { key: 'surprisePkg', label: "Surprise Package", pct: 35, desc: "Scroll bomb (2 energy, 11 turn cooldown): the Physical or Magic hit that detonates it deals +35% bonus damage. The bomb itself deals 30% of max HP (5% on bosses). Other affinities trigger a different payload instead: Fire +15% fire damage and 10 Burning, Ice 6 Cold to all, Poison 20 Poison and 2 Weakened, Hex 1 Hex and 100 true damage, Dark 3 Vulnerable and 3 Weakened." },
 ];
+// Cast Amplify and Arcane Ritual only reach these types.
+const AMPLIFY_TYPES = ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"];
 // --- Corruption form ---
 // Being in your Corruption Form changes what a hit is worth, so the calculator
 // can show the in-form number next to the normal one. Everything here is OFF by
@@ -4194,24 +4199,44 @@ const enchantCondActive = { cursed: false, cursedSundered: false, inferno: false
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
 let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> +40 flat instead of +5
+let bloomingEyeSpend = false;  // Blooming Eye: 100 Corrupt Power -> +35 True Flat instead of +5
+// Stealth Strike: "Increases damage dealt by 100% if invisible while attacking".
+// On, that one move gets +100 in its Multi sum. Invisibility's own +20% (and
+// Shadow Master's +30%) stays on the Shadow Form row.
+let stealthStrikeInvisible = false;
 
 // Crystalline Spike is the only source of flat damage in the game so far, but
 // this is deliberately a general accessor rather than an inline check: a second
 // source would otherwise have to find and patch every damage path again.
-// Returns damage added to the SCALED base, so it rides every multiplier -
-// buffs, statuses, boss modifiers and crits - rather than being tacked on at
-// the end where it would be worth almost nothing.
+// Returns damage added to the SCALED base - the formula's Flat (§12) - so it
+// rides the Multi sum, statuses, boss modifiers and crits rather than being
+// tacked on at the end where it would be worth almost nothing.
 function getFlatDmgBonus() {
   if (!hasGearEquipped("Crystalline Spike")) return 0;
   return crystallineSpikeSpend ? 40 : 5;
 }
+// Blooming Eye is the formula's TrueFlat (§12): "a separate channel that skips
+// DR and Affinity entirely". It is added to each hit AFTER everything - not
+// multiplied by the Multi sum, the target's resistance, its statuses or a crit.
+function getTrueFlatDmg() {
+  if (!hasGearEquipped("Blooming Eye")) return 0;
+  return bloomingEyeSpend ? 35 : 5;
+}
 // agesPagesSpend lives up beside permuthStat, not here: updatePecents()
 // reads it and runs at load, long before this line executes.
-let crusherStacks = 1; // 1-9: Crusher status applications (+7% each, total capped at +75%)
+let crusherStacks = 1; // 1-11: Crusher status applications (+7% each, total capped at +75%)
 // Crusher (Brawler): every status you apply, new or already on the target,
-// grants +7%, and the game caps what Crusher can give at +75%. Kept
-// multiplicative as before; 1.07^9 = 1.84 is the first count the cap cuts.
-function getCrusherMult() { return Math.min(1.75, Math.pow(1.07, crusherStacks)); }
+// grants +7%, and the game caps what Crusher can give at +75%. Additive like
+// every other damage buff (§12), so 7 a status: the cap first binds at 11
+// (77 -> 75), which is why the counter goes to 11.
+const CRUSHER_CAP_PCT = 75;
+const CRUSHER_MAX_STACKS = 11;
+function getCrusherPct() { return Math.min(CRUSHER_CAP_PCT, 7 * crusherStacks); }
+// Crusher's other half: "Instead of dealing 20% extra damage to vulnerable
+// enemies, now deal 25%." A target status, so it stays a multiplier.
+function getVulnerableMult() {
+  return dmgBonusPassives.some(p => p.name === "Crusher") ? 1.25 : 1.20;
+}
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
 let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); on proc the hit deals +35% dmg
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
@@ -4601,7 +4626,9 @@ function getOvercritInfo() {
 // Each crit tier past a normal crit adds +1 to the crit multiplier (Withered
 // Grove rework: "Getting a higher tier of critical hit will increase the Crit
 // Damage multiplier by 1"). At 2.25x, orange is 3.25x - not 2.25 x 2 = 4.50x.
-function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
+// `trueFlat` is the move's True Flat total (Blooming Eye x hits): it is added
+// to each tier's figure after the crit, never multiplied by it (§12).
+function buildOvercritLines(finalDmg, critMult, ccOverride = null, trueFlat = 0) {
   if (critMult === null) return '';
   let info;
   if (ccOverride !== null) {
@@ -4613,18 +4640,19 @@ function buildOvercritLines(finalDmg, critMult, ccOverride = null) {
     if (!info) return '';
   }
   let out = '';
+  const tfNote = trueFlat ? ` <span class="dc-bonus-tag">[+${trueFlat} True Flat]</span>` : '';
   const orangeDmg = finalDmg * (critMult + 1);
   const orangeLabel = info.tier >= 2 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${(critMult + 1).toFixed(2)}): <b>${orangeDmg.toFixed(1)}</b></span>`;
+  out += `<br><span class="dc-overcrit-line dc-overcrit-orange">🟠 Orange crit [${orangeLabel}] (×${(critMult + 1).toFixed(2)})${tfNote}: <b>${(orangeDmg + trueFlat).toFixed(1)}</b></span>`;
   if (info.cc > 200) {
     const redDmg = finalDmg * (critMult + 2);
     const redLabel = info.tier >= 3 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${(critMult + 2).toFixed(2)}): <b>${redDmg.toFixed(1)}</b></span>`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-red">🔴 Red crit [${redLabel}] (×${(critMult + 2).toFixed(2)})${tfNote}: <b>${(redDmg + trueFlat).toFixed(1)}</b></span>`;
   }
   if (info.cc > 300) {
     const purpleDmg = finalDmg * (critMult + 3);
     const purpleLabel = info.tier >= 4 ? 'guaranteed' : `${Math.round(info.overflow)}% chance`;
-    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${(critMult + 3).toFixed(2)}): <b>${purpleDmg.toFixed(1)}</b></span>`;
+    out += `<br><span class="dc-overcrit-line dc-overcrit-purple">🟣 Purple crit [${purpleLabel}] (×${(critMult + 3).toFixed(2)})${tfNote}: <b>${(purpleDmg + trueFlat).toFixed(1)}</b></span>`;
   }
   return out;
 }
@@ -4636,16 +4664,19 @@ function draugaCritHealLine(critDmg) {
   return `<br><span class="dc-drauga-heal-line">🩸 Vampiric Crits: ${critDmg.toFixed(1)} × 15% = <b>+${heal.toFixed(1)} HP</b></span>`;
 }
 
-// Mastery lifesteal heal lines shown below the final damage result
-function buildLifestealHealLines(finalDmg, m, critMult = null) {
+// Mastery lifesteal heal lines shown below the final damage result.
+// `finalDmg` is the hit before True Flat; `trueFlat` (Blooming Eye x hits) is
+// damage dealt too, so it is added to the healed figure, uncritted.
+function buildLifestealHealLines(finalDmg, m, critMult = null, trueFlat = 0) {
   let out = '';
   const sc = superPicker.value;
-  function _lsLine(icon, label, pct, dmg, incHealMult = 1) {
+  function _lsLine(icon, label, pct, mainDmg, incHealMult = 1) {
+    const dmg = mainDmg + trueFlat;
     const heal = dmg * pct;
     const incTag = incHealMult !== 1 ? ` <span class="dc-bonus-tag">[×${incHealMult.toFixed(2)} inc. heal → +${(heal * incHealMult).toFixed(1)} HP received]</span>` : '';
     let s = `${icon} ${label}: ${dmg.toFixed(1)} × ${pct * 100}% = <b>+${heal.toFixed(1)} HP</b>${incTag}`;
     if (critMult !== null) {
-      const critHeal = dmg * critMult * pct;
+      const critHeal = (mainDmg * critMult + trueFlat) * pct;
       const critIncTag = incHealMult !== 1 ? ` → +${(critHeal * incHealMult).toFixed(1)} HP` : '';
       s += `  <span class="dc-bonus-tag">|</span>  crit: <b>+${critHeal.toFixed(1)} HP</b>${critIncTag}`;
     }
@@ -4706,15 +4737,12 @@ function getExpectedMultiHitDmg(totalDmg, critMult, critChancePct) {
 // non-crit share (1 - p) is untouched. Below 100% crit that is
 // (1 - p) + p x critMult x bonus; from 100% every hit crits, so it is the whole
 // expected multiplier x bonus. With no bonus it is getExpectedMultiHitDmg.
+// Since §12 the bonus is +50 in the crit hit's Multi sum, so `moveCritDmgMult`
+// is the ratio of the two sums (getOutsideDmgMult's critRatio), not x1.5.
 function getExpectedMoveCritDmg(totalDmg, critMult, critChancePct, moveCritDmgMult = 1) {
   if (moveCritDmgMult === 1) return getExpectedMultiHitDmg(totalDmg, critMult, critChancePct);
   const noCrit = 1 - Math.min(100, Math.max(0, critChancePct)) / 100;
   return totalDmg * (noCrit + (getExpectedCritMult(critMult, critChancePct) - noCrit) * moveCritDmgMult);
-}
-
-function getArmourDmgTypePct(_moveType) {
-  // Armour stat pcts (str/arc/spd) are now applied as stat multipliers in getTotalStat.
-  return 0;
 }
 
 // Element conversions. Wicked Crown goes first (Physical -> Dark), then Boreas
@@ -4730,9 +4758,9 @@ function getEffectiveMoveType(moveType, m = null) {
   return moveType;
 }
 
-function getShardOfBlightMult(effectiveMoveType) {
-  if (effectiveMoveType !== 'Dark') return 1;
-  return hasGearEquipped('Shard of Blight') ? 1.25 : 1;
+// Shard of Blight: +25% on Dark damage, a term of the Multi sum.
+function getShardOfBlightPct(effectiveMoveType) {
+  return (effectiveMoveType === 'Dark' && hasGearEquipped('Shard of Blight')) ? 25 : 0;
 }
 
 // Returns true if the move's effect text describes applying a status effect to the target.
@@ -4751,15 +4779,54 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const m = dmgCalcMoveList[idx];
   const scalings = parseScaling(m.scaling);
 
+  // Withered Grove §12, per hit:
+  //   main = (Base + Flat) x (1 + ΣMulti / 100) x Affinity x ΠTargetStatus x Crit
+  //   hit  = main + TrueFlat
+  // getOutsideDmgMult is the one Multi sum every path below reads (Stinger's
+  // two parts ask getDmgMulti for their own types). Target statuses, the boss
+  // resistance and crits stay multipliers; True Flat is added last.
+  const _out = getOutsideDmgMult(m);
+  const trueFlat = getTrueFlatDmg();
+  // The True Flat step: "+ 15 [Blooming Eye, True Flat, 5 × 3 hits] = 60.3".
+  const tfStep = (hits, before) => trueFlat
+    ? ` + ${trueFlat * hits} <span class="dc-bonus-tag">[Blooming Eye, True Flat${hits > 1 ? `, ${trueFlat} × ${hits} hits` : ''}]</span> = <b>${(before + trueFlat * hits).toFixed(1)}</b>`
+    : '';
 
   // Move-specific crit-only damage bonus (Empowered Pierce: "50% more damage when landing a
-  // Critical Hit"). It multiplies the crit figures only; the non-crit hit is unchanged.
-  const moveCritDmgMult = 1 + (+m.critDmgBonus || 0) / 100;
-  // The "× 1.50 [crit bonus]" step on an All crits line, and the yellow note
+  // Critical Hit"). Since §12 it is +50 in the crit figures' Multi sum, so every crit figure is
+  // the normal one times critRatio = (1 + (Σ + 50) / 100) / (1 + Σ / 100) - not x1.5. The
+  // non-crit hit is unchanged.
+  const moveCritDmgMult = _out.critRatio;
+  // The "× 1.24 [crit: Multi ...]" step on an All crits line, and the yellow note
   // under the move crit bonus. Both are empty for a move without the bonus.
-  const moveCritDmgStr  = moveCritDmgMult !== 1 ? ` × ${moveCritDmgMult.toFixed(2)} <span class="dc-bonus-tag">[crit bonus]</span>` : '';
-  const moveCritDmgLine = critMult => (moveCritDmgMult > 1 && critMult !== null)
-    ? `<br><span class="dc-avg-line" style="color:#ffcc44">Crit damage bonus: +${m.critDmgBonus}% (this move only)</span>` : '';
+  const moveCritDmgStr  = moveCritDmgMult !== 1
+    ? ` × ${moveCritDmgMult.toFixed(2)} <span class="dc-bonus-tag">[crit: Multi ${fmtSignedPct(_out.pct)}% → ${fmtSignedPct(_out.critPct)}%]</span>` : '';
+  const moveCritDmgLine = critMult => (+m.critDmgBonus > 0 && critMult !== null)
+    ? `<br><span class="dc-avg-line" style="color:#ffcc44">Crit damage bonus: +${m.critDmgBonus}% into Multi on a crit (this move only)</span>` : '';
+  // "All crits: main × C [× crit bonus] [+ True Flat] = N" for a move of `hits` hits.
+  // True Flat is added after the crit, never multiplied by it.
+  const critLine = (main, critMult, hits) => {
+    const tf = trueFlat * hits;
+    const tfPart = tf ? ` + ${tf} <span class="dc-bonus-tag">[True Flat]</span>` : '';
+    return `<br><span class="dc-crit-line">All crits: <b>${main.toFixed(1)}</b> × ${critMult.toFixed(2)}x${moveCritDmgStr}${tfPart} = <b>${(main * critMult * moveCritDmgMult + tf).toFixed(1)}</b></span>`;
+  };
+  // Frosted enchant AOE (on a crit vs a Cold enemy): 10 + Flat, through the DMG
+  // BONUS toggles and team buffs (not the move's own terms, the enchant or the
+  // milestone - its inclusion before §12, kept), the statuses that used to ride
+  // those buffs (Condemned, the Sinister Gaze reflections) and the resistance.
+  const frostedAoeLine = (effType, resMult) => {
+    const terms = getActiveDmgTerms(effType, dcEnergyAfter(m));
+    const multi = { terms, pct: sumDmgTerms(terms) };
+    const mult  = Math.max(0, 1 + multi.pct / 100);
+    const { mult: gMult, label: gLabel } = getStatusMultiplier(effType, { skipBasic: true });
+    const base  = 10 + getFlatDmgBonus();
+    let v = base;
+    let s = `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): ${base}`;
+    if (mult !== 1)    { v *= mult;    s += ` × ${mult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(multi)}</span>`; }
+    if (gMult !== 1)   { v *= gMult;   s += ` × ${gMult.toFixed(2)} <span class="dc-bonus-tag">[${gLabel}]</span>`; }
+    if (resMult !== 1) { v *= resMult; s += ` × ${resMult.toFixed(2)} <span class="dc-bonus-tag">[res]</span>`; }
+    return s + ` = <b>${v.toFixed(1)}</b></span>`;
+  };
 
   // Move-specific crit chance bonus (e.g. Dark Smite +25%, or +50% with Dark Smite Proficiency lm2)
   const moveCritBonus = (() => {
@@ -4792,37 +4859,31 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
 
   // Stinger (Ranger (Or) 4th Learn): two-part attack
   // Stab: Physical, ARC/75, base 5 | Arrows: Poison, ARC/70 + SPD/80, base 10
+  // Each part takes the Multi sum of its own type: the element-gated buffs, the
+  // enchant, Blight, Blizzard and the 110 milestone of that type (STR for a
+  // Physical stab, ARC for the Poison arrows). Neither part takes Flat (as
+  // before); True Flat lands on both hits.
   if (m.name === "Stinger") {
     const _arcVal = getTotalStat('arc');
     const _spdVal = getTotalStat('spd');
-    const _enchantMult = getEnchantMult();
+    const _energyAfter = dcEnergyAfter(m);
 
     // Stab (Physical)
-    const _stabEffType  = getEffectiveMoveType("Physical");
-    const _stabRaw      = 5 * (1 + _arcVal / 75);
-    const _stabActMult  = getActiveDmgMult(_stabEffType, dcEnergyAfter(m));
-    const _stabArmPct   = getArmourDmgTypePct(_stabEffType);
-    const _stabArmMult  = 1 + _stabArmPct / 100;
-    const _stabDarkMult = getShardOfBlightMult(_stabEffType);
-    const _stabBlizMult = getBlizzardMult(_stabEffType);
-    // Each part takes the 110 milestone of its own type (STR for a Physical
-    // stab, ARC for the Poison arrows).
-    const _stabTotalMult = _stabActMult * _stabArmMult * _stabDarkMult * _stabBlizMult * _enchantMult * getMilestoneDmgMult(m, _stabEffType);
-    const _stabFinal    = _stabRaw * _stabTotalMult;
+    const _stabEffType   = getEffectiveMoveType("Physical");
+    const _stabRaw       = 5 * (1 + _arcVal / 75);
+    const _stabMulti     = getDmgMulti(m, _stabEffType, _energyAfter);
+    const _stabTotalMult = _stabMulti.mult;
+    const _stabFinal     = _stabRaw * _stabTotalMult;
 
     // Arrows (Poison)
     const _arrEffType   = getEffectiveMoveType("Poison");
     const _arrRaw       = 10 * (1 + _arcVal / 70 + _spdVal / 80);
-    const _arrActMult   = getActiveDmgMult(_arrEffType, dcEnergyAfter(m));
-    const _arrArmPct    = getArmourDmgTypePct(_arrEffType);
-    const _arrArmMult   = 1 + _arrArmPct / 100;
-    const _arrDarkMult  = getShardOfBlightMult(_arrEffType);
-    const _arrBlizMult  = getBlizzardMult(_arrEffType);
-    const _arrTotalMult = _arrActMult * _arrArmMult * _arrDarkMult * _arrBlizMult * _enchantMult * getMilestoneDmgMult(m, _arrEffType);
+    const _arrMulti     = getDmgMulti(m, _arrEffType, _energyAfter);
+    const _arrTotalMult = _arrMulti.mult;
     const _arrFinal     = _arrRaw * _arrTotalMult;
 
     let _stingFormula = `Stab (${_stabEffType}): 5(1 + ARC(${_arcVal})/75) = <b>${_stabRaw.toFixed(1)}</b>`;
-    if (_stabTotalMult > 1) _stingFormula += ` × ${_stabTotalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_stabFinal.toFixed(1)}</b>`;
+    if (_stabTotalMult !== 1) _stingFormula += ` × ${_stabTotalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_stabMulti)}</span> = <b>${_stabFinal.toFixed(1)}</b>`;
 
     // Status / boss mults on stab
     const { mult: _stabSMult, label: _stabSLabel } = getStatusMultiplier(_stabEffType);
@@ -4833,7 +4894,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const _stabFinalB = _stabFinalS * _stabBMult;
 
     _stingFormula += `<br><span class="dc-avg-line">Arrows (Poison): 10(1 + ARC(${_arcVal})/70 + SPD(${_spdVal})/80) = <b>${_arrRaw.toFixed(1)}</b>`;
-    if (_arrTotalMult > 1) _stingFormula += ` × ${_arrTotalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_arrFinal.toFixed(1)}</b>`;
+    if (_arrTotalMult !== 1) _stingFormula += ` × ${_arrTotalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_arrMulti)}</span> = <b>${_arrFinal.toFixed(1)}</b>`;
     const { mult: _arrSMult, label: _arrSLabel } = getStatusMultiplier(_arrEffType);
     if (_arrSMult !== 1) _stingFormula += ` × ${_arrSMult.toFixed(2)} <span class="dc-bonus-tag">[${_arrSLabel}]</span> = <b>${(_arrFinal * _arrSMult).toFixed(1)}</b>`;
     const _arrFinalS = _arrFinal * _arrSMult;
@@ -4843,12 +4904,12 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     _stingFormula += `</span>`;
 
     const _stingTotal = _stabFinalB + _arrFinalB;
-    _stingFormula += `<br><span class="dc-avg-line">Total: ${_stabFinalB.toFixed(1)} + ${_arrFinalB.toFixed(1)} = <b>${_stingTotal.toFixed(1)}</b></span>`;
+    _stingFormula += `<br><span class="dc-avg-line">Total: ${_stabFinalB.toFixed(1)} + ${_arrFinalB.toFixed(1)} = <b>${_stingTotal.toFixed(1)}</b>${tfStep(2, _stingTotal)}</span>`;
 
     const _stingCritMult = getCritDmgMultEffective();
     if (_stingCritMult !== null) {
-      _stingFormula += `<br><span class="dc-crit-line">All crits: <b>${_stingTotal.toFixed(1)}</b> × ${_stingCritMult.toFixed(2)}x = <b>${(_stingTotal * _stingCritMult).toFixed(1)}</b></span>`;
-      _stingFormula += buildOvercritLines(_stingTotal, _stingCritMult, getMoveCritChancePct());
+      _stingFormula += critLine(_stingTotal, _stingCritMult, 2);
+      _stingFormula += buildOvercritLines(_stingTotal, _stingCritMult, getMoveCritChancePct(), trueFlat * 2);
     }
 
     detail.innerHTML = `<div class="dc-calc">${_stingFormula}</div>`;
@@ -4861,16 +4922,8 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   }
 
   if (!scalings) {
-    const _o                = getOutsideDmgMult(m);
-    const effectiveMoveType = _o.effectiveMoveType;
-    const activeMult        = _o.activeMult;
-    const armourMult        = _o.armourMult;
-    const darkMult          = _o.darkMult;
-    const blizzardMult      = _o.blizzardMult;
-    const enchantMult       = _o.enchantMult;
-    const darkBeastMult     = _o.darkBeastMult;
-    const energyMult        = _o.energyMult;
-    const totalMult         = _o.total;
+    const effectiveMoveType = _out.effectiveMoveType;
+    const totalMult         = _out.total;
     const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[${m.moveType} → ${effectiveMoveType}]</span> ` : '';
     let formula; let currentDmg;
     // Flat damage (Crystalline Spike) lands on every hit here too: the item says
@@ -4879,10 +4932,12 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const _flat0   = getFlatDmgBonus();
     const _hit0    = baseDmgNum + _flat0;
     const _hit0Str = _flat0 ? `(${baseDmgNum} + ${_flat0})` : `${baseDmgNum}`;
-    if (totalMult > 1) {
+    // `!== 1`, not `> 1`: the Multi sum can go below zero, and hiding the step
+    // would drop a factor under 1 from the number itself.
+    if (totalMult !== 1) {
       const boosted = _hit0 * totalMult;
       currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
-      formula = `${typeTag}${_hit0Str} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult, _o.milestoneMult, m)}</span> = <b>${boosted.toFixed(1)}</b>`;
+      formula = `${typeTag}${_hit0Str} × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_out)}</span> = <b>${boosted.toFixed(1)}</b>`;
       if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(1)}</b>`;
     } else {
       currentDmg = hitCount > 1 ? _hit0 * hitCount : _hit0;
@@ -4898,52 +4953,46 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (bMult0 !== 1) formula += ` × ${bMult0.toFixed(2)} <span class="dc-bonus-tag">[${bLabel0}]</span> = <b>${(_finalDmg0 * bMult0).toFixed(1)}</b>`;
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _resFinalDmg0 = _finalDmg0 * bMult0;
+    const _tf0 = trueFlat * hitCount;
+    formula += tfStep(hitCount, _resFinalDmg0);
     const _critMult0 = getCritDmgMultEffective();
     if (hitCount > 1) {
       const _avgHit0 = _resFinalDmg0 / hitCount;
-      formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit0.toFixed(1)}</b>`;
-      if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0 * moveCritDmgMult).toFixed(1)}</b>`;
+      formula += `<br><span class="dc-avg-line">Avg per hit: <b>${(_avgHit0 + trueFlat).toFixed(1)}</b>`;
+      if (_critMult0 !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit0 * _critMult0 * moveCritDmgMult + trueFlat).toFixed(1)}</b>`;
       formula += `</span>`;
     }
-    formula += buildLifestealHealLines(_resFinalDmg0, m, _critMult0 !== null ? _critMult0 * moveCritDmgMult : null);
+    formula += buildLifestealHealLines(_resFinalDmg0, m, _critMult0 !== null ? _critMult0 * moveCritDmgMult : null, _tf0);
     if (moveCritBonus > 0 && _critMult0 !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
     formula += moveCritDmgLine(_critMult0);
-    if (_critMult0 !== null) { formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg0.toFixed(1)}</b> × ${_critMult0.toFixed(2)}x${moveCritDmgStr} = <b>${(_resFinalDmg0 * _critMult0 * moveCritDmgMult).toFixed(1)}</b></span>`; formula += draugaCritHealLine(_resFinalDmg0 * _critMult0 * moveCritDmgMult); }
-    formula += buildOvercritLines(_resFinalDmg0 * moveCritDmgMult, _critMult0, getMoveCritChancePct());
+    if (_critMult0 !== null) { formula += critLine(_resFinalDmg0, _critMult0, hitCount); formula += draugaCritHealLine(_resFinalDmg0 * _critMult0 * moveCritDmgMult + _tf0); }
+    formula += buildOvercritLines(_resFinalDmg0 * moveCritDmgMult, _critMult0, getMoveCritChancePct(), _tf0);
     if (hitCount > 1 && _critMult0 !== null) {
       const _cc0 = getMoveCritChancePct();
       if (_cc0 !== null) {
-        const _exp0 = getExpectedMoveCritDmg(_resFinalDmg0, _critMult0, _cc0, moveCritDmgMult);
+        const _exp0 = getExpectedMoveCritDmg(_resFinalDmg0, _critMult0, _cc0, moveCritDmgMult) + _tf0;
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc0.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp0.toFixed(1)}</b></span>`;
         formula += buildLifestealExpectedLine(_exp0, m);
       }
     }
+    // DeathBeak's proc is the move's base x the crit x its coefficient x your
+    // enchant, and none of the other Multi terms (its own text), as before.
     if (hasGearEquipped("DeathBeak Dagger") && _critMult0 !== null) {
       const _beakCoef0 = moveAppliesStatusEffect(m) ? 0.25 : 0.15;
-      const _beakDmgPer0 = baseDmgNum * _critMult0 * _beakCoef0 * enchantMult;
+      const _beakDmgPer0 = baseDmgNum * _critMult0 * _beakCoef0 * getEnchantMult();
       if (hitCount === 1) {
-        const _critDmg0 = _resFinalDmg0 * _critMult0 * moveCritDmgMult;
+        const _critDmg0 = _resFinalDmg0 * _critMult0 * moveCritDmgMult + _tf0;
         formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg0.toFixed(1)} + ${_beakDmgPer0.toFixed(1)} = <b>${(_critDmg0 + _beakDmgPer0).toFixed(1)}</b></span>`;
       } else {
         const _cc0b = getMoveCritChancePct();
         if (_cc0b !== null) {
-          const _exp0b = getExpectedMoveCritDmg(_resFinalDmg0, _critMult0, _cc0b, moveCritDmgMult);
+          const _exp0b = getExpectedMoveCritDmg(_resFinalDmg0, _critMult0, _cc0b, moveCritDmgMult) + _tf0;
           const _eCrits0 = hitCount * (Math.min(100, _cc0b) / 100);
           formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits0.toFixed(1)} exp. crits × ${_beakDmgPer0.toFixed(1)}): <b>${(_exp0b + _eCrits0 * _beakDmgPer0).toFixed(1)}</b></span>`;
         }
       }
     }
-    if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) {
-      const _frostAoeMult = activeMult * bMult0;
-      // Flat damage lands on the proc's base too, so it scales with the same
-      // buffs rather than being a bare 10.
-      const _frostAoeBase = 10 + getFlatDmgBonus();
-      const _frostAoe = _frostAoeBase * _frostAoeMult;
-      formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): ${_frostAoeBase}`;
-      if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
-      else formula += ` = <b>${_frostAoeBase}</b>`;
-      formula += `</span>`;
-    }
+    if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) formula += frostedAoeLine(effectiveMoveType, bMult0);
     detail.innerHTML = `<div class="dc-calc">${formula}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
@@ -4986,37 +5035,33 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   const dmgPerHit = baseDmgNum * (1 + totalContrib) + _flatDmg;
   const totalDmg  = dmgPerHit * hitCount;
 
-  // Parry Counter: no damage buffs, no crit — output raw formula and exit
+  // Parry Counter: no damage buffs, no crit — output raw formula and exit. It
+  // takes Flat, so it takes True Flat too (True Flat is not a buff).
   if (m.name === "Parry Counter") {
     const _pcScalingStr = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
     const _pcNote = `<span class="dc-bonus-tag" style="color:#777">[No dmg buffs · Cannot crit]</span>`;
     const _pcFlat = _flatDmg ? ` + ${_flatDmg}` : "";
-    detail.innerHTML = `<div class="dc-calc">${baseDmgNum}(1 + ${_pcScalingStr})${_pcFlat} = <b>${dmgPerHit.toFixed(1)}</b> ${_pcNote}</div>`;
+    detail.innerHTML = `<div class="dc-calc">${baseDmgNum}(1 + ${_pcScalingStr})${_pcFlat} = <b>${dmgPerHit.toFixed(1)}</b>${tfStep(1, dmgPerHit)} ${_pcNote}</div>`;
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
-  const _out              = getOutsideDmgMult(m);
   const effectiveMoveType = _out.effectiveMoveType;
-  const activeMult        = _out.activeMult;
-  const armourMult        = _out.armourMult;
-  const darkMult          = _out.darkMult;
-  const blizzardMult      = _out.blizzardMult;
-  const enchantMult       = _out.enchantMult;
-  const darkBeastMult     = _out.darkBeastMult;
-  const energyMult        = _out.energyMult;
   const totalMult         = _out.total;
   const typeTag           = effectiveMoveType !== m.moveType ? `<span class="dc-bonus-tag">[${m.moveType} → ${effectiveMoveType}]</span> ` : '';
   const scalingStr        = statParts.map(p => `${p.label}(${p.val})/${p.scaling}`).join(" + ");
   const flatStr = _flatDmg ? ` + ${_flatDmg} <span class="dc-bonus-tag">[flat]</span>` : "";
   let formula = `${typeTag}${baseDmgNum}(1 + ${scalingStr})${flatStr} = <b>${dmgPerHit.toFixed(1)}</b>`;
 
-  // Crucible (Citadel (Or) 1st Learn): 3-hit — hit 1 (9 base STR/65), hits 2-3 (3.6 base STR/90 + forced Vulnerable ×1.20)
+  // Crucible (Citadel (Or) 1st Learn): 3-hit — hit 1 (9 base STR/65), hits 2-3 (3.6 base STR/90 + forced Vulnerable)
+  // All three hits share the Multi sum; the forced Vulnerable on hits 2-3 is a
+  // target status. No Flat, as before; True Flat on each of the three hits.
   if (m.name === "Crucible" && superPicker.value === "Citadel (Or)") {
     const strVal  = getTotalStat('str');
     const h1Raw   = 9   * (1 + strVal / 65);
     const h23Raw  = 3.6 * (1 + strVal / 90);
+    const _vuln   = getVulnerableMult();
     const h1      = h1Raw  * totalMult;
-    const h23Vuln = h23Raw * totalMult * 1.20; // Vulnerable guaranteed from hit 1
+    const h23Vuln = h23Raw * totalMult * _vuln; // Vulnerable guaranteed from hit 1
 
     // Status mults — hits 2-3 already have Vulnerable baked in, so exclude it for their extra status calc
     const { mult: sMult, label: sLabel } = getStatusMultiplier(effectiveMoveType);
@@ -5027,32 +5072,34 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const h23Final  = h23Vuln * h23ExtraMult;
     const { mult: bMult, label: bLabel } = getBossResMult(effectiveMoveType);
     const total     = (h1Final + h23Final * 2) * bMult;
+    const _tfC      = trueFlat * 3;
 
     formula = `${typeTag}Hit 1: 9(1 + STR(${strVal})/65) = <b>${h1Raw.toFixed(1)}</b>`;
-    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult, _out.milestoneMult, m)}</span> = <b>${h1.toFixed(1)}</b>`;
+    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_out)}</span> = <b>${h1.toFixed(1)}</b>`;
     if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${h1Final.toFixed(1)}</b>`;
 
     formula += `<br><span class="dc-avg-line">Hits 2–3: 3.6(1 + STR(${strVal})/90) = <b>${h23Raw.toFixed(1)}</b>`;
-    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} = <b>${(h23Raw * totalMult).toFixed(1)}</b>`;
-    formula += ` × 1.20 <span class="dc-bonus-tag">[Vuln from hit 1]</span> = <b>${h23Vuln.toFixed(1)}</b>`;
+    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} = <b>${(h23Raw * totalMult).toFixed(1)}</b>`;
+    formula += ` × ${_vuln.toFixed(2)} <span class="dc-bonus-tag">[Vuln from hit 1]</span> = <b>${h23Vuln.toFixed(1)}</b>`;
     if (h23ExtraMult !== 1) formula += ` × ${h23ExtraMult.toFixed(2)} <span class="dc-bonus-tag">[${h23ExtraLabel}]</span> = <b>${h23Final.toFixed(1)}</b>`;
     formula += ` each</span>`;
 
     formula += `<br><span class="dc-avg-line">Total: ${h1Final.toFixed(1)} + ${h23Final.toFixed(1)} × 2 = <b>${(h1Final + h23Final * 2).toFixed(1)}</b>`;
     if (bMult !== 1) formula += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${total.toFixed(1)}</b>`;
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
+    formula += tfStep(3, total);
     formula += `</span>`;
 
     const _critMult = getCritDmgMultEffective();
-    formula += buildLifestealHealLines(total, m, _critMult);
+    formula += buildLifestealHealLines(total, m, _critMult, _tfC);
     if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
     if (_critMult !== null) {
-      formula += `<br><span class="dc-crit-line">All crits: <b>${total.toFixed(1)}</b> × ${_critMult.toFixed(2)}x = <b>${(total * _critMult).toFixed(1)}</b></span>`;
-      formula += draugaCritHealLine(total * _critMult);
-      formula += buildOvercritLines(total, _critMult, getMoveCritChancePct());
+      formula += critLine(total, _critMult, 3);
+      formula += draugaCritHealLine(total * _critMult + _tfC);
+      formula += buildOvercritLines(total, _critMult, getMoveCritChancePct(), _tfC);
       const _cc = getMoveCritChancePct();
       if (_cc !== null) {
-        const _exp = getExpectedMultiHitDmg(total, _critMult, _cc);
+        const _exp = getExpectedMultiHitDmg(total, _critMult, _cc) + _tfC;
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
         formula += buildLifestealExpectedLine(_exp, m);
       }
@@ -5061,12 +5108,13 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
-  // Discharge Proficiency (Lancer cm2): 4 hits [1.0, 0.38, 1/3, 1/3]
+  // Discharge Proficiency (Lancer cm2): 4 hits [1.0, 0.38, 1/3, 1/3] of (Base + Flat) x Multi.
+  // True Flat lands on each of the four hits, unscaled by the ratios.
   if (m.name === "Discharge" && masteryState["cm2"] && superPicker.value === "Lancer (N)") {
     const _dMults = [1.0, 0.38, 1/3, 1/3];
     const _dLabels = ["Full", "38%", "33%", "33%"];
-    const _dBase = totalMult > 1 ? dmgPerHit * totalMult : dmgPerHit;
-    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult, _out.milestoneMult, m)}</span> = <b>${_dBase.toFixed(1)}</b>`;
+    const _dBase = totalMult !== 1 ? dmgPerHit * totalMult : dmgPerHit;
+    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_out)}</span> = <b>${_dBase.toFixed(1)}</b>`;
     const _dHitStrs = _dMults.map((r, i) => `${_dLabels[i]}: <b>${(_dBase * r).toFixed(1)}</b>`);
     const _dTotal = _dMults.reduce((s, r) => s + _dBase * r, 0);
     formula += `<br><span class="dc-avg-line">4 hits — ${_dHitStrs.join(' | ')} = <b>${_dTotal.toFixed(1)}</b></span>`;
@@ -5077,17 +5125,19 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (_dbMult !== 1) formula += ` × ${_dbMult.toFixed(2)} <span class="dc-bonus-tag">[${_dbLabel}]</span> = <b>${(_dCurDmg * _dbMult).toFixed(1)}</b>`;
     else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
     const _dResFinal = _dCurDmg * _dbMult;
+    const _dTf = trueFlat * _dMults.length;
+    formula += tfStep(_dMults.length, _dResFinal);
     const _dCritMult = getCritDmgMultEffective();
-    formula += buildLifestealHealLines(_dResFinal, m, _dCritMult !== null ? _dCritMult * moveCritDmgMult : null);
+    formula += buildLifestealHealLines(_dResFinal, m, _dCritMult !== null ? _dCritMult * moveCritDmgMult : null, _dTf);
     if (_dCritMult !== null) {
       if (moveCritBonus > 0) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
       formula += moveCritDmgLine(_dCritMult);
-      formula += `<br><span class="dc-crit-line">All crits: <b>${_dResFinal.toFixed(1)}</b> × ${_dCritMult.toFixed(2)}x${moveCritDmgStr} = <b>${(_dResFinal * _dCritMult * moveCritDmgMult).toFixed(1)}</b></span>`;
-      formula += draugaCritHealLine(_dResFinal * _dCritMult * moveCritDmgMult);
-      formula += buildOvercritLines(_dResFinal * moveCritDmgMult, _dCritMult, getMoveCritChancePct());
+      formula += critLine(_dResFinal, _dCritMult, _dMults.length);
+      formula += draugaCritHealLine(_dResFinal * _dCritMult * moveCritDmgMult + _dTf);
+      formula += buildOvercritLines(_dResFinal * moveCritDmgMult, _dCritMult, getMoveCritChancePct(), _dTf);
       const _dCc = getMoveCritChancePct();
       if (_dCc !== null) {
-        const _dExp = getExpectedMoveCritDmg(_dResFinal, _dCritMult, _dCc, moveCritDmgMult);
+        const _dExp = getExpectedMoveCritDmg(_dResFinal, _dCritMult, _dCc, moveCritDmgMult) + _dTf;
         formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_dCc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_dExp.toFixed(1)}</b></span>`;
         formula += buildLifestealExpectedLine(_dExp, m);
       }
@@ -5096,10 +5146,12 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     detail.style.display = "block"; rowEl.classList.add("dc-row-open"); return;
   }
 
+  // The Multi step. `!== 1`, not `> 1`: the sum can go below zero, and hiding
+  // the step would drop a factor under 1 from the number itself.
   let currentDmg;
-  if (totalMult > 1) {
+  if (totalMult !== 1) {
     const boosted = dmgPerHit * totalMult;
-    formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(activeMult * armourMult * darkMult, energyMult, _out.milestoneMult, m)}</span> = <b>${boosted.toFixed(1)}</b>`;
+    formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_out)}</span> = <b>${boosted.toFixed(1)}</b>`;
     currentDmg = hitCount > 1 ? boosted * hitCount : boosted;
     if (hitCount > 1) formula += ` × ${hitCount} hits = <b>${currentDmg.toFixed(1)}</b>`;
   } else if (hitCount > 1) {
@@ -5109,42 +5161,6 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     currentDmg = dmgPerHit;
   }
 
-  // Blaze Proficiency (Elementalist (Or) lm2): always +15% on Blaze, +30% vs burning
-  if (m.name === "Blaze" && masteryState["lm2"] && superPicker.value === "Elementalist (Or)") {
-    const _blazeProfBase = currentDmg * 1.15;
-    formula += ` × 1.15 <span class="dc-bonus-tag">[Blaze Prof.]</span> = <b>${_blazeProfBase.toFixed(1)}</b>`;
-    const _blazeProfBurn = currentDmg * 1.30;
-    formula += `<br><span class="dc-avg-line">vs burning: × 1.30 <span class="dc-bonus-tag">[Blaze Prof.]</span> = <b>${_blazeProfBurn.toFixed(1)}</b></span>`;
-    currentDmg = _blazeProfBase;
-  }
-
-  // Blazing Barrage Proficiency (Monk (Or) lm2): +20% damage vs burning
-  if (m.name === "Blazing Barrage" && masteryState["lm2"] && superPicker.value === "Monk (Or)") {
-    const _bbProfBurn = currentDmg * 1.20;
-    formula += `<br><span class="dc-avg-line">vs burning: × 1.20 <span class="dc-bonus-tag">[BB Prof.]</span> = <b>${_bbProfBurn.toFixed(1)}</b></span>`;
-  }
-
-  // Slash Barrage (Rogue (N) 5th Learn): innate +30% damage vs bleeding enemies
-  if (m.name === "Slash Barrage") {
-    const _sbBleedDmg = currentDmg * 1.30;
-    formula += `<br><span class="dc-avg-line">vs bleeding: × 1.30 <span class="dc-bonus-tag">[Bleeding]</span> = <b>${_sbBleedDmg.toFixed(1)}</b></span>`;
-    currentDmg = _sbBleedDmg;
-  }
-
-  // Rending Barrage (Impaler (Ch) 1st Learn): extra hit (13.5 base, STR/75+ARC/75, 7.5% lifesteal) if enemy is bleeding
-  if (m.name === "Rending Barrage") {
-    const _rbExtraRaw   = 13.5 * (1 + totalContrib);
-    const _rbExtraMult  = _rbExtraRaw * totalMult;
-    const { mult: _rbSMult } = getStatusMultiplier(effectiveMoveType);
-    const { mult: _rbBMult } = getBossResMult(effectiveMoveType);
-    const _rbExtraFinal = _rbExtraMult * _rbSMult * _rbBMult;
-    const _rbLS         = _rbExtraFinal * 0.075;
-    formula += `<br><span class="dc-avg-line">vs bleeding (extra hit): 13.5(1 + ${scalingStr}) = <b>${_rbExtraRaw.toFixed(1)}</b>`;
-    if (totalMult > 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_rbExtraMult.toFixed(1)}</b>`;
-    if (_rbSMult !== 1 || _rbBMult !== 1) formula += ` → <b>${_rbExtraFinal.toFixed(1)}</b>`;
-    formula += ` + <b>${_rbLS.toFixed(1)}</b> HP LS <span class="dc-bonus-tag">[7.5%]</span></span>`;
-  }
-
   const { mult: sMult, label: sLabel } = getStatusMultiplier(effectiveMoveType);
   if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(currentDmg * sMult).toFixed(1)}</b>`;
   const _finalDmg = sMult !== 1 ? currentDmg * sMult : currentDmg;
@@ -5152,53 +5168,71 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   if (bMult !== 1) formula += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${(_finalDmg * bMult).toFixed(1)}</b>`;
   else if (selectedBoss) formula += ` <span class="dc-bonus-tag" style="color:#555">[neutral vs boss]</span>`;
   const _resFinalDmg = _finalDmg * bMult;
+  const _tf = trueFlat * hitCount;
+  formula += tfStep(hitCount, _resFinalDmg);
+
+  // The move's own "+X% vs a burning target" (Blaze +25, Blaze Proficiency's
+  // second +15, Blazing Barrage Proficiency +20) joins its Multi sum on a side
+  // line: the figure above does not assume the target is Burning (as before).
+  // Slash Barrage's +30 vs bleeding sits in the main sum, as it always applied.
+  const _burnOut = getOutsideDmgMult(m, { vsBurning: true });
+  if (_burnOut.pct !== _out.pct) {
+    const _burnMain = dmgPerHit * hitCount * _burnOut.total * sMult * bMult;
+    formula += `<br><span class="dc-avg-line">vs burning: × ${_burnOut.total.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_burnOut)}</span> → <b>${(_burnMain + _tf).toFixed(1)}</b></span>`;
+  }
+
+  // Rending Barrage (Impaler (Ch) 1st Learn): extra hit (13.5 base, STR/75+ARC/75, 7.5% lifesteal) if
+  // enemy is bleeding. The same Multi sum, statuses and resistance; no Flat and no crit, as before.
+  if (m.name === "Rending Barrage") {
+    const _rbExtraRaw   = 13.5 * (1 + totalContrib);
+    const _rbExtraMult  = _rbExtraRaw * totalMult;
+    const { mult: _rbSMult } = getStatusMultiplier(effectiveMoveType);
+    const { mult: _rbBMult } = getBossResMult(effectiveMoveType);
+    const _rbExtraFinal = _rbExtraMult * _rbSMult * _rbBMult + trueFlat;
+    const _rbLS         = _rbExtraFinal * 0.075;
+    formula += `<br><span class="dc-avg-line">vs bleeding (extra hit): 13.5(1 + ${scalingStr}) = <b>${_rbExtraRaw.toFixed(1)}</b>`;
+    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">[Multi ${fmtSignedPct(_out.pct)}%]</span> = <b>${_rbExtraMult.toFixed(1)}</b>`;
+    if (_rbSMult !== 1 || _rbBMult !== 1 || trueFlat) formula += ` → <b>${_rbExtraFinal.toFixed(1)}</b>`;
+    formula += ` + <b>${_rbLS.toFixed(1)}</b> HP LS <span class="dc-bonus-tag">[7.5%]</span></span>`;
+  }
+
   const _critMult = getCritDmgMultEffective();
   if (hitCount > 1) {
     const _avgHit = _resFinalDmg / hitCount;
-    formula += `<br><span class="dc-avg-line">Avg per hit: <b>${_avgHit.toFixed(1)}</b>`;
-    if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult * moveCritDmgMult).toFixed(1)}</b>`;
+    formula += `<br><span class="dc-avg-line">Avg per hit: <b>${(_avgHit + trueFlat).toFixed(1)}</b>`;
+    if (_critMult !== null) formula += ` &nbsp;|&nbsp; Crit avg: <b style="color:#ff4444">${(_avgHit * _critMult * moveCritDmgMult + trueFlat).toFixed(1)}</b>`;
     formula += `</span>`;
   }
-  formula += buildLifestealHealLines(_resFinalDmg, m, _critMult !== null ? _critMult * moveCritDmgMult : null);
+  formula += buildLifestealHealLines(_resFinalDmg, m, _critMult !== null ? _critMult * moveCritDmgMult : null, _tf);
   if (moveCritBonus > 0 && _critMult !== null) formula += `<br><span class="dc-avg-line" style="color:#ffcc44">Move crit bonus: +${moveCritBonus}%</span>`;
   formula += moveCritDmgLine(_critMult);
-  if (_critMult !== null) { formula += `<br><span class="dc-crit-line">All crits: <b>${_resFinalDmg.toFixed(1)}</b> × ${_critMult.toFixed(2)}x${moveCritDmgStr} = <b>${(_resFinalDmg * _critMult * moveCritDmgMult).toFixed(1)}</b></span>`; formula += draugaCritHealLine(_resFinalDmg * _critMult * moveCritDmgMult); }
+  if (_critMult !== null) { formula += critLine(_resFinalDmg, _critMult, hitCount); formula += draugaCritHealLine(_resFinalDmg * _critMult * moveCritDmgMult + _tf); }
   // A crit-only bonus multiplies every overcrit tier too, so it rides the base.
-  formula += buildOvercritLines(_resFinalDmg * moveCritDmgMult, _critMult, getMoveCritChancePct());
+  formula += buildOvercritLines(_resFinalDmg * moveCritDmgMult, _critMult, getMoveCritChancePct(), _tf);
   if (hitCount > 1 && _critMult !== null) {
     const _cc = getMoveCritChancePct();
     if (_cc !== null) {
-      const _exp = getExpectedMoveCritDmg(_resFinalDmg, _critMult, _cc, moveCritDmgMult);
+      const _exp = getExpectedMoveCritDmg(_resFinalDmg, _critMult, _cc, moveCritDmgMult) + _tf;
       formula += `<br><span class="dc-expected-line">Expected <span class="dc-expected-note">(${_cc.toFixed(0)}% crit, binomial)</span>: <b style="color:#66ddaa">${_exp.toFixed(1)}</b></span>`;
       formula += buildLifestealExpectedLine(_exp, m);
     }
   }
   if (hasGearEquipped("DeathBeak Dagger") && _critMult !== null) {
     const _beakCoef = moveAppliesStatusEffect(m) ? 0.25 : 0.15;
-    const _beakDmgPer = baseDmgNum * _critMult * _beakCoef * enchantMult;
+    const _beakDmgPer = baseDmgNum * _critMult * _beakCoef * getEnchantMult();
     if (hitCount === 1) {
-      const _critDmg = _resFinalDmg * _critMult * moveCritDmgMult;
+      const _critDmg = _resFinalDmg * _critMult * moveCritDmgMult + _tf;
       formula += `<br><span class="dc-beak-line">Crit + Beak: ${_critDmg.toFixed(1)} + ${_beakDmgPer.toFixed(1)} = <b>${(_critDmg + _beakDmgPer).toFixed(1)}</b></span>`;
     } else {
       const _ccB = getMoveCritChancePct();
       if (_ccB !== null) {
-        const _expB = getExpectedMoveCritDmg(_resFinalDmg, _critMult, _ccB, moveCritDmgMult);
+        const _expB = getExpectedMoveCritDmg(_resFinalDmg, _critMult, _ccB, moveCritDmgMult) + _tf;
         const _eCrits = hitCount * (Math.min(100, _ccB) / 100);
         formula += `<br><span class="dc-beak-line">+ Beak (${_eCrits.toFixed(1)} exp. crits × ${_beakDmgPer.toFixed(1)}): <b>${(_expB + _eCrits * _beakDmgPer).toFixed(1)}</b></span>`;
       }
     }
   }
-  if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) {
-    const _frostAoeMult = activeMult * bMult;
-    // Flat damage lands on the proc's base too, so it scales with the same
-    // buffs rather than being a bare 10.
-    const _frostAoeBase = 10 + getFlatDmgBonus();
-    const _frostAoe = _frostAoeBase * _frostAoeMult;
-    formula += `<br><span class="dc-avg-line">Frosted AOE (on crit vs Cold): ${_frostAoeBase}`;
-    if (_frostAoeMult > 1) formula += ` × ${_frostAoeMult.toFixed(2)} <span class="dc-bonus-tag">[buffs]</span> = <b>${_frostAoe.toFixed(1)}</b>`;
-    else formula += ` = <b>${_frostAoeBase}</b>`;
-    formula += `</span>`;
-  }
+  if (enchantPicker.value === 'Frosted' && enchantCondActive.frostedColdEnemy) formula += frostedAoeLine(effectiveMoveType, bMult);
 
   // Vastic Glaive bomb procs (shown when equipped and STR or ARC is highest stat)
   if (document.getElementById("weapon-main")?.value === "Vastic Glaive") {
@@ -5266,6 +5300,16 @@ function parseDmgBonus(text) {
   return null;
 }
 
+// Masteries that ADD their bonus to the row they upgrade instead of replacing
+// it (collectDmgBonusPassives' merge pass). §12 has one additive Multi bus for
+// buffs on ordinary damage, so a buff and an upgrade that both apply are two
+// terms of the sum: Shadow Master's +30 on top of Shadow Form's +20 is +50.
+// An explicit list on purpose - never read from the game text. Shadow
+// Master's text says it "stacks multiplicatively", and a /multiplicative/
+// test on that wording once turned the pair into x1.56; stale wording must
+// not flip a buff's class again.
+const MASTERY_ADDS_TO_BASE = { "Shadow Master": true };
+
 function collectDmgBonusPassives() {
   const raceName     = racePicker.value;
   const baseClass    = classPicker.value;
@@ -5298,12 +5342,12 @@ function collectDmgBonusPassives() {
   const rawEntries = [];
   const seen = new Set();
 
-  function tryAdd(name, text, kind) {
+  function tryAdd(name, text, kind, extra) {
     const bonus = parseDmgBonus(text);
     const key = kind + ":" + name;
     if (bonus !== null && !seen.has(key)) {
       seen.add(key);
-      rawEntries.push({ key, name, bonus, kind, desc: text });
+      rawEntries.push(Object.assign({ key, name, bonus, kind, desc: text }, extra || {}));
     }
   }
 
@@ -5350,7 +5394,9 @@ function collectDmgBonusPassives() {
           const name = override.upgrades || override.name || n.name;
           // Skip masteries that are move-specific modifiers handled inline in the formula builder
           const _moveSpecificMasteries = ["Blaze Proficiency", "Blazing Barrage Proficiency", "Holy Crash Proficiency"];
-          if (!_moveSpecificMasteries.includes(name)) tryAdd(name, desc, "mastery");
+          // masteryName: the node's own name, which the merge pass needs once
+          // the entry is registered under the name of the buff it upgrades.
+          if (!_moveSpecificMasteries.includes(name)) tryAdd(name, desc, "mastery", { masteryName: override.name || n.name });
         }
       });
   }
@@ -5395,7 +5441,7 @@ function collectDmgBonusPassives() {
   // as "(10% / 20% / 30%)", which no parseDmgBonus pattern reads, and it is an
   // Active without the Buff category, so it never became a toggle. The game text
   // says the buff is bugged and does not scale, so it counts as a flat 10%.
-  // Element-gated through _affinityRestricted (Magic, Fire, Ice, Hex).
+  // Element-gated through DMG_AFFINITY_GATES (Magic, Fire, Ice, Hex).
   if (hasGearEquipped("Elemental Infuser")) {
     const fstsKey = "buff:From Sky to Soul";
     if (!seen.has(fstsKey)) {
@@ -5499,7 +5545,7 @@ function collectDmgBonusPassives() {
   //
   // The headline number is what you are HOLDING, because that is what the panel
   // can show without knowing which move you are about to use. Per move,
-  // getActiveDmgMult() subtracts that move's cost, because the passive says the
+  // dmgRowPct() subtracts that move's cost, because the passive says the
   // buff is "calculated after Energy consumption of moves".
   const _corealloyNames = Object.keys((mainWeaponSeries || {}).Corealloy || {});
   if (_corealloyNames.indexOf(weaponMain) !== -1 || _corealloyNames.indexOf(weaponOff) !== -1) {
@@ -5574,8 +5620,8 @@ function collectDmgBonusPassives() {
     if (!seen.has(ssbKey)) {
       seen.add(ssbKey);
       // Per-hit proc: each hit independently has ssbProcChance% to deal +35%. Expected per-hit
-      // multiplier = 1 + 0.35·p, applied in getActiveDmgMult so multi-hit moves are handled per hit.
-      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 35 * ssbProcChance / 100, kind: "passive", desc: "On proc (dev claims ~30–40% chance, set below), your attack applies 1 Vulnerable + 1 Weakened and deals an additional 35% damage. Each hit of a multi-hit move rolls independently — the expected value (1 + 0.35 × chance) is applied per hit.", isSsb: true });
+      // bonus = 35·p %, a term of each hit's Multi sum (dmgRowPct), so multi-hit moves are handled per hit.
+      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 35 * ssbProcChance / 100, kind: "passive", desc: "On proc (dev claims ~30–40% chance, set below), your attack applies 1 Vulnerable + 1 Weakened and deals an additional 35% damage. Each hit of a multi-hit move rolls independently — the expected value (+35% × chance, added to the damage bonus sum) is applied per hit.", isSsb: true });
     }
   }
 
@@ -5612,14 +5658,19 @@ function collectDmgBonusPassives() {
           // Mastery upgrades the base entry — put it first so it's the "primary" version
           ex.kinds.unshift("mastery");
           ex.descs.unshift({ kind: "mastery", text: e.desc });
-          // A mastery whose own text says it "stacks multiplicatively" with the
-          // buff it upgrades is a SECOND multiplier, not a replacement: Shadow
-          // Master is x1.30 on top of Shadow Form's own x1.20, x1.56 in all.
-          // Reported from play - taking the higher of the two threw the x1.20
-          // away. Every other mastery keeps the higher value; it never reduces.
-          ex.bonus = /multiplicative/i.test(e.desc || '')
-            ? Math.round(((1 + ex.bonus / 100) * (1 + e.bonus / 100) - 1) * 10000) / 100
-            : Math.max(ex.bonus, e.bonus);
+          // A mastery named in MASTERY_ADDS_TO_BASE ADDS its bonus to the row it
+          // upgrades: both apply (reported from play), and §12 sums them into
+          // the Multi bus - Shadow Form +20 and Shadow Master +30 are +50. The
+          // two stay listed as separate terms. Every other upgrade replaces its
+          // row by keeping the higher value; it never reduces.
+          if (MASTERY_ADDS_TO_BASE[e.masteryName]) {
+            ex.parts = (ex.parts || [{ label: ex.name, pct: ex.bonus }]).concat({ label: e.masteryName, pct: e.bonus });
+            // The game text may still call it multiplicative; say what is counted.
+            ex.descs.push({ kind: "mastery", text: `Counted here: ${e.masteryName}'s +${e.bonus}% is added to ${ex.name}'s +${ex.bonus}% (+${ex.bonus + e.bonus}%). Since Withered Grove every damage bonus is added into one sum.` });
+            ex.bonus = ex.bonus + e.bonus;
+          } else {
+            ex.bonus = Math.max(ex.bonus, e.bonus);
+          }
         } else {
           ex.kinds.push(e.kind);
           ex.descs.push({ kind: e.kind, text: e.desc });
@@ -5669,100 +5720,146 @@ function dcEnergyAfter(m) {
   return Math.max(0, energyCount - cost);
 }
 
+// § ADDITIVE DAMAGE (Withered Grove §12)
+// The game's damage formula since Withered Grove (changelog §12, Part 2):
+//
+//   beforeDR    = (Base + Flat - Defense.Flat) * Multi * Affinity
+//   finalDamage = beforeDR * DRMultiplier + TrueFlat * TrueDR * TrueMulti
+//
+// "Multi is the additive multiplier bus: every gear, enchant, race passive or
+// buff that says '+X% damage' adds X directly into Multi instead of multiplying
+// the running total, so five different +10% sources gives you Multi = 1.5, not
+// 1.10^5." Status effects on the TARGET and crit damage stay multiplicative
+// (owner). So per hit the calculator computes
+//
+//   main = (Base + Flat) x (1 + ΣMulti / 100) x Affinity x ΠTargetStatus x Crit
+//   hit  = main + TrueFlat
+//
+// Every "+X%" is a TERM { label, pct } of that one sum. dmgRowPct prices one
+// DMG BONUS row, getActiveDmgTerms collects every switch that is on, and
+// getDmgMulti adds the per-move terms. getDmgMulti is the only place a hit's
+// sum is totalled; every damage path reads it through getOutsideDmgMult.
+// Target statuses are getStatusMultiplier, the resistance getBossResMult, the
+// crit getCritDmgMultEffective, Flat getFlatDmgBonus and TrueFlat getTrueFlatDmg.
+// Nothing the calculator models feeds TrueMulti or TrueDR, so both are 1.
+
+// Passives that only apply to specific move types (the EFFECTIVE type).
+const DMG_AFFINITY_GATES = {
+  "Affinity Mastery":  ["Holy", "Magic"],
+  "Affinity Boost":    ["Magic", "Hex"],
+  "Magically Charged": ["Fire", "Magic"],
+  "Cast Amplify":      ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"],
+  "Elemental Master":  ["Fire", "Magic", "Nature", "Dark"],
+  "Forest Charm":      ["Nature"],
+  "From Sky to Soul":  ["Magic", "Fire", "Ice", "Hex"],
+  "Element Mastery":   ["Magic", "Fire", "Nature", "Holy", "Dark", "Ice"],
+};
+
+// Metrom's Grasp's lost-scroll row. "+40% damage for DoT effects": it is shown
+// in the panel but never added to a direct hit.
+const MG_SCROLL_KEY = "scroll-mg:Metrom's Grasp";
+
+// What one DMG BONUS row adds to the Multi sum, in percent, at its current
+// stacks / counters. null when the row does not apply to this hit (an element
+// gate, a shard condition that is off). Stacks inside one row are summed,
+// never compounded (§12): Sands Of Time 20 a use, Crusher 7 a status up to 75,
+// Oppression 5 an effect up to 25, Bulk Up 20 a stack.
 // `energyAfter` is the energy remaining once the move being priced has been
 // paid for. Left null by callers that are not pricing one specific move, in
 // which case Corealloy falls back to what is currently held.
-function getActiveDmgMult(moveType = null, energyAfter = null) {
-  // Passives that only apply to specific move types
-  const _affinityRestricted = {
-    "Affinity Mastery":  ["Holy", "Magic"],
-    "Affinity Boost":    ["Magic", "Hex"],
-    "Magically Charged": ["Fire", "Magic"],
-    "Cast Amplify":      ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"],
-    "Elemental Master":  ["Fire", "Magic", "Nature", "Dark"],
-    "Forest Charm":      ["Nature"],
-    "From Sky to Soul":  ["Magic", "Fire", "Ice", "Hex"],
-    "Element Mastery":   ["Magic", "Fire", "Nature", "Holy", "Dark", "Ice"],
-  };
-  let mult = 1;
+function dmgRowPct(p, moveType = null, energyAfter = null) {
+  if (p.name === "Bloody Berserker")      return 100 - playerHpPct;
+  if (p.name === "Absolute Radiance")     return ABS_RAD_BONUSES[absRadTurn - 1];
+  if (p.name === "Bulk Up")               return 20 * bulkUpStacks;
+  if (p.name === "Verdant Archer")        return Math.min(VERDANT_ARCHER_CAP, p.bonus * verdantArcherStacks);
+  if (p.name === "Poised Slayer")         return Math.min(POISED_SLAYER_CAP, p.bonus * poisedSlayerStacks);
+  if (p.name === "Runic Shield")          return (!moveType || moveType === "Holy") ? 10 * runicShieldStacks : null;
+  if (p.name === "Energy Manipulator")    return Math.min(22.5, 3.75 * energyCount);
+  // Energy Manipulator is explicitly "based on your current energy, not the
+  // energy you had before casting a move" (its mastery text). Corealloy is the
+  // opposite - "calculated after Energy consumption" - so the two read the
+  // pool at different moments and must not share a number.
+  if (p.name === "Corealloy")             return COREALLOY_PCT_PER_ENERGY * (energyAfter != null ? energyAfter : energyCount);
+  if (p.name === "Bloodlust")             return bloodlustPct();
+  if (p.name === "Enhanced Bloodlust")    return 15 * enhancedBloodlustStacks;
+  if (p.name === "Frost Stacks")          return 10 * boreasStacks;
+  if (p.name === "Soul Reversal")         return 10 * vydeerSenseConsumed;
+  if (p.name === "Unending Flow")         return 5 * unendingFlowStacks;
+  if (p.name === "Rending Barrage")       return 2.5 * rendingBarrageStacks;
+  if (p.name === "Demonic Presence")      return 5 * demonicPresenceStacks;
+  if (p.name === "Ramizcan Idol")         return 15 * ramiIdolStacks;
+  if (p.name === "Vainglorious Locket")   return Math.max(0, 10 - 5 * (vaingLocketTurn - 1));
+  // Per-hit proc: +35% on ssbProcChance% of hits, so its expected value per hit.
+  if (p.name === "Spiked Steel Ball")     return 0.35 * ssbProcChance;
+  if (p.name === "Gold Rush")             return Math.min(20, (goldRushGold / 500) * 0.2);
+  if (p.name === "Flaming Overdrive")     return flamingOverdriveStacks;
+  if (p.name === "Spirit Awakening")      return 15; // 15% to all stats → ~15% dmg; the 50% summon buff is a separate switch
+  if (p.name === "Sands Of Time")         return 20 * hourglassStacks;
+  if (p.name === "Crusher")               return getCrusherPct();
+  if (p.name === "Lucky Horns")           return luckyHornsSpend ? 45 : 5;
+  if (p.name === "Oppression")            return Math.min(25, 5 * oppressionCount);
+  if (p.bonusType === 'per-debuff-target')    return p.perDebuffVal * shatteringDebuffCount;
+  if (p.bonusType === 'per-debuff-self')      return p.perDebuffVal * reversingDebuffCount;
+  if (p.bonusType === 'conditional-hp-above') return shardToggleActive.striking  ? p.bonus : null;
+  if (p.bonusType === 'conditional-hp-below') return shardToggleActive.executing ? p.bonus : null;
+  const _gate = DMG_AFFINITY_GATES[p.name];
+  if (_gate && moveType && !_gate.includes(moveType)) return null;
+  return p.bonus;
+}
+
+// Every switch that is on and adds to a hit's Multi sum whatever the move:
+// the DMG BONUS rows, your own Overheat, the team buffs and the Blasphemy
+// Notch. Element gates read `moveType`, the EFFECTIVE type. A row that
+// MASTERY_ADDS_TO_BASE merged (Shadow Form + Shadow Master) lists its parts.
+function getActiveDmgTerms(moveType = null, energyAfter = null) {
+  const terms = [];
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
-    let bonus = null;
-    if      (p.name === "Bloody Berserker")      bonus = 100 - playerHpPct;
-    else if (p.name === "Absolute Radiance")     bonus = ABS_RAD_BONUSES[absRadTurn - 1];
-    else if (p.name === "Bulk Up")               { mult *= (1 + 0.20 * bulkUpStacks); return; }
-    else if (p.name === "Verdant Archer")        { mult *= (1 + Math.min(VERDANT_ARCHER_CAP, p.bonus * verdantArcherStacks) / 100); return; }
-    else if (p.name === "Poised Slayer")         { mult *= (1 + Math.min(POISED_SLAYER_CAP, p.bonus * poisedSlayerStacks) / 100); return; }
-    else if (p.name === "Runic Shield")          { if (!moveType || moveType === "Holy") mult *= (1 + 0.10 * runicShieldStacks); return; }
-    else if (p.name === "Energy Manipulator")    { const _emB = Math.min(22.5, 3.75 * energyCount); if (_emB > 0) mult *= (1 + _emB / 100); return; }
-    // Energy Manipulator is explicitly "based on your current energy, not the
-    // energy you had before casting a move" (its mastery text). Corealloy is the
-    // opposite - "calculated after Energy consumption" - so the two read the
-    // pool at different moments and must not share a number.
-    else if (p.name === "Corealloy")             { const _caE = energyAfter != null ? energyAfter : energyCount;
-                                                   const _caB = COREALLOY_PCT_PER_ENERGY * _caE;
-                                                   if (_caB > 0) mult *= (1 + _caB / 100); return; }
-    else if (p.name === "Bloodlust")             { mult *= (1 + bloodlustPct() / 100); return; }
-    else if (p.name === "Enhanced Bloodlust")    { mult *= (1 + 0.15 * enhancedBloodlustStacks); return; }
-    else if (p.name === "Frost Stacks")          { mult *= (1 + 0.10 * boreasStacks); return; }
-    else if (p.name === "Soul Reversal")         { mult *= (1 + 0.10 * vydeerSenseConsumed); return; }
-    else if (p.name === "Unending Flow")               { mult *= (1 + 0.05 * unendingFlowStacks); return; }
-    else if (p.name === "Rending Barrage") { bonus = 2.5 * rendingBarrageStacks; }
-    else if (p.name === "Demonic Presence")            { bonus = 5 * demonicPresenceStacks; }
-    else if (p.name === "Ramizcan Idol")         { mult *= (1 + 0.15 * ramiIdolStacks); return; }
-    else if (p.name === "Vainglorious Locket")   { bonus = Math.max(0, 10 - 5 * (vaingLocketTurn - 1)); if (!bonus) return; }
-    else if (p.name === "Spiked Steel Ball")     { mult *= (1 + 0.35 * ssbProcChance / 100); return; } // per-hit proc expected value
-    else if (p.name === "Gold Rush")             bonus = Math.min(20, (goldRushGold / 500) * 0.2);
-    else if (p.name === "Flaming Overdrive")     bonus = flamingOverdriveStacks;
-    else if (p.name === "Spirit Awakening")     bonus = 15; // 15% to all stats → ~15% dmg; 50% summon buff handled separately
-    else if (p.name === "Sands Of Time")         { mult *= Math.pow(1.20, hourglassStacks); return; }
-    else if (p.name === "Crusher")               { mult *= getCrusherMult(); return; }
-    else if (p.name === "Lucky Horns")           { mult *= 1 + (luckyHornsSpend ? 45 : 5) / 100; return; }
-    else if (p.name === "Oppression")            { mult *= Math.pow(1.05, oppressionCount); return; }
-    else if (p.bonusType === 'per-debuff-target') bonus = p.perDebuffVal * shatteringDebuffCount;
-    else if (p.bonusType === 'per-debuff-self')   bonus = p.perDebuffVal * reversingDebuffCount;
-    else if (p.bonusType === 'conditional-hp-above') { if (shardToggleActive.striking)  bonus = p.bonus; else return; }
-    else if (p.bonusType === 'conditional-hp-below') { if (shardToggleActive.executing) bonus = p.bonus; else return; }
-    else {
-      const _restr = _affinityRestricted[p.name];
-      if (_restr && moveType && !_restr.includes(moveType)) return;
-      bonus = p.bonus;
-    }
-    if (bonus !== null) mult *= (1 + bonus / 100);
+    if (p.key === MG_SCROLL_KEY) return; // damage over time only
+    const pct = dmgRowPct(p, moveType, energyAfter);
+    if (!pct) return;
+    if (p.parts) p.parts.forEach(pt => terms.push({ label: pt.label, pct: pt.pct }));
+    else terms.push({ label: p.name, pct });
   });
-  if (statusEffectsActive.overheat) mult *= Math.pow(1.08, overheatStacks);
-  const _amplifyTypes = ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"];
+  // Overheat is a status on YOU: "+8% damage per stack", added like any buff.
+  if (statusEffectsActive.overheat) terms.push({ label: `Overheat ×${overheatStacks}`, pct: 8 * overheatStacks });
   TEAM_BUFFS.forEach(b => {
-    if (!teamBuffsActive[b.key]) return;
-    if (b.key === 'blizzard') return; // handled per-move in getBlizzardMult()
-    if ((b.key === 'castAmplify' || b.key === 'arcaneRitual') && moveType && !_amplifyTypes.includes(moveType)) return;
-    if (b.key === 'castAmplify') { mult *= Math.pow(1.20, castAmplifyStacks); return; }
+    if (!teamBuffsActive[b.key] || b.dotOnly) return;
+    if (b.key === 'blizzard') return; // Ice only: per move, in getBlizzardPct()
+    if ((b.key === 'castAmplify' || b.key === 'arcaneRitual') && moveType && !AMPLIFY_TYPES.includes(moveType)) return;
     if (b.key === 'surprisePkg' && moveType && !['Physical', 'Magic'].includes(moveType)) return;
-    mult *= b.mult;
+    terms.push(b.key === 'castAmplify'
+      ? { label: `Cast Amplify ×${castAmplifyStacks}`, pct: b.pct * castAmplifyStacks }
+      : { label: b.label, pct: b.pct });
   });
-  mult *= getCorruptionDmgMult();
-  if (summonBuffsActive.spiritAwakening) mult *= 1.50;
-  // Sinister Gaze: enemy received your Bulk Up defense debuff → they take more damage (multiplicative)
-  if (sinisterGazeReflect) {
-    const bulkUpOn = dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key]);
-    if (bulkUpOn) mult *= Math.pow(1.20, bulkUpStacks);
-  }
-  // Sinister Gaze: enemy received your Blood Eruption Prof damage debuff → they take 20% more damage
-  if (sinisterGazeBloodProf) mult *= 1.20;
-  return mult;
+  const _notch = getCorruptionDmgPct();
+  if (_notch) terms.push({ label: "Blasphemy Notch", pct: _notch });
+  return terms;
 }
 
-function getBlizzardMult(effectiveMoveType) {
-  return (teamBuffsActive.blizzard && effectiveMoveType === 'Ice') ? 1.20 : 1;
+function sumDmgTerms(terms) {
+  return terms.reduce((s, t) => s + t.pct, 0);
 }
 
-function getEnchantMult() {
+function getBlizzardPct(effectiveMoveType) {
+  return (teamBuffsActive.blizzard && effectiveMoveType === 'Ice') ? 20 : 0;
+}
+
+// The weapon enchant's damage, a term of the Multi sum (§12 names enchants).
+// Cursed: "+30% against Cursed enemies or +20% against Sundered enemies. Does
+// not stack - only the highest buff applies" (its toggles are exclusive).
+function getEnchantPct() {
   const ench = enchantPicker.value;
-  if (ench === 'Cursed'  && enchantCondActive.cursed)    return 1.30;
-  if (ench === 'Cursed'  && enchantCondActive.cursedSundered) return 1.20;
-  if (ench === 'Inferno' && enchantCondActive.inferno)   return 1.20;
-  if (ench === 'Midas'   && enchantCondActive.midasProc) return 1.15;
-  if (ench === 'Reaper'  && enchantCondActive.reaperProc) return 1 + 0.25 * enchantReaperEnemyHp / 100;
-  return 1;
+  if (ench === 'Cursed'  && enchantCondActive.cursed)         return { label: 'Cursed', pct: 30 };
+  if (ench === 'Cursed'  && enchantCondActive.cursedSundered) return { label: 'Cursed vs Sundered', pct: 20 };
+  if (ench === 'Inferno' && enchantCondActive.inferno)        return { label: 'Inferno', pct: 20 };
+  if (ench === 'Midas'   && enchantCondActive.midasProc)      return { label: 'Midas proc', pct: 15 };
+  if (ench === 'Reaper'  && enchantCondActive.reaperProc)     return { label: 'Reaper proc', pct: 25 * enchantReaperEnemyHp / 100 };
+  return { label: '', pct: 0 };
+}
+// As a multiplier: DeathBeak's proc takes the enchant alone ("your enchant",
+// none of the other terms of the sum).
+function getEnchantMult() {
+  return 1 + getEnchantPct().pct / 100;
 }
 
 // Blasphemy: "Any move costing 3+ NRG consumes the entire stack", worth
@@ -5773,15 +5870,12 @@ function notchDmgPct() {
   return cap <= 1 ? 30 : 10 + 20 * (n - 1) / (cap - 1);
 }
 
-// The damage multiplier from being in form. 1 when no form is picked, which is
-// every build that has not asked for this.
-function getCorruptionDmgMult() {
-  const form = corruptionPicker?.value;
-  if (!form) return 1;
-  let mult = 1;
-  if (form === "Blasphemy" && corruptionBuffsActive.notch)     mult *= 1 + notchDmgPct() / 100;
-  if (form === "Tyranny"   && corruptionBuffsActive.condemned) mult *= 1 + condemnedPct / 100;
-  return mult;
+// What being in form adds to the Multi sum: the Blasphemy Notch spend. 0 when
+// no form is picked, which is every build that has not asked for this.
+// Tyranny's Condemned is on the TARGET ("takes more damage from everyone"), so
+// it is a status multiplier in getStatusMultiplier, not a term here.
+function getCorruptionDmgPct() {
+  return (corruptionPicker?.value === "Blasphemy" && corruptionBuffsActive.notch) ? notchDmgPct() : 0;
 }
 
 // Heresy converts Light Force to Crit Rate 1:1 on your next attack, so it moves
@@ -6056,7 +6150,7 @@ function changeOverheatStacks(delta) {
 }
 
 function changeCrusherStacks(delta) {
-  crusherStacks = Math.min(9, Math.max(1, crusherStacks + delta));
+  crusherStacks = Math.min(CRUSHER_MAX_STACKS, Math.max(1, crusherStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6102,6 +6196,16 @@ function toggleTearBloodCrystal() {
 
 function toggleCrystallineSpikeSpend() {
   crystallineSpikeSpend = !crystallineSpikeSpend;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function toggleBloomingEyeSpend() {
+  bloomingEyeSpend = !bloomingEyeSpend;
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function toggleStealthStrikeInvisible() {
+  stealthStrikeInvisible = !stealthStrikeInvisible;
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6175,20 +6279,31 @@ function getEnergyBonusPct(move) {
   return extra * move.energyScaling.perEnergy;
 }
 
-// The bracketed tag after a move's "× N". The milestone part names the stat
-// and the type it buffs. It stays inside the brackets: tools/ai/verify.js reads
-// a ")" followed by " = N" as the per-hit figure.
-function buildBonusTag(activeMult, energyMult, milestoneMult = 1, m = null) {
-  const parts = [];
-  if (activeMult > 1) parts.push(`×${activeMult.toFixed(2)} bonus`);
-  if (energyMult > 1) parts.push(`×${energyMult.toFixed(2)} energy (${energyCount}E)`);
-  if (milestoneMult > 1) {
-    const stat = m ? getMilestoneDmgStat(getEffectiveMoveType(m.moveType, m)) : null;
-    const label = stat === "str" ? "STR 110 Physical" : stat === "arc" ? "ARC 110 magic" : "110 milestone";
-    parts.push(`${label} ×${milestoneMult.toFixed(2)}`);
-  }
-  if (!parts.length) parts.push(`×${activeMult.toFixed(2)} bonus`);
-  return `[${parts.join(", ")}]`;
+// A Multi percentage for display: 12.25 -> "12.25", 20 -> "20", 7.5 -> "7.5".
+function fmtDmgPct(v) {
+  return String(Math.round(Math.abs(v) * 100) / 100);
+}
+function fmtSignedPct(v) {
+  return (v < 0 ? "−" : "+") + fmtDmgPct(v);
+}
+
+// How many terms the bracketed tag lists before it folds the smallest into
+// "+N more". The total it prints is always the true sum.
+const DMG_TAG_MAX_TERMS = 8;
+
+// The bracketed tag after a move's "× N": the Multi sum and every term in it,
+// largest first - "[+272%: Stealth Strike +100, Cursed +30, STR 110 Physical
+// +20, …]". Nothing may sit in the total without a label here: an unnamed
+// enchant factor is how a reported line hid a x1.30. It stays inside the
+// brackets: tools/ai/verify.js reads a ")" followed by " = N" as the per-hit
+// figure. (verify.js gates its comparison on getDmgMulti's `pct` being 0.)
+function buildBonusTag(multi) {
+  const terms = (multi.terms || []).slice().sort((a, b) => Math.abs(b.pct) - Math.abs(a.pct));
+  const shown = terms.length > DMG_TAG_MAX_TERMS ? terms.slice(0, DMG_TAG_MAX_TERMS - 1) : terms;
+  const rest  = terms.slice(shown.length);
+  const parts = shown.map(t => `${t.label} ${fmtSignedPct(t.pct)}`);
+  if (rest.length) parts.push(`${rest.length} more ${fmtSignedPct(sumDmgTerms(rest))}`);
+  return `[${fmtSignedPct(multi.pct)}%${parts.length ? ": " + parts.join(", ") : ""}]`;
 }
 
 // § STAT MILESTONE DAMAGE
@@ -6207,43 +6322,100 @@ function getMilestoneDmgStat(moveType) {
 // A summon's attack, not yours: every summon slot, including Heaven's
 // Authority's "Sheea (...)" rows and Self Destruct (which carries its summon's
 // slot). isSummonMove also matches Arbiter's "Base Move" slot (Strike, Daze),
-// and those are the player's own moves. Shared by the milestone perk and the
-// element conversions, so the two cannot disagree about what a summon is.
+// and those are the player's own moves. Shared by the milestone perk, the
+// element conversions and Spirit Awakening, so they cannot disagree about
+// what a summon is.
 function isSummonAttack(m) {
   if (!m) return false;
   return isSummonMove(m) && !/^Base Move$/i.test(String(m.slot || "").trim());
 }
-// `moveType` lets a two-part move (Stinger) price each part by its own type.
-function getMilestoneDmgMult(m, moveType) {
-  if (!m || isSummonAttack(m)) return 1;
+// The perk as a Multi term: 20 or 0. `moveType` lets a two-part move (Stinger)
+// price each part by its own type.
+function getMilestoneDmgPct(m, moveType) {
+  if (!m || isSummonAttack(m)) return 0;
   const stat = getMilestoneDmgStat(moveType || getEffectiveMoveType(m.moveType, m));
-  return getTotalStat(stat) >= STAT_MILESTONE_TIERS[2] ? 1 + MILESTONE_DMG_PCT / 100 : 1;
+  return getTotalStat(stat) >= STAT_MILESTONE_TIERS[2] ? MILESTONE_DMG_PCT : 0;
+}
+function milestoneDmgLabel(m, moveType) {
+  const stat = getMilestoneDmgStat(moveType || getEffectiveMoveType(m.moveType, m));
+  return stat === "str" ? "STR 110 Physical" : "ARC 110 magic";
 }
 
-// Every multiplier that reaches a move from OUTSIDE its own damage formula:
-// the DMG BONUS toggles, energy scaling, armour damage-type %, Shard of Blight,
-// Blizzard, the enchant, Dark Cores and the STR / ARC 110 damage milestones.
+// A move's own "+X% damage" joins that move's Multi sum instead of multiplying
+// the total after it (§12), each on exactly the condition it had before:
+// - Blaze Proficiency (Elementalist lm2): +15 always; its "+30% vs burning"
+//   is the other +15, priced with the burning figures;
+// - Blaze +25 vs burning, Blazing Barrage Proficiency (Monk lm2) +20 vs
+//   burning: only on the side line that prices a burning target
+//   (opts.vsBurning); the main figure does not assume Burning;
+// - Slash Barrage +30 vs bleeding: always, as it always applied (the figure
+//   assumes a bleeding target, and the label says so).
+function getMoveInnateTerms(m, opts) {
+  const terms = [];
+  const vsBurning = !!(opts && opts.vsBurning);
+  const sc = superPicker.value;
+  if (m.name === "Blaze") {
+    if (masteryState["lm2"] && sc === "Elementalist (Or)") terms.push({ label: "Blaze Prof.", pct: vsBurning ? 30 : 15 });
+    if (vsBurning) terms.push({ label: "Blaze vs burning", pct: 25 });
+  }
+  if (vsBurning && m.name === "Blazing Barrage" && masteryState["lm2"] && sc === "Monk (Or)") {
+    terms.push({ label: "BB Prof. vs burning", pct: 20 });
+  }
+  if (m.name === "Slash Barrage") terms.push({ label: "Slash Barrage vs bleeding", pct: 30 });
+  return terms;
+}
+
+// THE Multi sum of one hit (§12): { pct, terms: [{ label, pct }], mult }.
+// `effType` is the effective type the hit deals (a two-part move passes each
+// part's own); `energyAfter` the energy left once the move is paid for;
+// `isCrit` adds the move's crit-only terms (Empowered Pierce: +50 on a
+// Critical Hit). `mult` = 1 + pct / 100, clamped at 0: One For All-style
+// negatives can pull it under 1, never below nothing.
+function getDmgMulti(m, effType, energyAfter, isCrit = false, opts = null) {
+  const terms = getActiveDmgTerms(effType, energyAfter);
+  const add = (label, pct) => { if (pct) terms.push({ label, pct }); };
+  if (m) {
+    // Energy-scaling moves (Carnage, Lightning Crash): the per-energy % is a term.
+    add(`energy ${energyCount}E`, getEnergyBonusPct(m));
+    // Darkbeast's Dark Cores: +5% a core, +50% more at 6. That summon's kit only.
+    if (m.slot === "Darkbeast" && darkCoreCount > 0) {
+      add(`Dark Cores ×${darkCoreCount}`, 5 * darkCoreCount + (darkCoreCount >= 6 ? 50 : 0));
+    }
+    // Spirit Awakening: "+50% damage buff to summons" - a summon's attack only.
+    if (summonBuffsActive.spiritAwakening && isSummonAttack(m)) add("Spirit Awakening", 50);
+    add(milestoneDmgLabel(m, effType), getMilestoneDmgPct(m, effType));
+    getMoveInnateTerms(m, opts).forEach(t => add(t.label, t.pct));
+    // Stealth Strike: "Increases damage dealt by 100% if invisible while
+    // attacking" - +100 in this move's sum, never a doubled base.
+    if (m.name === "Stealth Strike" && stealthStrikeInvisible) add("Stealth Strike", 100);
+    if (isCrit && +m.critDmgBonus) add(`${m.name} on a crit`, +m.critDmgBonus);
+  }
+  add("Shard of Blight", getShardOfBlightPct(effType));
+  add("Blizzard", getBlizzardPct(effType));
+  const _ench = getEnchantPct();
+  add(_ench.label, _ench.pct);
+  const pct = sumDmgTerms(terms);
+  return { pct, terms, mult: Math.max(0, 1 + pct / 100) };
+}
+
+// A move's Multi sum as the damage paths read it: the move's effective type and
+// the energy it leaves, plus the crit-only sum when the move has one. `total`
+// is the factor on (Base + Flat); `critRatio` = crit sum / normal sum carries a
+// crit-only term onto every crit figure (crit, overcrit tiers, the crit share
+// of the expectation). `opts.vsBurning` prices a burning target.
 //
-// Extracted so Self Destruct can apply the same set. It used to apply none of
-// them - it printed its base number and stopped - and re-listing the chain at a
-// second call site is exactly how the Fractured rule drifted.
-function getOutsideDmgMult(m) {
+// Extracted so Self Destruct gets the same sum as every other move. It used to
+// apply none of them - it printed its base number and stopped - and re-listing
+// the chain at a second call site is exactly how the Fractured rule drifted.
+function getOutsideDmgMult(m, opts = null) {
   const effectiveMoveType = getEffectiveMoveType(m.moveType, m);
-  const activeMult    = getActiveDmgMult(effectiveMoveType, dcEnergyAfter(m));
-  const energyMult    = 1 + getEnergyBonusPct(m) / 100;
-  const armourMult    = 1 + getArmourDmgTypePct(effectiveMoveType) / 100;
-  const darkMult      = getShardOfBlightMult(effectiveMoveType);
-  const blizzardMult  = getBlizzardMult(effectiveMoveType);
-  const enchantMult   = getEnchantMult();
-  const darkBeastMult = (m.slot === "Darkbeast" && darkCoreCount > 0)
-    ? 1 + 0.05 * darkCoreCount + (darkCoreCount >= 6 ? 0.5 : 0)
-    : 1;
-  const milestoneMult = getMilestoneDmgMult(m);
+  const energyAfter = dcEnergyAfter(m);
+  const multi = getDmgMulti(m, effectiveMoveType, energyAfter, false, opts);
+  const crit  = +m.critDmgBonus ? getDmgMulti(m, effectiveMoveType, energyAfter, true, opts) : multi;
   return {
-    effectiveMoveType, activeMult, energyMult, armourMult,
-    darkMult, blizzardMult, enchantMult, darkBeastMult, milestoneMult,
-    total: activeMult * energyMult * armourMult * darkMult *
-           blizzardMult * enchantMult * darkBeastMult * milestoneMult,
+    effectiveMoveType, pct: multi.pct, terms: multi.terms, total: multi.mult,
+    critPct: crit.pct, critTotal: crit.mult,
+    critRatio: multi.mult > 0 ? crit.mult / multi.mult : 1,
   };
 }
 
@@ -6255,7 +6427,8 @@ function selfDestructBase(hpPct) {
 }
 
 // Redraw one Self Destruct box. Reads the slider, runs the base through the
-// same chain every other move gets, and shows the working.
+// same sum every other move gets, and shows the working. The summon's blast
+// takes no Flat, so no True Flat either.
 function renderSelfDestruct(slider) {
   const box = slider.closest(".sd-box");
   if (!box) return;
@@ -6283,7 +6456,7 @@ function renderSelfDestruct(slider) {
   let html = `${typeTag}<b>${base.toFixed(1)}</b>`;
   if (out.total !== 1) {
     html += ` &times; ${out.total.toFixed(2)} <span class="dc-bonus-tag">` +
-            `${buildBonusTag(out.activeMult, out.energyMult, out.milestoneMult, m)}</span> = <b>${afterBonus.toFixed(1)}</b>`;
+            `${buildBonusTag(out)}</span> = <b>${afterBonus.toFixed(1)}</b>`;
   }
   if (sMult !== 1) {
     html += `<br>&times; ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span>` +
@@ -6306,15 +6479,36 @@ function refreshSelfDestructBoxes() {
   document.querySelectorAll(".sd-box input[type=range]").forEach(renderSelfDestruct);
 }
 
+// The target's statuses: damage-TAKEN amplifiers on the enemy, which stay
+// multiplicative under §12 (owner) - with each other and with the Multi sum.
+// Vulnerable (x1.25 with Brawler's Crusher), Hexed, Fractured (Physical/Magic),
+// Tyranny's Condemned and the two Sinister Gaze reflections. Bulk Up's
+// reflected defence debuff compounds, 1.2^n: its own text says "Defense
+// decrease is multiplicative".
+// `skipBasic` leaves out Vulnerable, Hexed and Fractured: the Frosted AOE only
+// ever took the statuses that used to ride the buff product.
 function getStatusMultiplier(moveType, opts) {
   const skipVulnerable = !!(opts && opts.skipVulnerable);
+  const skipBasic = !!(opts && opts.skipBasic);
   let mult = 1;
   const labels = [];
-  if (!skipVulnerable && statusEffectsActive.vulnerable) { mult *= 1.20; labels.push("Vuln ×1.20"); }
-  if (statusEffectsActive.hexed)      { mult *= 2.00; labels.push("Hexed ×2"); }
-  if (statusEffectsActive.fractured && (moveType === "Physical" || moveType === "Magic")) {
+  if (!skipBasic && !skipVulnerable && statusEffectsActive.vulnerable) {
+    const v = getVulnerableMult(); mult *= v; labels.push(`Vuln ×${v.toFixed(2)}`);
+  }
+  if (!skipBasic && statusEffectsActive.hexed) { mult *= 2.00; labels.push("Hexed ×2"); }
+  if (!skipBasic && statusEffectsActive.fractured && (moveType === "Physical" || moveType === "Magic")) {
     mult *= 1.35; labels.push("Frac ×1.35");
   }
+  // Tyranny: Condemned makes the target "take more damage from everyone".
+  if (corruptionPicker?.value === "Tyranny" && corruptionBuffsActive.condemned) {
+    const c = 1 + condemnedPct / 100; mult *= c; labels.push(`Condemned ×${c.toFixed(2)}`);
+  }
+  // Sinister Gaze: the enemy received your Bulk Up defence debuff(s).
+  if (sinisterGazeReflect && dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key])) {
+    const g = Math.pow(1.20, bulkUpStacks); mult *= g; labels.push(`Gaze: Bulk Up ×${g.toFixed(2)}`);
+  }
+  // Sinister Gaze: the enemy received your Blood Eruption Prof damage debuff.
+  if (sinisterGazeBloodProf) { mult *= 1.20; labels.push("Gaze: Blood Eruption ×1.20"); }
   return { mult, label: labels.join(", ") };
 }
 
@@ -6335,7 +6529,7 @@ function setPlayerHp(val) {
   if (valEl) valEl.textContent = val + "%";
   // Update the Bloody Berserker bonus display live
   const bersEl = document.querySelector(".dc-bonus-row[data-bloody-bers] .dc-bonus-pct");
-  if (bersEl) bersEl.textContent = `×${(1 + (100 - playerHpPct) / 100).toFixed(2)}`;
+  if (bersEl) bersEl.textContent = `+${100 - playerHpPct}%`;
   updatePecents(); recalcOpenDetails();
 }
 
@@ -6425,6 +6619,27 @@ function renderDmgBonusSection() {
     crystallineSpikeSpend = false;
   }
 
+  // Blooming Eye: True Flat damage, added to each hit after everything else.
+  if (hasGearEquipped("Blooming Eye")) {
+    html += `<div class="dc-energy-section" title="True Flat damage skips every multiplier - the Multi sum, resistance, target statuses and crits - and is added to each hit last.">
+      <span class="dc-energy-label">Blooming Eye <span style="color:#aaa;font-size:11px">(spend 100 Corrupt Power: +5 &rarr; +35 True Flat dmg)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${bloomingEyeSpend ? " dc-bonus-on" : ""}" onclick="toggleBloomingEyeSpend()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${bloomingEyeSpend ? "✓" : ""}</div>
+    </div>`;
+  } else if (bloomingEyeSpend) {
+    bloomingEyeSpend = false;
+  }
+
+  // Stealth Strike from Invisible: +100 in that move's Multi sum only. Shown
+  // while the build has the move; the switch is cleared the moment it does not.
+  if (dmgCalcMoveList.some(m => m.name === "Stealth Strike")) {
+    html += `<div class="dc-energy-section" data-stealth-strike title="Stealth Strike: &quot;Increases damage dealt by 100% if invisible while attacking.&quot; Adds +100% to Stealth Strike's damage bonus only - it is added to the sum, not a doubled base. Invisibility's own +20% (and Shadow Master's +30%) comes from the Shadow Form row, with its +20% crit chance.">
+      <span class="dc-energy-label">Stealth Strike from Invisible <span style="color:#aaa;font-size:11px">+100% (Stealth Strike)</span></span>
+      <div class="dc-bonus-check dc-toggle-btn${stealthStrikeInvisible ? " dc-bonus-on" : ""}" onclick="toggleStealthStrikeInvisible()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${stealthStrikeInvisible ? "✓" : ""}</div>
+    </div>`;
+  } else if (stealthStrikeInvisible) {
+    stealthStrikeInvisible = false;
+  }
+
   if (hasGearEquipped("Ages Pages")) {
     html += `<div class="dc-energy-section">
       <span class="dc-energy-label">Ages Pages <span style="color:#aaa;font-size:11px">(spend 50 Corrupt Power: +5 &rarr; +35 crit)</span></span>
@@ -6449,6 +6664,7 @@ function renderDmgBonusSection() {
   dmgBonusPassives.forEach(p => { if (!(p.key in dmgBonusActive)) dmgBonusActive[p.key] = false; });
 
   html += `<h3 class="dc-bonus-title">Dmg Bonus</h3>
+    <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">Damage bonuses add into one sum (Withered Grove): +10% and +20% make +30%. Target statuses and crits still multiply.</div>
     <input type="text" id="dmg-bonus-search" class="dc-bonus-search" placeholder="Search..." value="${_dmgBonusFilter.replace(/"/g, "&quot;")}">
     <div class="dc-bonus-list">`;
 
@@ -6464,14 +6680,17 @@ function renderDmgBonusSection() {
 
   function renderBonusEntry(p, fullIdx) {
     if (_dmgBonusFilter && !p.name.toLowerCase().includes(_dmgBonusFilter)) return;
+    // Metrom's Grasp (lost scroll) is "+40% damage for DoT effects": listed, but
+    // never added to a direct hit.
+    const isMetrom = p.key === MG_SCROLL_KEY;
     // MG passive locked when team buff MG is active
-    if (p.key === "scroll-mg:Metrom's Grasp" && teamBuffsActive.mg) {
+    if (isMetrom && teamBuffsActive.mg) {
       const badges = (p.kinds || [p.kind]).map(kindBadge).join("");
       html += `<div class="dc-bonus-row" style="opacity:0.4;cursor:not-allowed" data-mg-locked title="Locked — team buff MG is active">
         <div class="dc-bonus-check"></div>
         <span class="dc-bonus-name">${p.name} <span style="font-size:11px">(team buff active)</span></span>
         <span class="dc-bonus-badges">${badges}</span>
-        <span class="dc-bonus-pct">×1.40</span>
+        <span class="dc-bonus-pct">+40% <span style="color:#888;font-size:11px">DoT only</span></span>
       </div>`;
       return;
     }
@@ -6487,7 +6706,6 @@ function renderDmgBonusSection() {
     const isSoulReversal      = p.name === "Soul Reversal";
     const isCrusher         = p.name === "Crusher";
     const isFlamingOverdrive  = p.name === "Flaming Overdrive";
-    const isSpiritAwakening   = p.name === "Spirit Awakening";
     const isRamiIdol          = p.name === "Ramizcan Idol";
     const isVaingLocket       = p.name === "Vainglorious Locket";
     const isStellianCore      = p.name === "Stellian Core";
@@ -6506,50 +6724,25 @@ function renderDmgBonusSection() {
     const isLooter            = p.name === "Looter";
     const isKarmaStacks       = p.name === "Karma Stacks";
     const isGoldRush          = p.name === "Gold Rush";
-    const displayBonus   = isBloodyBers      ? 100 - playerHpPct
-                         : isAbsRad          ? ABS_RAD_BONUSES[absRadTurn - 1]
-                         : isHourglass       ? hourglassStacks * 20
-                         : isOppression      ? oppressionCount * 5
-                         : isCrusher         ? Math.round((getCrusherMult() - 1) * 100)
-                         : isBoreas          ? boreasStacks * 10
-                         : isSoulReversal    ? vydeerSenseConsumed * 10
-                         : isFlamingOverdrive? flamingOverdriveStacks
-                         : isSpiritAwakening ? 15
-                         : isVaingLocket     ? Math.max(0, 10 - 5 * (vaingLocketTurn - 1))
-                         : isVerdantArcher    ? Math.min(VERDANT_ARCHER_CAP, p.bonus * verdantArcherStacks)
-                         : isPoisedSlayer     ? Math.min(POISED_SLAYER_CAP, p.bonus * poisedSlayerStacks)
-                         : isRunicShield      ? 10 * runicShieldStacks
-                         : isBloodlust        ? bloodlustPct()
-                         : isEnhancedBloodlust ? 15 * enhancedBloodlustStacks
-                         : isEnergyManipulator ? Math.min(22.5, 3.75 * energyCount)
-                         : p.bonusType === 'per-debuff-target' ? (p.perDebuffVal ?? p.bonus) * shatteringDebuffCount
-                         : p.bonusType === 'per-debuff-self'   ? (p.perDebuffVal ?? p.bonus) * reversingDebuffCount
-                         : isGoldRush        ? Math.min(20, (goldRushGold / 500) * 0.2)
-                         : isLuckyHorns      ? (luckyHornsSpend ? 45 : 5)
-                         : p.bonus;
+    // What the row adds to a hit's Multi sum, read from the same dmgRowPct the
+    // damage paths use, so the panel and the workings cannot disagree. Every
+    // one of these is a percentage added to the sum (§12), so it prints as
+    // "+X%", not "×1.X". A shard whose condition is off still shows its value.
+    const _rowPct = (p.bonusType === 'conditional-hp-above' || p.bonusType === 'conditional-hp-below')
+      ? p.bonus : (dmgRowPct(p) || 0);
+    const _pctStr = v => `${fmtSignedPct(v)}%`;
+    const _note   = s => ` <span style="color:#888;font-size:11px">${s}</span>`;
     const displayBonusStr = isLooter           ? `+${(looterStacks * 15.75).toFixed(2)}% LCK · +${looterStacks * 20}% SPD`
-                         : isEnergyManipulator ? `×${(1 + Math.min(22.5, 3.75 * energyCount) / 100).toFixed(4).replace(/\.?0+$/, '')}`
-                         : isBloodlust        ? `×${(1 + bloodlustPct() / 100).toFixed(2)}${bloodlustRage ? ' <span style="color:#e08060;font-size:11px">[Rage]</span>' : ''}`
-                         : isEnhancedBloodlust ? `×${(1 + 0.15 * enhancedBloodlustStacks).toFixed(2)} · +${15 * enhancedBloodlustStacks}% SPD`
-                         : isRunicShield      ? `×${(1 + 0.10 * runicShieldStacks).toFixed(2)} <span style="color:#888;font-size:11px">[Holy]</span>`
-                         : isVerdantArcher    ? `×${(1 + Math.min(VERDANT_ARCHER_CAP, p.bonus * verdantArcherStacks) / 100).toFixed(2)}`
-                         : isPoisedSlayer     ? `×${(1 + Math.min(POISED_SLAYER_CAP, p.bonus * poisedSlayerStacks) / 100).toFixed(2)}`
-                         : isBulkUp          ? `×${(1 + 0.20 * bulkUpStacks).toFixed(2)}`
-                         : isBoreas           ? `×${(1 + 0.10 * boreasStacks).toFixed(2)}`
-                         : isSoulReversal     ? `×${(1 + 0.10 * vydeerSenseConsumed).toFixed(2)}`
-                         : isHourglass        ? `×${Math.pow(1.20, hourglassStacks).toFixed(2)}`
-                         : isOppression       ? `×${Math.pow(1.05, oppressionCount).toFixed(2)}`
-                         : isCrusher          ? `×${getCrusherMult().toFixed(2)}${Math.pow(1.07, crusherStacks) > 1.75 ? ' <span style="color:#888;font-size:11px">(cap)</span>' : ''}`
-                         : isRamiIdol         ? `×${(1 + 0.15 * ramiIdolStacks).toFixed(2)}`
-                         : isUnendingFlow     ? `×${(1 + 0.05 * unendingFlowStacks).toFixed(2)}`
-                         : isRendingBarrage   ? `×${(1 + 0.025 * rendingBarrageStacks).toFixed(3)}`
-                         : isDemonicPresence  ? `×${(1 + 0.05 * demonicPresenceStacks).toFixed(2)}`
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
-                         : isSsb              ? `×${(1 + 0.35 * ssbProcChance / 100).toFixed(3)} <span style="color:#888;font-size:11px">(${ssbProcChance}% proc)</span>`
                          : isKarmaStacks      ? `${karmaStacks} stacks`
-                         : isGoldRush        ? `×${(1 + Math.min(20, (goldRushGold / 500) * 0.2) / 100).toFixed(4).replace(/\.?0+$/, '')}`
                          : isVydeerCritBuildup ? `+${(vydeerCritStacks * 1.5).toFixed(1)}% Crit`
-                         : `×${(1 + displayBonus / 100).toFixed(2)}`;
+                         : isMetrom           ? `+40%${_note('DoT only')}`
+                         : isBloodlust        ? `${_pctStr(_rowPct)}${bloodlustRage ? ' <span style="color:#e08060;font-size:11px">[Rage]</span>' : ''}`
+                         : isEnhancedBloodlust ? `${_pctStr(_rowPct)} · +${15 * enhancedBloodlustStacks}% SPD`
+                         : isRunicShield      ? `${_pctStr(_rowPct)}${_note('[Holy]')}`
+                         : isCrusher          ? `${_pctStr(_rowPct)}${7 * crusherStacks > CRUSHER_CAP_PCT ? _note('(cap)') : ''}`
+                         : isSsb              ? `${_pctStr(_rowPct)}${_note(`(${ssbProcChance}% proc)`)}`
+                         : _pctStr(_rowPct);
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isBloodyBers ? ' data-bloody-bers' : ''}>
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
@@ -6557,6 +6750,9 @@ function renderDmgBonusSection() {
       <span class="dc-bonus-badges">${badges}</span>
       <span class="dc-bonus-pct">${displayBonusStr}</span>
     </div>`;
+    if (isMetrom) {
+      html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">Damage over time only: it does not raise a direct hit, so no damage working adds it.</div>`;
+    }
     if (isStellianCore) {
       const _scHpOk = playerHpPct >= 95;
       html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">Also grants <span style="color:${_scHpOk ? '#e0c97a' : '#666'}">+15% Crit chance</span> ${_scHpOk ? '(active — HP ≥ 95%)' : `(inactive — HP ${playerHpPct}% < 95%)`}</div>`;
@@ -6573,7 +6769,7 @@ function renderDmgBonusSection() {
     }
     if (isSsb) {
       const _p = ssbProcChance / 100;
-      const _expMult = 1 + 0.35 * _p;
+      const _expPct = 35 * _p;
       // Per-hit proc stats for a sample 2- and 3-hit move (P(≥1 proc) = 1-(1-p)^n)
       const _atLeast = n => (1 - Math.pow(1 - _p, n)) * 100;
       html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
@@ -6586,7 +6782,7 @@ function renderDmgBonusSection() {
       </div>
       <div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;line-height:1.5">
         On proc the hit deals a fixed <span style="color:#e0c97a">+35% damage</span> (only the chance above is adjustable).<br>
-        Each hit rolls independently → expected <span style="color:#e0c97a">×${_expMult.toFixed(3)}</span> per hit (applied to every hit of a move).<br>
+        Each hit rolls independently → expected <span style="color:#e0c97a">+${fmtDmgPct(_expPct)}%</span> per hit, added to the damage bonus sum (applied to every hit of a move).<br>
         Chance of ≥1 proc: 2-hit <span style="color:#e0c97a">${_atLeast(2).toFixed(0)}%</span> · 3-hit <span style="color:#e0c97a">${_atLeast(3).toFixed(0)}%</span> · expected procs on N hits = N × ${(_p).toFixed(2)}.
       </div>`;
     }
@@ -6881,12 +7077,15 @@ function renderDmgBonusSection() {
   // --- Status Effects (always shown) ---
   const hasYarthul = ["gear-1","gear-2","gear-3","gear-4"].some(id => document.getElementById(id)?.value === "Yar'thul's Wrath");
   if (!hasYarthul && statusEffectsActive.overheat) { statusEffectsActive.overheat = false; }
+  // The target's statuses multiply the hit (§12 keeps them multiplicative);
+  // Overheat is a status on YOU, so its damage is a "+X%" term of the sum.
+  const _vulnMult = getVulnerableMult();
   const statusDefs = [
-    { key: "vulnerable", label: "Vulnerable",  tag: "×1.20",            desc: "Afflicted unit takes 20% more damage." },
+    { key: "vulnerable", label: "Vulnerable",  tag: `×${_vulnMult.toFixed(2)}${_vulnMult !== 1.20 ? " (Crusher)" : ""}`, desc: _vulnMult !== 1.20 ? "Afflicted unit takes 20% more damage - 25% from you, with Crusher." : "Afflicted unit takes 20% more damage." },
     { key: "hexed",      label: "Hexed",        tag: "×2.00",            desc: "Incoming attack(s) deal double damage, removing one stack per hit." },
     { key: "sundered",   label: "Sundered",     tag: "ignores resist",   desc: "Afflicted unit's incoming attacks ignore resistances." },
     { key: "fractured",  label: "Fractured",    tag: "×1.35 Phys/Magic", desc: "Afflicted unit takes 35%+ Physical/Magic damage." },
-    ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `×${Math.pow(1.08, overheatStacks).toFixed(2)} dmg, +${overheatStacks * 7.5}% spd`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks." }] : []),
+    ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `+${8 * overheatStacks}% dmg, +${overheatStacks * 7.5}% spd`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks. A status on you: its damage is added to the damage bonus sum, 8% a stack." }] : []),
   ];
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Status Effects</h3><div class="dc-bonus-list">`;
   statusDefs.forEach(s => {
@@ -6929,13 +7128,14 @@ function renderDmgBonusSection() {
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">`;
     _enchTogs.forEach(tog => {
       const on = enchantCondActive[tog.key];
-      const multVal = tog.key === 'reaperProc'
-        ? (1 + 0.25 * enchantReaperEnemyHp / 100).toFixed(2)
-        : tog.key === 'cursed' ? '1.30' : tog.key === 'cursedSundered' ? '1.20' : tog.key === 'inferno' ? '1.20' : '1.15';
+      // What the enchant adds to the damage bonus sum (getEnchantPct).
+      const pctVal = tog.key === 'reaperProc' ? `+${fmtDmgPct(25 * enchantReaperEnemyHp / 100)}%`
+        : tog.key === 'cursed' ? '+30%' : tog.key === 'cursedSundered' ? '+20%' : tog.key === 'inferno' ? '+20%'
+        : tog.key === 'midasProc' ? '+15%' : 'AOE';
       html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-ench-key="${tog.key}" title="${tog.desc}">
         <div class="dc-bonus-check">${on ? "✓" : ""}</div>
         <span class="dc-bonus-name">${tog.label}</span>
-        <span class="dc-bonus-pct">×${multVal}</span>
+        <span class="dc-bonus-pct">${pctVal}</span>
       </div>`;
       if (tog.key === 'reaperProc') {
         html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
@@ -7148,9 +7348,14 @@ function renderDmgBonusSection() {
   }
 
   // --- Team Buffs (always shown) ---
-  const _mgPassiveActive = !!dmgBonusActive["scroll-mg:Metrom's Grasp"];
+  // Each is a "+X%" term of the damage bonus sum (§12); MG is DoT only.
+  const _mgPassiveActive = !!dmgBonusActive[MG_SCROLL_KEY];
   // If MG passive is active, ensure team buff MG stays off (and vice versa)
   if (_mgPassiveActive && teamBuffsActive.mg) { teamBuffsActive.mg = false; }
+  const _teamPctStr = b => b.dotOnly ? `+${b.pct}% <span style="color:#888;font-size:11px">DoT only</span>`
+    : b.key === 'castAmplify' ? `+${b.pct * castAmplifyStacks}%`
+    : b.key === 'blizzard' ? `+${b.pct}% <span style="color:#888;font-size:11px">Ice</span>`
+    : `+${b.pct}%`;
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Team Buffs</h3><div class="dc-bonus-list">`;
   TEAM_BUFFS.forEach(b => {
     const blockedByPassive = b.key === 'mg' && _mgPassiveActive;
@@ -7158,16 +7363,15 @@ function renderDmgBonusSection() {
       html += `<div class="dc-bonus-row" style="opacity:0.4;cursor:not-allowed" title="Locked — your scroll is already active">
         <div class="dc-bonus-check"></div>
         <span class="dc-bonus-name">${b.label} <span style="font-size:11px">(scroll active)</span></span>
-        <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+        <span class="dc-bonus-pct">${_teamPctStr(b)}</span>
       </div>`;
       return;
     }
     const on = teamBuffsActive[b.key];
-    const dispMult = b.key === 'castAmplify' ? Math.pow(1.20, castAmplifyStacks).toFixed(2) : b.mult.toFixed(2);
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-team-key="${b.key}" title="${b.desc}">
       <div class="dc-bonus-check">${on ? "✓" : ""}</div>
       <span class="dc-bonus-name">${b.label}</span>
-      <span class="dc-bonus-pct">×${dispMult}</span>
+      <span class="dc-bonus-pct">${_teamPctStr(b)}</span>
     </div>`;
     if (b.key === 'castAmplify' && on) {
       const _isCorvolus = raceName === "Corvolus (3%)";
@@ -7197,7 +7401,7 @@ function renderDmgBonusSection() {
       html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="notch" title="Spending a Notch stack on a damaging move deals bonus damage — 10% at 1 Notch, scaling to 30% at your cap.">
         <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
         <span class="dc-bonus-name">Notch spend</span>
-        <span class="dc-bonus-pct">×${(1 + _pct / 100).toFixed(2)}</span>
+        <span class="dc-bonus-pct">+${fmtDmgPct(_pct)}%</span>
       </div>`;
       if (_on) {
         html += `<div class="dc-energy-section" style="margin:2px 0 2px 0">
@@ -7265,14 +7469,14 @@ function renderDmgBonusSection() {
   if (raceName === "Vastayan (9%)") {
     html += `<h3 class="dc-bonus-title" style="margin-top:12px">Summon Buffs</h3><div class="dc-bonus-list">`;
     const _summonBufDefs = [
-      { key: 'spiritAwakening', label: "Spirit Awakening", mult: 1.50, desc: "Vastayan racial active: +50% damage buff to summons for 4 turns." },
+      { key: 'spiritAwakening', label: "Spirit Awakening", pct: 50, desc: "Vastayan racial active: +50% damage buff to summons for 4 turns. Added to a summon's attacks only - never to your own moves." },
     ];
     _summonBufDefs.forEach(b => {
       const on = summonBuffsActive[b.key];
       html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-summon-key="${b.key}" title="${b.desc}">
         <div class="dc-bonus-check">${on ? "✓" : ""}</div>
         <span class="dc-bonus-name">${b.label}</span>
-        <span class="dc-bonus-pct">×${b.mult.toFixed(2)}</span>
+        <span class="dc-bonus-pct">+${b.pct}% <span style="color:#888;font-size:11px">summons</span></span>
       </div>`;
     });
     html += `</div>`;
@@ -7585,6 +7789,9 @@ function renderDmgCalc() {
 
   if (!allMoves.length && !healMoves.length && !allSummonMoves.length) {
     container.innerHTML = `<p class="moves-placeholder">Make a selection to view moves.</p>`;
+    // No moves any more: the panel must not keep switches (Stealth Strike from
+    // Invisible) for a move list the build no longer has.
+    dmgCalcMoveList = [];
     renderDmgBonusSection();
     return;
   }
@@ -9689,6 +9896,8 @@ function loadBuildState(state) {
   Object.keys(corruptionBuffsActive).forEach(k => { corruptionBuffsActive[k] = false; });
   notchSpent = 5; notchCap = 5; condemnedPct = 10; lightForceCrit = 0;
   luckyHornsSpend = false;
+  bloomingEyeSpend = false;
+  stealthStrikeInvisible = false;
   Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;
