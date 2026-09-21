@@ -508,6 +508,46 @@
       return (build.gear || []).some(g => g && (g.name || g) === 'Crystalline Spike') ? 5 : 0;
     }
 
+    // ── §12 composition (Withered Grove, "Part2 New Damage Formula") ────────
+    // The mirror of builder.js getDmgMulti and the order toggleDmgDetail works
+    // in. Per hit:
+    //
+    //   main = (Base + Flat) x (1 + ΣMulti / 100) x Affinity x ΠTargetStatus x Crit
+    //   hit  = main + TrueFlat
+    //
+    // Every "+X% damage" - gear, enchant, passive, setup buff, energy scaling,
+    // a move's own conditional bonus - is ONE term of the sum; nothing that says
+    // "+X% damage" multiplies the running total. The factor is clamped at 0, as
+    // the site clamps it (One For All's -30 can pull it under 1, never below
+    // nothing). moveDamage is (Base + Flat) x hits; the engine adds the rest.
+    function dmgMulti(pct) {
+      return Math.max(0, 1 + (pct || 0) / 100);
+    }
+    // A crit-only term (Empowered Pierce: "50% more damage when this attack
+    // lands a Critical Hit") joins the sum of the crit figures only, so every
+    // crit figure is the normal one times this ratio - builder.js
+    // getOutsideDmgMult's `critRatio`. At a sum of 0 it is exactly 1 + crit/100.
+    function critOnlyRatio(pct, critPct) {
+      const n = dmgMulti(pct);
+      return n > 0 ? dmgMulti((pct || 0) + (critPct || 0)) / n : 1;
+    }
+    // builder.js getTrueFlatDmg. Blooming Eye is the formula's TrueFlat: +5 on
+    // every hit, added after everything - the sum, the resistance, statuses
+    // and the crit never touch it. Its +35 (spend 100 Corrupt Power in a form)
+    // is a switch the site leaves off; K.FORM_GEAR prices it on the form nuke.
+    function trueFlatDmg(build) {
+      return (build.gear || []).some(g => g && (g.name || g) === 'Blooming Eye') ? 5 : 0;
+    }
+    // How many hits a move's True Flat lands on: every hit the site's working
+    // prices. A two-part attack's second part counts the hits it stands for
+    // (Stinger's arrows 1, Crucible's hits 2-3), as the site adds True Flat to
+    // each. A move with no damage has none to add to.
+    function trueFlatHits(build, move) {
+      const sh = effectiveShape(build, move);
+      if (!(sh.base > 0) || !(sh.hits > 0)) return 0;
+      return sh.hits + (sh.second ? (sh.second.hits || 1) : 0);
+    }
+
     function moveDamage(build, move, opts) {
       opts = opts || {};
       // Reuse the caller's stats when it has them. Recomputing all five per move
@@ -772,6 +812,7 @@
     return {
       STATS, emptyBuild, data: D, register, effectiveShape,
       totalStat, allStats, derived, moveDamage, moveHealing, flatDmgBonus,
+      dmgMulti, critOnlyRatio, trueFlatDmg, trueFlatHits,
       traitRawTotals, siteTraitTotals,
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,

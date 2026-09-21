@@ -564,7 +564,7 @@ const raceMoves = {
         moveType: "Physical",
         category: "Buff",
         duration: 1,
-        effect: "Enter a stance, reflecting the damage of the next move that hits you. The reflected damage is the initial move's damage divided by 2, increased by 5% per level, and multiplied by an extra 10% per Sense stack you currently have. The reflected hit can crit, trigger gear enchants, and is affected by weapon passives and shards. If you fail to reflect a hit you gain a 5-20% defense debuff.",
+        effect: "Enter a stance, reflecting the damage of the next move that hits you. The reflected hit's base damage is the incoming move's damage divided by 2, increased by 5% per level, and can no longer exceed 20. Each Sense stack you hold adds 10% more damage, up to +40%. The reflected hit can crit, trigger gear enchants, and is affected by weapon passives and shards. If you fail to reflect a hit you gain a 5-20% defense debuff.",
         image: "https://trello.com/1/cards/68c4e8377457fe90caa1db35/attachments/69760ba9c07fd9a8d6d72458/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125172427.png"
       },
       {

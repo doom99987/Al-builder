@@ -1623,6 +1623,14 @@
                              note: '+5 flat damage on every hit, counted inside move damage exactly as the site adds it. ' +
                                    'The +40 for spending 60 Corrupt Power is priced on the form nuke (Blasphemy, Tyranny; ' +
                                    'not Heresy, where Corrupt Power is bugged)' },
+    // True Flat (Withered Grove §12): added to every hit after the damage bonus
+    // sum and the crit. `onSite`: evaluate adds it (model.js trueFlatDmg), as
+    // builder.js getTrueFlatDmg does, and the kind gives it a seat in the gear
+    // shortlist, which prices only stat blocks.
+    'Blooming Eye':        { kind: 'onSite',
+                             note: '+5 True Flat damage on every hit, added after every buff and the crit, exactly as the ' +
+                                   'site adds it. The +35 for spending 100 Corrupt Power is priced on the form nuke ' +
+                                   '(Blasphemy, Tyranny; not Heresy, where Corrupt Power is bugged)' },
     'Shard of Blight':     { kind: 'dmgPct',     value: 25, uptime: 1, elements: /dark/i,
                              note: '+25% to Dark attacks, and Wicked Crown turns your Physical moves into ' +
                                    'Dark ones - that is the pairing. The 15% defence is gated on being ' +
@@ -2473,6 +2481,13 @@
     return rule.kind === 'multi' && (rule.effects || []).some(ef => ef && ef.value != null);
   }
 
+  // How much of a long fight an Assassin spends attacking out of Invisible:
+  // "not invisible half the time" (owner, 2026-09-11). Shared by everything
+  // gated on that one state - Shadow Master's +30 and Stealth Strike's +100
+  // (MOVE_CONDITIONAL_DMG) - so the two can never disagree about it. The
+  // opener is always the invisible hit, so both are counted in full there.
+  const INVISIBLE_UPTIME = 0.5;
+
   const MASTERY_ABILITIES = {
     // ── does not work in game ────────────────────────────────────────────────
     'Piercing Grace':       { kind: 'bugged',
@@ -2490,7 +2505,11 @@
     // Owner (2026-09-11): assume the Shadow Form setup happens when nuking, so
     // all 30% is up on the opener. The 0.5 uptime still governs the sustained
     // figure, where you are not invisible half the time.
-    'Shadow Master':        { kind: 'dmgPct', value: 30, uptime: 0.5, openerFull: true,
+    // Since Withered Grove §12 the 30 is ADDED to Shadow Form's own +20 in the
+    // opener's one damage-bonus sum (+50, not x1.20 x 1.30): the setup buffs
+    // and `openerDmgPct` are terms of that sum (optimize.js evaluate), exactly
+    // as the site's MASTERY_ADDS_TO_BASE merges the two rows.
+    'Shadow Master':        { kind: 'dmgPct', value: 30, uptime: INVISIBLE_UPTIME, openerFull: true,
                               note: '+30% while invisible — all of it on a nuke fired out of Shadow ' +
                                     'Form, half a rotation over a long fight' },
     'Oppression':           { kind: 'dmgPct', value: 25, uptime: 0.6,
@@ -2641,16 +2660,10 @@
       base: 12, scaling: 'STR/32',
       note: 'Parry Master rewrites this move: 12 base and STR/32, not 8 and STR/40',
     }],
-    // Owner (2026-09-11): an Assassin always fires this out of Shadow Form, so
-    // price the invisible version. "Increases damage dealt by 100% if invisible
-    // while attacking" doubles the base, and the base is what the scaling
-    // multiplies, so 10 becomes 20. Shadow Form is the class's second learn
-    // (level 17); below that the move is a plain 10 and this would overstate it.
-    'Stealth Strike': [{
-      when: b => b.klass === 'Assassin (Ch)' && (b.level == null || b.level >= 17),
-      base: 20,
-      note: 'counted out of Invisible, which doubles it - the opener every Assassin actually plays',
-    }],
+    // Stealth Strike is NOT here any more (2026-09-21). It used to be rewritten
+    // to base 20 ("+100% if invisible" read as a doubled base). Under the
+    // Withered Grove §12 formula that +100% is a term of the move's damage
+    // bonus sum like any other buff - see MOVE_CONDITIONAL_DMG.
     // Blade Dancer rm2: Flowing Dance Proficiency changes the scaling stat.
     'Flowing Dance': [{
       when: b => b.klass === 'Blade Dancer (N)' && (b.masteryNodes || []).includes('rm2'),
@@ -2672,10 +2685,12 @@
     // two more at 3.6 / STR-90 each, and hits 2-3 always land on the Vulnerable
     // hit 1 applies, which is worth a flat 1.20 (builder.js:4530-4540).
     // 2 x 3.6 x 1.20 = 8.64, expressed as one second part on its own scaling.
+    // `hits` is how many hits the second part stands for: the site adds True
+    // Flat (Blooming Eye) to each of the three (model.js trueFlatHits).
     'Crucible': [{
       when: () => true,
       base: 9, scaling: 'STR/65',
-      second: { base: 8.64, scaling: 'STR/90' },
+      second: { base: 8.64, scaling: 'STR/90', hits: 2 },
       note: 'three hits: 9 on STR/65, then two of 3.6 on STR/90, both hitting the ' +
             'Vulnerable that hit 1 applies for a flat 1.20',
     }],
@@ -2685,7 +2700,7 @@
     'Stinger': [{
       when: () => true,
       base: 5, scaling: 'ARC/75',
-      second: { base: 10, scaling: 'ARC/70 + SPD/80' },
+      second: { base: 10, scaling: 'ARC/70 + SPD/80', hits: 1 },
       note: 'two-part attack: a 5-base stab on ARC/75, then 10-base arrows on ARC/70 + SPD/80',
     }],
     // Paladin has no tree of its own and uses the Warrior tree, whose lm2 is
@@ -2698,6 +2713,39 @@
       note: 'Holy Crash Proficiency raises Holy Crash to 20 base (18 without it)',
     }],
   };
+
+  // ── MOVE-GATED CONDITIONAL DAMAGE ───────────────────────────
+  // A move's OWN "+X% damage when ..." that the build meets through a setup in
+  // its own kit. Under the Withered Grove §12 formula it is one more term of
+  // that move's damage-bonus sum (optimize.js evaluate's P) - never a rewritten
+  // base and never a factor of its own - weighted like every other conditional
+  // term: `uptime` of it on the plain and sustained figures, and, with
+  // `openerFull`, all of it on the opener the setup is cast for.
+  //
+  //   setup     the SETUP_MOVES entry that meets the condition; without it in
+  //             the build's kit the term is worth nothing
+  //   minLevel  the level that setup is learned at (the move itself may come
+  //             later, but never earlier)
+  //
+  // builder.js prices the same term through its "Stealth Strike from Invisible"
+  // switch (getDmgMulti): +100 on that one move, added to the sum.
+  const MOVE_CONDITIONAL_DMG = {
+    // Owner (2026-09-11): an Assassin fires this out of Shadow Form. "Increases
+    // damage dealt by 100% if invisible while attacking" is an ordinary damage
+    // increase, so +100 in the sum (2026-09-21; it used to double the base).
+    'Stealth Strike': {
+      value: 100, setup: 'Shadow Form', minLevel: 17, uptime: INVISIBLE_UPTIME, openerFull: true,
+      note: 'fired out of Invisible (Shadow Form), its own "+100% if invisible" is +100% in its damage ' +
+            'bonus sum, added beside Shadow Form\'s +20% (and Shadow Master\'s +30%) - not a doubled base. ' +
+            'All of it on the opener, half over a long fight',
+    },
+  };
+  // Is `rule` live for this build, given the setups its kit can cast?
+  function moveConditionalLive(rule, build, setups) {
+    if (!rule) return false;
+    if (rule.minLevel && build && build.level != null && build.level < rule.minLevel) return false;
+    return !rule.setup || (setups || []).some(su => su && su.move === rule.setup);
+  }
 
   // ── WEAPON PASSIVES ─────────────────────────────────────────
   // Every weapon carries its series' passive, and none of them were counted.
@@ -3027,25 +3075,54 @@
       why: 'spending 60 Corrupt Power raises its flat damage from +5 to +40 per hit on that attack, ' +
            'once a turn. In Heresy, Corrupt Power is bugged, so it never fires there',
     },
+    // TRUE Flat, the Spike's twin (Withered Grove §12): +5 on every hit
+    // normally (model.js trueFlatDmg), +35 on the attack that spends 100
+    // Corrupt Power (once a turn, in a form). True Flat is added after the
+    // damage bonus sum and the crit, so the spend adds exactly 30 per hit to the
+    // nuke - priced as (nuke + 30 x hits) / nuke. Not Heresy: Corrupt Power is
+    // bugged there.
+    'Blooming Eye': {
+      trueFlat: 35, base: 5,
+      forms: { Blasphemy: true, Tyranny: true, Heresy: false },
+      why: 'spending 100 Corrupt Power raises its True Flat damage from +5 to +35 per hit on that attack, ' +
+           'once a turn - added after every buff and the crit. In Heresy, Corrupt Power is bugged, so it never fires there',
+    },
   };
   // What this form unlocks from the gear already on the build, and what that
   // crit is worth to this build's damage.
   // `perHit` is the per-hit damage of the move the form actually nukes with
   // (Blasphemy spends its Notch on the 3+ energy dump, not the best hit);
-  // it defaults to the burst move's. `critMult` is up every turn in the form;
-  // `flatMult` is one attack's worth and must only touch the nuke.
-  function formGearCrit(c, form, M, perHit) {
+  // it defaults to the burst move's. `nuke` says which that is ('dump' or the
+  // burst), so the True Flat inside the nuke's figure (evaluate's
+  // burstTerms / dumpTerms) is left out of what a flat bonus scales, and a
+  // True Flat spend knows the nuke's hits. `critMult` is up every turn in the
+  // form; `flatMult` is one attack's worth and must only touch the nuke.
+  function formGearCrit(c, form, M, perHit, nuke) {
     let crit = 0, flatMult = 1;
     const critLines = [], flatLines = [];
+    const terms = nuke === 'dump' ? c.dumpTerms : c.burstTerms;
+    const total = nuke === 'dump' ? c.bestDump : c.bestBurst;
     for (const name of Object.keys(FORM_GEAR)) {
       const rule = FORM_GEAR[name];
       if (!(c.worn || []).includes(name)) continue;
       if (!rule.forms[form]) continue;
+      if (rule.trueFlat) {
+        // Needs the nuke's figure and its hit count.
+        if (!terms || !(terms.tfHits > 0) || !(total > 0)) continue;
+        const m = (total + (rule.trueFlat - rule.base) * terms.tfHits / (terms.stunDiv || 1)) / total;
+        flatMult *= m;
+        flatLines.push('**' + name + '** is worth **+' + Math.round((m - 1) * 1000) / 10 +
+                       '%** on the form nuke: ' + rule.why + '.');
+        continue;
+      }
       if (rule.flat) {
         // Needs the nuke's per-hit damage; a two-part attack has none to add to.
         const per = perHit !== undefined ? perHit : c.burstPerHit;
         if (!(per > 0)) continue;
-        const m = (per + rule.flat) / (per + rule.base);
+        let m = (per + rule.flat) / (per + rule.base);
+        // Flat rides the sum and the crit, True Flat does not: scale the rest.
+        const tf = terms && total > 0 ? Math.min(total, terms.trueFlat || 0) : 0;
+        if (tf) m = ((total - tf) * m + tf) / total;
         flatMult *= m;
         flatLines.push('**' + name + '** is worth **+' + Math.round((m - 1) * 1000) / 10 +
                        '%** on the form nuke: ' + rule.why + '.');
@@ -3065,6 +3142,24 @@
     }
     if (!crit && flatMult === 1) return { crit: 0, mult: 1, critMult: 1, flatMult: 1, lines: [] };
     return { crit, mult: critMult * flatMult, critMult, flatMult, lines: critLines.concat(flatLines) };
+  }
+
+  // Blasphemy's Notch at a full stack: "10% at 1 Notch, scaling to 30% at your
+  // cap" (builder.js notchDmgPct).
+  const NOTCH_FULL_PCT = 30;
+  // The dump (the best 3+ energy move) with `add` more in its damage-bonus sum
+  // (§12). evaluate records what the dump's figure was made of in
+  // `c.dumpTerms`: its sum `pct`, and the True Flat inside it, which is added
+  // after the sum and gains nothing. The crit share is left at the out-of-form
+  // sum, so a crit-only term (Empowered Pierce) is very slightly understated
+  // in form. An older ctx with no terms falls back to x(1 + add/100).
+  function notchedDump(c, add) {
+    const t = c.dumpTerms;
+    if (!t) return c.bestDump * (1 + add / 100);
+    const tf = t.trueFlat || 0;
+    const now = Math.max(0, 1 + t.pct / 100);
+    const ratio = now > 0 ? Math.max(0, 1 + (t.pct + add) / 100) / now : 1;
+    return (c.bestDump - tf) * ratio + tf;
   }
 
   const CORRUPTION_DAMAGE = {
@@ -3095,9 +3190,14 @@
       // Owner-stated, 2026-09-11.
       const base = c.bestBurst || c.bestHit || 0;
       const dumpName = (c.dumpMove && c.dumpMove.name) || dumps[0].name;
-      // `bestDump` missing means an older ctx: fall back to the flat +30% rather
-      // than silently reporting the form as worthless.
-      const burst = (c.bestDump != null && base) ? Math.max(1, (c.bestDump * 1.30) / base) : 1.30;
+      // Withered Grove §12: the Notch's +30% is one more term of the dump's
+      // damage-bonus sum, not x1.30 on the finished hit - with +100% of other
+      // buffs already in the sum it is worth x1.15, not x1.30 (builder.js puts
+      // the same +30 in getActiveDmgTerms). `bestDump` missing means an older
+      // ctx: fall back to the flat +30% rather than silently reporting the form
+      // as worthless.
+      const inForm = c.bestDump != null ? notchedDump(c, NOTCH_FULL_PCT) : null;
+      const burst = (inForm != null && base) ? Math.max(1, inForm / base) : 1 + NOTCH_FULL_PCT / 100;
       if (burst <= 1) {
         return {
           burst: 1, sustained: 1, ifCrit: null,
@@ -3105,7 +3205,7 @@
             'Notch is spent by a move costing **3+ energy**. This build\'s best hit is **' +
               ((c.burstMove && c.burstMove.name) || (c.bestMove && c.bestMove.name) || 'its nuke') +
               '**, which costs 0-2 - it banks Notch and never gets the bonus.',
-            'Dumping the stack into **' + dumpName + '** instead lands ' + Math.round(c.bestDump * 1.30) +
+            'Dumping the stack into **' + dumpName + '** instead lands ' + Math.round(inForm) +
               ' against ' + Math.round(base) + ' for the move you would rather use, so the +30% has ' +
               'nothing worth landing on here. Pick another form.',
           ],
@@ -3127,6 +3227,8 @@
           'Notch caps at your energy cap, which this build has at **' + cap + '**.',
           'Only a move costing **3+ energy** spends the stack for **+30% damage**, and here that is **' +
             dumpName + '**. Moves costing 0-2 bank Notch and never get the bonus, however hard they hit.',
+          'The +30% is added into that hit\'s damage bonus sum with every other buff (Withered Grove), ' +
+            'so it is worth less the more is already in the sum - not a flat x1.30 on the hit.',
           'Against what this build would otherwise open with, that is **+' +
             (100 * (burst - 1)).toFixed(1) + '%** on the turn it lands.',
           'Banking a full stack takes ' + cap + ' cheap turns, so over a long fight that is ' +
@@ -3469,6 +3571,7 @@
            STAT_LINE_RULES, statCeilings,
            GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
            UNAVAILABLE, AVOID, MASTERY_ABILITIES, masteryRulePriced, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
+           MOVE_CONDITIONAL_DMG, moveConditionalLive, INVISIBLE_UPTIME,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
            BOSS_TACTICS, BOSS_PENALTIES, BOSS_SOLO_MIN_SPEED, STATUS_WORDS,

@@ -227,7 +227,7 @@ From a tester's report (SeedDev), what each problem was and the fix:
 
 | Report | Cause | Fix |
 |---|---|---|
-| The Shadow Form toggle gave ×1.30, not ×1.56, and no crit | the DMG calc merged a mastery into its base entry with `max`, so Shadow Master's ×1.3 replaced the form's own ×1.2 | a mastery marked multiplicative now multiplies into its base (1.2 × 1.3 = 1.56); an Assassin with Shadow Form on gets +20 crit chance in the readout |
+| The Shadow Form toggle gave ×1.30, not ×1.56, and no crit | the DMG calc merged a mastery into its base entry with `max`, so Shadow Master's ×1.3 replaced the form's own ×1.2 | a mastery marked multiplicative now multiplies into its base (1.2 × 1.3 = 1.56); an Assassin with Shadow Form on gets +20 crit chance in the readout. **Superseded 2026-09-21:** the two are added, +20 + 30 = +50 (§12, "Additive damage" below) |
 | 25 Luck gave no crit damage | the milestone was a note only | +0.1 on the crit multiplier at 25 total Luck, in the site readout (`_lckMsCritDmg`) and in `model.js` `critMultiplier` — run `verify.js` in the browser |
 | Surprise Package missing from the DMG calc | not listed | team buff ×1.35, only on the Physical or Magic hit that detonates it |
 | Estella (+25% below 40% HP) paired with Stellian Core (needs 95% HP) | the HP-gate check only fired for classes that commit to a health side | `hpStance.raceSide`: a low-health race sets the side, and an item gated the other way is priced at conflict uptime (0.05) |
@@ -307,8 +307,10 @@ of the tier. Every new guard was mutation-tested.
 **Owner-confirmed (2026-09-13):** flat damage lands on every hit of a many-hit
 move. Keep it per hit.
 
-**Open, for the owner:** whether Invisible's +100% multiplies the final hit (it
-would then double the Spike's +5 too).
+**Settled 2026-09-21** (was open, for the owner): whether Invisible's +100%
+multiplies the final hit. It does not: it is +100 in Stealth Strike's Multi sum
+(§12), so it scales `(Base + Flat)` together with every other percentage - see
+"Additive damage" below.
 
 ## Crit tiers add +1, not a multiple (2026-09-13)
 
@@ -440,7 +442,7 @@ opener crit, although the toggle no longer costs HP before the first hit.
 | Impaler | Blood Eruption 18 (was 15.6), cooldown 8; Bloody Burst 4.5x2 |
 | Assassin | Poison Fan STR/75 + ARC/80 (was STR/200 + ARC/80 + LCK/100). The standing Assassin nuke below is therefore pre-patch |
 | Arbiter, Darkwraith | Pronouncement costs 3 (was 5); Call Darkbeast costs 0 |
-| Brawler | Crusher counts re-applied statuses and caps at +75%. The DMG calc keeps x1.07 per status and caps it at x1.75 (counter 1-9). Party Table hits Adjacent, and its Proficiency hits every enemy (Full AoE) |
+| Brawler | Crusher counts re-applied statuses and caps at +75%. The DMG calc kept x1.07 per status, capped at x1.75 (counter 1-9) - since 2026-09-21 it is +7 a status added to the sum, capped at +75 (counter 1-11; "Additive damage" below). Party Table hits Adjacent, and its Proficiency hits every enemy (Full AoE) |
 | Monk | Flame Drop hits every enemy (Full AoE). Flame Drop Proficiency: 4% per absorbed burn stack, up to 40% (was 2.5% / 25%); its +25% base part and the calc's x1.25 toggle stay |
 | Ranger | Verdant Archer: +15% damage a stack (was 7.5%), up to +150%, and +10% outgoing healing in place of the Speed buff; Nature's Wrath doubles the stack to 30%. Perennial Canopy and Stinger's arrows scale on SPD/80. Lightspeed: every Verdant Archer proc gives Speed equal to 10% of Arcane for 3T; its stacking autododge is gone |
 | Lancer | Empowered Pierce costs 3 and deals x1.5 on a crit (`critDmgBonus: 50`, applied at the call sites `moveCritDmgMult` / `moveCritMult`; the pinned crit bodies are untouched). Discharge costs 2, cooldown 4, and stuns only on a crit. Poised Slayer: +10% damage per dodge, up to +50%, and it keeps its heal. Swift Fighter's Speed caps at +30%. Overload: +10% STR and LCK for 3T after a move costing 2+ energy. Not in the patch: the Empowering Pierce Proficiency toggle is now gated on Lancer, not Impaler |
@@ -530,7 +532,7 @@ matches within a line (its desc holds `{v}`).
 - The patch's "Arcane" means the site's Magic.
 - Boreas: Wicked Crown converts first. Element-gated buffs follow the converted type, so Blizzard, Cast Amplify and Arcane Ritual now reach converted moves, while Elemental Master, Surprise Package and Fractured stop reaching them. No boss resists Ice (Handaconda has no Ice column, so x1.0). Big Sword lifesteal still reads the written type.
 - Bloodlust: counted as 5 stacks in Rage at 0.5 uptime. Berserker stays in the low-HP stance. The Bloodlust quote is a paraphrase, not the in-game one. Rage Empower keeps cost 1 and cooldown 5.
-- Crusher: stacks multiply (x1.07 each), capped at x1.75 (9 applications), and re-applied statuses count.
+- Crusher: stacks multiply (x1.07 each), capped at x1.75 (9 applications), and re-applied statuses count. Superseded 2026-09-21: +7 each, added, capped at +75 (11 applications).
 - Poison Fan keeps ARC/80.
 - Flame Drop Proficiency keeps its +25% base part.
 - Nature's Wrath gives 30% a stack under the 150% cap.
@@ -561,7 +563,7 @@ matches within a line (its desc holds `{v}`).
 - Skeleton and Sheea scaling: nothing computes summon HP, the ARC/4 string is never evaluated, and the DMG calc does not apply "Sheea damage scales like Skeletons". The patch says Heaven's Authority has its own move now, but gives no name or cooldown for it.
 - Corrupted HP scaling (1.5x, Handaconda 3x) is a reviewer default. Check it in game.
 - `index.html` race recommendation cards (Boreas, Vydeer, Stultus) still describe pre-patch reasoning.
-- Vydeer and Verdant Archer texts: Vydeer's Mind's Eye "extra 10% per Sense stack" is unconfirmed under the new Sense economy, and Verdant Archer's quote still mentions the removed Speed buff.
+- Vydeer's Mind's Eye, settled (dev post, owner-corrected 2026-09-21): the reflected hit's base damage is capped at 20, and Sense adds 10% a stack up to **+40%** (the post said 50%; the owner says 40%). Text only - the reflect is not priced anywhere, since its size depends on the hit it answers. Verdant Archer's quote still mentions the removed Speed buff.
 - Not priced by the engine: Soul Reversal's autododge; Frost Stacks (Boreas `RACE_ROLES` are still status/tank); Verdant Archer's healing; Poised Slayer's heal; Crusher; Midas's Luck stacks; Tainted Quiver's energy drain. The engine fights a single target, so Party Table's Adjacent hits and Flame Drop's AoE do not register either.
 - `STAT_DECAY.pastRate` was tuned on "60 End, 110 Arc, rest Str" beating a higher-End Saint line. The removed ARC 110 cooldown cut justified that line, so re-check the rate along with the Saint golden.
 - Existing gap this patch makes more visible: `optimize.js` `resFor` maps Magic to 'Arcane', a column only Handaconda has.
@@ -570,6 +572,104 @@ matches within a line (its desc holds `{v}`).
   - the dated figures in README.md and `knowledge.js`;
   - the ~150 heal a turn in the test.js Shadow Gauntlets comment, now about 90;
   - every golden soft miss (berserker-crit, impaler-handa, paladin-tank), each recorded here with its reason.
+
+## Additive damage (Withered Grove §12, 2026-09-21)
+
+**The rule** (game changelog §12, "Part2 New Damage Formula"): `beforeDR = (Base +
+Flat - Defense.Flat) * Multi * Affinity`, `finalDamage = afterDR + TrueFlat * TrueDR *
+TrueMulti`. "Multi is the additive multiplier bus: every gear, enchant, race passive
+or buff that says '+X% damage' adds X directly into Multi ... five different +10%
+sources gives you Multi = 1.5, not 1.10^5." Owner (forwarded from players,
+accepted): status effects on the target and crit damage stay multiplicative. So a
+hit is
+
+    main = (Base + Flat) × (1 + ΣMulti / 100) × Affinity × ΠTargetStatus × Crit
+    hit  = main + TrueFlat
+
+**Where it lives (site, done 2026-09-21).** `js/builder.js` `getDmgMulti(m, effType,
+energyAfter, isCrit)` is the only place a hit's sum is totalled and returns
+`{ pct, terms: [{ label, pct }], mult }`; `getOutsideDmgMult(m)` wraps it for every
+damage path (ordinary, no-scaling, multi-hit, Stinger's parts, Crucible,
+Discharge, Rending Barrage's extra hit, summons, Self Destruct) and adds the
+crit-only ratio. `dmgRowPct` prices one DMG BONUS row, `getActiveDmgTerms` the
+switches that are on. The working prints the sum with its terms, largest first,
+`× 3.08 [+207.5%: Stealth Strike +100, Stellian Core +30, Cursed +30, …]`; the
+statuses as their own multiplied step; True Flat as the last step. The panel rows
+print `+X%`; target statuses keep `×`. The "additive damage (Withered Grove §12)"
+test group runs this code.
+
+**Where it lives (Build AI, done 2026-09-21).** `optimize.js` `evaluate` prices every
+move's figures as `raw × M.dmgMulti(P) × crit + True Flat`, with `raw` =
+`moveDamage` × the boss's resistance and P ONE sum: traits, passives, shards, the
+enchant, gear, mastery abilities, STR / ARC 110, Carnage's energy scaling and the
+move's own conditional term (`K.MOVE_CONDITIONAL_DMG`); the opener adds the setup
+buffs and `openerDmgPct` to that same sum, the sustained figure their uptime
+share. `model.js` holds the composition (`dmgMulti`, `critOnlyRatio`,
+`trueFlatDmg`, `trueFlatHits`). What changed, and why:
+
+| Engine term | Before | Now |
+|---|---|---|
+| Setup buffs (Shadow Form, Cast Amplify, Absolute Radiance, Lesser Empower, Blizzard, From Sky to Soul), `openerDmgPct` | `(1 + P) × (1 + openPct)` "so the buffs compound" | terms of P |
+| Carnage's energy (+20 an energy past the first) | a separate factor, and DROPPED by the ramp-free and stat-setup openers (Crystalized Star, Flourish) | a term of P on every figure |
+| Stealth Strike | `MOVE_OVERRIDES` base 10 → 20 for an Assassin at 17+ | +100 in P while Shadow Form is in the kit: `INVISIBLE_UPTIME` (0.5, shared with Shadow Master) of it on the plain and sustained figures, all of it on the opener; said in the write-up |
+| Shadow Master | 15 in P and 15 in `openPct`, which multiplied | the same split, now both in one sum: +30 beside Shadow Form's +20 on the opener |
+| Devastating (`critDmgPct`) | `critDmg × (1 + %)` | `critDmg + %/100`: +16% crit damage is +0.16 on the multiplier |
+| Stat-setup crit (`buffedCrit`) | missed the mastery crit and paid an unmet gear crit | the same terms as `critChance` |
+| Empowered Pierce (`moveCritMult`) | ×1.5 on the crit share | +50 in the crit sum: the crit share × `critOnlyRatio(P, 50)`, priced at each figure's own sum |
+| Blooming Eye | not modelled | +5 True Flat a hit (`trueFlatHits`: a two-part move's second part counts its own hits), after the crit; `onSite` in `GEAR_PASSIVES`; the +35 spend priced on the form nuke (`FORM_GEAR`) |
+| Blasphemy's Notch | the dump × 1.30 | +30 in the dump's sum (`notchedDump`, from `ctx.dumpTerms`); True Flat gains nothing |
+| `verify.js` damage gate | every old multiplier exactly 1; Stealth Strike skipped | `getDmgMulti(...).pct === 0` for the move (both Stinger parts); a missing accessor is a harness error and "0 compared" is a failure. The site's old multiplier wrappers (`getActiveDmgMult`, `getShardOfBlightMult`, `getBlizzardMult`, `getMilestoneDmgMult`), kept only for this gate, are removed |
+
+Effects worth knowing: every crit build's damage figure fell, mostly because ten
+Devastating orbs used to double the crit multiplier (a crit Berserker went 5.2x →
+3.6x) and because the setups and Carnage's energy no longer compound. The Amorus
+Assassin no longer reaches crit tier 1 on its own (it parks on LCK 110 at 82%);
+the tier-crossing test moved to a Blade Dancer. The golden hard keys still pass.
+Tyranny's Condemned and the Ages Pages crit ratio still scale the whole form
+figure, True Flat included (a few points at most); the Spike's +40 ratio leaves
+the True Flat out. The parity group "the Build AI
+composes damage the way the site does" runs the site's composition on the
+engine's own terms for a Berserker, a Lancer and an Assassin.
+
+Each decision and its source:
+
+| Term | Decision | Source |
+|---|---|---|
+| Every parsed "+X% damage" row, soul tree, type-gated passives (gates kept), shards, race / gear / weapon / scroll / mark buffs | one Multi term each | §12 "every gear, ... race passive or buff" |
+| Enchants: Cursed +30 / +20 vs Sundered (the higher only), Inferno +20, Midas +15, Reaper up to +25 | Multi | §12 names enchants |
+| Self statuses and buffs: Bloodlust, Overheat **8n** (was 1.08^n), Enhanced Bloodlust, Frost Stacks, Soul Reversal, Bulk Up 20n, Absolute Radiance, Stellian Core, Blood Eruption Prof, Blight, Darkbeast cores, Blasphemy Notch ... | Multi | the owner's exception covers the TARGET's statuses only |
+| Team buffs: Rallying Shout, Lesser Empower, Arcane Ritual, Surprise Package, **Cast Amplify 20n** (was 1.2^n), Blizzard (Ice) | Multi | §12 |
+| Internal stacks: Sands Of Time 20n (was 1.2^n), **Crusher min(75, 7n)** (was min(1.75, 1.07^n); counter now reaches 11), Oppression min(25, 5n) | summed, never compounded | §12 "adds X directly" |
+| STR / ARC 110 (+20), energy scaling (Carnage, Lightning Crash), Shard of Blight (+25 Dark) | Multi | §12 |
+| Move-innate %: Blaze Prof 15 (30 vs burning), Blaze +25 vs burning, Blazing Barrage Prof +20 vs burning, Slash Barrage +30 vs bleeding | that move's sum, on the same condition as before: the vs-burning terms only on the "vs burning" side line; Slash Barrage always, as it always applied | §12; spec |
+| Shadow Form +20, Shadow Master +30 | **+50, two terms** (`MASTERY_ADDS_TO_BASE`), not ×1.56. The `/multiplicative/` text test is gone: stale wording must not flip a buff's class | §12 has no multiplicative bus for buffs on normal damage (TrueMulti only scales TrueFlat); the play report proved both apply, and 1.5 is within its noise |
+| Stealth Strike from Invisible | **+100 in that move's sum** (new switch), not a doubled base | its text is an ordinary "increases damage dealt by 100%" |
+| Empowered Pierce's "+50% on a Critical Hit" | +50 in the sum of the crit figures only | spec; "more damage" is ordinary buff wording, the crit multiplier is its own stat |
+| Spirit Awakening +50 | summon attacks only (`isSummonAttack`) | its text: "damage buff to summons"; it used to reach every move |
+| Metrom's Grasp +40 | never a direct hit; its rows say "DoT only" | its text: "for DoT effects" |
+| Vulnerable (×1.25 with Crusher), Hexed, Fractured, Crucible's forced Vulnerable, Tyranny's Condemned, both Sinister Gaze reflections (Bulk Up keeps 1.2^n) | target statuses: multipliers, with each other and with the sum. Condemned and the Gaze reflections moved OUT of the buff product | owner; Bulk Up's own text "Defense decrease is multiplicative"; Crusher's text "now deal 25%" |
+| Crit (2 + adds, +1 a tier, Overcore +1) | unchanged, on `main` only | owner |
+| Crystalline Spike | Flat, unchanged placement | §12 |
+| Blooming Eye | **True Flat**: +5 a hit, +35 on its 100 Corrupt Power spend (new switch), added after the crit and statuses | §12: "a separate channel that skips DR and Affinity" |
+| One For All −30 | not modelled on the site, so nothing | spec |
+| `armourMult` | removed (it was always 1) | dead code |
+
+**Settled:** the open question from 2026-09-13, whether Invisible's +100% multiplies
+the final hit - it does not. Stealth Strike's +100 is a Multi term like any other
+buff, so it scales `(Base + Flat)` together with the rest of the sum; the Spike's
++5 rides it exactly as far as every other percentage does.
+
+**Kept as they were** (odd, not covered by the spec): Frosted AOE takes the switches'
+sum, Condemned and the Gaze reflections but not Vulnerable/Hexed/Fractured;
+DeathBeak's proc takes the enchant alone; Rending Barrage's extra hit has no Flat
+and no crit; Aspect of Maladaptation (+30, an incoming-damage effect) and
+Coagulated Finger Nail (stats and +1.5n damage) still count as damage rows; the
+personal and team Cast Amplify rows can both be on. True Flat (new) lands on
+every hit the working prices - Stinger's two parts, Crucible's three hits,
+Discharge's four, Rending Barrage's extra hit, Parry Counter and summon attacks
+included - and not on Self Destruct (no Flat either) or the side procs (Frosted
+AOE, DeathBeak, Vastic bombs). Whether Blooming Eye reaches a summon's hits is
+unstated; it follows Flat there.
 
 ## When the game updates
 
@@ -583,6 +683,11 @@ For every new move: does it cost *you* anything — HP, turns, a stun?
 ## Standing reference: the Assassin nuke
 
 **(pre-patch; re-measure)** The line and figures below date from 2026-09-13.
+They also predate the §12 additive damage (2026-09-21), which lowers every
+Assassin figure: Devastating now adds to the crit multiplier, Shadow Form and
+Shadow Master are +50 in the sum, and Stealth Strike is +100 in its sum rather
+than a doubled base (Poison Fan stays the nuke on "assassin nuke biggest single
+hit": 464 cold, 672 prepared on 2026-09-21).
 In the 2026-09-16 patch, Poison Fan lost its Luck scaling (it is now STR/75 +
 ARC/80), and STR/ARC 110 became +20% damage perks. So the pure-Luck line and
 these numbers may no longer hold. Re-run "assassin nuke biggest single hit"

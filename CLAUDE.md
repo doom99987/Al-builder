@@ -221,13 +221,51 @@ Reference data and stat maths are two different things here. Gear base stats,
 gear/artifact/weapon tier values and the crit rework **do** feed the damage
 calculator through the stat rows. The following are recorded and displayed but compute
 nothing: most stat milestones (Luck 25's crit damage and the STR / ARC 110 damage
-perks do compute), Corruption Forms, the Corrupt Power gears' spend effects, and
-most of the new races' and enchants' passives (a few are DMG-calculator controls
-that do compute, e.g. Boreas's Frost Stacks, Drauga's Enhanced Bloodlust, and
-Midas's Luck stacks, which also reach the Luck row and crit chance). Wiring the
-rest up properly depends on the §12
-damage-formula rewrite, which is not implemented — the calculator still uses the
-old multiplicative model, not `Base/Flat/Multi/TrueMulti/TrueFlat`.
+perks do compute), most of the Corruption Forms (the Blasphemy Notch, Tyranny's
+Condemned and Heresy's Light Force are DMG-calculator switches), the Corrupt
+Power gears' spend effects apart from the ones with a DMG-calculator switch
+(Crystalline Spike, Blooming Eye, Lucky Horns, Ages Pages), and most of the new
+races' and enchants' passives (a few are DMG-calculator controls that do compute,
+e.g. Boreas's Frost Stacks, Drauga's Enhanced Bloodlust, and Midas's Luck stacks,
+which also reach the Luck row and crit chance).
+
+**The DMG calculator uses the §12 damage formula** ("Part2 New Damage Formula",
+since 2026-09-21): every "+X% damage" is ADDED into one Multi sum, and only the
+target's statuses and the crit multiply. Per hit:
+
+    main = (Base + Flat) × (1 + ΣMulti / 100) × Affinity × ΠTargetStatus × Crit
+    hit  = main + TrueFlat
+
+- `getDmgMulti(m, effType, energyAfter, isCrit)` in `js/builder.js` is the only
+  place a hit's sum is totalled (`{ pct, terms, mult }`, `mult` clamped at 0).
+  Every damage path reads it through `getOutsideDmgMult(m)` — do not multiply a
+  new bonus in after it; add a term. `dmgRowPct` prices one DMG BONUS row (stacks
+  summed, never compounded), `getActiveDmgTerms` the switches that are on.
+- Terms: the DMG BONUS rows, team buffs (Metrom's Grasp is DoT only and never
+  reaches a hit), Overheat, the Blasphemy Notch, the enchant, Shard of Blight,
+  Blizzard, STR / ARC 110, energy scaling, Dark Cores, Spirit Awakening (summon
+  attacks only), move-innate percentages, Stealth Strike from Invisible (+100,
+  that move only) and Empowered Pierce's +50 (crit figures only). Shadow Master
+  ADDS to Shadow Form (`MASTERY_ADDS_TO_BASE`, +50) — never read a buff's class
+  from its game text.
+- Multipliers: `getStatusMultiplier` (Vulnerable, ×1.25 with Crusher; Hexed;
+  Fractured; Tyranny's Condemned; the Sinister Gaze reflections), `getBossResMult`,
+  and the crit. Flat is Crystalline Spike (`getFlatDmgBonus`); TrueFlat is
+  Blooming Eye (`getTrueFlatDmg`), added per hit after the crit. Nothing feeds
+  TrueMulti or TrueDR.
+- The old per-layer multipliers (`getActiveDmgMult`, `getShardOfBlightMult`,
+  `getBlizzardMult`, `getMilestoneDmgMult`) are gone; each is a `…Pct` term now.
+  `getEnchantMult` stays only for DeathBeak's proc, which takes the enchant alone.
+- Each decision and its source is in `tools/ai/LEARNING.md` "Additive damage".
+- The Build AI follows the same formula: `tools/ai/optimize.js` `evaluate` prices
+  each figure as `raw × M.dmgMulti(P) × crit + True Flat`, P being one sum of every
+  percentage (setup buffs, Carnage's energy and a move's own conditional bonus
+  such as Stealth Strike's +100 from Invisible, `K.MOVE_CONDITIONAL_DMG`,
+  included); the composition helpers are in `tools/ai/model.js` (`dmgMulti`,
+  `critOnlyRatio`, `trueFlatDmg`, `trueFlatHits`). Devastating adds to the crit
+  multiplier. The test group "the Build AI composes damage the way the site
+  does" runs the site's composition on the engine's own terms; `verify.js` gates
+  its damage check on `getDmgMulti(...).pct === 0` and fails on "0 compared".
 
 **Damage reduction is an armour formula** (owner, 2026-09-17): DR adds up as
 points, and a total takes `100 / (100 + DR)` of a hit, or `2 − 100 / (100 − DR)`
@@ -305,8 +343,9 @@ The **Strength and Arcane final milestones** were reworked into damage buffs in
 the 2026-09-16 balance patch (they used to be cooldown cuts, listed swapped as
 they behaved in game): 110 STR gives Physical moves +20% damage and 110 ARC
 gives every other type +20% (the owner's reading from play, 2026-09-17; the
-patch notes said "melee" and "ranged"), applied by the DMG calculator through
-`getMilestoneDmgMult` inside `getOutsideDmgMult` (§ STAT MILESTONE DAMAGE).
+patch notes said "melee" and "ranged"), applied by the DMG calculator as a +20
+term of the Multi sum (`getMilestoneDmgPct` inside `getDmgMulti`, § STAT
+MILESTONE DAMAGE).
 `getMilestoneDmgStat(type)` picks the stat from the move's EFFECTIVE type, so a
 move Wicked Crown makes Dark or Boreas makes Ice takes the ARC perk. Stinger
 prices its Physical stab and Poison arrows separately. Summon attacks get no

@@ -672,10 +672,14 @@
     // moveCritBonus does. The engine used one crit figure for every move, so a
     // move whose value is its crit was priced as if it had none.
     // A crit-only damage bonus (Empowered Pierce: 50% more damage on a Critical
-    // Hit, `critDmgBonus: 50`) multiplies only the share of the expectation that
-    // crits, exactly as the DMG calc's getExpectedMoveCritDmg does.
-    function moveCritMult(mv, critChance, critDmg, potential) {
-      const cdb = 1 + (+((mv && mv.critDmgBonus) || 0)) / 100;
+    // Hit, `critDmgBonus: 50`) is, since Withered Grove §12, +50 in the damage
+    // bonus sum of the crit figures only. It scales only the share of the
+    // expectation that crits, by the ratio of the two sums - exactly the DMG
+    // calc's getOutsideDmgMult critRatio fed to getExpectedMoveCritDmg. `pct` is
+    // the sum of the figure being priced (0 when omitted, where the ratio is
+    // the old flat x1.5): the more else is in the sum, the less +50 adds.
+    function moveCritMult(mv, critChance, critDmg, potential, pct) {
+      const cdb = M.critOnlyRatio(pct || 0, +((mv && mv.critDmgBonus) || 0));
       if (potential) return critDmg * cdb;
       const cc = critChance + (+((mv && mv.critBonus) || 0));
       const e = M.expectedMultiplier(cc, critDmg);
@@ -806,7 +810,11 @@
         : d.stats;
 
       const critChance = d.critChance + tt.critChance + pv.critChance + (gp.critChance - inertCrit) + ma.critChance + maLuckCrit;
-      const critDmg    = d.critDmg * (1 + tt.critDmgPct / 100);
+      // Crit damage is 2 plus its adds (Crystal Sphere's +0.05, Luck 25's +0.1),
+      // and Devastating's "+X%" is one more add: +10% crit damage is +0.10 on
+      // the multiplier, never x1.10 of it (Withered Grove §12; builder.js
+      // getCritDmgMult). The tier steps (+1 each) stay in expectedMultiplier.
+      const critDmg    = d.critDmg + tt.critDmgPct / 100;
       // The chosen damage model decides what "damage" means for the whole search.
       //
       //   average    expected value, crit chance folded in. Luck is priced at
@@ -874,7 +882,11 @@
         // The mastery percentages ride on the buffed stats too, or a build with a
         // stat setup would lose Overload and Lightspeed on its burst figure.
         buffedStats = hasPct ? pctOverlay(Object.assign({}, bd.stats)) : bd.stats;
-        buffedCrit = bd.critChance + tt.critChance + pv.critChance + gp.critChance + maLuckCrit;
+        // Every term critChance has, on the buffed site figure: the mastery
+        // crit (Dark Smite Proficiency) and the gear crit whose status the kit
+        // never applies (inertCrit) were missing here, so a stat setup raised
+        // the burst's crit by the one and paid the other it could not have.
+        buffedCrit = bd.critChance + tt.critChance + pv.critChance + (gp.critChance - inertCrit) + ma.critChance + maLuckCrit;
         buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
       }
 
@@ -929,8 +941,30 @@
       // The stats each of those two hits was taken on, so a per-hit figure read
       // later matches the hit it scales (ramp-free, or buffed by a stat setup).
       let burstMoveStats = null, dumpMoveStats = null;
+      // ── one damage-bonus sum per hit (Withered Grove §12) ─────────────────
+      // The game's formula: every "+X% damage" is ADDED into one Multi sum, and
+      // only the target's statuses and the crit multiply (builder.js
+      // getDmgMulti; model.js dmgMulti). Here every percentage the engine
+      // knows - traits, passives, shards, the enchant, gear, mastery abilities,
+      // STR / ARC 110, energy scaling, a move's own conditional bonus and, on
+      // the opener and the sustained figure, the setup buffs - is a term of ONE
+      // sum P, and a hit is
+      //
+      //     raw x M.dmgMulti(P) x crit + True Flat
+      //
+      // where raw is moveDamage ((Base + Flat) x hits) times the boss's
+      // resistance. Nothing that says "+X% damage" is multiplied on top any
+      // more: the setups used to compound onto (1 + P), and the ramp-free and
+      // stat-buff openers recomputed the hit without Carnage's energy factor.
+      // What each nuke was made of, for the corruption pass and the write-up:
+      // its sum, the setup share, the True Flat inside the figure, and the
+      // move's own conditional term (Stealth Strike out of Invisible).
+      let burstTerms = null, dumpTerms = null, bestCond = null;
+      const trueFlat = M.trueFlatDmg ? M.trueFlatDmg(build) : 0;
+      const hasStatBuffs = Object.keys(statBuffs).length > 0;
       for (const mv of moves) {
-        let dmg = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * resFor(mv);
+        const res = resFor(mv);
+        const raw = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * res;
         let pct = tt.dmgPct + (pv.dmgPct - inertPassiveDmg) + sh.dmgPct + enPct + (gp.dmgPct - inertDmg) + ma.dmgPct;
 
         // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
@@ -953,48 +987,71 @@
           const hh = tt.active.find(a => a.id === 'heavyHand');
           if (hh) pct -= hh.effective;
         }
-        dmg *= (1 + pct / 100);
 
         // Moves that consume the whole energy pool scale with the CAP, which is
         // why Overflow is worth far more to them than "+1 max energy" sounds.
+        // Carnage's +20% an energy past the first is a term of the sum, as the
+        // site's getEnergyBonusPct is - so every figure below carries it.
         const es = (K.ENERGY.scalingMoves || {})[mv.name];
-        if (es) dmg *= (1 + es.perEnergy * Math.max(0, cap - es.freeEnergy));
+        if (es) pct += 100 * es.perEnergy * Math.max(0, cap - es.freeEnergy);
+
+        // The move's own conditional bonus, met by a setup in this kit - Stealth
+        // Strike's "+100% if invisible while attacking" out of Shadow Form. A
+        // term of the sum like any other (never a doubled base): its uptime
+        // share here, and with `openerFull` the rest on the opener.
+        const condRule = (K.MOVE_CONDITIONAL_DMG || {})[mv.name];
+        let cond = null, condOpen = 0;
+        if (condRule && K.moveConditionalLive(condRule, build, setups)) {
+          const up = condRule.uptime ?? 1;
+          pct += condRule.value * up;
+          if (condRule.openerFull) condOpen = condRule.value * (1 - up);
+          cond = { move: mv.name, value: condRule.value, uptime: up, setup: condRule.setup || null, note: condRule.note || null };
+        }
 
         // A move that stuns YOU before it lands costs turns nobody else pays, so
         // it is counted per turn it occupies (K.SELF_STUN). Without this, Boreas's
         // Inner Frost - 21 base, and (then) two turns of you standing there - outscored
         // every real nuke the moment race actives entered the kit.
         const stunDiv = 1 + (K.selfStunTurns ? K.selfStunTurns(mv) : 0);
-        const mMult   = (mv.critBonus || mv.critDmgBonus) ? moveCritMult(mv, critChance, critDmg, potential) : mult;
-        const mBuffed = (mv.critBonus || mv.critDmgBonus)
-          ? (potential ? buffedMult * (1 + (+mv.critDmgBonus || 0) / 100) : moveCritMult(mv, buffedCrit, critDmg, false))
+        // The crit multiplier of a figure whose sum is P: the move's own crit
+        // chance, and its crit-only term (Empowered Pierce) joined to THAT sum.
+        const ownCrit = !!(mv.critBonus || mv.critDmgBonus);
+        const critAt = P => ownCrit ? moveCritMult(mv, critChance, critDmg, potential, P) : mult;
+        const critBuffedAt = P => ownCrit
+          ? (potential ? buffedMult * M.critOnlyRatio(P, +mv.critDmgBonus || 0) : moveCritMult(mv, buffedCrit, critDmg, false, P))
           : buffedMult;
-        const plain = dmg * mMult / stunDiv;
-        if (plain > bestHit) { bestHit = plain; bestMove = mv; }
+        // True Flat (Blooming Eye): added to every hit after the crit, never
+        // multiplied by the sum, the resistance or the crit.
+        const tfHits = trueFlat ? M.trueFlatHits(build, mv) : 0;
+        const tf = trueFlat * tfHits;
+        const plain = (raw * M.dmgMulti(pct) * critAt(pct) + tf) / stunDiv;
+        if (plain > bestHit) { bestHit = plain; bestMove = mv; bestCond = cond; }
 
         // The same move with the setup up. Element-gated buffs only pay on
         // matching move types.
         const type = typeOf(mv) + ' ' + String(mv.element || '');
-        let openPct = ma.openerDmgPct || 0, sustPct = 0;
+        let openPct = (ma.openerDmgPct || 0) + condOpen, sustPct = 0;
         for (const rt of rotation) {
           if (rt.gain === null) continue;
           if (rt.elements && !rt.elements.test(type)) continue;
           openPct += rt.gain;
           sustPct += rt.gain * rt.uptime;
         }
-        // Recompute from the pre-multiplier damage so the buffs compound properly.
-        const preMult = dmg;
+        // The setup buffs are terms of the SAME sum, never a second factor:
+        // Shadow Form's +20 and Shadow Master's +30 on the opener are +50.
+        const openP = pct + openPct, sustP = pct + sustPct;
         // The opener is taken on ramp-free stats: a Crystalized Star stack you
         // have not built yet is not damage you have on turn three.
-        const openerBase = hasRamp
-          ? M.moveDamage(build, mv, { stats: openerStats }) * resFor(mv) * (1 + pct / 100)
-          : preMult;
-        const withStats = Object.keys(statBuffs).length ? M.moveDamage(build, mv, { stats: buffedStats }) * resFor(mv) * (1 + pct / 100) : openerBase;
-        const burst = withStats * (1 + openPct / 100) * mBuffed / stunDiv;
-        const sust  = preMult   * (1 + sustPct / 100) * mMult / stunDiv;
-        const burstStats = Object.keys(statBuffs).length ? buffedStats : (hasRamp ? openerStats : d.stats);
-        if (burst > bestBurst) { bestBurst = burst; burstMove = mv; burstMoveStats = burstStats; }
-        if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; dumpMoveStats = burstStats; }
+        const openerRaw = hasRamp ? M.moveDamage(build, mv, { stats: openerStats }) * res : raw;
+        const burstRaw = hasStatBuffs ? M.moveDamage(build, mv, { stats: buffedStats }) * res : openerRaw;
+        const burst = (burstRaw * M.dmgMulti(openP) * critBuffedAt(openP) + tf) / stunDiv;
+        const sust  = (raw * M.dmgMulti(sustP) * critAt(sustP) + tf) / stunDiv;
+        const burstStats = hasStatBuffs ? buffedStats : (hasRamp ? openerStats : d.stats);
+        const terms = (burst > bestBurst || (M.parseCost(mv.cost) >= 3 && burst > bestDump))
+          ? { move: mv.name, pct: openP, basePct: pct, openPct, sustPct, trueFlat: tf / stunDiv, tfHits, stunDiv, cond }
+          : null;
+        if (burst > bestBurst) { bestBurst = burst; burstMove = mv; burstMoveStats = burstStats; burstTerms = terms; }
+        if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; dumpMoveStats = burstStats; dumpTerms = terms; }
         if (sust > sustainedHit) sustainedHit = sust;
       }
       // A nuke's scaled damage per hit WITHOUT flat damage, on the stats that hit
@@ -1024,6 +1081,11 @@
         bestHit, bestMove: withShape(build, bestMove), moves, goal: spec.goal,
         bestBurst, burstMove: withShape(build, burstMove), burstPerHit, dumpPerHit, sustainedHit, rotation, setups,
         bestDump, dumpMove: withShape(build, dumpMove), openerCrit, worn: wornNames(build),
+        // What the burst and the dump were made of (§12 sum, setup share, True
+        // Flat inside the figure, the move's conditional term), and the best
+        // plain hit's conditional term: the corruption pass folds the Notch
+        // into the dump's sum, and the write-up names Stealth Strike's +100.
+        burstTerms, dumpTerms, bestCond, trueFlat,
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
         masteryBudget: build.masteryBudget || null,
@@ -3278,7 +3340,7 @@
       // test (or a reader) can still see what the form itself did.
       // Flat gear is priced on the move the form nukes with: Blasphemy's dump.
       const perHit = d.nuke === 'dump' ? ctx.dumpPerHit : ctx.burstPerHit;
-      const fg = K.formGearCrit ? K.formGearCrit(ctx, form, M, perHit)
+      const fg = K.formGearCrit ? K.formGearCrit(ctx, form, M, perHit, d.nuke === 'dump' ? 'dump' : 'burst')
                                 : { crit: 0, mult: 1, critMult: 1, flatMult: 1, lines: [] };
       const critMult = fg.critMult != null ? fg.critMult : (fg.mult || 1);
       const flatMult = fg.flatMult != null ? fg.flatMult : 1;
