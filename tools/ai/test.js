@@ -8861,13 +8861,10 @@ describe('QTE score submission', () => {
     const calls = [];
     const timers = [];
     const toasts = [];
+    // No `from`: the pipeline only ever calls the two RPCs. submit_score writes
+    // the personal best itself, and the client may not write that table at all.
     const sb = {
       rpc: (name, args) => { calls.push({ name, score: args.p_score, session: args.p_session_id }); return rpcImpl(name, args); },
-      // personal_bests: select(...).eq().eq().maybeSingle(), then upsert()
-      from: () => ({
-        select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }) }),
-        upsert: async () => ({ error: null }),
-      }),
     };
     const retryMs = /const SCORE_RETRY_MS = (\[[^\]]*\]);/.exec(src);
     ok(retryMs, 'sb.js has no SCORE_RETRY_MS');
@@ -8878,7 +8875,7 @@ describe('QTE score submission', () => {
       'const SCORE_RETRY_MS = ' + retryMs[1] + ';\n' +
       'const SCORE_REFUSALS = ' + refusals[1] + ';\n' +
       siteFn('startQteSession') + '\n' + siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
-      siteFn('sendScore') + '\n' + siteFn('scheduleScoreRetry') + '\n' + siteFn('updatePersonalBest') + '\n' +
+      siteFn('sendScore') + '\n' + siteFn('scheduleScoreRetry') + '\n' +
       'return { submitScore, startQteSession, state: () => ({ pending: Object.assign({}, _pending), ' +
       'confirmed: Object.assign({}, _confirmed), sessions: Object.assign({}, _sessionIds) }) };'
     )(sb, { id: 'u1' }, 'C', () => '2026-09',
@@ -9097,7 +9094,12 @@ describe('QTE score SQL', () => {
        'the function no longer answers with a status: ' + statuses.join(','));
     const refusals = /const SCORE_REFUSALS = \{[\s\S]*?\n  \};/.exec(sb);
     ok(refusals, 'sb.js has no SCORE_REFUSALS map');
-    for (const s of ['too_fast', 'capped']) {
+    // Every verdict about the score itself is final. Only a lost session, and
+    // a caller id that is not the JWT's (which the real client never sends),
+    // are worth another go with a fresh session.
+    const finals = statuses.filter(s => !['ok', 'no_session', 'wrong_user'].includes(s));
+    for (const s of ['too_fast', 'capped', 'banned', 'bad_input']) ok(finals.includes(s), 'the function lost the "' + s + '" verdict');
+    for (const s of finals) {
       ok(new RegExp('\\b' + s + ':').test(refusals[0]), 'the client would keep retrying a final "' + s + '"');
     }
     ok(!/\bno_session:/.test(refusals[0]), 'a lost session is treated as final instead of arming a new one');
@@ -9111,6 +9113,146 @@ describe('QTE score SQL', () => {
     ok(/p_user_id <> v_user THEN RETURN 'wrong_user'/.test(sql), 'a caller can still submit as another user');
     ok(/GREATEST\(leaderboard\.score, EXCLUDED\.score\)/.test(sql), 'a lower score can overwrite a higher one again');
     ok(/grant execute on function public\.submit_score/.test(sql), 'the DROP took the grants and nothing puts them back');
+  });
+});
+
+// supabase/lockdown.sql makes the score and ban tables read-only through the
+// API and puts every admin action behind a function that checks for an admin
+// on the server. The site must never write those tables again: a client-side
+// isAdmin() decides which buttons to draw, not what the database accepts, so
+// any table the admin panel could write, every signed-in user could write.
+describe('database lockdown', () => {
+  const root = path.join(__dirname, '..', '..');
+  const sql = fs.readFileSync(path.join(root, 'supabase', 'lockdown.sql'), 'utf8');
+  const sb = fs.readFileSync(path.join(root, 'js', 'sb.js'), 'utf8');
+  const LOCKED = ['leaderboard', 'leaderboard_records', 'personal_bests',
+                  'banned_usernames', 'perma_banned_usernames', 'qte_sessions'];
+  const ADMIN_FNS = ['admin_ban_user', 'admin_perma_ban_user', 'admin_unban_user', 'admin_ban_usernames',
+                     'admin_clear_all_scores', 'admin_clear_user_score', 'admin_delete_listings', 'admin_purge_expired'];
+
+  // The file minus its comments: the VERIFY block and section 5 quote every
+  // table and function name, so a check against the raw text proves nothing.
+  const code = sql.replace(/--[^\n]*/g, '');
+  const statements = code.split(';').map(s => s.replace(/\s+/g, ' ').trim());
+
+  it('locks every score and ban table, then grants reading only', () => {
+    const list = /foreach t in array array\[([^\]]*)\]/.exec(code);
+    ok(list, 'no table list in the lockdown loop');
+    for (const t of LOCKED) ok(new RegExp("'" + t + "'").test(list[1]), t + ' is not in the lockdown list');
+    ok(/drop policy %I on public\.%I/.test(code), 'existing policies are not dropped, so a dashboard-made write policy would survive');
+    ok(/revoke all on table public\.%I from public, anon, authenticated/.test(code), 'table privileges are not revoked');
+    ok(!/for (insert|update|delete|all)\b/i.test(code), 'a write policy is created on a locked table');
+    ok(!/grant (insert|update|delete|all)\b[^\n]*on table/i.test(code), 'a write privilege is granted back');
+    ok(!/qte_sessions_read/.test(code) && !statements.some(s => /^grant select/.test(s) && /qte_sessions/.test(s)), 'qte_sessions is readable from the client');
+    ok(/for select using \(auth\.uid\(\) = user_id\)/.test(code), 'personal_bests is not restricted to the player\'s own row');
+    ok(!statements.some(s => /^grant select/.test(s) && /personal_bests/.test(s) && /\banon\b/.test(s)),
+       'personal_bests is world-readable; the site reads only the signed-in player\'s row');
+  });
+
+  it('every admin function refuses a non-admin on the server, and is granted on purpose', () => {
+    const fns = [...sql.matchAll(/create (?:or replace )?function public\.(admin_[a-z_]+)\([^)]*\)[\s\S]*?\$\$([\s\S]*?)\$\$;/g)];
+    eq(fns.map(f => f[1]).sort().join(','), ADMIN_FNS.slice().sort().join(','), 'the admin function list changed');
+    // The name list of the one loop that revokes from public, anon AND
+    // authenticated - and only that list: the group may not swallow an earlier
+    // `p.proname in (` (the drop loop names the same functions).
+    const revoked = /p\.proname in \(((?:(?!p\.proname in \()[\s\S])*?)\)\s*loop\s*execute format\('revoke all on function %s from public, anon, authenticated'/.exec(code);
+    ok(revoked, 'no revoke loop over the function names');
+    for (const [, name, body] of fns) {
+      // `is not true`, not `if not`: with no JWT is_site_admin() could be NULL,
+      // and a plpgsql `if not NULL` does not branch (rpc-anon-lockout.sql, BUG 2).
+      ok(/if public\.is_site_admin\(\) is not true then raise exception 'admin only'/.test(body), name + ' does not refuse non-admins null-safely');
+      ok(/security definer/.test(sql.slice(sql.indexOf('function public.' + name + '('), sql.indexOf(body))), name + ' is not a definer');
+      ok(new RegExp("'" + name + "'").test(revoked[1]), name + ' is not in the revoke list');
+      ok(new RegExp('grant execute on function public\\.' + name + '\\([^)]*\\)\\s+to authenticated;').test(code), name + ' is never granted to authenticated');
+      ok(!new RegExp('public\\.' + name + '\\([^)]*\\)\\s+to anon').test(code), name + ' is granted to anon');
+    }
+  });
+
+  it('is_site_admin stays callable by the API roles and never answers NULL', () => {
+    // The RLS policies on testers evaluate is_site_admin() AS THE REQUEST ROLE,
+    // so everything it calls must be executable by anon and authenticated too.
+    ok(/select coalesce\(auth\.uid\(\) = any \(public\.site_admin_ids\(\)\), false\)/.test(sql), 'is_site_admin can answer NULL for a request with no JWT');
+    ok(/grant execute on function public\.is_site_admin\(\)\s+to anon, authenticated;/.test(sql), 'is_site_admin is not granted back');
+    ok(/grant execute on function public\.site_admin_ids\(\) to anon, authenticated;/.test(sql), 'site_admin_ids is revoked from the roles whose RLS policies call is_site_admin - every testers query would fail');
+    ok(!/create or replace function public\.is_site_admin\(\)[\s\S]{0,200}security definer/.test(sql), 'is_site_admin became a definer; testers.sql explains why it must not be');
+  });
+
+  it('no script writes a locked table itself', () => {
+    const dir = path.join(root, 'js');
+    for (const f of fs.readdirSync(dir).filter(n => n.endsWith('.js'))) {
+      // Whole-line comments only: a `//` inside a string (the Supabase URL) must
+      // not hide the rest of its line from the scan.
+      const code = fs.readFileSync(path.join(dir, f), 'utf8').replace(/^\s*\/\/[^\n]*/gm, '');
+      for (const t of LOCKED) {
+        const re = new RegExp("from\\('" + t + "'\\)[^;]{0,300}?\\.(insert|upsert|update|delete)\\(");
+        const m = re.exec(code);
+        ok(!m, 'js/' + f + ' still writes ' + t + ' directly: ' + (m ? m[0].slice(0, 90) : ''));
+      }
+    }
+  });
+
+  it('a ban names one account: the id and the name must agree', () => {
+    ok(/not exists \(select 1 from profiles where id = p_user_id and username = p_username\)/.test(code),
+       'admin_ban_user believes any id it is handed with any name');
+    ok(/_adminCurrentUser\?\.username === username \? _adminCurrentUser\.id : null/.test(sb),
+       'the Banned tab\'s Perma button can send the User Actions card\'s id with another row\'s name');
+    // Unban clears the Auth lock only when nothing else still bans the account.
+    ok(/not exists \(select 1 from banned_usernames\s+where user_id = v_user\)\s+and not exists \(select 1 from perma_banned_usernames where user_id = v_user\)/.test(code),
+       'an unban unlocks an account another ban row still names');
+    ok(/returns text\[\]/.test(code) && /Array\.isArray\(bannedNames\)/.test(sb), 'the sweep reports the list it sent, not the names it banned');
+  });
+
+  it('bans that already exist are locked by the owner after a look, never by the file', () => {
+    // The statements are there for the owner (raw text) ...
+    ok(/update public\.banned_usernames b set user_id = u\.id from auth\.users u/.test(sql), 'no backfill by signup name');
+    ok(/update public\.banned_usernames b set user_id = p\.id from public\.profiles p/.test(sql), 'no backfill by profile name');
+    ok(/public\.lock_auth_user\(user_id, true\)/.test(sql) && /where user_id <> all \(public\.site_admin_ids\(\)\)/.test(sql), 'no lock step, or one that could lock an admin');
+    // ... and none of them runs on its own: the old perma ids came from the
+    // panel bug and the sweep matched substrings, so a row may name an innocent.
+    ok(!/lock_auth_user\([^)]*,\s*true\)/.test(code.replace(/create function public\.admin_(perma_)?ban_user[\s\S]*?\$\$;/g, '')),
+       'the file locks existing bans on its own');
+    ok(!/update public\.(perma_)?banned_usernames b set user_id/.test(code), 'the file backfills ids on its own');
+  });
+
+  it('submit_score refuses a ban under any name the account has carried', () => {
+    const scores = fs.readFileSync(path.join(root, 'supabase', 'qte-scores.sql'), 'utf8');
+    ok(/FROM banned_usernames WHERE user_id = v_user/.test(scores), 'a ban by id is not checked');
+    ok(/JOIN profiles p ON p\.username = b\.username WHERE p\.id = v_user/.test(scores), 'a ban by profile name is not checked');
+    ok(/raw_user_meta_data->>'username' = b\.username WHERE u\.id = v_user/.test(scores), 'a ban by signup name (what the login check uses) is not checked');
+    ok(/p_score > COALESCE\(qte_score_cap\(p_qte_type\), 0\)/.test(scores), 'an unknown trainer with a NULL cap has no cap at all');
+  });
+
+  it('start_qte_session refuses junk trainer ids and a flood of sessions', () => {
+    const scores = fs.readFileSync(path.join(root, 'supabase', 'qte-scores.sql'), 'utf8');
+    ok(/p_qte_type !~ '\^\[a-z\]\+\(-new\)\?\(-comp\)\?\$' THEN RETURN NULL/.test(scores), 'any text makes a session row');
+    ok(/>= 60 THEN\s+RETURN NULL/.test(scores), 'sessions per minute are unbounded');
+    ok(/revoke all on function public\.start_qte_session\(uuid, text\) from public, anon, authenticated/.test(scores), 'start_qte_session keeps its default PUBLIC grant');
+  });
+
+  it('the client calls the admin functions the SQL defines, and nothing the lockdown revokes', () => {
+    for (const fn of ADMIN_FNS) ok(sb.indexOf("rpc('" + fn + "'") !== -1, 'sb.js never calls ' + fn);
+    ok(sb.indexOf("rpc('purge_expired_listings'") === -1, 'the client still calls purge_expired_listings directly');
+  });
+
+  it('a ban locks the account in Auth, not only in a table the login form reads', () => {
+    ok(/update auth\.users set banned_until = now\(\) \+ interval '100 years'/.test(sql), 'a ban does not set banned_until');
+    ok(/update auth\.users set banned_until = null/.test(sql), 'an unban does not clear banned_until');
+    ok(/if v_user = any \(public\.site_admin_ids\(\)\) then raise exception/.test(sql), 'an admin can be banned');
+    ok(/\/banned\/i\.test\(error\.message/.test(sb), 'the login form does not translate the Auth refusal');
+  });
+
+  it('submit_score refuses a banned account, checks its input and files under the server month', () => {
+    const scores = fs.readFileSync(path.join(root, 'supabase', 'qte-scores.sql'), 'utf8');
+    ok(/v_month\s+TEXT\s*:=\s*to_char\(now\(\) at time zone 'UTC', 'YYYY-MM'\)/.test(scores), 'the month is not the server\'s');
+    ok(/VALUES \(v_user, p_qte_type, p_score, p_platform, v_month\)/.test(scores), 'the leaderboard row is filed under p_month');
+    ok(!/VALUES \(v_user, p_qte_type, p_score, p_platform, p_month\)/.test(scores), 'p_month is trusted again');
+    ok(/THEN RETURN 'banned'; END IF;/.test(scores), 'a banned account can still submit');
+    ok(/INSERT INTO personal_bests/.test(scores), 'nothing writes personal_bests now that the client may not');
+    ok(/p_platform NOT IN \('M', 'C'\) THEN RETURN 'bad_input'/.test(scores), 'the platform is not checked');
+    ok(/p_qte_type !~ '\^\[a-z\]\+\(-new\)\?\(-comp\)\?\$' THEN RETURN 'bad_input'/.test(scores), 'the trainer id is not checked');
+    // The shape rule must accept every trainer the site has.
+    const types = (/const QTE_TYPES = \[([^\]]*)\]/.exec(sb) || [])[1].split(',').map(s => s.trim().replace(/'/g, '')).filter(Boolean);
+    for (const t of types) for (const suffix of ['', '-comp']) ok(/^[a-z]+(-new)?(-comp)?$/.test(t + suffix), 'the shape rule refuses ' + t + suffix);
   });
 });
 

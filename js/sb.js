@@ -190,6 +190,16 @@
     return _bannedSet ? _bannedSet.has(username) : false;
   }
 
+  // Bans are applied by admin_ban_user / admin_perma_ban_user / admin_unban_user
+  // (supabase/lockdown.sql), which refuse anyone but a site admin on the server
+  // and also lock the account in Supabase Auth. The status they return says how
+  // far the ban got; anything but a plain 'ok' is worth showing the admin.
+  function banNote(status) {
+    if (status === 'ok_no_auth_lock') return ' Auth did not lock the account (the site’s login check still applies). Ban it by hand: Supabase › Authentication › Users › Ban user; the Postgres log has the reason.';
+    if (status === 'ok_no_account')   return ' No Auth account to lock (a reserved name, or an account since deleted).';
+    return '';
+  }
+
   // Normal ban: username check. Perma ban: UUID check.
   async function checkIfBanned(userId, username) {
     if (userId && _permaBannedIdSet.has(userId)) return true;
@@ -357,7 +367,11 @@
     _authLock = true;
     try {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.message);
+      // A ban is enforced by Supabase Auth itself (banned_until, set by
+      // admin_ban_user in supabase/lockdown.sql): GoTrue answers "User is
+      // banned" and issues no session. The table check below stays for a ban
+      // recorded by name only, or one Auth could not be told about.
+      if (error) throw new Error(/banned/i.test(error.message || '') ? 'Your account has been banned.' : error.message);
       currentUser    = data.user;
       const username = data.user.user_metadata?.username
         || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
@@ -489,8 +503,10 @@
   // worth another go with a fresh one; a verdict about the score itself (too
   // fast for the game, above the trainer's cap) will never change.
   const SCORE_REFUSALS = {
-    too_fast: 'Score not saved: it came in faster than this trainer allows.',
-    capped:   'Score not saved: above the maximum this trainer accepts.',
+    too_fast:  'Score not saved: it came in faster than this trainer allows.',
+    capped:    'Score not saved: above the maximum this trainer accepts.',
+    bad_input: 'Score not saved: the server did not recognise this trainer.',
+    banned:    'Score not saved: this account is banned.',
   };
 
   // 'accepted' | 'retry' | 'refused'
@@ -531,7 +547,6 @@
       return 'refused';
     }
     console.log('[sb] submitScore ok', qteType, score, PLATFORM);
-    await updatePersonalBest(qteType, score);
     return 'accepted';
   }
 
@@ -549,21 +564,11 @@
     _retryT[qteType] = setTimeout(() => { _retryT[qteType] = null; pumpScore(qteType); }, SCORE_RETRY_MS[n]);
   }
 
-  // Personal best is its own table, read-then-write. Only ever raised, and only
-  // from inside a successful send, so the two are never in flight together.
-  async function updatePersonalBest(qteType, score) {
-    const { data: pb, error: pbErr } = await sb.from('personal_bests')
-      .select('score')
-      .eq('user_id', currentUser.id)
-      .eq('qte_type', qteType)
-      .maybeSingle();
-    if (pbErr) return;                    // can't verify the existing best — don't risk overwriting it
-    if (pb && score <= pb.score) return;
-    await sb.from('personal_bests').upsert(
-      { user_id: currentUser.id, qte_type: qteType, score, platform: PLATFORM, updated_at: new Date().toISOString() },
-      { onConflict: 'user_id,qte_type' }
-    );
-  }
+  // The personal best is written by submit_score itself, in the same call that
+  // accepts the score. This file used to upsert personal_bests after each
+  // accepted send, which meant the table took writes from any signed-in user —
+  // anyone could file anyone's best straight in. supabase/lockdown.sql made
+  // every score table read-only through the API; the client only reads them.
 
   // Borrowed from the anti-macro guard so a lost score is as visible as a
   // blocked one. Missing until qte-guard.js loads, which is after this file.
@@ -2085,19 +2090,20 @@
     }
     const banBtn = document.querySelector('.sb-admin-btn-ban');
     const isBanned = banBtn?.dataset.banned === '1';
-    const { username } = _adminCurrentUser;
+    const { username, id } = _adminCurrentUser;
     if (isBanned) {
-      await sb.from('banned_usernames').delete().eq('username', username);
+      const { data: status, error } = await sb.rpc('admin_unban_user', { p_username: username });
+      if (error) { adminSetStatus(error.message); return; }
       _bannedSet?.delete(username);
       banBtn.textContent = '🚫 Ban'; banBtn.dataset.banned = '0';
-      adminSetStatus(`${username} unbanned.`, true);
+      adminSetStatus(status === 'not_banned' ? `${username} was not banned.` : `${username} unbanned.`, true);
       _refreshBannedTab(username, 'remove');
     } else {
-      const { error } = await sb.from('banned_usernames').upsert({ username }, { onConflict: 'username' });
+      const { data: banStatus, error } = await sb.rpc('admin_ban_user', { p_username: username, p_user_id: id || null });
       if (error) { adminSetStatus(error.message); return; }
       _bannedSet?.add(username);
       banBtn.textContent = '✅ Unban'; banBtn.dataset.banned = '1';
-      adminSetStatus(`${username} banned.`, true);
+      adminSetStatus(`${username} banned.${banNote(banStatus)}`, true);
       _refreshBannedTab(username, 'add');
     }
   }
@@ -2105,17 +2111,17 @@
   async function adminPermaBanUser(usernameArg, userIdArg) {
     if (!isAdmin()) return;
     const username = usernameArg || _adminCurrentUser?.username;
-    const userId   = userIdArg   || _adminCurrentUser?.id || null;
+    // Only borrow the User Actions card's id when it is the same account: the
+    // Banned tab passes a name alone, and the card may be showing someone else.
+    // (The server refuses a mismatched pair too; this keeps the panel honest.)
+    const userId   = userIdArg || (_adminCurrentUser?.username === username ? _adminCurrentUser.id : null);
     if (!username) return;
     if (PERMA_BANNED.has(username)) { adminSetStatus(`${username} is already permanently banned.`); return; }
     if (!confirm(`Permanently ban "${username}"? This cannot be undone from the panel.`)) return;
 
     adminSetStatus('Applying permanent ban…');
-    const { error: e1 } = await sb.from('perma_banned_usernames')
-      .insert({ username, user_id: userId || null });
-    if (e1 && !e1.message?.includes('duplicate')) { adminSetStatus(e1.message); return; }
-    await sb.from('banned_usernames')
-      .upsert({ username, user_id: userId || null }, { onConflict: 'username' });
+    const { data: banStatus, error } = await sb.rpc('admin_perma_ban_user', { p_username: username, p_user_id: userId || null });
+    if (error) { adminSetStatus(error.message); return; }
 
     PERMA_BANNED.add(username);
     _bannedSet?.add(username);
@@ -2134,7 +2140,7 @@
       if (banBtn)   { banBtn.textContent = '🔒 Perma Banned'; banBtn.disabled = true; banBtn.dataset.banned = '1'; }
       if (permaBtn) { permaBtn.textContent = '🔒 Perma Banned'; permaBtn.disabled = true; }
     }
-    adminSetStatus(`${username} permanently banned.`, true);
+    adminSetStatus(`${username} permanently banned.${banNote(banStatus)}`, true);
   }
 
   // ── Admin: trade listings tab ────────────────────────────────
@@ -2197,13 +2203,14 @@
   async function adminClearScores() {
     if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Clearing scores…');
+    // The function clears the monthly rows, the personal bests and the all-time
+    // records in one go; the client no longer touches those tables.
     const { error } = await sb.rpc('admin_clear_all_scores', { p_user_id: _adminCurrentUser.id });
     if (error) { adminSetStatus(error.message); return; }
-    await sb.from('personal_bests').delete().eq('user_id', _adminCurrentUser.id);
     adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
   }
 
-  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','yarthul-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','yarthul-new-comp'];
+  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-new','yarthul-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','dagger-new-comp','yarthul-new-comp'];
 
   function adminClearOneScore() {
     if (!isAdmin() || !_adminCurrentUser) return;
@@ -2233,7 +2240,6 @@
     const { error } = await sb.rpc('admin_clear_user_score', { p_user_id: uid, p_qte_type: qteType });
     document.getElementById('sb-admin-score-picker')?.remove();
     if (error) { adminSetStatus(error.message); return; }
-    await sb.from('personal_bests').delete().eq('user_id', uid).eq('qte_type', qteType);
     adminSetStatus(`${qteType} score cleared for ${uname}.`, true);
   }
 
@@ -2248,17 +2254,22 @@
   async function adminBanAndWipe() {
     if (!isAdmin() || !_adminCurrentUser) return;
     adminSetStatus('Wiping user…');
-    await Promise.all([
-      sb.from('banned_usernames').upsert({ username: _adminCurrentUser.username }, { onConflict: 'username' }),
+    // The ban first, on its own: it is the call that can refuse (an admin, or a
+    // card gone stale under a rename), and a refusal must not arrive after the
+    // scores and listings are already gone.
+    const { data: banStatus, error: banErr } = await sb.rpc('admin_ban_user',
+      { p_username: _adminCurrentUser.username, p_user_id: _adminCurrentUser.id });
+    if (banErr) { adminSetStatus(banErr.message); return; }
+    const results = await Promise.all([
       sb.rpc('admin_clear_all_scores', { p_user_id: _adminCurrentUser.id }),
       sb.rpc('admin_delete_listings',  { p_username: _adminCurrentUser.username }),
-      sb.from('personal_bests').delete().eq('user_id', _adminCurrentUser.id),
     ]);
     _bannedSet?.add(_adminCurrentUser.username);
     const banBtn = document.querySelector('.sb-admin-btn-ban');
     if (banBtn) { banBtn.textContent = '✅ Unban'; banBtn.dataset.banned = '1'; }
-    adminSetStatus(`${_adminCurrentUser.username} banned + all data wiped.`, true);
     _refreshBannedTab(_adminCurrentUser.username, 'add');
+    const failed = results.find(r => r.error);
+    if (failed) { adminSetStatus(`${_adminCurrentUser.username} banned, but the wipe failed: ${failed.error.message}`); return; }
   }
 
   function _refreshBannedTab(username, action) {
@@ -2280,10 +2291,11 @@
   async function unbanUser(username) {
     if (!isAdmin()) return;
     if (PERMA_BANNED.has(username)) return;
-    await sb.from('banned_usernames').delete().eq('username', username);
+    const { data: status, error } = await sb.rpc('admin_unban_user', { p_username: username });
+    if (error) { adminSetStatus(error.message); return; }
     _bannedSet?.delete(username);
     _refreshBannedTab(username, 'remove');
-    adminSetStatus(`${username} unbanned.`, true);
+    adminSetStatus(status === 'not_banned' ? `${username} was not banned.` : `${username} unbanned.`, true);
   }
 
   async function adminPurgeExpired(btn) {
@@ -2292,7 +2304,7 @@
     if (btn) { btn.disabled = true; btn.textContent = 'Purging…'; }
     adminSetStatus('Purging expired records…');
 
-    const { error } = await sb.rpc('purge_expired_listings');
+    const { error } = await sb.rpc('admin_purge_expired');
     if (error) {
       adminSetStatus('Error: ' + error.message);
     } else {
@@ -2312,11 +2324,17 @@
       if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; }
       return;
     }
-    const { error } = await sb.from('banned_usernames').upsert(dirty.map(u => ({ username: u })), { onConflict: 'username' });
+    // The function answers with the names it actually banned - an admin's name
+    // is skipped whatever the filter thought of it - so report those, not the
+    // list that was sent.
+    const { data: bannedNames, error } = await sb.rpc('admin_ban_usernames', { p_usernames: dirty });
     if (error) { adminSetStatus(error.message); if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; } return; }
-    dirty.forEach(u => _bannedSet?.add(u));
-    dirty.forEach(u => _refreshBannedTab(u, 'add'));
-    adminSetStatus(`Banned ${dirty.length} user(s): ${dirty.join(', ')}`, true);
+    const done = Array.isArray(bannedNames) ? bannedNames : dirty;
+    done.forEach(u => _bannedSet?.add(u));
+    done.forEach(u => _refreshBannedTab(u, 'add'));
+    const skipped = dirty.filter(u => !done.includes(u));
+    adminSetStatus(`Banned ${done.length} user(s): ${done.join(', ') || '—'}` +
+      (skipped.length ? ` · skipped (admin): ${skipped.join(', ')}` : ''), true);
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; }
   }
 
