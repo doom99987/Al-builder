@@ -4811,13 +4811,16 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     return `<br><span class="dc-crit-line">All crits: <b>${main.toFixed(1)}</b> × ${critMult.toFixed(2)}x${moveCritDmgStr}${tfPart} = <b>${(main * critMult * moveCritDmgMult + tf).toFixed(1)}</b></span>`;
   };
   // Frosted enchant AOE (on a crit vs a Cold enemy): 10 + Flat, through the DMG
-  // BONUS toggles and team buffs (not the move's own terms, the enchant or the
-  // milestone - its inclusion before §12, kept), the statuses that used to ride
-  // those buffs (Condemned, the Sinister Gaze reflections) and the resistance.
+  // BONUS toggles, team buffs and the Blasphemy Notch (not the move's own terms,
+  // the enchant or the milestone - its inclusion before §12, kept; the Notch
+  // only when the move spends it), the statuses that used to ride those buffs
+  // (Condemned, the Sinister Gaze reflections) and the resistance.
   const frostedAoeLine = (effType, resMult) => {
     const terms = getActiveDmgTerms(effType, dcEnergyAfter(m));
+    const _notchAoe = notchPctFor(m);
+    if (_notchAoe) terms.push({ label: "Blasphemy Notch", pct: _notchAoe });
     const multi = { terms, pct: sumDmgTerms(terms) };
-    const mult  = Math.max(0, 1 + multi.pct / 100);
+    const mult  = dmgMultiFactor(multi.pct);
     const { mult: gMult, label: gLabel } = getStatusMultiplier(effType, { skipBasic: true });
     const base  = 10 + getFlatDmgBonus();
     let v = base;
@@ -5079,7 +5082,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     if (sMult !== 1) formula += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${h1Final.toFixed(1)}</b>`;
 
     formula += `<br><span class="dc-avg-line">Hits 2–3: 3.6(1 + STR(${strVal})/90) = <b>${h23Raw.toFixed(1)}</b>`;
-    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} = <b>${(h23Raw * totalMult).toFixed(1)}</b>`;
+    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_out)}</span> = <b>${(h23Raw * totalMult).toFixed(1)}</b>`;
     formula += ` × ${_vuln.toFixed(2)} <span class="dc-bonus-tag">[Vuln from hit 1]</span> = <b>${h23Vuln.toFixed(1)}</b>`;
     if (h23ExtraMult !== 1) formula += ` × ${h23ExtraMult.toFixed(2)} <span class="dc-bonus-tag">[${h23ExtraLabel}]</span> = <b>${h23Final.toFixed(1)}</b>`;
     formula += ` each</span>`;
@@ -5175,10 +5178,18 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   // second +15, Blazing Barrage Proficiency +20) joins its Multi sum on a side
   // line: the figure above does not assume the target is Burning (as before).
   // Slash Barrage's +30 vs bleeding sits in the main sum, as it always applied.
+  // Every step of the side line is printed, as on the main one: a status,
+  // the resistance or True Flat folded into a bare "→ N" is a factor nobody
+  // can see (§4).
   const _burnOut = getOutsideDmgMult(m, { vsBurning: true });
   if (_burnOut.pct !== _out.pct) {
-    const _burnMain = dmgPerHit * hitCount * _burnOut.total * sMult * bMult;
-    formula += `<br><span class="dc-avg-line">vs burning: × ${_burnOut.total.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_burnOut)}</span> → <b>${(_burnMain + _tf).toFixed(1)}</b></span>`;
+    const _burnBase  = dmgPerHit * hitCount;
+    const _burnMulti = _burnBase * _burnOut.total;
+    const _burnMain  = _burnMulti * sMult * bMult;
+    let _burnLine = `vs burning: ${_burnBase.toFixed(1)} × ${_burnOut.total.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_burnOut)}</span> = <b>${_burnMulti.toFixed(1)}</b>`;
+    if (sMult !== 1) _burnLine += ` × ${sMult.toFixed(2)} <span class="dc-bonus-tag">[${sLabel}]</span> = <b>${(_burnMulti * sMult).toFixed(1)}</b>`;
+    if (bMult !== 1) _burnLine += ` × ${bMult.toFixed(2)} <span class="dc-bonus-tag">[${bLabel}]</span> = <b>${_burnMain.toFixed(1)}</b>`;
+    formula += `<br><span class="dc-avg-line">${_burnLine}${tfStep(hitCount, _burnMain)}</span>`;
   }
 
   // Rending Barrage (Impaler (Ch) 1st Learn): extra hit (13.5 base, STR/75+ARC/75, 7.5% lifesteal) if
@@ -5186,13 +5197,16 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   if (m.name === "Rending Barrage") {
     const _rbExtraRaw   = 13.5 * (1 + totalContrib);
     const _rbExtraMult  = _rbExtraRaw * totalMult;
-    const { mult: _rbSMult } = getStatusMultiplier(effectiveMoveType);
-    const { mult: _rbBMult } = getBossResMult(effectiveMoveType);
-    const _rbExtraFinal = _rbExtraMult * _rbSMult * _rbBMult + trueFlat;
+    const { mult: _rbSMult, label: _rbSLabel } = getStatusMultiplier(effectiveMoveType);
+    const { mult: _rbBMult, label: _rbBLabel } = getBossResMult(effectiveMoveType);
+    const _rbExtraMain  = _rbExtraMult * _rbSMult * _rbBMult;
+    const _rbExtraFinal = _rbExtraMain + trueFlat;
     const _rbLS         = _rbExtraFinal * 0.075;
     formula += `<br><span class="dc-avg-line">vs bleeding (extra hit): 13.5(1 + ${scalingStr}) = <b>${_rbExtraRaw.toFixed(1)}</b>`;
-    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">[Multi ${fmtSignedPct(_out.pct)}%]</span> = <b>${_rbExtraMult.toFixed(1)}</b>`;
-    if (_rbSMult !== 1 || _rbBMult !== 1 || trueFlat) formula += ` → <b>${_rbExtraFinal.toFixed(1)}</b>`;
+    if (totalMult !== 1) formula += ` × ${totalMult.toFixed(2)} <span class="dc-bonus-tag">${buildBonusTag(_out)}</span> = <b>${_rbExtraMult.toFixed(1)}</b>`;
+    if (_rbSMult !== 1) formula += ` × ${_rbSMult.toFixed(2)} <span class="dc-bonus-tag">[${_rbSLabel}]</span> = <b>${(_rbExtraMult * _rbSMult).toFixed(1)}</b>`;
+    if (_rbBMult !== 1) formula += ` × ${_rbBMult.toFixed(2)} <span class="dc-bonus-tag">[${_rbBLabel}]</span> = <b>${_rbExtraMain.toFixed(1)}</b>`;
+    formula += tfStep(1, _rbExtraMain);
     formula += ` + <b>${_rbLS.toFixed(1)}</b> HP LS <span class="dc-bonus-tag">[7.5%]</span></span>`;
   }
 
@@ -5808,9 +5822,10 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
 }
 
 // Every switch that is on and adds to a hit's Multi sum whatever the move:
-// the DMG BONUS rows, your own Overheat, the team buffs and the Blasphemy
-// Notch. Element gates read `moveType`, the EFFECTIVE type. A row that
-// MASTERY_ADDS_TO_BASE merged (Shadow Form + Shadow Master) lists its parts.
+// the DMG BONUS rows, your own Overheat and the team buffs. Element gates read
+// `moveType`, the EFFECTIVE type. A row that MASTERY_ADDS_TO_BASE merged
+// (Shadow Form + Shadow Master) lists its parts. The Blasphemy Notch is NOT
+// here: only a 3+ energy move spends it, so it is per move (notchPctFor).
 function getActiveDmgTerms(moveType = null, energyAfter = null) {
   const terms = [];
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
@@ -5821,19 +5836,32 @@ function getActiveDmgTerms(moveType = null, energyAfter = null) {
     else terms.push({ label: p.name, pct });
   });
   // Overheat is a status on YOU: "+8% damage per stack", added like any buff.
-  if (statusEffectsActive.overheat) terms.push({ label: `Overheat ×${overheatStacks}`, pct: 8 * overheatStacks });
+  // A stack count is written "(3 stacks)", never "×3": the working's × steps
+  // are real multipliers (statuses, crit), and "×3 +24" read as one of them.
+  if (statusEffectsActive.overheat) terms.push({ label: `Overheat (${stacksLabel(overheatStacks)})`, pct: 8 * overheatStacks });
   TEAM_BUFFS.forEach(b => {
     if (!teamBuffsActive[b.key] || b.dotOnly) return;
     if (b.key === 'blizzard') return; // Ice only: per move, in getBlizzardPct()
     if ((b.key === 'castAmplify' || b.key === 'arcaneRitual') && moveType && !AMPLIFY_TYPES.includes(moveType)) return;
     if (b.key === 'surprisePkg' && moveType && !['Physical', 'Magic'].includes(moveType)) return;
     terms.push(b.key === 'castAmplify'
-      ? { label: `Cast Amplify ×${castAmplifyStacks}`, pct: b.pct * castAmplifyStacks }
+      ? { label: `Cast Amplify (${stacksLabel(castAmplifyStacks)})`, pct: b.pct * castAmplifyStacks }
       : { label: b.label, pct: b.pct });
   });
-  const _notch = getCorruptionDmgPct();
-  if (_notch) terms.push({ label: "Blasphemy Notch", pct: _notch });
   return terms;
+}
+
+function stacksLabel(n) {
+  return `${n} stack${n === 1 ? "" : "s"}`;
+}
+
+// The Blasphemy Notch term of move `m`'s sum: "Any move costing 0-2 NRG
+// generates 1 Notch up to your cap. Any move costing 3+ NRG consumes the
+// entire stack instead." A 0-2 energy move banks Notch and gets none of it
+// (Self Destruct, cost 2, included); "3+X" reads as 3.
+function notchPctFor(m) {
+  const cost = m && m.cost !== undefined ? (parseInt(m.cost, 10) || 0) : 0;
+  return cost >= 3 ? getCorruptionDmgPct() : 0;
 }
 
 function sumDmgTerms(terms) {
@@ -5870,8 +5898,9 @@ function notchDmgPct() {
   return cap <= 1 ? 30 : 10 + 20 * (n - 1) / (cap - 1);
 }
 
-// What being in form adds to the Multi sum: the Blasphemy Notch spend. 0 when
-// no form is picked, which is every build that has not asked for this.
+// What being in form adds to the Multi sum: the Blasphemy Notch spend, on a
+// move that spends the stack (notchPctFor: 3+ energy only). 0 when no form is
+// picked, which is every build that has not asked for this.
 // Tyranny's Condemned is on the TARGET ("takes more damage from everyone"), so
 // it is a status multiplier in getStatusMultiplier, not a term here.
 function getCorruptionDmgPct() {
@@ -6379,10 +6408,14 @@ function getDmgMulti(m, effType, energyAfter, isCrit = false, opts = null) {
     add(`energy ${energyCount}E`, getEnergyBonusPct(m));
     // Darkbeast's Dark Cores: +5% a core, +50% more at 6. That summon's kit only.
     if (m.slot === "Darkbeast" && darkCoreCount > 0) {
-      add(`Dark Cores ×${darkCoreCount}`, 5 * darkCoreCount + (darkCoreCount >= 6 ? 50 : 0));
+      add(`Dark Cores (${darkCoreCount})`, 5 * darkCoreCount + (darkCoreCount >= 6 ? 50 : 0));
     }
     // Spirit Awakening: "+50% damage buff to summons" - a summon's attack only.
-    if (summonBuffsActive.spiritAwakening && isSummonAttack(m)) add("Spirit Awakening", 50);
+    // Labelled apart from the DMG BONUS row's +15 (its stat half), which a
+    // summon's attack can carry beside it.
+    if (summonBuffsActive.spiritAwakening && isSummonAttack(m)) add("Spirit Awakening (summon buff)", 50);
+    // Blasphemy's Notch: only a move costing 3+ energy spends the stack.
+    add("Blasphemy Notch", notchPctFor(m));
     add(milestoneDmgLabel(m, effType), getMilestoneDmgPct(m, effType));
     getMoveInnateTerms(m, opts).forEach(t => add(t.label, t.pct));
     // Stealth Strike: "Increases damage dealt by 100% if invisible while
@@ -6395,7 +6428,13 @@ function getDmgMulti(m, effType, energyAfter, isCrit = false, opts = null) {
   const _ench = getEnchantPct();
   add(_ench.label, _ench.pct);
   const pct = sumDmgTerms(terms);
-  return { pct, terms, mult: Math.max(0, 1 + pct / 100) };
+  return { pct, terms, mult: dmgMultiFactor(pct) };
+}
+
+// The Multi factor of a sum: 1 + pct / 100, clamped at 0. The only place it is
+// written, so no path can total a sum its own way.
+function dmgMultiFactor(pct) {
+  return Math.max(0, 1 + pct / 100);
 }
 
 // A move's Multi sum as the damage paths read it: the move's effective type and
@@ -7398,9 +7437,9 @@ function renderDmgBonusSection() {
     if (_corrForm === "Blasphemy") {
       const _on = corruptionBuffsActive.notch;
       const _pct = notchDmgPct();
-      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="notch" title="Spending a Notch stack on a damaging move deals bonus damage — 10% at 1 Notch, scaling to 30% at your cap.">
+      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="notch" title="Only a move costing 3+ energy spends the Notch stack, for bonus damage on that move — 10% at 1 Notch, scaling to 30% at your cap. Moves costing 0-2 bank Notch and get none of it.">
         <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
-        <span class="dc-bonus-name">Notch spend</span>
+        <span class="dc-bonus-name">Notch spend (3+ energy moves)</span>
         <span class="dc-bonus-pct">+${fmtDmgPct(_pct)}%</span>
       </div>`;
       if (_on) {
@@ -7421,7 +7460,7 @@ function renderDmgBonusSection() {
           </div>
         </div>
         <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">
-          ${notchSpent} of ${notchCap} Notch → +${_pct.toFixed(1)}% damage. A full stack takes ${notchCap} cheap turns to bank.
+          ${notchSpent} of ${notchCap} Notch → +${_pct.toFixed(1)}% damage on a 3+ energy move. A full stack takes ${notchCap} cheap turns to bank.
         </div>`;
       }
     }
@@ -9898,6 +9937,12 @@ function loadBuildState(state) {
   luckyHornsSpend = false;
   bloomingEyeSpend = false;
   stealthStrikeInvisible = false;
+  // Blooming Eye's Flat twin, and two hidden counters: none is in a saved
+  // build, so a leftover +40 Flat or Cast Amplify stack count would carry into
+  // the next build loaded into the same page.
+  crystallineSpikeSpend = false;
+  castAmplifyStacks = 1;
+  darkCoreCount = 0;
   Object.keys(summonBuffsActive).forEach(k => { summonBuffsActive[k] = false; });
   Object.keys(enchantCondActive).forEach(k => { enchantCondActive[k] = false; });
   enchantReaperEnemyHp = 100;

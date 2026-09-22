@@ -409,7 +409,12 @@
         'so totals sit on a breakpoint or at or under it.'],
       ['HP', n1(c.hp)],
       ['Crit chance', n1(c.critChance) + '%' + (c.critTier ? '  (tier ' + c.critTier + ' — every hit crits)' : '')],
-      ['Crit damage', c.critDmg.toFixed(2) + 'x'],
+      // Devastating is scored here (added to the multiplier) but not applied by
+      // the site, so its readout is lower by exactly that add (knowledge.js TRAITS).
+      ['Crit damage', c.critDmg.toFixed(2) + 'x' +
+        (c.traits && c.traits.critDmgPct > 0
+          ? '  (the site shows ' + (c.critDmg - c.traits.critDmgPct / 100).toFixed(2) + 'x: it does not apply Devastating\'s +' +
+            n1(c.traits.critDmgPct) + '%, which is scored here)' : '')],
       ['Block DR / Initiative', n1(c.blockDr) + ' DR  ·  ' + n1(c.initiative) + '%'],
       ['Heal out / in', n1(c.outHeal) + '%  ·  ' + n1(c.incHeal) + '%' +
         // The site does not apply class healing passives to its own
@@ -755,13 +760,17 @@
     // ── energy ──────────────────────────────────────────────────────────────
     // Worth calling out on its own, because "+1 max energy" reads as trivial and
     // is not: any move that spends the whole pool scales with the cap.
-    if (c.bestMove && (K.ENERGY.scalingMoves || {})[c.bestMove.name] && c.traits && c.traits.energyCap) {
-      const es = K.ENERGY.scalingMoves[c.bestMove.name];
+    // The scaling comes from the move's own data (K.energyScalingOf), the same
+    // read the scorer's sum uses, so Lightning Crash is explained like Carnage.
+    const es = c.bestMove && K.energyScalingOf ? K.energyScalingOf(c.bestMove)
+             : c.bestMove ? (K.ENERGY.scalingMoves || {})[c.bestMove.name] : null;
+    if (es && c.traits && c.traits.energyCap) {
+      const total = es.perEnergy * Math.max(0, c.energyCap - es.freeEnergy) * 100;
       L.push({ h: 'Energy', list: [
         c.bestMove.name + ' ' + es.note + '. With a cap of **' + c.energyCap + '** that is **+' +
-        Math.round(es.perEnergy * Math.max(0, c.energyCap - es.freeEnergy) * 100) + '% damage**, and ' +
+        Math.round(total) + '% damage** in its damage bonus sum, and ' +
         'the Overflow trait is responsible for **+' +
-        Math.round(es.perEnergy * c.traits.energyCap * 100) + '%** of it. Base energy is assumed to be ' +
+        Math.round(Math.min(total, es.perEnergy * c.traits.energyCap * 100)) + '%** of it. Base energy is assumed to be ' +
         K.ENERGY.base + '; correct it in knowledge.js if the game differs.',
       ]});
     }
@@ -856,6 +865,7 @@
                         : a.kind === 'outHealPct'   ? '% outgoing healing'
                         : a.kind === 'incHealPct'   ? '% incoming healing'
                         : a.kind === 'lifestealPct' ? '% lifesteal'
+                        : a.move                    ? '% damage on ' + a.move + ' only'
                         :                            '% damage';
         // A capstone that does several things is several rows under one name.
         // The sign is the value's own: One For All's -30% damage is a cost, and

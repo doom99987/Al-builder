@@ -741,6 +741,26 @@
     },
   };
 
+  // A move's energy scaling, read from the move's OWN data first. The site
+  // prices every move that carries `energyScaling: { perEnergy, past }` (a
+  // percent per energy past `past`; builder.js getEnergyBonusPct), and
+  // Lightning Crash carries it as well as Carnage - a hand-kept list alone left
+  // its +12.5% an energy past the third out of the engine's sum. Returned in the
+  // table's shape (a fraction per energy past `freeEnergy`); the table's note is
+  // kept where its numbers agree with the data, and a move the data does not
+  // mark falls back to the table.
+  function energyScalingOf(mv) {
+    if (!mv) return null;
+    const t = (ENERGY.scalingMoves || {})[mv.name] || null;
+    const es = mv.energyScaling;
+    if (!(es && +es.perEnergy > 0)) return t;
+    const perEnergy = +es.perEnergy / 100, freeEnergy = Math.max(0, +es.past || 0);
+    const agrees = t && Math.abs(t.perEnergy - perEnergy) < 1e-9 && t.freeEnergy === freeEnergy;
+    return { perEnergy, freeEnergy,
+             note: agrees && t.note ? t.note
+                 : 'consumes the whole pool for +' + (+es.perEnergy) + '% per energy past ' + freeEnergy };
+  }
+
   // ── SELF-STUN ─────────────────────────────────────────────────────────────
   // Some moves buy their damage with your own turns. Boreas's Inner Frost reads
   // "Heavy stun yourself for one turn. At the end, deal AoE dmg" (two turns
@@ -814,9 +834,12 @@
   // does not track. Numbers derived from those will not match what
   // arcanelineagebuilder.com shows, and the explanation says so.
   //
-  // Devastating is deliberately NOT applied by either. It reads like it belongs
-  // on the crit-damage readout, but the site owner has tested it in game
-  // repeatedly and it does nothing. See its entry below.
+  // Devastating is deliberately split: the SITE does not apply it (it was
+  // reported doing nothing in game, so it is not wired to the crit-damage
+  // readout), and the ENGINE still scores it - added to the crit multiplier
+  // (§12), never multiplying it - because that report was never confirmed.
+  // So the engine's crit damage reads higher than the site's with it worn
+  // (explain.js says so). See its entry below.
   //
   //   kind        what it feeds
   //   ---------------------------------------------------------------
@@ -2523,20 +2546,26 @@
                               note: 'currently does nothing — the passive it modifies was reverted' },
 
     // ── conditional on a status you have to apply ────────────────────────────
+    // `move`: the ability is that one move's upgrade, so its percentage is a
+    // term of THAT move's sum only (optimize.js evaluate, ma.moveDmg) - never
+    // of every move's, which is how Blaze Proficiency once lifted Lightning
+    // Crash. builder.js prices Blaze and Blazing Barrage Proficiency the same
+    // way (getMoveInnateTerms). `uptime` is then only the condition's share
+    // (a burning target, a poisoned one), never "how often the move is used".
     'Vital Strike':         { kind: 'dmgPct', value: 20, uptime: 0.6,
                               note: '+20% against bleeding targets — reliable once your kit applies Bleed' },
-    'Poison Fan Proficiency':      { kind: 'dmgPct', value: 10, uptime: 0.6,
-                              note: '+10% against poisoned targets' },
-    'Crushing Strike Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.55,
-                              note: '+20% against vulnerable or weakened targets' },
-    'Lightning Crash Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.5,
-                              note: '+20% against burning targets' },
-    'Blaze Proficiency':    { kind: 'dmgPct', value: 30, uptime: 0.8,
-                              note: '15% always, doubled to 30% against a burning target — and it guarantees the Burn itself' },
-    'Carnage Proficiency':  { kind: 'dmgPct', value: 20, uptime: 0.5,
-                              note: '+20% against weakened, which the move itself applies, plus 15% while below 40% HP' },
-    'Head Splitter Proficiency': { kind: 'dmgPct', value: 30, uptime: 0.35,
-                              note: '+30% to low-health targets, and the move becomes full AoE' },
+    'Poison Fan Proficiency':      { kind: 'dmgPct', value: 10, uptime: 0.6, move: 'Poison Fan',
+                              note: '+10% on Poison Fan against poisoned targets' },
+    'Crushing Strike Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.55, move: 'Crushing Strike',
+                              note: '+20% on Crushing Strike against vulnerable or weakened targets' },
+    'Lightning Crash Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.5, move: 'Lightning Crash',
+                              note: '+20% on Lightning Crash against burning targets' },
+    'Blaze Proficiency':    { kind: 'dmgPct', value: 30, uptime: 0.8, move: 'Blaze',
+                              note: 'Blaze only: 15% always, doubled to 30% against a burning target — and it guarantees the Burn itself' },
+    'Carnage Proficiency':  { kind: 'dmgPct', value: 20, uptime: 0.5, move: 'Carnage',
+                              note: '+20% on Carnage against weakened, which the move itself applies, plus 15% while below 40% HP' },
+    'Head Splitter Proficiency': { kind: 'dmgPct', value: 30, uptime: 0.35, move: 'Head Splitter',
+                              note: '+30% on Head Splitter to low-health targets, and the move becomes full AoE' },
     'Intense Rage':         { kind: 'dmgPct', value: 60, uptime: 0.3,
                               note: '+60% below 30% HP, up from 40% — a real buff you have to nearly die for' },
     'Grand Guard':          { kind: 'dmgPct', value: 10, uptime: 0.7,
@@ -2554,14 +2583,17 @@
     // unknown the capstone fallback would buy blind for a base Warrior.
     'Holy Crash Proficiency':   { kind: 'onSite', value: 0,
                               note: 'Holy Crash goes from 18 to 20 base, about +11% on that move alone, plus guaranteed Taunt on every target hit. A Paladin gets it as a move rewrite (MOVE_OVERRIDES), measured through the move; a base Warrior has no Holy Crash, so for it the node is worth nothing' },
-    'Light Burst Proficiency':  { kind: 'dmgPct', value: 30, uptime: 0.3,
+    // Unconditional on their move, so always on there (`move` - see above).
+    'Light Burst Proficiency':  { kind: 'dmgPct', value: 30, uptime: 1, move: 'Light Burst',
                               note: '+30%, on Light Burst alone' },
-    'Bloody Burst Proficiency': { kind: 'dmgPct', value: 50, uptime: 0.3,
+    'Bloody Burst Proficiency': { kind: 'dmgPct', value: 50, uptime: 1, move: 'Bloody Burst',
                               note: '+50% shard damage and a third shard, on Bloody Burst alone' },
-    'Flame Drop Proficiency':   { kind: 'dmgPct', value: 25, uptime: 0.3,
-                              note: '+25% base, and up to another 40% off absorbed burn stacks (4% each, 10 max)' },
-    'Blazing Barrage Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.3,
-                              note: '+20% and 2 blinded against a burning target, on that move' },
+    'Flame Drop Proficiency':   { kind: 'dmgPct', value: 25, uptime: 1, move: 'Flame Drop',
+                              note: '+25% on Flame Drop, and up to another 40% off absorbed burn stacks (4% each, 10 max, not counted)' },
+    // Against a burning target only - the same condition, and uptime, as
+    // Lightning Crash Proficiency's.
+    'Blazing Barrage Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.5, move: 'Blazing Barrage',
+                              note: '+20% and 2 blinded against a burning target, on Blazing Barrage alone' },
     'Call Skeleton Proficiency':   { kind: 'dmgPct', value: 30, uptime: 0.4,
                               note: 'free to cast, and your NEXT skeleton gets +30% damage and +50% HP' },
     "Nature's Wrath":       { kind: 'dmgPct', value: 15, uptime: 0.6,
@@ -2571,8 +2603,12 @@
                               note: '+2.5% per combined Bleed stack, +25% at 10' },
     'Crucible Proficiency': { kind: 'dmgPct', value: 20, uptime: 0.6,
                               note: 'converts your combined defence buffs into a damage buff for 2 turns' },
-    'The Big Sword':        { kind: 'dmgPct', value: 40, uptime: 0.25,
-                              note: '+40% Strike damage, greatsword only, plus 7.5% lifesteal that is always on' },
+    // "Increased strike damage from 20% to 40%": the greatsword's own +20% on
+    // Strike (a weapon line, not counted) raised by 20 - on Strike only. A
+    // Berserker is greatsword-only, so the gate is always met.
+    'The Big Sword':        { kind: 'dmgPct', value: 20, uptime: 1, move: 'Strike',
+                              note: 'Strike damage from +20% to +40% (greatsword only; a Berserker always has one) - ' +
+                                    'the extra 20% on Strike alone, plus 7.5% lifesteal on strikes that is always on' },
     'Berserkin Time':       { kind: 'dmgPct', value: 15, uptime: 0.5,
                               note: '+15% per Bloodlust stack instead of 10%, and 5% DR per stack up to 80%' },
 
@@ -2697,11 +2733,29 @@
     // Stinger is two attacks in one and its damage string, "5 + 10", parses as
     // nothing at all — so the move was being dropped from the search entirely.
     // Modelled as the two parts summed at their own scalings.
+    // `partTypes`: the type each part DEALS - a Physical stab, Poison arrows.
+    // Each part takes the damage-bonus sum of its own type (STR 110 on the
+    // stab, ARC 110 on the arrows, the element-gated buffs and the boss's
+    // resistance likewise), as builder.js's getDmgMulti per part does
+    // (optimize.js evaluate, movePartTypes). Without it the whole move took
+    // the Poison sum, and ARC 110 reached the stab.
     'Stinger': [{
       when: () => true,
       base: 5, scaling: 'ARC/75',
       second: { base: 10, scaling: 'ARC/70 + SPD/80', hits: 1 },
+      partTypes: ['Physical', 'Poison'],
       note: 'two-part attack: a 5-base stab on ARC/75, then 10-base arrows on ARC/70 + SPD/80',
+    }],
+    // Lancer cm2, Discharge Proficiency: "Fires 4 smaller lightning
+    // projectiles that can hit the same target. First hit at full damage,
+    // second at 38%, subsequent hits at 1/3 damage." Four hits of
+    // (Base + Flat) at those `ratios` - x2.05 in all - exactly as builder.js's
+    // DMG calc prices it, True Flat on each of the four (model.js
+    // trueFlatHits). verify.js reads the site's "4 hits — ... = N" total.
+    'Discharge': [{
+      when: b => b.klass === 'Lancer (N)' && (b.masteryNodes || []).includes('cm2'),
+      ratios: [1, 0.38, 1 / 3, 1 / 3],
+      note: 'Discharge Proficiency fires four projectiles: the first at full damage, the second at 38% and the last two at a third',
     }],
     // Paladin has no tree of its own and uses the Warrior tree, whose lm2 is
     // Holy Crash Proficiency. Patch: base damage becomes 20 (18 without it).
@@ -2713,6 +2767,20 @@
       note: 'Holy Crash Proficiency raises Holy Crash to 20 base (18 without it)',
     }],
   };
+
+  // The written type of each part of a two-part attack whose parts deal
+  // different types, or null. Read off the first live MOVE_OVERRIDES rule, as
+  // the moveShape QUIRK below picks it.
+  function movePartTypes(build, mv) {
+    const rules = MOVE_OVERRIDES[mv && mv.name];
+    if (!rules) return null;
+    for (const rule of rules) {
+      let live = false;
+      try { live = !!rule.when(build); } catch (e) { live = false; }
+      if (live) return rule.partTypes || null;
+    }
+    return null;
+  }
 
   // ── MOVE-GATED CONDITIONAL DAMAGE ───────────────────────────
   // A move's OWN "+X% damage when ..." that the build meets through a setup in
@@ -2890,6 +2958,7 @@
           if (rule.base    !== undefined) out.base    = rule.base;
           if (rule.hits    !== undefined) out.hits    = rule.hits;
           if (rule.scaling !== undefined) out.scaling = rule.scaling;
+          if (rule.ratios) out.ratios = rule.ratios;
           out._second = rule.second || null;
           // Why the move changed, in words. Without this the write-up can say
           // the numbers moved but not what moved them.
@@ -3097,11 +3166,22 @@
   // burstTerms / dumpTerms) is left out of what a flat bonus scales, and a
   // True Flat spend knows the nuke's hits. `critMult` is up every turn in the
   // form; `flatMult` is one attack's worth and must only touch the nuke.
+  //
+  // True Flat is added after the sum, the statuses and the crit (§1), so no
+  // factor here ever multiplies it: `critMult` (the form crit's ratio) and
+  // `flatMain` (the Spike's) are ratios on the nuke's figure WITHOUT its True
+  // Flat, and `trueFlatAdd` (the Eye's spend) is added after both.
+  // `flatMult` and `mult` are what those come to on the whole out-of-form nuke,
+  // for the write-up; corruptionDamage composes the parts, never the products.
   function formGearCrit(c, form, M, perHit, nuke) {
-    let crit = 0, flatMult = 1;
+    let crit = 0, flatMain = 1, trueFlatAdd = 0;
     const critLines = [], flatLines = [];
     const terms = nuke === 'dump' ? c.dumpTerms : c.burstTerms;
     const total = nuke === 'dump' ? c.bestDump : c.bestBurst;
+    // The True Flat inside the nuke's figure, and a ratio on the rest of it
+    // (plus a True Flat added after) as a multiplier on the whole figure.
+    const tf = terms && total > 0 ? Math.min(total, terms.trueFlat || 0) : 0;
+    const onNuke = (main, add) => total > 0 ? ((total - tf) * main + tf + add) / total : main;
     for (const name of Object.keys(FORM_GEAR)) {
       const rule = FORM_GEAR[name];
       if (!(c.worn || []).includes(name)) continue;
@@ -3109,8 +3189,9 @@
       if (rule.trueFlat) {
         // Needs the nuke's figure and its hit count.
         if (!terms || !(terms.tfHits > 0) || !(total > 0)) continue;
-        const m = (total + (rule.trueFlat - rule.base) * terms.tfHits / (terms.stunDiv || 1)) / total;
-        flatMult *= m;
+        const add = (rule.trueFlat - rule.base) * terms.tfHits / (terms.stunDiv || 1);
+        trueFlatAdd += add;
+        const m = onNuke(1, add);
         flatLines.push('**' + name + '** is worth **+' + Math.round((m - 1) * 1000) / 10 +
                        '%** on the form nuke: ' + rule.why + '.');
         continue;
@@ -3119,11 +3200,10 @@
         // Needs the nuke's per-hit damage; a two-part attack has none to add to.
         const per = perHit !== undefined ? perHit : c.burstPerHit;
         if (!(per > 0)) continue;
-        let m = (per + rule.flat) / (per + rule.base);
         // Flat rides the sum and the crit, True Flat does not: scale the rest.
-        const tf = terms && total > 0 ? Math.min(total, terms.trueFlat || 0) : 0;
-        if (tf) m = ((total - tf) * m + tf) / total;
-        flatMult *= m;
+        const r = (per + rule.flat) / (per + rule.base);
+        flatMain *= r;
+        const m = onNuke(r, 0);
         flatLines.push('**' + name + '** is worth **+' + Math.round((m - 1) * 1000) / 10 +
                        '%** on the form nuke: ' + rule.why + '.');
         continue;
@@ -3140,8 +3220,26 @@
     } else {
       crit = 0; critLines.length = 0;
     }
-    if (!crit && flatMult === 1) return { crit: 0, mult: 1, critMult: 1, flatMult: 1, lines: [] };
-    return { crit, mult: critMult * flatMult, critMult, flatMult, lines: critLines.concat(flatLines) };
+    // Exactly 1 when no flat gear fired: (total - tf) + tf need not round back
+    // to total, and a hair over 1 reads as "the worn gear pays" downstream.
+    const flatMult = flatMain === 1 && !trueFlatAdd ? 1 : onNuke(flatMain, trueFlatAdd);
+    if (!crit && flatMult === 1) return { crit: 0, mult: 1, critMult: 1, flatMult: 1, flatMain: 1, trueFlatAdd: 0, lines: [] };
+    const mult = total > 0 ? ((total - tf) * critMult * flatMain + tf + trueFlatAdd) / total : critMult * flatMult;
+    return { crit, mult, critMult, flatMult, flatMain, trueFlatAdd, lines: critLines.concat(flatLines) };
+  }
+
+  // The True Flat inside the figure a form's multiplier is taken on - the
+  // burst, or the plain hit when there is none (corruptionDamage's `base`) -
+  // and `fig` scaled by `mult` everywhere but its True Flat `tf`. A form's
+  // status (Condemned) or crit (Heresy's Light Force) multiplies the hit's
+  // main figure only; True Flat is added after both (§1).
+  function formBaseTrueFlat(c) {
+    if (c.bestBurst) return Math.min(c.bestBurst, (c.burstTerms && c.burstTerms.trueFlat) || 0);
+    return Math.min(c.bestHit || 0, c.hitTrueFlat || 0);
+  }
+  function scaleButTrueFlat(fig, tf, mult) {
+    const t = Math.max(0, Math.min(fig, tf || 0));
+    return (fig - t) * mult + t;
   }
 
   // Blasphemy's Notch at a full stack: "10% at 1 Notch, scaling to 30% at your
@@ -3265,13 +3363,19 @@
       const need = Math.ceil((Math.floor(cc / 100) + 1) * 100 - cc);
       const before = M.expectedMultiplier(cc, c.critDmg);
       const after = M.expectedMultiplier(cc + need, c.critDmg);
+      // The crit multiplies the hit's main figure only: its True Flat (Blooming
+      // Eye) is added after the crit and does not grow (§1).
+      const hitTf = Math.min(c.bestHit || 0, c.hitTrueFlat || 0);
+      const critHit = scaleButTrueFlat(c.bestHit || 0, hitTf, after / (before || 1));
+      const critHitMult = c.bestHit > 0 ? critHit / c.bestHit : after / (before || 1);
       const statusy = (c.moves || []).some(m => /bleed|burn|poison|ghostflame/i.test(m.effect || ''));
       const lines = [
         'Light Force converts to Crit Rate **1:1** on your next attack. The game does not state how ' +
           'much Force a hit grants, so no crit is added to the numbers above.',
         'This build sits at **' + cc.toFixed(1) + '%** crit. **' + need + '** more crosses the next tier, ' +
           'which would take a hit from **' + Math.round(c.bestHit) + '** to **' +
-          Math.round(c.bestHit / (before || 1) * after) + '** (×' + (after / (before || 1)).toFixed(2) + ').',
+          Math.round(critHit) + '** (×' + critHitMult.toFixed(2) + ')' +
+          (hitTf > 0 ? ' - its ' + Math.round(hitTf) + ' True Flat does not crit, so it does not grow' : '') + '.',
       ];
       if (statusy) {
         lines.push('Your kit applies statuses, so Dark Wing copies them onto you and White Wing can spend ' +
@@ -3280,8 +3384,7 @@
       }
       return {
         burst: 1, sustained: 1,
-        ifCrit: { need, mult: after / (before || 1),
-                  hit: c.bestHit / (before || 1) * after },
+        ifCrit: { need, mult: critHitMult, hit: critHit },
         lines,
         steps: [
           { move: 'Soul Ignition', turns: CORRUPTION_ENTRY_TURNS,
@@ -3320,8 +3423,13 @@
       const cost = m => { const n = parseInt(String(m.cost), 10); return isNaN(n) ? 0 : n; };
       const appliers = (c.moves || []).filter(m => cost(m) >= 2).length;
       const mult = appliers ? 1 + pct / 100 : 1;
+      // Condemned is a status on the target: it multiplies each figure's main
+      // part, never the True Flat added after it (§1).
+      const base = c.bestBurst || c.bestHit || 0;
+      const burst = base > 0 ? scaleButTrueFlat(base, formBaseTrueFlat(c), mult) / base : mult;
+      const sustained = c.sustainedHit > 0 ? scaleButTrueFlat(c.sustainedHit, c.sustTrueFlat, mult) / c.sustainedHit : mult;
       return {
-        burst: mult, sustained: mult, ifCrit: null,
+        burst, sustained, ifCrit: null,
         lines: appliers
           ? ['Condemned is applied by any move costing 2+ energy, and this kit has **' + appliers + '** of them.',
              'It makes the target take more damage from **everyone**, so in a party it is worth several ' +
@@ -3538,7 +3646,9 @@
     'Call Darkbeast Proficiency': { kind: 'status', self: [], enemy: ['weakened', 'vulnerable'], uptime: 0.5, party: true, note: 'The Darkbeast\'s Void Bite now always applies 2 Weakened and 2 Vulnerable, whatever the core count. The damage and energy buff at 5+ cores has no number and is suspected bugged, so it is not counted.' },
     'Jolting Dodges': { kind: 'note', note: 'Dodging a ranged attack fires a shockwave. No damage figure is given and it only triggers on ranged attacks, so it is reported, not scored.' },
     'Rallying Shout Proficiency': { kind: 'note', party: true, note: 'The aggro increase is bugged in game (the text says so). Rallying Shout also gives all allies 10% HP Regen for 3 turns, but the text does not say whether that is 10% of max HP a turn or a 10% regen buff, so it is not scored.' },
-    'Discharge Proficiency': { kind: 'note', note: 'Discharge fires 4 projectiles at 100% / 38% / 33% / 33%, about 2.05x the single hit on one target (10 base becomes 20.47), and each applies 2 Weakened. Priced as a move rewrite that mirrors the site\'s own calculator.' },
+    // value 0 and onSite, as Holy Crash Proficiency: the node adds nothing on
+    // top of the rewrite, which MOVE_OVERRIDES 'Discharge' prices through the move.
+    'Discharge Proficiency': { kind: 'onSite', value: 0, uptime: 1, note: 'Discharge fires 4 projectiles at 100% / 38% / 33% / 33%, about 2.05x the single hit on one target (10 base becomes 20.47), and each applies 2 Weakened. Priced as a move rewrite (MOVE_OVERRIDES) that mirrors the site\'s own calculator, measured through the move.' },
     'Blood Mastery': { kind: 'bugged', uptime: 0, note: 'Does nothing in the game right now. It raises the stack cap on the old Bloody Berserker, and that version was reverted. Bloody Berserker is now +1% damage per 1% HP missing, with no stacks. Worth nothing, and the 5 points go elsewhere.' },
     'Daybreak Proficiency': { kind: 'note', note: 'Each Daybreak cast grants 10 temporary Courage stacks for 3 turns, and they can exceed the Courage cap. Nothing in the site\'s data says what a Courage stack does or where the cap sits, so it cannot be priced. On Daybreak\'s 6-turn cooldown it would be up about half the time.' },
     'Courageous Heart': { kind: 'note', openerFull: true, note: '5 Courage stacks for the whole fight, still subject to Courage scaling. It would be up on turn one, but nothing in the data says what a Courage stack is worth, so it is reported, not scored.' },
@@ -3570,7 +3680,7 @@
            STAT_LINE_RULES, statCeilings,
            STAT_LINE_RULES, statCeilings,
            GEAR_NEEDS, gearNeedNote, gearNeedIsCaution,
-           UNAVAILABLE, AVOID, MASTERY_ABILITIES, masteryRulePriced, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES,
+           UNAVAILABLE, AVOID, MASTERY_ABILITIES, masteryRulePriced, MASTERY_ABILITY_DEFAULT_UPTIME, MOVE_OVERRIDES, movePartTypes,
            MOVE_CONDITIONAL_DMG, moveConditionalLive, INVISIBLE_UPTIME,
            WEAPON_PASSIVES,
            PARTY_SIZE, PARTY_SPREAD, PLAY_STYLES, DAMAGE_MODELS, SUPERCLASS_MIN_LEVEL,
@@ -3579,10 +3689,10 @@
            ARTIFACT_ABILITIES, MARK_ABILITIES,
            COVENANTS, COVENANT_MIN_LEVEL, COVENANT_ASSUMED_RANK, COVENANT_BOSS_HOST,
            HP_STANCE, HP_GATED, HP_GATE_UPTIME, hpStance, hpGateFor,
-           ENERGY, SUSTAIN, drDamageTakenMult, drSurvivalMult, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
+           ENERGY, energyScalingOf, SUSTAIN, drDamageTakenMult, drSurvivalMult, PLAY_NOTES, TRAITS, PASSIVES, GEAR_PASSIVES, RACE_ROLES, GOAL_RACE_ROLES, RACE_TECH,
            SETUP_MOVES,
            SHARDS, SHARD_SLOTS, ENCHANTS,
-           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit, MAX_TIER, maxTierFor,
+           QUIRKS, CORRUPTION, CORRUPTION_DAMAGE, CORRUPTION_ASSUMED, FORM_GEAR, formGearCrit, formBaseTrueFlat, MAX_TIER, maxTierFor,
            SELF_STUN, selfStunTurns, raceReasonFor,
            CORRUPTION_ENTRY_TURNS, TRAPS };
 }));

@@ -484,7 +484,7 @@
       const parsed = parseDamageCached(move.damage);
       let base = parsed.base, hits = parsed.hits;
       let scaling = String(move.scaling || '');
-      let second = null, changed = false;
+      let second = null, ratios = null, changed = false;
       const notes = [];
       for (const fn of hooks.moveShape) {
         const sh = fn(build, { move, base, hits, scaling });
@@ -496,8 +496,9 @@
           scaling = String(sh.scaling); changed = true;
         }
         if (sh._second) { second = sh._second; changed = true; }
+        if (sh.ratios) { ratios = sh.ratios; hits = sh.ratios.length; changed = true; }
       }
-      return { base, hits, scaling, second, changed, notes,
+      return { base, hits, scaling, second, ratios, changed, notes,
                rawBase: parsed.base, rawHits: parsed.hits, rawScaling: String(move.scaling || '') };
     }
 
@@ -541,7 +542,8 @@
     // How many hits a move's True Flat lands on: every hit the site's working
     // prices. A two-part attack's second part counts the hits it stands for
     // (Stinger's arrows 1, Crucible's hits 2-3), as the site adds True Flat to
-    // each. A move with no damage has none to add to.
+    // each; hits at a share (Discharge Proficiency's four) each take all of it.
+    // A move with no damage has none to add to.
     function trueFlatHits(build, move) {
       const sh = effectiveShape(build, move);
       if (!(sh.base > 0) || !(sh.hits > 0)) return 0;
@@ -559,6 +561,7 @@
       // below then works on the shape the game actually uses.
       let scalingStr = String(move.scaling || '');
       let second = null;      // a move that is really two attacks, summed
+      let ratios = null;      // hits at a share of the full one each (Discharge Proficiency)
       for (const fn of hooks.moveShape) {
         const sh = fn(build, { move, base: parsed.base, hits: parsed.hits, scaling: scalingStr });
         if (!sh) continue;
@@ -566,6 +569,7 @@
         else if (sh.hits !== undefined) parsed = { base: parsed.base, hits: sh.hits };
         if (sh.scaling !== undefined) scalingStr = String(sh.scaling);
         if (sh._second) second = sh._second;
+        if (sh.ratios) ratios = sh.ratios;
       }
 
       // builder.js:4080-4085 and the damage detail line it prints:
@@ -584,8 +588,11 @@
       let contrib = 0;
       for (const [stat, div] of scaleTerms(scalingStr)) contrib += s[stat] / div;
       let dmg = parsed.base * (1 + contrib);
+      // `opts.part` (1 or 2) prices one part of a two-part attack alone - the
+      // engine gives each part the damage-bonus sum of its own type (Stinger).
+      if (second && opts.part === 2) dmg = 0;
       // The second half of a two-part attack, scaled on its own terms and added.
-      if (second) {
+      if (second && opts.part !== 1) {
         let c2 = 0;
         for (const [st, dv] of scaleTerms(second.scaling)) c2 += s[st] / dv;
         dmg += (second.base || 0) * (1 + c2);
@@ -601,8 +608,10 @@
 
       const ctx = { move, stats: s, base: parsed.base, hits: parsed.hits };
       for (const fn of hooks.damage) dmg = fn(build, dmg, ctx);
-      // Scaling applies per hit, so the multiplier comes last.
-      dmg *= parsed.hits;
+      // Scaling applies per hit, so the multiplier comes last. Hits at a share
+      // of the full one (Discharge Proficiency: 1, 0.38, 1/3, 1/3) are that
+      // many shares of (Base + Flat), as builder.js's DMG calc has them.
+      dmg *= ratios ? ratios.reduce((a, r) => a + r, 0) : parsed.hits;
       if (opts.hits && opts.hits.length) dmg *= opts.hits.reduce((a, b) => a + b, 0);
       return dmg;
     }

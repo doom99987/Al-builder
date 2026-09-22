@@ -1198,7 +1198,11 @@ describe('random and flavour', () => {
     // Death Curtain becomes the biggest prepared hit a physical class has — the
     // gate ADMITS dark, so the premise "this kit is entirely physical" would be
     // false and the test would be measuring nothing.
-    for (const klass of ['Lancer (N)', 'Brawler (N)']) {
+    // A Rogue, not a Lancer, since 2026-09-21: the Lancer's Discharge
+    // Proficiency (cm2) is now priced as the site's four hits (MOVE_OVERRIDES
+    // 'Discharge'), and Discharge is a Magic move - the gate rightly admits it,
+    // so a Lancer's nuke is no longer the physical one this test needs.
+    for (const klass of ['Rogue (N)', 'Brawler (N)']) {
       // Scrolls off for the same reason the covenant is pinned: Lesser Empower
       // and Absolute Radiance are element-blind, so with them equipped a
       // physical kit DOES gain burst — correctly, and from a different buff
@@ -1386,8 +1390,12 @@ describe('random and flavour', () => {
     eq((ctx.burstMove || {}).name, 'Stealth Strike', 'fixture: a bare STR Assassin no longer nukes with Stealth Strike');
     const t = ctx.burstTerms;
     ok(t && t.cond && t.cond.move === 'Stealth Strike', 'the burst does not carry the Stealth Strike term');
-    ok(t.basePct >= 100 * rule.uptime - 1e-9, 'the base sum lacks its share of the +100');
-    ok(t.openPct >= 100 * (1 - rule.uptime) + 20 - 1e-9, "the opener lacks the rest of the +100 and Shadow Form's +20");
+    // Exact, not lower bounds: a bare STR-40 Assassin has nothing else in
+    // either sum, so a term counted twice shows here (a bound let an uptime
+    // dropped from the base sum - 50 -> 100 - pass).
+    const near = (a, b, what) => ok(Math.abs(a - b) < 1e-9, what + ': expected ' + b + ', got ' + a);
+    near(t.basePct, 100 * rule.uptime, 'the base sum is not its share of the +100');
+    near(t.openPct, 100 * (1 - rule.uptime) + 20, "the opener is not the rest of the +100 and Shadow Form's +20");
     ok(Math.abs(t.pct - (t.basePct + t.openPct)) < 1e-9, 'the opener is not one sum');
   });
 
@@ -2584,7 +2592,7 @@ describe('traits reach the numbers', () => {
     eq(M.siteTraitTotals(b).nrgChance, 0, 'a fixed gear granted a trait');
   });
 
-  it('Devastating is applied by neither side, and that is deliberate', () => {
+  it('Devastating is scored by the engine but not applied by the site, and that is deliberate', () => {
     // Reported as non-functional in game. The site does not wire it to the
     // crit-damage readout; the engine still SCORES it, because that report was
     // never confirmed. If either of those changes, it should change knowingly.
@@ -2664,12 +2672,14 @@ describe('Luck buys crit chance at half rate', () => {
     // every hit crits, and that is worth the Luck it takes.
     //
     // This pinned an Amorus Assassin until 2026-09-21. It stopped tiering for
-    // two reasons that are both right: Poison Fan no longer scales on Luck
-    // (STR/75 + ARC/80 since the patch), and Devastating now ADDS to the crit
-    // multiplier (Withered Grove §12: 2.2 + 1.12, not 2.2 x 2.12), so ten
-    // Devastating orbs no longer make every point of crit chance worth twice
-    // what it returns. The Assassin now parks on LCK 110 at 82%; this test is
-    // about whether the snap CAN cross a tier, so it moved to a class that does.
+    // one reason, which is right: Devastating now ADDS to the crit multiplier
+    // (Withered Grove §12: 2.2 + 1.12, not 2.2 x 2.12), so ten Devastating orbs
+    // no longer make every point of crit chance worth twice what it returns
+    // (with only that rule reverted the Assassin reaches 100.3%, tier 1).
+    // Poison Fan's scaling is not a cause: it was already STR/75 + ARC/80 when
+    // the Assassin passed (an older comment here said it scaled on Luck). The
+    // Assassin now parks on LCK 110 at 82%; this test is about whether the
+    // snap CAN cross a tier, so it moved to a class that does.
     //
     // Before that it pinned an Amorus Lancer, and that passed only because Crystal
     // Sphere and Ages Pages were each counted TWICE: their flat crit lives in
@@ -3094,8 +3104,12 @@ describe('Self Destruct is priced like every other move', () => {
     ok(/function getOutsideDmgMult\(m\b/.test(b),
        'the outside-multiplier chain is no longer a shared function');
     eq(lines.filter(l => /^function getDmgMulti\(/.test(l)).length, 1, 'getDmgMulti is not declared once, at top level');
-    eq(lines.filter(l => /Math\.max\(0, 1 \+ pct \/ 100\)/.test(l)).length, 1,
+    // Any spelling of the factor (`multi.pct`, `out.pct` ...), not just `pct`:
+    // the Frosted AOE once carried its own copy the narrower pattern missed.
+    eq(lines.filter(l => /Math\.max\(0, 1 \+ [\w.]*pct \/ 100\)/i.test(l)).length, 1,
        'a hit\'s Multi factor is totalled in more than one place; copies drift');
+    ok(/^function dmgMultiFactor\(pct\) \{\r?\n\s*return Math\.max\(0, 1 \+ pct \/ 100\);/m.test(b),
+       'the one copy is not dmgMultiFactor');
     // The old product of named factors must not come back beside the sum.
     eq(lines.filter(l => /activeMult \* energyMult/.test(l)).length, 0, 'the multiplicative chain is back');
     ok(!/armourMult|getArmourDmgTypePct/.test(b), 'the dead armour damage-type factor is back in the chain');
@@ -5643,7 +5657,9 @@ describe('move damage', () => {
       ok(Array.isArray(rules) && rules.length, name + ' has no rules');
       for (const rule of rules) {
         ok(typeof rule.when === 'function', name + ' has no when()');
-        ok(rule.base !== undefined || rule.scaling !== undefined || rule.second,
+        // `ratios`: hits at a share of the full one (Discharge Proficiency).
+        ok(rule.base !== undefined || rule.scaling !== undefined || rule.second ||
+           (Array.isArray(rule.ratios) && rule.ratios.length > 0 && rule.ratios.every(r => r > 0 && r <= 1)),
            name + ' overrides nothing');
       }
       const found = Object.keys(data.classMoves).some(k =>
@@ -6742,6 +6758,18 @@ describe('builder state after a load or a mastery change', () => {
        'loadBuildState does not reset statBuffsActive');
   });
 
+  it('a loaded build does not inherit the last one\'s spend switches or hidden counters', () => {
+    // None of these is in a saved build. Crystalline Spike's spend is +40 Flat
+    // on every hit, and the Cast Amplify stacks a hidden +20 each the moment
+    // the team buff is switched on.
+    const body = fnBody('loadBuildState');
+    for (const [name, v] of [['crystallineSpikeSpend', 'false'], ['castAmplifyStacks', '1'], ['darkCoreCount', '0'],
+                             ['bloomingEyeSpend', 'false'], ['luckyHornsSpend', 'false']]) {
+      ok(new RegExp('\\n\\s*' + name + ' = ' + v + ';').test(body), 'loadBuildState does not reset ' + name);
+      ok(!new RegExp('\\b' + name + '\\b').test(fnBody('getBuildState')), name + ' is saved now: reset it from the state instead');
+    }
+  });
+
   it("crit chance reads the same Luck multipliers as getTotalStat, in its order", () => {
     const up = fnBody('updatePecents');
     const at = re => { const m = re.exec(up); return m ? m.index : -1; };
@@ -7483,20 +7511,20 @@ const additiveSite = (() => {
   };
   const FNS = [
     // the Multi sum
-    'fmtDmgPct', 'fmtSignedPct', 'sumDmgTerms', 'dmgRowPct', 'getActiveDmgTerms',
-    'getBlizzardPct', 'getEnchantPct', 'getEnchantMult', 'notchDmgPct', 'getCorruptionDmgPct',
+    'fmtDmgPct', 'fmtSignedPct', 'sumDmgTerms', 'dmgRowPct', 'getActiveDmgTerms', 'stacksLabel',
+    'getBlizzardPct', 'getEnchantPct', 'getEnchantMult', 'notchDmgPct', 'getCorruptionDmgPct', 'notchPctFor',
     'getShardOfBlightPct', 'getMilestoneDmgStat', 'isSummonAttack', 'getMilestoneDmgPct',
-    'milestoneDmgLabel', 'getMoveInnateTerms', 'getDmgMulti', 'getOutsideDmgMult',
+    'milestoneDmgLabel', 'getMoveInnateTerms', 'getDmgMulti', 'dmgMultiFactor', 'getOutsideDmgMult',
     'buildBonusTag', 'getStatusMultiplier', 'bloodlustPct', 'getEnergyBonusPct', 'dcEnergyAfter',
     'getEffectiveMoveType', 'parseDmgBonus', 'collectDmgBonusPassives',
     // the working
     'toggleDmgDetail', 'parseScaling', 'getCritDmgMultEffective', 'getCorruptionCritBonus', 'getOvercritInfo',
     'buildOvercritLines', 'draugaCritHealLine', 'buildLifestealHealLines', 'buildLifestealExpectedLine',
     'getExpectedCritMult', 'getExpectedMultiHitDmg', 'getExpectedMoveCritDmg', 'getBossResMult',
-    'moveAppliesStatusEffect',
+    'moveAppliesStatusEffect', 'selfDestructBase', 'renderSelfDestruct',
   ];
   const CONSTS = ['COREALLOY_PCT_PER_ENERGY', 'MILESTONE_DMG_PCT', 'DMG_TAG_MAX_TERMS', 'MG_SCROLL_KEY',
-                  'DMG_AFFINITY_GATES', 'MASTERY_ADDS_TO_BASE', 'STAT_LABEL_MAP'];
+                  'DMG_AFFINITY_GATES', 'MASTERY_ADDS_TO_BASE', 'STAT_LABEL_MAP', 'BOSS_DATA'];
   const from = src.indexOf('let dmgCalcMoveList = [];');
   const to = src.indexOf('// Entries in BOSS_DATA that belong');
   ok(from !== -1 && to > from, 'the DMG calc state block moved');
@@ -7595,12 +7623,48 @@ describe('additive damage (Withered Grove §12)', () => {
     site('teamBuffsActive.castAmplify = true; castAmplifyStacks = 3');
     eq(multiOf(site, probe({ moveType: 'Magic' })).pct, 60, 'three stacks on a Magic move');
     eq(multiOf(site, probe()).pct, 0, 'Cast Amplify reached a Physical move');
+    // A stack count is not written with the x of a real multiplier.
+    eq(pctOf(multiOf(site, probe({ moveType: 'Magic' })).terms, 'Cast Amplify (3 stacks)'), 60, 'the Cast Amplify label');
     // Overheat and Oppression are summed too: 8 and 5 a stack.
     site('teamBuffsActive.castAmplify = false; statusEffectsActive.overheat = true; overheatStacks = 10');
     eq(multiOf(site, probe()).pct, 80, 'ten Overheat stacks are not +80');
+    eq(pctOf(multiOf(site, probe()).terms, 'Overheat (10 stacks)'), 80, 'the Overheat label');
     site('statusEffectsActive.overheat = false');
-    site('__rows(' + rows([['Oppression', 5]]) + '); oppressionCount = 5');
+    // Oppression at 4 is where the two rules part (5 x 4 = 20, 1.05^4 = +21.55);
+    // at 5 they meet by chance, and past 5 the cap holds.
+    site('__rows(' + rows([['Oppression', 5]]) + '); oppressionCount = 4');
+    eq(multiOf(site, probe()).pct, 20, 'four Oppression effects are not +20');
+    site('oppressionCount = 5');
     eq(multiOf(site, probe()).pct, 25, 'five Oppression effects are not +25');
+    site('oppressionCount = 6');
+    eq(multiOf(site, probe()).pct, 25, 'the Oppression cap does not hold at 6');
+  });
+
+  it('Darkbeast Dark Cores add 5 a core and 50 more at six, on that summon only', () => {
+    const site = additiveSite();
+    const beast = probe({ slot: 'Darkbeast' });
+    site('darkCoreCount = 3');
+    eq(pctOf(multiOf(site, beast).terms, 'Dark Cores (3)'), 15, 'three cores');
+    site('darkCoreCount = 6');
+    eq(pctOf(multiOf(site, beast).terms, 'Dark Cores (6)'), 80, 'six cores are not 30 + 50 (1.05^6 x 1.5 would be +101)');
+    eq(multiOf(site, probe()).pct, 0, 'the cores reached your own move');
+  });
+
+  it("Blasphemy's Notch reaches a 3+ energy move only", () => {
+    // "Any move costing 0-2 NRG generates 1 Notch up to your cap. Any move
+    // costing 3+ NRG consumes the entire stack instead." (owner-stated rule;
+    // the engine's Blasphemy pricing uses the same one).
+    const site = additiveSite({ form: 'Blasphemy' });
+    site('corruptionBuffsActive.notch = true; notchSpent = 5; notchCap = 5');
+    eq(pctOf(multiOf(site, probe({ cost: 3 })).terms, 'Blasphemy Notch'), 30, 'a 3-energy move does not spend the stack');
+    eq(pctOf(multiOf(site, probe({ cost: '3+X' })).terms, 'Blasphemy Notch'), 30, 'a "3+X" move does not spend the stack');
+    for (const cost of [0, 1, 2, undefined]) {
+      eq(multiOf(site, probe({ cost })).pct, 0, 'a ' + cost + '-energy move got the Notch');
+    }
+    eq(site('getOutsideDmgMult')({ name: 'Self Destruct', moveType: 'Physical', cost: 2, slot: 'Skeleton' }).pct, 0,
+       'Self Destruct (cost 2) got the Notch');
+    eq(site('sumDmgTerms(getActiveDmgTerms(null, null))'), 0, 'the Notch is still a switch on every move');
+    ok(/Blasphemy Notch \+30/.test(site('__work')(probe({ cost: 3 }))), 'the working does not name the Notch on a 3-energy move');
   });
 
   it('target statuses still multiply, with each other and with the sum', () => {
@@ -7629,6 +7693,17 @@ describe('additive damage (Withered Grove §12)', () => {
     near(s.mult, 0.7, 'the factor');
     const text = site('__work')(probe());
     ok(/× 0\.70 \[−30%: Probe Debuff −30\] = 7\.0/.test(text), 'a factor under 1 is hidden or wrong: ' + text);
+    // The same gate on the no-scaling path, where hiding the step changes the
+    // number itself (it would read 10.0).
+    const flat = site('__work')(probe({ scaling: '' }));
+    ok(/10 × 0\.70 \[−30%: Probe Debuff −30\] = 7\.0/.test(flat), 'the no-scaling path hides a factor under 1: ' + flat);
+    // And on Discharge Proficiency's four hits (Lancer cm2): 10 x 0.70 = 7.0 a
+    // full hit, x (1 + 0.38 + 1/3 + 1/3) = 14.3 - not 20.5 at a hidden factor.
+    const lancer = additiveSite({ sup: 'Lancer (N)', mastery: { cm2: true } });
+    lancer('__rows(' + rows([['Probe Debuff', -30]]) + ')');
+    const dis = lancer('__work')(probe({ name: 'Discharge', moveType: 'Magic' }));
+    ok(/× 0\.70 \[−30%: Probe Debuff −30\] = 7\.0/.test(dis) && /4 hits — [^=]*= 14\.3/.test(dis),
+       'Discharge hides a factor under 1: ' + dis);
     site('__rows(' + rows([['Probe Debuff', -150]]) + ')');
     eq(multiOf(site, probe()).mult, 0, 'the factor went below zero');
   });
@@ -7725,7 +7800,8 @@ describe('additive damage (Withered Grove §12)', () => {
     site('summonBuffsActive.spiritAwakening = true');
     eq(multiOf(site, probe()).pct, 0, 'Spirit Awakening reached your own move');
     const skeleton = probe({ slot: 'Skeleton' });
-    eq(pctOf(multiOf(site, skeleton).terms, 'Spirit Awakening'), 50, "a summon's attack did not get +50");
+    // Labelled apart from the +15 DMG BONUS row that shares the name.
+    eq(pctOf(multiOf(site, skeleton).terms, 'Spirit Awakening (summon buff)'), 50, "a summon's attack did not get +50");
     eq(multiOf(site, probe({ slot: 'Base Move' })).pct, 0, "Arbiter's own Base Move counted as a summon");
   });
 
@@ -7762,13 +7838,92 @@ describe('additive damage (Withered Grove §12)', () => {
     const site = additiveSite({ sup: 'Elementalist (Or)', mastery: { lm2: true } });
     const blaze = probe({ name: 'Blaze', moveType: 'Fire', scaling: 'ARC/70' });
     eq(pctOf(multiOf(site, blaze).terms, 'Blaze Prof.'), 15, 'Blaze Proficiency is not +15 on the hit');
+    // The main figure does not assume a burning target: Proficiency's 15 only,
+    // and nothing at all without the mastery.
+    eq(multiOf(site, blaze).pct, 15, "Blaze's main sum is not Proficiency's +15 alone");
+    eq(multiOf(additiveSite({ sup: 'Elementalist (Or)' }), blaze).pct, 0, 'Blaze has a main sum without its mastery');
     const burning = site('getOutsideDmgMult')(blaze, { vsBurning: true });
     eq(burning.pct, 30 + 25, 'Blaze vs burning is not Proficiency 30 + Blaze 25');
-    ok(/vs burning: × 1\.55 \[\+55%: Blaze Prof\. \+30, Blaze vs burning \+25\]/.test(site('__work')(blaze)),
+    ok(/vs burning: 10\.0 × 1\.55 \[\+55%: Blaze Prof\. \+30, Blaze vs burning \+25\] = 15\.5/.test(site('__work')(blaze)),
        'no vs-burning line with the sum: ' + site('__work')(blaze));
     const slash = probe({ name: 'Slash Barrage', damage: 16, scaling: 'STR/85' });
     eq(pctOf(multiOf(site, slash).terms, 'Slash Barrage vs bleeding'), 30, 'Slash Barrage is not +30 in its sum');
     eq(multiOf(site, probe()).pct, 0, 'a move-innate term reached another move');
+    // Blazing Barrage Proficiency (Monk lm2): +20 against a burning target only.
+    const monk = additiveSite({ sup: 'Monk (Or)', mastery: { lm2: true } });
+    const bb = probe({ name: 'Blazing Barrage', moveType: 'Fire', scaling: 'STR/80' });
+    eq(multiOf(monk, bb).pct, 0, "Blazing Barrage Proficiency's +20 reached the main figure");
+    eq(monk('getOutsideDmgMult')(bb, { vsBurning: true }).pct, 20, 'Blazing Barrage vs burning is not +20');
+    eq(additiveSite({ sup: 'Monk (Or)' })('getOutsideDmgMult')(bb, { vsBurning: true }).pct, 0,
+       'Blazing Barrage has a vs-burning term without its mastery');
+  });
+
+  it('the side lines print every step their figure has (§4)', () => {
+    // vs burning under Hexed with Blooming Eye: 10 x 1.55 = 15.5, x2 = 31.0,
+    // + 5 True Flat = 36.0. It used to read "x 1.55 [...] -> 36.0".
+    const site = additiveSite({ sup: 'Elementalist (Or)', mastery: { lm2: true }, gear: ['Blooming Eye'] });
+    site('statusEffectsActive.hexed = true');
+    const blaze = probe({ name: 'Blaze', moveType: 'Fire', scaling: 'ARC/70' });
+    const text = site('__work')(blaze);
+    ok(/vs burning: 10\.0 × 1\.55 \[\+55%: [^\]]*\] = 15\.5 × 2\.00 \[Hexed ×2\] = 31\.0 \+ 5 \[Blooming Eye, True Flat\] = 36\.0/.test(text),
+       'the vs-burning line hides a status or True Flat: ' + text);
+    // Rending Barrage's extra hit: the labelled sum, Vulnerable and True Flat.
+    // 13.5 x 1.15 = 15.525, x 1.20 = 18.63, + 5 = 23.63.
+    const imp = additiveSite({ gear: ['Blooming Eye'] });
+    imp('__rows(' + rows([['Buff A', 15]]) + '); statusEffectsActive.vulnerable = true');
+    const rb = imp('__work')(probe({ name: 'Rending Barrage', damage: '6x3', scaling: 'STR/75 + ARC/75' }));
+    ok(/vs bleeding \(extra hit\): 13\.5\(1 \+ STR\(0\)\/75 \+ ARC\(0\)\/75\) = 13\.5 × 1\.15 \[\+15%: Buff A \+15\] = 15\.5 × 1\.20 \[Vuln ×1\.20\] = 18\.6 \+ 5 \[Blooming Eye, True Flat\] = 23\.6/.test(rb),
+       'the Rending Barrage extra hit hides a term: ' + rb);
+    // Crucible's hits 2-3 carry the same labelled sum as hit 1.
+    const cit = additiveSite({ sup: 'Citadel (Or)' });
+    cit('__rows(' + rows([['Buff A', 50]]) + ')');
+    const cr = cit('__work')(probe({ name: 'Crucible', damage: 9, scaling: 'STR/65' }));
+    ok(/Hits 2–3: 3\.6\(1 \+ STR\(0\)\/90\) = 3\.6 × 1\.50 \[\+50%: Buff A \+50\] = 5\.4 × 1\.20 \[Vuln from hit 1\] = 6\.5/.test(cr),
+       "Crucible's hits 2-3 print a bare factor: " + cr);
+  });
+
+  it('the paths outside the ordinary one apply the same sum, in number (§5)', () => {
+    const site = additiveSite();
+    site('__rows(' + rows([['Buff A', 50]]) + ')');
+    // Stinger: both parts carry the sum. 5 x 1.5 = 7.5, 10 x 1.5 = 15, total 22.5.
+    const st = site('__work')(probe({ name: 'Stinger', damage: '5 + 10', scaling: 'ARC/75' }));
+    ok(/Stab \(Physical\): 5\(1 \+ ARC\(0\)\/75\) = 5\.0 × 1\.50 \[\+50%: Buff A \+50\] = 7\.5/.test(st) &&
+       /Arrows \(Poison\): 10\(1 \+ ARC\(0\)\/70 \+ SPD\(0\)\/80\) = 10\.0 × 1\.50 \[\+50%: Buff A \+50\] = 15\.0/.test(st) &&
+       /Total: 7\.5 \+ 15\.0 = 22\.5/.test(st), "Stinger's parts do not both carry the sum: " + st);
+    // The Frosted AOE: 10 through the switches, summed - two +10s are x1.20.
+    const fr = additiveSite({ enchant: 'Frosted' });
+    fr('__rows(' + rows([['Buff A', 10], ['Buff B', 10]]) + '); enchantCondActive.frostedColdEnemy = true');
+    ok(/Frosted AOE \(on crit vs Cold\): 10 × 1\.20 \[\+20%: Buff A \+10, Buff B \+10\] = 12\.0/.test(fr('__work')(probe())),
+       'the Frosted AOE does not sum its terms: ' + fr('__work')(probe()));
+    // Self Destruct: its base at full HP (109.5) through the same sum.
+    const dmgEl = { innerHTML: '' };
+    const box = { dataset: { slot: 'Skeleton' }, querySelector: sel => (sel === '.sd-dmg' ? dmgEl : null) };
+    site('renderSelfDestruct')({ value: 100, closest: () => box });
+    const sd = dmgEl.innerHTML.replace(/<[^>]+>/g, '').replace(/&times;/g, '×');
+    ok(/109\.5 × 1\.50 \[\+50%: Buff A \+50\] = 164\.2/.test(sd), 'Self Destruct does not apply the sum: ' + sd);
+  });
+
+  it('a multi-hit crit line keeps its crit-only term, and DeathBeak takes the enchant alone (§5)', () => {
+    // Two 10-damage hits under Buff A +50 and Inferno +20 (a +70 sum), with a
+    // crit-only +50 (Empowered Pierce-style) and DeathBeak Dagger worn.
+    const site = additiveSite({ critMult: 2, critChance: 50, gear: ['DeathBeak Dagger'], enchant: 'Inferno' });
+    site('__rows(' + rows([['Buff A', 50]]) + '); enchantCondActive.inferno = true');
+    const mv = probe({ damage: '10x2', critDmgBonus: 50 });
+    const out = site('getOutsideDmgMult')(mv);
+    near(out.pct, 70, 'fixture: the sum is not Buff A + Inferno');
+    near(out.critRatio, 2.2 / 1.7, 'fixture: the crit-only +50 is not in the crit sum');
+    const text = site('__work')(mv);
+    const main = 10 * 2 * 1.7;
+    const re = n => n.toFixed(1).replace('.', '\\.');
+    // The crit average per hit and the binomial expectation carry the ratio.
+    ok(new RegExp('Crit avg: ' + re(main / 2 * 2 * out.critRatio)).test(text), 'the crit average lost the crit-only term: ' + text);
+    const want = site('getExpectedMoveCritDmg')(main, 2, 50, out.critRatio);
+    ok(Math.abs(want - site('getExpectedMultiHitDmg')(main, 2, 50)) > 1, 'fixture: the crit-only term does not move the expectation');
+    ok(new RegExp('Expected \\(50% crit, binomial\\): ' + re(want)).test(text), 'the Expected line lost the crit-only term: ' + text);
+    // DeathBeak's proc: base x crit x 0.15 x the enchant's factor ALONE (1.20),
+    // not the whole sum (1.70, which would read 5.1).
+    ok(new RegExp('\\+ Beak \\(1\\.0 exp\\. crits × ' + re(10 * 2 * 0.15 * 1.2) + '\\)').test(text),
+       'DeathBeak does not take the enchant alone: ' + text);
   });
 
   it('the sum tools/ai/verify.js gates on is 0 exactly when nothing applies', () => {
@@ -7800,6 +7955,68 @@ describe('additive damage (Withered Grove §12)', () => {
       ok(!new RegExp(gone + '\\(').test(v), 'verify.js still reads ' + gone);
     }
   });
+
+  it('every other path shows a Multi factor under 1 too, and a resisted boss step (§1: "!== 1", never "> 1")', () => {
+    // The ordinary, no-scaling and Discharge paths are checked above. A "> 1"
+    // gate on any of these hides the step (on the Frosted AOE it drops the
+    // factor from the number as well), so a -30 sum reads as if nothing applied.
+    const tag = '× 0\\.70 \\[−30%: Probe Debuff −30\\]';
+    const f1 = n => n.toFixed(1).replace('.', '\\.');
+    const debuffed = o => { const s = additiveSite(o); s('__rows(' + rows([['Probe Debuff', -30]]) + ')'); return s; };
+    // Crucible (Citadel): hit 1 and hits 2-3 each print the factor.
+    const cr = debuffed({ sup: 'Citadel (Or)' })('__work')(probe({ name: 'Crucible', damage: 9, scaling: 'STR/65' }));
+    ok(new RegExp('Hit 1: 9\\(1 \\+ STR\\(0\\)/65\\) = 9\\.0 ' + tag + ' = ' + f1(9 * 0.7)).test(cr) &&
+       new RegExp('Hits 2–3: 3\\.6\\(1 \\+ STR\\(0\\)/90\\) = 3\\.6 ' + tag + ' = ' + f1(3.6 * 0.7)).test(cr),
+       'Crucible hides a factor under 1: ' + cr);
+    // Rending Barrage's extra hit.
+    const rb = debuffed()('__work')(probe({ name: 'Rending Barrage', damage: '6x3', scaling: 'STR/75 + ARC/75' }));
+    ok(new RegExp('vs bleeding \\(extra hit\\): 13\\.5\\(1 \\+ STR\\(0\\)/75 \\+ ARC\\(0\\)/75\\) = 13\\.5 ' + tag + ' = ' + f1(13.5 * 0.7)).test(rb),
+       'the Rending Barrage extra hit hides a factor under 1: ' + rb);
+    // Stinger's two parts, each at its own sum.
+    const st = debuffed()('__work')(probe({ name: 'Stinger', damage: '5 + 10', scaling: 'ARC/75' }));
+    ok(new RegExp('Stab \\(Physical\\): 5\\(1 \\+ ARC\\(0\\)/75\\) = 5\\.0 ' + tag + ' = 3\\.5').test(st) &&
+       new RegExp('Arrows \\(Poison\\): 10\\(1 \\+ ARC\\(0\\)/70 \\+ SPD\\(0\\)/80\\) = 10\\.0 ' + tag + ' = 7\\.0').test(st),
+       "Stinger's parts hide a factor under 1: " + st);
+    // Self Destruct at full HP.
+    const sdSite = debuffed();
+    const dmgEl = { innerHTML: '' };
+    const box = { dataset: { slot: 'Skeleton' }, querySelector: sel => (sel === '.sd-dmg' ? dmgEl : null) };
+    sdSite('renderSelfDestruct')({ value: 100, closest: () => box });
+    const sd = dmgEl.innerHTML.replace(/<[^>]+>/g, '').replace(/&times;/g, '×');
+    const sdBase = sdSite('selfDestructBase')(100);
+    ok(new RegExp(f1(sdBase) + ' ' + tag + ' = ' + f1(sdBase * 0.7)).test(sd), 'Self Destruct hides a factor under 1: ' + sd);
+    // The Frosted AOE: 10 x 0.70 = 7.0.
+    const fr = debuffed({ enchant: 'Frosted' });
+    fr('enchantCondActive.frostedColdEnemy = true');
+    ok(new RegExp('Frosted AOE \\(on crit vs Cold\\): 10 ' + tag + ' = 7\\.0').test(fr('__work')(probe())),
+       'the Frosted AOE hides a factor under 1: ' + fr('__work')(probe()));
+    // A boss that resists the hit shows the step, on both paths: Yar'Thul
+    // takes 85% from Physical.
+    const boss = additiveSite();
+    boss('selectedBoss = "Yar\'Thul, The Blazing Dragon"');
+    near(boss('getBossResMult')('Physical').mult, 0.85, "fixture: Yar'Thul no longer takes 85% from Physical");
+    ok(/= 10\.0 × 0\.85 \[15% res\] = 8\.5/.test(boss('__work')(probe())), 'a resisted hit hides its resistance step: ' + boss('__work')(probe()));
+    ok(/Base damage: 10 × 0\.85 \[15% res\] = 8\.5/.test(boss('__work')(probe({ scaling: '' }))),
+       'a resisted no-scaling hit hides its resistance step: ' + boss('__work')(probe({ scaling: '' })));
+  });
+
+  it('True Flat rides no crit on the multi-hit lines: the crit average, the overcrit tiers, the expectation', () => {
+    // Two 10-damage hits at +50 (15 a hit, 30 in all) with Blooming Eye's 5 a
+    // hit, a 2x crit and 150% crit chance, so an orange tier and the binomial
+    // expectation both print. The ordinary path and the no-scaling one.
+    for (const scaling of ['STR/100', '']) {
+      const site = additiveSite({ gear: ['Blooming Eye'], critMult: 2, critChance: 150 });
+      site('__rows(' + rows([['Buff A', 50]]) + ')');
+      const text = site('__work')(probe({ damage: '10x2', scaling }));
+      const what = (scaling || 'no scaling') + ': ';
+      ok(/Avg per hit: 20\.0\s*\|\s*Crit avg: 35\.0/.test(text), what + 'the crit average is not 15 x 2 + 5 (a crit on True Flat reads 40): ' + text);
+      ok(/Orange crit [^:]*\(×3\.00\) \[\+10 True Flat\]: 100\.0/.test(text), what + 'the orange tier is not 30 x 3 + 10 (a crit on True Flat reads 120): ' + text);
+      const exp = site('getExpectedMoveCritDmg')(30, 2, 150, 1) + 10;
+      ok(Math.abs(exp - site('getExpectedMoveCritDmg')(40, 2, 150, 1)) > 1, 'fixture: the expectation cannot tell True Flat from the hit');
+      ok(new RegExp('Expected \\(150% crit, binomial\\): ' + exp.toFixed(1).replace('.', '\\.')).test(text),
+         what + 'the expectation is not E(30) + 10 = ' + exp.toFixed(1) + ': ' + text);
+    }
+  });
 });
 
 // ── the Build AI composes damage the way the site does (§12) ────────────────
@@ -7823,6 +8040,23 @@ describe('the Build AI composes damage the way the site does (Withered Grove §1
     return b;
   };
   const specFor = klass => ask('', { klass, goal: 'burst', level: data.Max_Lvl }).spec;
+  // Run `fn` with a move's energy scaling one point an energy lower (its data
+  // field, which is what both sides read), then put it back. A sum that
+  // carries the term exactly once moves by exactly the difference; taking the
+  // scaling away outright would hand the nuke to another move.
+  const withLowerEnergyScaling = (mv, cap, fn) => {
+    const es = mv.energyScaling;
+    ok(es && +es.perEnergy > 1, 'fixture: ' + mv.name + ' has no energy scaling to lower');
+    const before = O.energyScalingPct(mv, cap);
+    mv.energyScaling = Object.assign({}, es, { perEnergy: +es.perEnergy - 1 });
+    try {
+      const drop = before - O.energyScalingPct(mv, cap);
+      ok(drop > 0, 'fixture: lowering the energy scaling of ' + mv.name + ' changed nothing');
+      return { drop, ctx: fn() };
+    } finally {
+      mv.energyScaling = es;
+    }
+  };
 
   it('one sum, one factor: model.js dmgMulti is the site getDmgMulti factor', () => {
     for (const list of [[10, 10, 10, 10, 10], [20, 30, 100], [-30], [-150], [12.5, 7.25]]) {
@@ -7870,15 +8104,31 @@ describe('the Build AI composes damage the way the site does (Withered Grove §1
 
   it("for real builds, the site composes the engine's own terms into the engine's figure", () => {
     // Each build is evaluated by the engine; the site is then given the same
-    // stats, crit and gear, the switches the engine's terms stand for, and one
-    // row carrying the rest of the engine's sum. Its composition - the factor,
-    // the crit-only ratio, the expected crit and True Flat - must land on the
-    // engine's burst figure exactly.
+    // stats, crit and gear and the switches the engine's terms stand for. Its
+    // composition - the factor, the crit-only ratio, the expected crit and
+    // True Flat - must land on the engine's burst figure exactly.
+    //
+    // `own: true`: every term of the engine's sum is one the site has a switch
+    // or a rule for, so the site's OWN sum - nothing injected - must equal the
+    // engine's, term for term (a term either side counts twice or misses shows
+    // here). Otherwise the engine's sum holds uptime-weighted terms the site
+    // has no switch for (the Berserker's and Lancer's passives), so the rest of
+    // it rides one row and only the composition is checked; the sum then
+    // agrees by construction and is not asserted.
     const cases = [
       { klass: 'Berserker (Ch)', inv: { str: 60 }, gear: ['Crystalline Spike', 'Blooming Eye'], move: 'Carnage' },
       { klass: 'Lancer (N)', inv: { str: 40, spd: 40 }, gear: ['Crystalline Spike'], move: 'Empowered Pierce' },
-      { klass: 'Assassin (Ch)', inv: { str: 40 }, gear: [], move: 'Stealth Strike',
-        site: 'stealthStrikeInvisible = true' },
+      // The opener's +120: Stealth Strike's +100 out of Invisible (the switch)
+      // and Shadow Form's own +20 (its real DMG BONUS row, nothing else on).
+      { klass: 'Assassin (Ch)', inv: { str: 40 }, gear: [], move: 'Stealth Strike', own: true,
+        site: 'stealthStrikeInvisible = true; dmgBonusPassives = collectDmgBonusPassives(); ' +
+              'dmgBonusPassives.forEach(p => { dmgBonusActive[p.key] = p.name === "Shadow Form"; })',
+        check: s => eq(s('sumDmgTerms(getActiveDmgTerms("Physical", 0))'), 20, "fixture: Shadow Form's row is not +20 on the site") },
+      // A Magic nuke with its own energy scaling (+12.5% an energy past the third).
+      { klass: 'Elementalist (Or)', inv: { arc: 80 }, gear: ['Blooming Eye'], move: 'Lightning Crash', own: true },
+      // The same with ARC 110's +20 beside the energy term.
+      { klass: 'Elementalist (Or)', inv: { arc: 110 }, gear: [], move: 'Lightning Crash', own: true,
+        check: (s, mv) => eq(s('getMilestoneDmgPct')(mv, 'Magic'), 20, 'fixture: ARC 110 is not +20 on the site') },
     ];
     for (const cs of cases) {
       const b = fresh(cs.klass, cs.inv, cs.gear);
@@ -7887,12 +8137,25 @@ describe('the Build AI composes damage the way the site does (Withered Grove §1
       const t = ctx.burstTerms;
       const mv = O.movesFor(cs.klass).find(m => m.name === cs.move);
       const site = additiveSite({ gear: cs.gear, stats: ctx.stats, critMult: ctx.critDmg, sup: cs.klass });
-      site('energyCount = 0');   // Carnage's energy term is inside the engine's sum
       if (cs.site) site(cs.site);
+      // The one term the engine prices from a full pool: the site's energy
+      // stepper at the cap gives the same energy term (0 for a move without one).
+      site('energyCount = ' + ctx.energyCap);
+      const withEnergy = site('getOutsideDmgMult')(mv).pct;
+      site('energyCount = 0');   // the energy term is inside the engine's sum
       const own = site('getOutsideDmgMult')(mv).pct;   // what the site adds by itself (STR 110, the switch)
-      site('__rows(' + JSON.stringify([{ key: 'engine', name: 'Engine sum', bonus: t.pct - own }]) + ')');
-      const out = site('getOutsideDmgMult')(mv);
-      near(out.pct, t.pct, cs.move + ': the sum');
+      near(withEnergy - own, O.energyScalingPct(mv, ctx.energyCap), cs.move + ': the energy term');
+      let out;
+      if (cs.own) {
+        if (cs.check) cs.check(site, mv);
+        // The site's own sum at the engine's full-pool energy, nothing injected.
+        site('energyCount = ' + ctx.energyCap);
+        out = site('getOutsideDmgMult')(mv);
+        near(out.pct, t.pct, cs.klass + ' ' + JSON.stringify(cs.inv) + ': the site sum on its own against the engine sum');
+      } else {
+        site('__rows(' + JSON.stringify([{ key: 'engine', name: 'Engine sum', bonus: t.pct - own }]) + ')');
+        out = site('getOutsideDmgMult')(mv);
+      }
       const raw = M.moveDamage(b, mv, { stats: ctx.stats });   // (Base + Flat) x hits; no boss
       const cc = ctx.critChance + ctx.openerCrit + (+mv.critBonus || 0);
       const composed = site('getExpectedMoveCritDmg')(raw * out.total, ctx.critDmg, cc, out.critRatio) +
@@ -7909,20 +8172,106 @@ describe('the Build AI composes damage the way the site does (Withered Grove §1
     const ramp = ctx.gearPassives.rampFlat || {};
     ok(Object.values(ramp).some(v => v > 0), 'fixture: Crystalized Star is no longer a ramp');
     eq((ctx.burstMove || {}).name, 'Carnage', 'fixture: the Berserker no longer nukes with Carnage');
-    const es = K.ENERGY.scalingMoves.Carnage;
-    const E = 100 * es.perEnergy * Math.max(0, ctx.energyCap - es.freeEnergy);
+    const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
+    const E = O.energyScalingPct(carnage, ctx.energyCap);
+    near(E, 100 * K.ENERGY.scalingMoves.Carnage.perEnergy * (ctx.energyCap - 1), "fixture: Carnage's +20 an energy past the first");
     ok(E > 0, 'fixture: no energy past the first');
     const t = ctx.burstTerms;
     ok(t.basePct >= E - 1e-9, 'the energy term is not in the sum: ' + t.basePct + ' < ' + E);
+    // Exactly once: the same build with Carnage's scaling a point lower differs
+    // by that point x the energy past the first and nothing else, on the plain
+    // sum and on the opener's (counted twice, the sums would move twice as far).
+    const lower = withLowerEnergyScaling(carnage, ctx.energyCap, () => O.evaluate(b, specFor('Berserker (Ch)')));
+    const t0 = lower.ctx.burstTerms;
+    eq(t0.move, 'Carnage', 'fixture: with a lower energy scaling Carnage is no longer the nuke');
+    near(t.basePct - t0.basePct, lower.drop, 'the energy term is not in the sum exactly once');
+    near(t.pct - t0.pct, lower.drop, "the energy term is not in the opener's sum exactly once");
     // The burst, recomposed on the ramp-free stats with the WHOLE sum, energy
     // included: before, this path rebuilt the hit without the energy factor.
-    const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
     const openerStats = Object.assign({}, ctx.stats);
     for (const k of Object.keys(openerStats)) openerStats[k] -= (ramp[k] || 0);
     const raw = M.moveDamage(b, carnage, { stats: openerStats });
     const E2 = M.expectedMultiplier(ctx.critChance + ctx.openerCrit, ctx.critDmg);
     near(ctx.bestBurst * t.stunDiv, raw * M.dmgMulti(t.pct) * E2 + t.trueFlat * t.stunDiv,
          'the ramp-free burst does not carry the energy term', 1e-6);
+  });
+
+  it('every move the site scales with energy is scaled by the same term in the engine', () => {
+    // builder.js getEnergyBonusPct reads the move's own `energyScaling`. The
+    // engine read a hand-kept list with only Carnage in it, so Lightning Crash's
+    // +12.5% an energy past the third (+37.5% from a 6 pool) never reached an
+    // Elementalist's sum. Both now read the move data; this runs the site's
+    // function against the engine's at every pool size.
+    const scaled = [];
+    for (const v of Object.values(data.classMoves || {})) {
+      for (const mv of (v.learns || [])) if (mv && mv.energyScaling) scaled.push(mv);
+    }
+    ok(scaled.some(m => m.name === 'Carnage') && scaled.some(m => m.name === 'Lightning Crash'),
+       'fixture: Carnage and Lightning Crash no longer carry energyScaling');
+    const site = additiveSite();
+    for (const mv of scaled) {
+      for (let pool = 0; pool <= 9; pool++) {
+        site('energyCount = ' + pool);
+        near(O.energyScalingPct(mv, pool), site('getEnergyBonusPct')(mv), mv.name + ' from ' + pool + ' energy');
+      }
+    }
+    eq(O.energyScalingPct({ name: 'Probe', damage: 10 }, 6), 0, 'a move with no energy scaling');
+    ok(/pct \+= energyScalingPct\(mv, cap\);/.test(fs.readFileSync(path.join(__dirname, 'optimize.js'), 'utf8')),
+       "evaluate does not put the move's energy term in its sum");
+    // And it reaches the figure: an Elementalist nuking with Lightning Crash.
+    const eb = fresh('Elementalist (Or)', { arc: 80 });
+    const ctx = O.evaluate(eb, specFor('Elementalist (Or)'));
+    eq((ctx.burstMove || {}).name, 'Lightning Crash', 'fixture: the Elementalist no longer nukes with Lightning Crash');
+    const lc = O.movesFor('Elementalist (Or)').find(m => m.name === 'Lightning Crash');
+    const E = O.energyScalingPct(lc, ctx.energyCap);
+    ok(E > 0, 'fixture: no energy past the third');
+    // A bare ARC-80 Elementalist has nothing else in the sum: +37.5 from a 6 pool.
+    near(ctx.burstTerms.basePct, E, 'the Lightning Crash sum is not its energy term alone');
+    // And exactly once: a point less an energy moves the sum by exactly that.
+    const lower = withLowerEnergyScaling(lc, ctx.energyCap, () => O.evaluate(eb, specFor('Elementalist (Or)')));
+    eq(lower.ctx.burstTerms.move, 'Lightning Crash', 'fixture: with a lower energy scaling Lightning Crash is no longer the nuke');
+    near(ctx.burstTerms.basePct - lower.ctx.burstTerms.basePct, lower.drop, 'the Lightning Crash energy term is not in the sum once');
+  });
+
+  it("a one-move mastery is a term of that move's sum only, as on the site", () => {
+    // Blaze Proficiency was in EVERY move's sum (ma.dmgPct), so an Elementalist
+    // with it nuked Lightning Crash at +24 the site never gives that move
+    // (builder.js prices it on Blaze alone, getMoveInnateTerms).
+    const withNode = (klass, inv, node) => Object.assign(fresh(klass, inv), { masteryNodes: node ? [node] : [] });
+    const el = specFor('Elementalist (Or)');
+    const bare = O.evaluate(withNode('Elementalist (Or)', { arc: 80 }), el);
+    const prof = O.evaluate(withNode('Elementalist (Or)', { arc: 80 }, 'lm2'), el);
+    ok(prof.masteryAbilities.active.some(a => a.name === 'Blaze Proficiency' && a.move === 'Blaze'),
+       'fixture: Elementalist lm2 is not Blaze Proficiency on Blaze');
+    eq(prof.burstMove.name, 'Lightning Crash', 'fixture: the Elementalist no longer nukes with Lightning Crash');
+    near(prof.burstTerms.basePct, bare.burstTerms.basePct, "Blaze Proficiency reached Lightning Crash's sum");
+    eq(prof.masteryAbilities.dmgPct, 0, 'a one-move upgrade is still in the every-move total');
+    // The site agrees: with lm2 on, Lightning Crash's own sum has no mastery term.
+    const lc = O.movesFor('Elementalist (Or)').find(m => m.name === 'Lightning Crash');
+    eq(additiveSite({ sup: 'Elementalist (Or)', mastery: { lm2: true } })('getDmgMulti')(lc, 'Magic', 0).pct, 0,
+       'the site gives Lightning Crash a Blaze Proficiency term');
+    // On its own move it is there, at its uptime: Carnage Proficiency on Carnage.
+    const be = specFor('Berserker (Ch)');
+    const b0 = O.evaluate(withNode('Berserker (Ch)', { str: 60 }), be);
+    const b1 = O.evaluate(withNode('Berserker (Ch)', { str: 60 }, 'lm2'), be);
+    eq(b1.burstMove.name, 'Carnage', 'fixture: the Berserker no longer nukes with Carnage');
+    const cp = K.MASTERY_ABILITIES['Carnage Proficiency'];
+    near(b1.burstTerms.basePct - b0.burstTerms.basePct, cp.value * cp.uptime, "Carnage Proficiency is not in Carnage's sum once");
+    // Every gate names a move its class actually has - a typo would price the
+    // node at nothing. Strike is the shared basic attack, which no class kit
+    // here carries (The Big Sword's +20 on it is priced at nothing, on purpose).
+    const owners = {};
+    for (const [klass, per] of Object.entries(data.masteryAbilities)) {
+      for (const e of Object.values(per)) (owners[e.name] = owners[e.name] || []).push(klass);
+    }
+    const gated = Object.entries(K.MASTERY_ABILITIES).filter(([, r]) => r.move);
+    ok(gated.length >= 10, 'fixture: the one-move upgrades lost their move gates');
+    for (const [name, rule] of gated) {
+      if (rule.move === 'Strike') continue;
+      for (const klass of owners[name] || []) {
+        ok(O.movesFor(klass).some(m => m.name === rule.move), name + ' is gated on ' + rule.move + ', which ' + klass + ' does not have');
+      }
+    }
   });
 
   it('Shadow Master adds +30 to the opener sum beside Shadow Form; it does not multiply', () => {
@@ -7986,6 +8335,95 @@ describe('the Build AI composes damage the way the site does (Withered Grove §1
     near(ctx.bestBurst * t.stunDiv, raw * M.dmgMulti(t.pct) * E + t.trueFlat * t.stunDiv, 'the stat-setup burst', 1e-6);
   });
 
+  it('Stinger: each part takes the sum of its own type, as on the site', () => {
+    // The engine priced Stinger with ONE sum on its written type (Poison), so
+    // ARC 110's +20 reached the Physical stab and STR 110 never could. The site
+    // gives each part getDmgMulti of its own type.
+    const mv = O.movesFor('Ranger (Or)').find(m => m.name === 'Stinger');
+    ok(mv, 'fixture: no Stinger in the Ranger kit');
+    for (const inv of [{ arc: 115, spd: 35 }, { arc: 80, spd: 40 }]) {
+      const b = fresh('Ranger (Or)', inv);
+      const ctx = O.evaluate(b, specFor('Ranger (Or)'));
+      eq((ctx.burstMove || {}).name, 'Stinger', 'fixture: the Ranger no longer nukes with Stinger');
+      const t = ctx.burstTerms;
+      ok(t.parts && t.parts.length === 2, 'Stinger has no per-part sums');
+      const [stab, arrows] = t.parts;
+      eq(stab.type + '/' + arrows.type, 'Physical/Poison', 'the parts deal the wrong types');
+      // The site's own gated terms for each part, on the same stats: the
+      // difference between the parts is the site's, and a part's sum moves
+      // with nothing but its own type's terms.
+      const site = additiveSite({ stats: ctx.stats, sup: 'Ranger (Or)' });
+      const sStab = site('getDmgMulti')(mv, 'Physical', 0).pct, sArr = site('getDmgMulti')(mv, 'Poison', 0).pct;
+      near(arrows.pct - stab.pct, sArr - sStab, JSON.stringify(inv) + ': the arrows and the stab differ by other terms than on the site');
+      if (ctx.stats.arc >= 110 && ctx.stats.str < 110) eq(sArr - sStab, 20, 'fixture: ARC 110 is not the difference on the site');
+      else eq(sArr - sStab, 0, 'fixture: the parts differ on the site below ARC 110');
+      // The figure is the two parts, each at its own factor (the engine's raw
+      // is on the stats the burst was taken on; Stinger has no crit bonus).
+      const bd = M.derived(Object.assign({}, b, { buffs: Object.assign({}, b.buffs, { flourishSpd: true }) }));
+      ok((ctx.rotation || []).some(r => r.move === 'Flourish'), 'fixture: Flourish is not in the Ranger rotation');
+      near(stab.raw, M.moveDamage(b, mv, { stats: bd.stats, part: 1 }), 'the stab is not priced on its own');
+      near(stab.raw + arrows.raw, M.moveDamage(b, mv, { stats: bd.stats }), 'the parts are not the whole move', 1e-9);
+      const cc = bd.critChance + (ctx.critChance - M.derived(b).critChance) + ctx.openerCrit;
+      near(ctx.bestBurst * t.stunDiv,
+           (stab.raw * M.dmgMulti(stab.pct) + arrows.raw * M.dmgMulti(arrows.pct)) * M.expectedMultiplier(cc, ctx.critDmg) + t.trueFlat * t.stunDiv,
+           JSON.stringify(inv) + ': the burst is not the two parts at their own sums', 1e-6);
+      near((t.basePct + t.openPct), t.pct, 'the equivalent sum does not add up');
+    }
+  });
+
+  it('Discharge Proficiency is four hits at 1 / 0.38 / 1/3 / 1/3 on both sides', () => {
+    // The engine priced Discharge as its single hit while the site's working
+    // (and the game) fires four projectiles; verify.js read the site's first
+    // ") = N" - one projectile - so the gap could not show.
+    const gear = ['Crystalline Spike', 'Blooming Eye'];
+    const b = Object.assign(fresh('Lancer (N)', { str: 75, spd: 25 }, gear), { masteryNodes: ['cm2'] });
+    const plain = fresh('Lancer (N)', { str: 75, spd: 25 }, gear);
+    const mv = O.movesFor('Lancer (N)').find(m => m.name === 'Discharge');
+    ok(mv, 'fixture: no Discharge in the Lancer kit');
+    const stats = M.derived(b).stats;
+    const ratio = 1 + 0.38 + 2 / 3;
+    near(M.moveDamage(b, mv, { stats }), M.moveDamage(plain, mv, { stats }) * ratio, 'Discharge Proficiency is not x2.05 of the single hit', 1e-9);
+    eq(M.trueFlatHits(b, mv), 4, 'True Flat does not land on each of the four');
+    eq(M.trueFlatHits(plain, mv), 1, 'True Flat on a plain Discharge');
+    // The site's working, on the same stats and gear, totals the same four hits.
+    const site = additiveSite({ sup: 'Lancer (N)', mastery: { cm2: true }, stats, gear });
+    const text = site('__work')(mv);
+    const shares = text.match(/\d+\s*hits\s*—[^=]*=\s*([\d.]+)/);
+    ok(shares, 'the site no longer prints "4 hits — ... = N": ' + text);
+    ok(Math.abs(parseFloat(shares[1]) - M.moveDamage(b, mv, { stats })) < 0.06,
+       'the engine and the site disagree on Discharge: ' + shares[1] + ' vs ' + M.moveDamage(b, mv, { stats }));
+    ok(/\+ 20 \[Blooming Eye, True Flat, 5 × 4 hits\]/.test(text), 'the site does not add True Flat to four hits: ' + text);
+    // verify.js reads that total, before the multi-hit and per-hit shapes.
+    const v = fs.readFileSync(path.join(__dirname, 'verify.js'), 'utf8');
+    ok(v.indexOf("const shares = txt.match(/\\d+\\s*hits\\s*—[^=]*=\\s*([\\d.]+)/);") !== -1 &&
+       /: shares \? parseFloat\(shares\[1\]\)/.test(v), 'verify.js does not read the four-hit total');
+    // The capstone is priced through the move, not listed as unread.
+    const ma = O.masteryAbilityTotals(b, { play: 'solo' });
+    ok(!ma.unmodelled.some(u => u.name === 'Discharge Proficiency'), 'Discharge Proficiency is still reported as not priced');
+  });
+
+  it("under 'potential' a prepared burst lands the crit, as the plain hit does", () => {
+    // The opener-crit (Shadow Form) and stat-setup (Flourish) paths priced the
+    // burst at the AVERAGE crit even with the crit landed, so an Assassin's
+    // prepared Stealth Strike scored below its own cold crit hit.
+    const cases = [['Assassin (Ch)', { str: 60, lck: 20 }, null], ['Ranger (Or)', { arc: 40, spd: 40 }, 'flourishSpd']];
+    for (const [klass, inv, statBuff] of cases) {
+      const b = fresh(klass, inv);
+      const ctx = O.evaluate(b, Object.assign({}, specFor(klass), { dmg: 'potential' }));
+      if (statBuff) ok((ctx.rotation || []).some(r => r.move === 'Flourish'), 'fixture: Flourish is not in the ' + klass + ' rotation');
+      else ok(ctx.openerCrit > 0, 'fixture: the ' + klass + ' opener has no crit of its own');
+      const mv = O.movesFor(klass).find(m => m.name === ctx.burstMove.name);
+      const t = ctx.burstTerms;
+      const stats = statBuff ? M.derived(Object.assign({}, b, { buffs: Object.assign({}, b.buffs, { [statBuff]: true }) })).stats : ctx.stats;
+      const landed = ctx.critDmg * M.critOnlyRatio(t.pct, +mv.critDmgBonus || 0);
+      near(ctx.bestBurst * t.stunDiv, M.moveDamage(b, mv, { stats }) * M.dmgMulti(t.pct) * landed + t.trueFlat * t.stunDiv,
+           klass + ': the potential burst is not the landed crit', 1e-6);
+      if (ctx.bestMove.name === mv.name) {
+        ok(ctx.bestBurst >= ctx.bestHit - 1e-9, klass + ': the prepared burst scores below the cold hit');
+      }
+    }
+  });
+
   it('Stealth Strike is named in the write-up with its +100', () => {
     // An Assassin whose nuke is Stealth Strike, rendered the way ask() does.
     const spec = specFor('Assassin (Ch)');
@@ -7996,6 +8434,219 @@ describe('the Build AI composes damage the way the site does (Withered Grove §1
     const why = (secs.find(x => x.h === 'Why this build') || {}).list || [];
     ok(why.some(l => /Stealth Strike/.test(l) && /\+100%/.test(l) && /not a doubled base/.test(l)),
        'the write-up does not say how Stealth Strike is priced: ' + why.join(' | '));
+  });
+
+  it("a corruption form's factors never multiply True Flat (§1)", () => {
+    // True Flat is added after the sum, the statuses and the crit. The form
+    // pass took whole figures - True Flat inside - and multiplied them by
+    // Heresy's crit ratio, Tyranny's Condemned, Ages Pages' crit ratio and,
+    // after Blasphemy's Notch, Blooming Eye's own spend.
+    const b = fresh('Berserker (Ch)', { str: 60, lck: 40 }, ['Blooming Eye']);
+    const c = O.evaluate(b, specFor('Berserker (Ch)'));
+    const stunOf = mv => 1 + (K.selfStunTurns ? K.selfStunTurns(mv) : 0);
+    // evaluate records the True Flat inside the plain and the sustained figure.
+    near(c.hitTrueFlat, M.trueFlatDmg(b) * M.trueFlatHits(b, c.bestMove) / stunOf(c.bestMove), 'the True Flat inside bestHit');
+    ok(c.hitTrueFlat > 0 && c.sustTrueFlat > 0, 'fixture: no True Flat in the plain or sustained figure');
+    // Heresy: the crit ratio on the main figure, True Flat added back as it was.
+    const he = K.CORRUPTION_DAMAGE.Heresy(c, M);
+    const before = M.expectedMultiplier(c.critChance, c.critDmg);
+    const after = M.expectedMultiplier(c.critChance + he.ifCrit.need, c.critDmg);
+    near(he.ifCrit.hit, (c.bestHit - c.hitTrueFlat) * after / before + c.hitTrueFlat, 'Heresy crit hit', 1e-9);
+    near(he.ifCrit.mult, he.ifCrit.hit / c.bestHit, 'Heresy crit ratio', 1e-12);
+    ok(he.ifCrit.hit < c.bestHit * after / before - 1, 'fixture: the True Flat here is too small to tell');
+    ok(new RegExp('to \\*\\*' + Math.round(he.ifCrit.hit) + '\\*\\*').test(he.lines.join(' ')), 'the Heresy line prints another figure');
+    // Tyranny: Condemned on the main figure; the Eye's spend (+30 a hit) after it.
+    const ty = O.corruptionDamage('Tyranny', c);
+    const k = 1 + K.CORRUPTION_ASSUMED.condemnedPct / 100, t = c.burstTerms;
+    near(ty.formBurst, ((c.bestBurst - t.trueFlat) * k + t.trueFlat) / c.bestBurst, "Tyranny's own burst", 1e-12);
+    near(ty.burstHit, (c.bestBurst - t.trueFlat) * k + t.trueFlat + 30 * t.tfHits / t.stunDiv, 'Tyranny burst', 1e-9);
+    near(ty.sustainedHit, (c.sustainedHit - c.sustTrueFlat) * k + c.sustTrueFlat, 'Tyranny sustained', 1e-9);
+    // Blasphemy with Ages Pages and Blooming Eye: the Notch in the dump's sum,
+    // the form crit on the result's main figure, the Eye's spend added last.
+    const cB = { worn: ['Ages Pages', 'Blooming Eye'], critChance: 40, critDmg: 2, energyCap: 5,
+                 moves: [{ name: 'Dump', cost: 3 }], dumpMove: { name: 'Dump', cost: 3 },
+                 bestBurst: 150, bestHit: 150, bestDump: 150, sustainedHit: 120, sustTrueFlat: 20,
+                 burstTerms: { pct: 50, trueFlat: 20, tfHits: 4, stunDiv: 1 },
+                 dumpTerms: { pct: 50, trueFlat: 20, tfHits: 4, stunDiv: 1 } };
+    const bl = O.corruptionDamage('Blasphemy', cB);
+    const inForm = (150 - 20) * M.dmgMulti(80) / M.dmgMulti(50) + 20;
+    const crit = K.FORM_GEAR['Ages Pages'].crit * K.FORM_GEAR['Ages Pages'].stacks;
+    const cm = M.expectedMultiplier(40 + crit, 2) / M.expectedMultiplier(40, 2);
+    near(bl.formBurst, inForm / 150, "Blasphemy's own burst", 1e-12);
+    near(bl.burstHit, (inForm - 20) * cm + 20 + 30 * 4, 'Blasphemy burst with the form crit and the Eye', 1e-9);
+    near(bl.sustainedHit, (120 * bl.formSustained - 20) * cm + 20, 'Blasphemy sustained', 1e-9);
+    // The gear figures on the out-of-form nuke say the same.
+    const fg = K.formGearCrit(cB, 'Blasphemy', M, undefined, 'dump');
+    near(fg.trueFlatAdd, 120, "the Eye's spend on four hits");
+    near(fg.mult, ((150 - 20) * cm + 20 + 120) / 150, 'the gear on the nuke', 1e-12);
+    // Nothing worn is exactly nothing: ((995.89 - 320.68) + 320.68) / 995.89 is
+    // 1.0000000000000002 in floating point, and a flat factor over 1 tells the
+    // write-up "the worn gear below is the only damage reason to pick it".
+    const none = K.formGearCrit({ worn: [], bestBurst: 995.89, burstTerms: { pct: 0, trueFlat: 320.68, tfHits: 1, stunDiv: 1 } }, 'Tyranny', M);
+    eq(none.flatMult, 1, 'no flat gear worn, yet a flat factor');
+    eq(none.mult, 1, 'no form gear worn, yet a factor');
+  });
+
+  it("the write-up's crit damage says what the site shows when Devastating is worn", () => {
+    // The engine scores Devastating (added to the multiplier); the site does
+    // not apply it, so the two readouts differ by exactly that add.
+    const b = fresh('Berserker (Ch)', { str: 40 });
+    b.gear = [{ name: 'Crystal Sphere', tier: 6, alloc: {}, traits: [{ id: 'devastating', tier: 2 }] }];
+    const spec = specFor('Berserker (Ch)');
+    const ctx = O.evaluate(b, spec);
+    ok(ctx.traits.critDmgPct > 0, 'fixture: Devastating adds no crit damage');
+    const rowOf = (build, c) => ((require('./explain.js').render({ build, ctx: c, corruption: null, warnings: [], plan: null }, spec, M, K, data)
+      .find(x => x.h === 'Stat points') || {}).table || []).find(r => r[0] === 'Crit damage');
+    const row = rowOf(b, ctx);
+    ok(row && row[1].indexOf(ctx.critDmg.toFixed(2) + 'x') === 0, 'the row does not lead with the engine figure: ' + row);
+    ok(row[1].indexOf('the site shows ' + M.derived(b).critDmg.toFixed(2) + 'x') !== -1, 'the row does not give the site figure: ' + row[1]);
+    const plain = fresh('Berserker (Ch)', { str: 40 });
+    eq(rowOf(plain, O.evaluate(plain, spec))[1], M.derived(plain).critDmg.toFixed(2) + 'x', 'a note without Devastating');
+  });
+
+  it('the Energy write-up prices the nuke from its own energy data, the Overflow share within the total', () => {
+    // explain.js read the hand-kept Carnage-only list; Lightning Crash's +12.5%
+    // an energy past the third was not explained, and the Overflow share was
+    // not capped at the total.
+    const b = fresh('Elementalist (Or)', { arc: 80 });
+    b.gear = [{ name: 'Crystal Sphere', tier: 6, alloc: {}, traits: [{ id: 'overflow', tier: 2 }] }];
+    const spec = specFor('Elementalist (Or)');
+    const ctx = O.evaluate(b, spec);
+    eq((ctx.bestMove || {}).name, 'Lightning Crash', 'fixture: the Elementalist no longer hits hardest with Lightning Crash');
+    ok(ctx.traits.energyCap > 0, 'fixture: Overflow raises no energy cap');
+    const secs = require('./explain.js').render({ build: b, ctx, corruption: null, warnings: [], plan: null }, spec, M, K, data);
+    const line = ((secs.find(x => x.h === 'Energy') || {}).list || [])[0] || '';
+    const lc = O.movesFor('Elementalist (Or)').find(m => m.name === 'Lightning Crash');
+    const total = O.energyScalingPct(lc, ctx.energyCap);
+    ok(/^Lightning Crash /.test(line), 'no Energy section for Lightning Crash: ' + line);
+    ok(line.indexOf('**+' + Math.round(total) + '% damage**') !== -1, 'the Energy section does not give the +' + total + '%: ' + line);
+    const share = +(/Overflow trait is responsible for \*\*\+(\d+)%\*\*/.exec(line) || [])[1];
+    ok(share > 0 && share <= Math.round(total), 'the Overflow share is not within the total: ' + share + ' of ' + total);
+    near(share, Math.round(Math.min(total, 100 * K.energyScalingOf(lc).perEnergy * ctx.traits.energyCap)), 'the Overflow share');
+    // The helper reads the move's data first and falls back to the table.
+    near(K.energyScalingOf(lc).perEnergy, lc.energyScaling.perEnergy / 100, 'energyScalingOf reads the move data');
+    eq(K.energyScalingOf({ name: 'Probe' }), null, 'a move with neither data nor a table entry');
+    const tableOnly = Object.keys(K.ENERGY.scalingMoves || {})[0];
+    ok(tableOnly && K.energyScalingOf({ name: tableOnly }) === K.ENERGY.scalingMoves[tableOnly], 'the table fallback');
+  });
+
+  it("a stat setup's burst carries the mastery crit (buffedCrit's ma.critChance)", () => {
+    // Only a source-text regex guarded it: no Ranger mastery grants crit. A
+    // probe rule does here (Nature's Wrath as +20 crit), so recomposing the
+    // Flourish burst without that crit fails.
+    const spec = specFor('Ranger (Or)');
+    const orig = K.MASTERY_ABILITIES;
+    K.MASTERY_ABILITIES = Object.assign({}, orig, { "Nature's Wrath": { kind: 'critChance', value: 20, uptime: 1, note: 'test probe' } });
+    try {
+      const b = Object.assign(fresh('Ranger (Or)', { arc: 40, spd: 40 }), { masteryNodes: ['lm1'] });
+      const ctx = O.evaluate(b, spec);
+      near(ctx.masteryAbilities.critChance, 20, 'fixture: the probe mastery grants no crit');
+      ok((ctx.rotation || []).some(r => r.move === 'Flourish'), 'fixture: Flourish is not in the Ranger rotation');
+      const bd = M.derived(Object.assign({}, b, { buffs: Object.assign({}, b.buffs, { flourishSpd: true }) }));
+      const mv = O.movesFor('Ranger (Or)').find(m => m.name === ctx.burstMove.name);
+      const t = ctx.burstTerms;
+      const cc = bd.critChance + (ctx.critChance - M.derived(b).critChance) + ctx.openerCrit;
+      const E = (mv.critBonus || mv.critDmgBonus) ? O.moveCritMult(mv, cc, ctx.critDmg, false, t.pct)
+                                                   : M.expectedMultiplier(cc, ctx.critDmg);
+      const raw = t.parts
+        ? t.parts.reduce((a, p) => a + p.raw * M.dmgMulti(p.pct), 0) / M.dmgMulti(t.pct)
+        : M.moveDamage(b, mv, { stats: bd.stats });
+      near(ctx.bestBurst * t.stunDiv, raw * M.dmgMulti(t.pct) * E + t.trueFlat * t.stunDiv, 'the stat-setup burst with a mastery crit', 1e-6);
+    } finally {
+      K.MASTERY_ABILITIES = orig;
+    }
+  });
+
+  it('every category the engine sums is one term of it, as the site adds it, and the plain hit is that sum composed', () => {
+    // A Monk nuking with Blazing Barrage (Fire) carries a term from every
+    // category of the engine's every-move sum and from both type-gated ones: a
+    // trait (Momentum), the class passive, Nisse's Fire bonus, a shard
+    // (Empowering), the enchant (Midas), a gear bonus (Vainglorious Locket) and
+    // Vulcan Knuckle's Fire bonus. Each category's reported total rides the
+    // site as its own DMG BONUS row, so the site's sum of them is what the
+    // engine's must be: a category the engine drops, counts twice or compounds
+    // onto the others shows here. The plain hit - Blooming Eye's True Flat on
+    // each of the eight hits - is then that sum, composed by the site.
+    const b = fresh('Monk (Or)', { str: 60 }, ['Vulcan Knuckle', 'Vainglorious Locket', 'Blooming Eye']);
+    b.gear.push({ name: 'Crystal Sphere', tier: 6, alloc: {}, traits: [{ id: 'momentum', tier: 2 }] });
+    b.race = 'Nisse (20%)'; b.enchant = 'Midas'; b.shards = ['Empowering (R)'];
+    const ctx = O.evaluate(b, specFor('Monk (Or)'));
+    const t = ctx.burstTerms;
+    eq((ctx.bestMove || {}).name, t.move, 'fixture: the best plain hit is not the nuke');
+    const mv = O.movesFor('Monk (Or)').find(m => m.name === t.move);
+    ok(mv && !t.parts, 'fixture: the nuke is not a one-part move of the Monk kit');
+    const type = mv.moveType;   // nothing in this kit converts it
+    const gated = list => (list || []).filter(x => x.when.test(type + ' ' + String(mv.element || ''))).reduce((a, x) => a + x.value, 0);
+    const inertGear = (ctx.gearPassives.active || []).filter(a => a.inert && a.kind === 'dmgPct' && !a.elements)
+      .reduce((a, x) => a + (x.effective || 0), 0);
+    const cats = {
+      trait: ctx.traits.dmgPct, passive: ctx.passives.dmgPct - ctx.inertPassiveDmg,
+      ['passive on ' + type]: gated(ctx.passives.byMoveType), shard: ctx.shards.dmgPct,
+      enchant: ctx.enchant && ctx.enchant.kind === 'dmgPct' ? ctx.enchant.value * (ctx.enchant.uptime ?? 1) : 0,
+      gear: ctx.gearPassives.dmgPct - inertGear, ['gear on ' + type]: gated(ctx.gearPassives.byMoveType),
+    };
+    for (const [k, v] of Object.entries(cats)) ok(v > 0, 'fixture: the ' + k + ' category is empty on this build');
+    eq(ctx.masteryAbilities.dmgPct + O.energyScalingPct(mv, ctx.energyCap) + t.openPct + t.sustPct, 0,
+       'fixture: a term outside those categories');
+    const site = additiveSite({ gear: ['Blooming Eye'], stats: ctx.stats, critMult: ctx.critDmg, sup: 'Monk (Or)' });
+    site('__rows(' + JSON.stringify(Object.entries(cats).map(([k, v], i) => ({ key: 'c' + i, name: 'Engine ' + k, bonus: v }))) + ')');
+    site('energyCount = ' + ctx.energyCap);
+    const out = site('getOutsideDmgMult')(mv);
+    eq(out.terms.length, Object.keys(cats).length, 'the site added a term of its own: ' + JSON.stringify(out.terms));
+    near(out.pct, t.basePct, 'the site sum of the categories against the engine sum', 1e-9);
+    ok(t.trueFlat > 0, 'fixture: no True Flat in the plain hit');
+    const raw = M.moveDamage(b, mv, { stats: ctx.stats });
+    const cc = ctx.critChance + (+mv.critBonus || 0);
+    const composed = site('getExpectedMoveCritDmg')(raw * out.total, ctx.critDmg, cc, out.critRatio) +
+                     site('getTrueFlatDmg')() * M.trueFlatHits(b, mv);
+    near(ctx.bestHit * t.stunDiv, composed, 'the engine plain hit against the site composition', 1e-6);
+  });
+
+  it('the sustained figure is the plain sum plus the setups at their uptime, True Flat after the crit', () => {
+    // An Assassin nuking Poison Fan with Shadow Form in the rotation: the
+    // sustained figure takes Shadow Form's +20 at its uptime (a turn in 7) INTO
+    // the sum beside the gear and the shard - never as a second factor - and
+    // Blooming Eye's True Flat on each of the four hits after the crit.
+    const b = fresh('Assassin (Ch)', { str: 40 }, ['Blooming Eye', 'Vainglorious Locket']);
+    b.shards = ['Empowering (R)'];
+    const ctx = O.evaluate(b, specFor('Assassin (Ch)'));
+    const t = ctx.burstTerms;
+    eq((ctx.bestMove || {}).name, t.move, 'fixture: the best plain hit is not the nuke');
+    ok(t.basePct > 0 && t.sustPct > 0 && t.trueFlat > 0, 'fixture: the sum, the setup share or True Flat is empty: ' + JSON.stringify(t));
+    const shadow = (ctx.rotation || []).find(r => r.move === 'Shadow Form');
+    ok(shadow && shadow.gain > 0, 'fixture: Shadow Form is not a damage setup here');
+    near(t.sustPct, shadow.gain * shadow.uptime, "the sustained share is not Shadow Form's +20 at its uptime", 1e-9);
+    const mv = O.movesFor('Assassin (Ch)').find(m => m.name === t.move);
+    const site = additiveSite({ gear: ['Blooming Eye'], stats: ctx.stats, critMult: ctx.critDmg, sup: 'Assassin (Ch)' });
+    const raw = M.moveDamage(b, mv, { stats: ctx.stats });
+    const cc = ctx.critChance + (+mv.critBonus || 0);
+    const composedAt = terms => {
+      site('__rows(' + JSON.stringify(terms.map((v, i) => ({ key: 'r' + i, name: 'Engine term ' + i, bonus: v }))) + ')');
+      const out = site('getOutsideDmgMult')(mv);
+      eq(out.terms.length, terms.length, 'the site added a term of its own');
+      return site('getExpectedMoveCritDmg')(raw * out.total, ctx.critDmg, cc, out.critRatio) + site('getTrueFlatDmg')() * M.trueFlatHits(b, mv);
+    };
+    near(ctx.bestHit * t.stunDiv, composedAt([t.basePct]), 'the plain hit against the site composition', 1e-6);
+    near(ctx.sustainedHit * t.stunDiv, composedAt([t.basePct, t.sustPct]), 'the sustained hit against the site composition (the setup share one more term)', 1e-6);
+  });
+
+  it("Spirit Awakening's +50 is a summon buff: it reaches no hit of your own, on either side", () => {
+    const b = fresh('Berserker (Ch)', { str: 60 });
+    b.race = 'Vastayan (9%)';
+    const ctx = O.evaluate(b, specFor('Berserker (Ch)'));
+    const sa = (ctx.rotation || []).find(r => r.move === 'Spirit Awakening');
+    ok(sa, 'fixture: Spirit Awakening is not in the Vastayan rotation');
+    eq(sa.gain, null, 'Spirit Awakening is priced as damage on your own hit');
+    const t = ctx.burstTerms;
+    eq(t.move, 'Carnage', 'fixture: the Berserker no longer nukes with Carnage');
+    eq(t.openPct, 0, "Spirit Awakening's +50 reached your own nuke's opener");
+    eq(t.sustPct, 0, "Spirit Awakening's +50 reached your own nuke's sustained figure");
+    near(ctx.bestBurst, ctx.bestHit, 'the opener grew with nothing to grow it', 1e-9);
+    // The site agrees: the switch is +50 on a summon's attack, never on Carnage.
+    const site = additiveSite({ race: 'Vastayan (9%)' });
+    site('summonBuffsActive.spiritAwakening = true');
+    const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
+    ok(!site('getDmgMulti')(carnage, 'Physical', 0).terms.some(x => /Spirit Awakening/.test(x.label)), 'the site gives Carnage the summon buff');
   });
 });
 
