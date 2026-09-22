@@ -666,9 +666,13 @@ artifact × 2).
 **Overflow** raises your maximum energy, which matters far more than it reads.
 Any move that consumes the whole pool scales with the cap — Berserker's Carnage
 gains 20% damage per energy past the first, so going from 5 to 7 max energy is
-+40% on it. `ENERGY.scalingMoves` is where such moves are declared; `ENERGY.base`
-is the assumed starting cap and **is not recorded anywhere in the site's data**,
-so correct it there if the game disagrees.
++40% in its damage bonus sum. Which moves scale, and by how much, is read from the
+move's own `energyScaling` data (`K.energyScalingOf`, the field builder.js
+`getEnergyBonusPct` reads), so Elementalist's Lightning Crash (+12.5% past the
+third) is priced as well as Carnage; `ENERGY.scalingMoves` only supplies the
+wording, or a move the data does not mark. `ENERGY.base` is the assumed starting
+cap and **is not recorded anywhere in the site's data**, so correct it there if
+the game disagrees.
 
 ### Adding gear, races, weapons
 

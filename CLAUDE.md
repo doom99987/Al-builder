@@ -259,8 +259,10 @@ target's statuses and the crit multiply. Per hit:
 - Each decision and its source is in `tools/ai/LEARNING.md` "Additive damage".
 - The Build AI follows the same formula: `tools/ai/optimize.js` `evaluate` prices
   each figure as `raw × M.dmgMulti(P) × crit + True Flat`, P being one sum of every
-  percentage (setup buffs, Carnage's energy and a move's own conditional bonus
-  such as Stealth Strike's +100 from Invisible, `K.MOVE_CONDITIONAL_DMG`,
+  percentage (setup buffs, a move's energy scaling - read from its own
+  `energyScaling` data by `K.energyScalingOf`, as the site's `getEnergyBonusPct`
+  does, so Carnage and Lightning Crash both count - and a move's own conditional
+  bonus such as Stealth Strike's +100 from Invisible, `K.MOVE_CONDITIONAL_DMG`,
   included); the composition helpers are in `tools/ai/model.js` (`dmgMulti`,
   `critOnlyRatio`, `trueFlatDmg`, `trueFlatHits`). Devastating adds to the crit
   multiplier. The test group "the Build AI composes damage the way the site

@@ -601,8 +601,8 @@ test group runs this code.
 **Where it lives (Build AI, done 2026-09-21).** `optimize.js` `evaluate` prices every
 move's figures as `raw × M.dmgMulti(P) × crit + True Flat`, with `raw` =
 `moveDamage` × the boss's resistance and P ONE sum: traits, passives, shards, the
-enchant, gear, mastery abilities, STR / ARC 110, Carnage's energy scaling and the
-move's own conditional term (`K.MOVE_CONDITIONAL_DMG`); the opener adds the setup
+enchant, gear, mastery abilities, STR / ARC 110, a move's energy scaling (Carnage,
+Lightning Crash) and the move's own conditional term (`K.MOVE_CONDITIONAL_DMG`); the opener adds the setup
 buffs and `openerDmgPct` to that same sum, the sustained figure their uptime
 share. `model.js` holds the composition (`dmgMulti`, `critOnlyRatio`,
 `trueFlatDmg`, `trueFlatHits`). What changed, and why:
@@ -611,6 +611,7 @@ share. `model.js` holds the composition (`dmgMulti`, `critOnlyRatio`,
 |---|---|---|
 | Setup buffs (Shadow Form, Cast Amplify, Absolute Radiance, Lesser Empower, Blizzard, From Sky to Soul), `openerDmgPct` | `(1 + P) × (1 + openPct)` "so the buffs compound" | terms of P |
 | Carnage's energy (+20 an energy past the first) | a separate factor, and DROPPED by the ramp-free and stat-setup openers (Crystalized Star, Flourish) | a term of P on every figure |
+| Lightning Crash's energy (+12.5 an energy past the third) | not priced at all: `ENERGY.scalingMoves` listed only Carnage, although the site scales every move whose data carries `energyScaling` | a term of P, read from the move's own `energyScaling` (`K.energyScalingOf`, `optimize.js energyScalingPct`) like the site's `getEnergyBonusPct`; a test runs both at every pool size (follow-up, ENGINE_V 54) |
 | Stealth Strike | `MOVE_OVERRIDES` base 10 → 20 for an Assassin at 17+ | +100 in P while Shadow Form is in the kit: `INVISIBLE_UPTIME` (0.5, shared with Shadow Master) of it on the plain and sustained figures, all of it on the opener; said in the write-up |
 | Shadow Master | 15 in P and 15 in `openPct`, which multiplied | the same split, now both in one sum: +30 beside Shadow Form's +20 on the opener |
 | Devastating (`critDmgPct`) | `critDmg × (1 + %)` | `critDmg + %/100`: +16% crit damage is +0.16 on the multiplier |
@@ -619,17 +620,27 @@ share. `model.js` holds the composition (`dmgMulti`, `critOnlyRatio`,
 | Blooming Eye | not modelled | +5 True Flat a hit (`trueFlatHits`: a two-part move's second part counts its own hits), after the crit; `onSite` in `GEAR_PASSIVES`; the +35 spend priced on the form nuke (`FORM_GEAR`) |
 | Blasphemy's Notch | the dump × 1.30 | +30 in the dump's sum (`notchedDump`, from `ctx.dumpTerms`); True Flat gains nothing |
 | `verify.js` damage gate | every old multiplier exactly 1; Stealth Strike skipped | `getDmgMulti(...).pct === 0` for the move (both Stinger parts); a missing accessor is a harness error and "0 compared" is a failure. The site's old multiplier wrappers (`getActiveDmgMult`, `getShardOfBlightMult`, `getBlizzardMult`, `getMilestoneDmgMult`), kept only for this gate, are removed |
+| One-move masteries (Blaze, Carnage, Poison Fan, Crushing Strike, Lightning Crash, Head Splitter, Light Burst, Bloody Burst, Flame Drop, Blazing Barrage Proficiency; The Big Sword on Strike) | in `ma.dmgPct`, so in EVERY move's sum (Blaze Proficiency put +24 on Lightning Crash) | a `move:` gate: a term of that move's sum only (`ma.moveDmg`), as the site's `getMoveInnateTerms` (follow-up) |
+| Stinger | one sum on its written type (Poison): ARC 110 reached the Physical stab, STR 110 never could | each part takes the sum, setups and resistance of its own type (`MOVE_OVERRIDES` `partTypes`, `K.movePartTypes`), as the site's per-part `getDmgMulti` (follow-up) |
+| Discharge Proficiency (Lancer cm2) | a note; the single hit priced | `MOVE_OVERRIDES` `ratios` 1 / 0.38 / 1/3 / 1/3 (×2.05), True Flat on each of the four; `verify.js` reads the site's "4 hits — … = N" total. A Lancer now nukes with Discharge (Magic), so the element-gate test moved to a Rogue (follow-up) |
+| The `potential` burst with an opener or stat-setup crit | the AVERAGE crit, so a prepared burst could score under the plain crit hit | the landed crit, as the plain hit (follow-up) |
+| Blasphemy's Notch on the site | a switch that reached every move | a term of a 3+ energy move's sum only (`notchPctFor`; Self Destruct, cost 2, none), as the engine prices it (follow-up) |
+| Corruption forms and True Flat | Heresy's crit ratio, Tyranny's Condemned, the Ages Pages crit ratio and (after the Notch) Blooming Eye's own spend multiplied the whole figure, True Flat included: a Blooming Eye Berserker's Heresy line read +69% for +34% | each factor scales the figure WITHOUT its True Flat (`ctx.hitTrueFlat` / `sustTrueFlat`, the terms' `trueFlat`; `K.formBaseTrueFlat`), the Eye's spend is added after (`formGearCrit` `trueFlatAdd`), and `corruptionDamage` composes those parts, never their products (follow-up) |
+| Devastating in the write-up | "Crit damage" printed the engine figure only | also the site's, which leaves Devastating out (the engine scores it, the site does not wire it) (follow-up) |
 
 Effects worth knowing: every crit build's damage figure fell, mostly because ten
 Devastating orbs used to double the crit multiplier (a crit Berserker went 5.2x →
 3.6x) and because the setups and Carnage's energy no longer compound. The Amorus
 Assassin no longer reaches crit tier 1 on its own (it parks on LCK 110 at 82%);
 the tier-crossing test moved to a Blade Dancer. The golden hard keys still pass.
-Tyranny's Condemned and the Ages Pages crit ratio still scale the whole form
-figure, True Flat included (a few points at most); the Spike's +40 ratio leaves
-the True Flat out. The parity group "the Build AI
+Every corruption-form factor - Tyranny's Condemned, Heresy's crit, the Ages Pages
+crit ratio, the Spike's +40 - scales the nuke WITHOUT its True Flat, and Blooming
+Eye's spend is added after them (the table's last rows). The parity group "the Build AI
 composes damage the way the site does" runs the site's composition on the
-engine's own terms for a Berserker, a Lancer and an Assassin.
+engine's own terms for a Berserker, a Lancer, an Assassin and an Elementalist
+(Lightning Crash, whose energy term is checked against the site's); for the
+Assassin and the Elementalists the site's OWN sum, nothing injected, must equal
+the engine's.
 
 Each decision and its source:
 

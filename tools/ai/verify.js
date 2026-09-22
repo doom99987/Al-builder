@@ -306,13 +306,17 @@
           if (!row) continue;
           toggleDmgDetail(row, i, true);
           const txt = (row.nextElementSibling || {}).innerText || '';
-          // Three shapes the site prints, most specific first:
+          // Four shapes the site prints, most specific first:
           //   "Total: 8.6 + 21.8 = 30.4"                   two-part attacks
+          //   "4 hits — Full: 22.5 | 38%: 8.6 | ... = 46.0" hits at a share
+          //                                                (Discharge Proficiency)
           //   "1(1 + STR(236)/100) = 3.4 x 20 hits = 67.2" multi-hit
           //   "5(1 + STR(2)/75) = 5.1"                     the ordinary case
           // Reading the first "= N" on a two-part move caught only the opening
-          // stab and reported the model as wrong when it was right.
+          // stab and reported the model as wrong when it was right; on
+          // Discharge it caught one projectile of four.
           const summed = txt.match(/Total:[^=]*=\s*([\d.]+)/);
+          const shares = txt.match(/\d+\s*hits\s*—[^=]*=\s*([\d.]+)/);
           const total  = txt.match(/[×x]\s*(\d+)\s*hits\s*=\s*([\d.]+)/);
           const perHit = txt.match(/\)\s*=\s*([\d.]+)/);
           // The no-scaling branch: "Base damage: 16", or "Base damage: 16 + 5 [flat] = 21".
@@ -321,6 +325,7 @@
           const flatForm = txt.match(/Base damage:\s*[\d.]+\s*\+\s*[\d.]+\s*(?:\[flat\])?\s*=\s*([\d.]+)/);
           const baseOnly = flatForm || txt.match(/Base damage:\s*([\d.]+)/);
           const real = summed ? parseFloat(summed[1])
+                     : shares ? parseFloat(shares[1])
                      : total  ? parseFloat(total[2])
                      : perHit ? parseFloat(perHit[1])
                      : baseOnly ? parseFloat(baseOnly[1]) : null;

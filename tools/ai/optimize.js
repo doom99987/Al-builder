@@ -688,6 +688,15 @@
       return miss + (e - miss) * cdb;
     }
 
+    // A move's energy-scaling term of the Multi sum, in percent, fired from a
+    // full pool of `cap`: builder.js getEnergyBonusPct with the energy stepper at
+    // the cap. The scaling is read from the move's own data (K.energyScalingOf),
+    // so every move the site scales is scaled here too.
+    function energyScalingPct(mv, cap) {
+      const es = K.energyScalingOf ? K.energyScalingOf(mv) : (K.ENERGY.scalingMoves || {})[mv && mv.name];
+      return es ? 100 * es.perEnergy * Math.max(0, cap - es.freeEnergy) : 0;
+    }
+
     function evaluate(build, spec) {
       // Permuth is scored as NOTHING. model.js mirrors the site's stat row,
       // where Venia's Permuth reads as a permanent x1.4 on one stat; in game it
@@ -887,7 +896,9 @@
         // never applies (inertCrit) were missing here, so a stat setup raised
         // the burst's crit by the one and paid the other it could not have.
         buffedCrit = bd.critChance + tt.critChance + pv.critChance + (gp.critChance - inertCrit) + ma.critChance + maLuckCrit;
-        buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
+        // Under 'potential' the crit has landed, whatever the chance: the
+        // average here priced a prepared burst below the plain crit hit.
+        buffedMult = potential ? critDmg : M.expectedMultiplier(buffedCrit, critDmg);
       }
 
       // Crit that is only up on the opening turn: the setups cast for it, and
@@ -898,7 +909,7 @@
       const openerCrit = setupCrit + (pv.openerCritChance || 0) + (gp.openerCritChance || 0);
       if (openerCrit > 0) {
         buffedCrit += openerCrit;
-        buffedMult = M.expectedMultiplier(buffedCrit, critDmg);
+        buffedMult = potential ? critDmg : M.expectedMultiplier(buffedCrit, critDmg);
       }
 
       // Stat milestones, needed in the move loop now that STR / ARC 110 are
@@ -960,26 +971,57 @@
       // its sum, the setup share, the True Flat inside the figure, and the
       // move's own conditional term (Stealth Strike out of Invisible).
       let burstTerms = null, dumpTerms = null, bestCond = null;
+      // The True Flat inside bestHit and inside sustainedHit (the burst's and
+      // the dump's is in their terms): a factor the corruption pass applies to
+      // one of those figures - a crit ratio, Condemned - must leave it alone.
+      let hitTrueFlat = 0, sustTrueFlat = 0;
       const trueFlat = M.trueFlatDmg ? M.trueFlatDmg(build) : 0;
       const hasStatBuffs = Object.keys(statBuffs).length > 0;
+      // The type-gated terms of a hit of move (or move part) `m`:
+      // - passives gated on a move type - Nisse's +15% Fire and Magic,
+      //   Vastayan's Affinity Boost - only pay on moves of that type;
+      // - gear bonuses gated the same way;
+      // - STR 110 / ARC 110: +20% on Physical / magic moves.
+      // All read through typeOf, the CONVERTED type: a Physical move Wicked
+      // Crown makes Dark collects the Dark bonuses, and it and a Boreas move
+      // take the ARC perk.
+      const gatedPctOf = m => {
+        const ty = typeOf(m), s = ty + ' ' + String(m.element || '');
+        let p = 0;
+        for (const mt of pv.byMoveType) if (mt.when.test(s)) p += mt.value;
+        for (const mt of (gp.byMoveType || [])) if (mt.when.test(s)) p += mt.value;
+        for (const md of (ms.typeDmg || [])) if (md.test(m, ty)) p += md.value;
+        return p;
+      };
+      // The setup buffs a hit of that type collects: each one in full on the
+      // opener, at its uptime on the sustained figure. Element-gated buffs only
+      // pay on matching move types.
+      const rotationOf = m => {
+        const s = typeOf(m) + ' ' + String(m.element || '');
+        let open = 0, sust = 0;
+        for (const rt of rotation) {
+          if (rt.gain === null) continue;
+          if (rt.elements && !rt.elements.test(s)) continue;
+          open += rt.gain;
+          sust += rt.gain * rt.uptime;
+        }
+        return { open, sust };
+      };
       for (const mv of moves) {
-        const res = resFor(mv);
-        const raw = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * res;
+        // A two-part attack whose parts deal different types (Stinger: a
+        // Physical stab, Poison arrows; K.movePartTypes). Each part takes the
+        // type-gated terms, setups and resistance of ITS type, as builder.js
+        // prices each part with getDmgMulti of its own type.
+        const partTypes = K.movePartTypes ? K.movePartTypes(build, mv) : null;
+        const parts = partTypes && partTypes.length > 1 ? partTypes.map((t, i) => {
+          const pm = Object.assign({}, mv, { moveType: t, element: '' });
+          return { part: i + 1, gated: gatedPctOf(pm), rot: rotationOf(pm), res: resFor(pm) };
+        }) : null;
         let pct = tt.dmgPct + (pv.dmgPct - inertPassiveDmg) + sh.dmgPct + enPct + (gp.dmgPct - inertDmg) + ma.dmgPct;
-
-        // Passives gated on a move type — Nisse's +15% Fire and Magic, Vastayan's
-        // Affinity Boost — only pay on moves of that type.
-        for (const mt of pv.byMoveType) {
-          if (mt.when.test(typeOf(mv) + ' ' + String(mv.element || ''))) pct += mt.value;
-        }
-        // Gear bonuses gated the same way. Read through typeOf, so a Physical
-        // move converted by Wicked Crown collects the Dark ones.
-        for (const mt of (gp.byMoveType || [])) {
-          if (mt.when.test(typeOf(mv) + ' ' + String(mv.element || ''))) pct += mt.value;
-        }
-        // STR 110 / ARC 110: +20% on Physical / magic moves, by the CONVERTED
-        // type - a Wicked Crown or Boreas move is magic.
-        for (const md of (ms.typeDmg || [])) if (md.test(mv, typeOf(mv))) pct += md.value;
+        // A mastery that upgrades one move (Blaze Proficiency, Carnage
+        // Proficiency...) is a term of THAT move's sum, as builder.js's
+        // getMoveInnateTerms has it - not of every move's.
+        for (const x of (ma.moveDmg || [])) if (x.move === mv.name) pct += x.value;
 
         // heavyHand only pays on skills costing 2+ energy; strip it otherwise.
         // Cost may be written "3+X", so parse rather than coerce.
@@ -990,10 +1032,10 @@
 
         // Moves that consume the whole energy pool scale with the CAP, which is
         // why Overflow is worth far more to them than "+1 max energy" sounds.
-        // Carnage's +20% an energy past the first is a term of the sum, as the
-        // site's getEnergyBonusPct is - so every figure below carries it.
-        const es = (K.ENERGY.scalingMoves || {})[mv.name];
-        if (es) pct += 100 * es.perEnergy * Math.max(0, cap - es.freeEnergy);
+        // Carnage's +20% an energy past the first (and Lightning Crash's +12.5%
+        // past the third) is a term of the sum, as the site's getEnergyBonusPct
+        // is - so every figure below carries it.
+        pct += energyScalingPct(mv, cap);
 
         // The move's own conditional bonus, met by a setup in this kit - Stealth
         // Strike's "+100% if invisible while attacking" out of Shadow Form. A
@@ -1006,6 +1048,54 @@
           pct += condRule.value * up;
           if (condRule.openerFull) condOpen = condRule.value * (1 - up);
           cond = { move: mv.name, value: condRule.value, uptime: up, setup: condRule.setup || null, note: condRule.note || null };
+        }
+
+        // `pct` so far is what every type shares. Now each figure's raw hit
+        // (the boss's resistance in it) and the terms that depend on the type:
+        // the gated ones, and the setup buffs - the opener's `openPct`, the
+        // sustained figure's `sustPct`. The opener is taken on ramp-free stats
+        // (a Crystalized Star stack you have not built yet is not damage you
+        // have on turn three), or on a stat setup's buffed ones.
+        const burstStats = hasStatBuffs ? buffedStats : (hasRamp ? openerStats : d.stats);
+        const openBase = (ma.openerDmgPct || 0) + condOpen;
+        let raw, burstRaw, openPct, sustPct, burstParts = null;
+        if (!parts) {
+          const res = resFor(mv);
+          raw = M.moveDamage(build, mv, { stats: d.stats, ctx: d._ctx }) * res;
+          pct += gatedPctOf(mv);
+          const rot = rotationOf(mv);
+          openPct = openBase + rot.open;
+          sustPct = rot.sust;
+          const openerRaw = hasRamp ? M.moveDamage(build, mv, { stats: openerStats }) * res : raw;
+          burstRaw = hasStatBuffs ? M.moveDamage(build, mv, { stats: buffedStats }) * res : openerRaw;
+        } else {
+          // Each part at its own sum, folded into ONE equivalent sum per figure:
+          // raw x dmgMulti(P) is then exactly the parts' total, and a term later
+          // added to every part (the Blasphemy Notch) moves it exactly as it
+          // moves the parts.
+          const shared = pct;
+          const mix = (stats, extra) => {
+            let r = 0, w = 0;
+            const each = [];
+            for (let i = 0; i < parts.length; i++) {
+              const p = parts[i];
+              const pr = M.moveDamage(build, mv, { stats, part: p.part }) * p.res;
+              const pp = shared + p.gated + extra(p);
+              r += pr;
+              w += pr * M.dmgMulti(pp);
+              each.push({ type: partTypes[i], raw: pr, pct: pp });
+            }
+            return { raw: r, pct: r > 0 ? (w / r - 1) * 100 : shared, each };
+          };
+          const plainMix = mix(d.stats, () => 0);
+          const sustMix  = mix(d.stats, p => p.rot.sust);
+          const burstMix = mix(burstStats, p => openBase + p.rot.open);
+          raw = plainMix.raw;
+          pct = plainMix.pct;
+          burstRaw = burstMix.raw;
+          openPct = burstMix.pct - pct;
+          sustPct = sustMix.pct - pct;
+          burstParts = burstMix.each;
         }
 
         // A move that stuns YOU before it lands costs turns nobody else pays, so
@@ -1025,34 +1115,23 @@
         const tfHits = trueFlat ? M.trueFlatHits(build, mv) : 0;
         const tf = trueFlat * tfHits;
         const plain = (raw * M.dmgMulti(pct) * critAt(pct) + tf) / stunDiv;
-        if (plain > bestHit) { bestHit = plain; bestMove = mv; bestCond = cond; }
+        if (plain > bestHit) { bestHit = plain; bestMove = mv; bestCond = cond; hitTrueFlat = tf / stunDiv; }
 
-        // The same move with the setup up. Element-gated buffs only pay on
-        // matching move types.
-        const type = typeOf(mv) + ' ' + String(mv.element || '');
-        let openPct = (ma.openerDmgPct || 0) + condOpen, sustPct = 0;
-        for (const rt of rotation) {
-          if (rt.gain === null) continue;
-          if (rt.elements && !rt.elements.test(type)) continue;
-          openPct += rt.gain;
-          sustPct += rt.gain * rt.uptime;
-        }
-        // The setup buffs are terms of the SAME sum, never a second factor:
-        // Shadow Form's +20 and Shadow Master's +30 on the opener are +50.
+        // The same move with the setup up. The setup buffs are terms of the
+        // SAME sum, never a second factor: Shadow Form's +20 and Shadow
+        // Master's +30 on the opener are +50.
         const openP = pct + openPct, sustP = pct + sustPct;
-        // The opener is taken on ramp-free stats: a Crystalized Star stack you
-        // have not built yet is not damage you have on turn three.
-        const openerRaw = hasRamp ? M.moveDamage(build, mv, { stats: openerStats }) * res : raw;
-        const burstRaw = hasStatBuffs ? M.moveDamage(build, mv, { stats: buffedStats }) * res : openerRaw;
         const burst = (burstRaw * M.dmgMulti(openP) * critBuffedAt(openP) + tf) / stunDiv;
         const sust  = (raw * M.dmgMulti(sustP) * critAt(sustP) + tf) / stunDiv;
-        const burstStats = hasStatBuffs ? buffedStats : (hasRamp ? openerStats : d.stats);
         const terms = (burst > bestBurst || (M.parseCost(mv.cost) >= 3 && burst > bestDump))
-          ? { move: mv.name, pct: openP, basePct: pct, openPct, sustPct, trueFlat: tf / stunDiv, tfHits, stunDiv, cond }
+          ? { move: mv.name, pct: openP, basePct: pct, openPct, sustPct, trueFlat: tf / stunDiv, tfHits, stunDiv, cond,
+              // a two-part attack's own sums (the burst figure): pct and
+              // basePct above are then the raw-weighted equivalent of these
+              parts: burstParts }
           : null;
         if (burst > bestBurst) { bestBurst = burst; burstMove = mv; burstMoveStats = burstStats; burstTerms = terms; }
         if (M.parseCost(mv.cost) >= 3 && burst > bestDump) { bestDump = burst; dumpMove = mv; dumpMoveStats = burstStats; dumpTerms = terms; }
-        if (sust > sustainedHit) sustainedHit = sust;
+        if (sust > sustainedHit) { sustainedHit = sust; sustTrueFlat = tf / stunDiv; }
       }
       // A nuke's scaled damage per hit WITHOUT flat damage, on the stats that hit
       // was taken on: what a flat bonus that only fires in a form (Crystalline
@@ -1062,7 +1141,10 @@
         if (!mv) return null;
         const shp = M.effectiveShape(build, mv);
         if (shp.second || !(shp.hits > 0) || !(shp.base > 0)) return null;
-        return M.moveDamage(build, mv, { stats: st || d.stats, flat: 0 }) / shp.hits;
+        // Hits at a share of the full one (Discharge Proficiency) scale the
+        // flat with them, so the per-hit figure is the FULL hit's.
+        const n = shp.ratios ? shp.ratios.reduce((a, r) => a + r, 0) : shp.hits;
+        return M.moveDamage(build, mv, { stats: st || d.stats, flat: 0 }) / n;
       };
       const burstPerHit = perHitOf(burstMove, burstMoveStats);
       const dumpPerHit = perHitOf(dumpMove, dumpMoveStats);
@@ -1085,7 +1167,7 @@
         // Flat inside the figure, the move's conditional term), and the best
         // plain hit's conditional term: the corruption pass folds the Notch
         // into the dump's sum, and the write-up names Stealth Strike's +100.
-        burstTerms, dumpTerms, bestCond, trueFlat,
+        burstTerms, dumpTerms, bestCond, trueFlat, hitTrueFlat, sustTrueFlat,
         traits: tt, energyCap: cap, shards: sh, enchant: en || null, gearPassives: gp,
         masteryAbilities: ma, masteryPassedOver: build.masteryPassedOver || [],
         masteryBudget: build.masteryBudget || null,
@@ -2618,6 +2700,10 @@
                     // hold percentages, never stats, so the cache above stays valid.
                     statPct: { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
                     statFromStat: [],
+                    // A one-move upgrade (Blaze Proficiency: `move: 'Blaze'`):
+                    // a term of that move's sum only, never of dmgPct, which
+                    // every move carries.
+                    moveDmg: [],
                     active: [], unmodelled: [] };
       const nodes = D.masteryNodes || [];
       const byId = {};
@@ -2660,8 +2746,11 @@
           // listed so the write-up can say so, and added to nothing, so it is
           // never counted twice.
           const eff = ef.onSite ? 0 : value * uptime * scale;
+          const onMove = ef.move || (rule && rule.move) || null;
           if (!ef.onSite) {
-            if (kind === 'statFlat') {
+            if (kind === 'dmgPct' && onMove) {
+              out.moveDmg.push({ move: onMove, value: eff, name: entry.name });
+            } else if (kind === 'statFlat') {
               const st = ef.stat || 'spd';
               if (out.statFlat[st] !== undefined) out.statFlat[st] += eff;
             } else if (kind === 'statPct') {
@@ -2682,6 +2771,7 @@
           }
           out.active.push({ name: entry.name, kind, value, uptime, effective: eff,
                             stat: ef.stat, from: ef.from, party: scale > 1 ? scale : null,
+                            move: kind === 'dmgPct' ? onMove : null,
                             onSite: !!ef.onSite, note: rule && rule.note });
         }
       }
@@ -3344,12 +3434,28 @@
                                 : { crit: 0, mult: 1, critMult: 1, flatMult: 1, lines: [] };
       const critMult = fg.critMult != null ? fg.critMult : (fg.mult || 1);
       const flatMult = fg.flatMult != null ? fg.flatMult : 1;
+      const flatMain = fg.flatMain != null ? fg.flatMain : flatMult;
+      const trueFlatAdd = fg.trueFlatAdd || 0;
       const base = ctx.bestBurst || ctx.bestHit || 0;
       // Form crit (Ages Pages) is up every turn in the form. A flat bonus that
       // costs 60 Corrupt Power on ONE attack (Crystalline Spike) is priced on the
       // nuke only: no Corrupt Power income is stated, so it is never spread per turn.
-      const burst = (d.burst || 1) * critMult * flatMult;
-      const sustained = (d.sustained || 1) * critMult;
+      // Composed, never multiplied through: the form crit and the Spike scale
+      // the in-form nuke WITHOUT its True Flat, and the Eye's spend is added
+      // after them - a product of whole-figure ratios would multiply True Flat
+      // (§1: added after everything, never multiplied). The nuke's True Flat is
+      // the dump's when the form nukes with it (Blasphemy), else the figure's
+      // the form's own multiplier was taken on.
+      const nuke = base * (d.burst || 1);
+      const nukeTf = Math.min(nuke, d.nuke === 'dump'
+        ? ((ctx.dumpTerms && ctx.dumpTerms.trueFlat) || 0)
+        : (K.formBaseTrueFlat ? K.formBaseTrueFlat(ctx) : 0));
+      const burstHit = (nuke - nukeTf) * critMult * flatMain + nukeTf + trueFlatAdd;
+      const burst = base > 0 ? burstHit / base : (d.burst || 1) * critMult * flatMult;
+      const sust = (ctx.sustainedHit || 0) * (d.sustained || 1);
+      const sustTf = Math.min(sust, ctx.sustTrueFlat || 0);
+      const sustainedHit = (sust - sustTf) * critMult + sustTf;
+      const sustained = ctx.sustainedHit > 0 ? sustainedHit / ctx.sustainedHit : (d.sustained || 1) * critMult;
       // A form whose own bonus lands on nothing still pays the gear - say so
       // rather than tell the reader to pick another form it is chosen for.
       const formLines = flatMult > 1 && (d.burst || 1) <= 1
@@ -3358,8 +3464,7 @@
       return Object.assign({}, d, {
         lines: formLines.concat(fg.lines || []),
         formBurst: d.burst || 1, formSustained: d.sustained || 1, formGearCrit: fg.crit || 0, formGearFlat: flatMult,
-        burstHit: base * burst,
-        sustainedHit: (ctx.sustainedHit || 0) * sustained,
+        burstHit, sustainedHit,
         burstGain: Math.round((burst - 1) * 1000) / 10,
         sustainedGain: Math.round((sustained - 1) * 1000) / 10,
       });
@@ -3688,7 +3793,7 @@
     return { run, evaluate, movesFor, covenantMovesFor, kitFor, baseOf, weightOf, rankGear,
              pickCorruption, pickCovenant,
              flavourFor, rollRandom, weaknessesOf, racesForGoal, allRaces, techForRace,
-             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor, moveCritMult,
+             masteryLegal, unavailableReason, usable, corruptionDamage, weaponsFor, moveCritMult, energyScalingPct,
              passivesFor, setupsFor, healMovesFor, buildDoes, statusesOf, maxHealthSoul, inertFor, cautionFor,
              gearPassiveTotals, passiveTotals,
              masteryAbilityTotals, masteryNotation, classesForLevel,
