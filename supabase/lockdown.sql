@@ -317,11 +317,18 @@ begin
   v_user := public.check_ban_target(p_username, p_user_id);
 
   -- Not ON CONFLICT: the table may or may not carry a unique index on username,
-  -- and this must not depend on which.
+  -- and this must not depend on which. user_id IS unique there (one perma row
+  -- per account), so a renamed account already in the table keeps its row and
+  -- the new name goes in as a name alone - nobody can register it, and the
+  -- account is already covered by id.
   if not exists (select 1 from perma_banned_usernames where username = p_username) then
-    insert into perma_banned_usernames (username, user_id) values (p_username, v_user);
+    insert into perma_banned_usernames (username, user_id)
+    values (p_username, case when exists (select 1 from perma_banned_usernames where user_id = v_user)
+                             then null else v_user end);
   else
-    update perma_banned_usernames set user_id = coalesce(user_id, v_user) where username = p_username;
+    update perma_banned_usernames set user_id = v_user
+     where username = p_username and user_id is null
+       and not exists (select 1 from perma_banned_usernames where user_id = v_user);
   end if;
 
   insert into banned_usernames (username, user_id) values (p_username, v_user)
@@ -419,16 +426,23 @@ $$;
 --   order by 5, 1;
 --
 --  (2) Fill in the ids the rows are missing - by signup name first, then by
---      profile name:
+--      profile name. An account banned under two names (it renamed itself)
+--      gets its id on ONE row per table: perma_banned_usernames.user_id is
+--      unique, and the other name stays a name-only row, which is all it needs
+--      to be.
 --
 --   update public.banned_usernames b set user_id = u.id from auth.users u
---    where b.user_id is null and u.raw_user_meta_data->>'username' = b.username;
+--    where b.user_id is null and u.raw_user_meta_data->>'username' = b.username
+--      and not exists (select 1 from public.banned_usernames x where x.user_id = u.id);
 --   update public.banned_usernames b set user_id = p.id from public.profiles p
---    where b.user_id is null and p.username = b.username;
+--    where b.user_id is null and p.username = b.username
+--      and not exists (select 1 from public.banned_usernames x where x.user_id = p.id);
 --   update public.perma_banned_usernames b set user_id = u.id from auth.users u
---    where b.user_id is null and u.raw_user_meta_data->>'username' = b.username;
+--    where b.user_id is null and u.raw_user_meta_data->>'username' = b.username
+--      and not exists (select 1 from public.perma_banned_usernames x where x.user_id = u.id);
 --   update public.perma_banned_usernames b set user_id = p.id from public.profiles p
---    where b.user_id is null and p.username = b.username;
+--    where b.user_id is null and p.username = b.username
+--      and not exists (select 1 from public.perma_banned_usernames x where x.user_id = p.id);
 --
 --  (3) Lock every account a ban row now names - never an admin:
 --

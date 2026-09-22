@@ -9200,6 +9200,11 @@ describe('database lockdown', () => {
     ok(/not exists \(select 1 from banned_usernames\s+where user_id = v_user\)\s+and not exists \(select 1 from perma_banned_usernames where user_id = v_user\)/.test(code),
        'an unban unlocks an account another ban row still names');
     ok(/returns text\[\]/.test(code) && /Array\.isArray\(bannedNames\)/.test(sb), 'the sweep reports the list it sent, not the names it banned');
+    // perma_banned_usernames.user_id is unique (live constraint, found when the
+    // backfill collided on a renamed account): a second name for an account
+    // already in the table must go in as a name alone, not raise.
+    ok(/case when exists \(select 1 from perma_banned_usernames where user_id = v_user\)\s+then null else v_user end/.test(code),
+       'perma-banning a renamed account that is already in the table raises on the unique user_id');
   });
 
   it('bans that already exist are locked by the owner after a look, never by the file', () => {
