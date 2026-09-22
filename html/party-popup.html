@@ -139,9 +139,13 @@
     auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: false }
   });
 
-  const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const esc = s => String(s ?? '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // Only our own bucket is drawn: an avatar_url is a string its owner can point
+  // anywhere, and every viewer would fetch it (see safeAvatarUrl in js/sb.js).
+  const AVATAR_URL_PREFIX = SUPABASE_URL + '/storage/v1/object/public/avatars/';
 
   function mkAvatar(name, url, size) {
+    if (typeof url === 'string' && !url.startsWith(AVATAR_URL_PREFIX)) url = null;
     if (url) {
       const img = document.createElement('img');
       img.src = url; img.alt = '';
@@ -281,10 +285,12 @@
     el.scrollTop = el.scrollHeight;
   }
 
+  // Other members' messages reach the popup from the main window (BroadcastChannel
+  // 'other-msg'), which receives them as database rows. The public broadcast
+  // channel this used to send on is gone (see subscribeChat in js/party.js).
   function subscribeChat() {
     if (_chatSub) { try { sb.removeChannel(_chatSub); } catch(_) {} }
-    // Popup uses the same Supabase channel to send broadcasts to other party members
-    _chatSub = sb.channel('party-chat-' + _partyId).subscribe();
+    _chatSub = null;
   }
 
   async function sendMsg() {
@@ -304,8 +310,7 @@
     appendMsg(msg); // optimistic in popup
     // Sync own message to main window via browser BroadcastChannel
     _bc?.postMessage({ type: 'own-msg', msg, from: 'popup' });
-    // Broadcast to other party members via Supabase
-    _chatSub?.send({ type: 'broadcast', event: 'chat', payload: msg });
+    // Other members get it from the insert itself.
     await sb.from('party_messages').insert(row);
   }
 

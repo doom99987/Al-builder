@@ -162,28 +162,124 @@
     'dildo','bdsm','xxx',
   ];
 
+  // Banned in a username only as the whole name or a whole piece of it, never
+  // inside a word: two letters turn up everywhere ("CPU", "EpicPlayer"). The
+  // chat filter blocks the same word on word boundaries (trades.js _BLOCK_LIST).
+  const PROFANITY_TOKENS = ['cp'];
+
+  // ---- unicode folding ----
+  // Text that reads as a banned word without being one, to a filter: fullwidth
+  // and styled letters (ｎ, 𝐧), accents and stacked marks (ñ, n̶), invisible
+  // characters between letters (zero-width, bidi controls, soft hyphen), and
+  // look-alike letters from other scripts (Cyrillic а е о р с, Greek ο ρ ...).
+  // foldChar maps ONE character to one plain character where it can and keeps
+  // case; foldText also drops the invisibles. Usernames are ASCII-only on the
+  // server (lockdown2.sql), so this matters most for chat (trades.js).
+  const CONFUSABLES = {
+    'а':'a','в':'b','е':'e','ё':'e','з':'3','к':'k','м':'m','н':'h','о':'o','п':'n','р':'p','с':'c','т':'t',
+    'у':'y','х':'x','ь':'b','і':'i','ї':'i','ј':'j','ѕ':'s','ԁ':'d','ԛ':'q','ԝ':'w','һ':'h','ɡ':'g','ɑ':'a',
+    'α':'a','β':'b','γ':'y','ε':'e','η':'n','ι':'i','κ':'k','μ':'u','ν':'v','ο':'o','ρ':'p','τ':'t','υ':'u',
+    'χ':'x','ω':'w','ı':'i','ł':'l','ø':'o','đ':'d','ħ':'h','ŋ':'n',
+  };
+  function foldChar(c) {
+    const lower = c.toLowerCase();
+    let base = lower.normalize('NFKD').replace(/\p{M}/gu, '');
+    if (base.length === 1) base = CONFUSABLES[base] || base;
+    else if (!base) base = /\p{M}/u.test(lower) ? '' : lower;   // a lone stacked mark folds to nothing
+    return c === lower ? base : base.toUpperCase();
+  }
+  function foldText(s) {
+    return Array.from(String(s || '').replace(/\p{Cf}/gu, '')).map(foldChar).join('');
+  }
+
+  // The whole name, and its pieces: split on _ - and other separators, on
+  // camelCase (iLoveCP -> i Love CP), on a capital run before a word
+  // (XXLover -> XX Lover), and between letters and digits (cp123 -> cp 123;
+  // a digit run such as 1488 is a piece of its own).
+  function nameTokens(name) {
+    const s = foldText(name);
+    const tokens = new Set([s.toLowerCase()]);
+    (s.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2').match(/[A-Za-z]+|[0-9]+/g) || [])
+      .forEach(t => tokens.add(t.toLowerCase()));
+    return tokens;
+  }
+
+  // Matched anywhere in a name, even inside a longer word: strings that are
+  // never innocent. Every other word on the list counts only as the whole
+  // name or a whole piece of it, so Assassin, Cassandra, Analyst, Peacock and
+  // Scunthorpe are all fine while ass_kicker and PeaCock are not.
+  const PROFANITY_ANYWHERE = [
+    'nigg', 'fuck', 'faggot', 'retard', 'pedophile', 'paedophile', 'jailbait', 'tranny', 'shemale',
+    'jigaboo', 'pickaninny', 'wetback', 'towelhead', 'raghead', 'zipperhead', 'childporn', 'csam',
+    'cumshot', 'blowjob', 'handjob', 'rimjob', 'masturbat', 'whore', 'bitch', 'porn', 'hentai', 'dildo', '1488',
+    'shit', 'slut', 'jizz', 'twat', 'kike', 'chink', 'gook', 'cumdump', 'dickhead', 'dicksuck', 'dickrid',
+    'cocksuck', 'cockrid', 'pussyslay', 'childrap', 'kidrap', 'assmunch', 'analsex', 'bigdick', 'pissboy',
+  ];
+  // Stems too short to match anywhere without catching a real word, with the
+  // one letter that makes them innocent ruled out: Scunthorpe, swanky.
+  const PROFANITY_ANYWHERE_RX = [/(?<!s)cunt/, /(?<!s)wank/];
+  // Left whole-token-only on purpose, because they sit inside common words:
+  // dick (Dickens), cock (Peacock), ass (Assassin), anal (Analyst), rape
+  // (Grape), cum (Cucumber), piss, tit (Titan).
+
+  // The word that makes a name unusable, or null. One rule for signup and
+  // rename (containsProfanity) and for the admin's ban sweep (usernameProfanity).
+  function profanityHit(name) {
+    const tokens = nameTokens(name);
+    const folded = foldText(name).toLowerCase();
+    const rx = PROFANITY_ANYWHERE_RX.find(r => r.test(folded));
+    return PROFANITY_LIST.find(w => tokens.has(w))
+        || PROFANITY_TOKENS.find(w => tokens.has(w))
+        || PROFANITY_ANYWHERE.find(w => folded.includes(w))
+        || (rx ? rx.source.replace(/^\(\?<!s\)/, '') : null)
+        || null;
+  }
+
   function containsProfanity(str) {
-    const lower = str.toLowerCase();
-    return PROFANITY_LIST.some(w => lower.includes(w));
+    return !!profanityHit(str);
+  }
+
+  // The admin's ban sweep uses the same rule as signup and rename (owner,
+  // 2026-09-22: ban the word, not a word that contains it). "Assassin" holds
+  // "ass" and is a class, "Cassie" and "Titan" are names; "ass_kicker",
+  // "ChildAbuser" and "bigdick" are not. Returns the word that matched, or null.
+  function usernameProfanity(name) {
+    return profanityHit(name);
   }
 
   // ---- ban helpers ----
   let _bannedSet        = null;       // Set of banned usernames (normal ban — username based)
+  let _bannedIdSet      = new Set();  // ...and the accounts those rows name (lockdown.sql fills user_id)
   let _permaBannedIdSet = new Set();  // Set of perma-banned UUIDs (uuid based)
 
+  // A banned name is reserved, exactly and in any case - not fed into
+  // PROFANITY_LIST, which is shared with the chat filter: banning "bob" used
+  // to censor "bob" in every chat message.
+  //
+  // A ban row that records its account (user_id) bans THAT account, by id: its
+  // name only reserves the name. Matching such a row by name would land the ban
+  // on whoever holds the name later. Only an old row with no id is a ban by name.
+  let _bannedNameIds = new Map();   // lower(name) -> user_id or null
   async function loadBannedCache() {
-    const bansRes = await sb.from('banned_usernames').select('username');
+    const bansRes = await sb.from('banned_usernames').select('username, user_id');
     _bannedSet = new Set((bansRes.data || []).map(r => r.username));
+    _bannedNameIds = new Map((bansRes.data || []).map(r => [String(r.username).toLowerCase(), r.user_id || null]));
+    (bansRes.data || []).forEach(r => { if (r.user_id) _bannedIdSet.add(r.user_id); });
     try {
       const { data: permaData } = await sb.from('perma_banned_usernames').select('username, user_id');
       (permaData || []).forEach(r => {
         PERMA_BANNED.add(r.username);
         if (r.user_id) _permaBannedIdSet.add(r.user_id);
-        // Also block the username from future registrations
-        const lname = r.username.toLowerCase();
-        if (!PROFANITY_LIST.includes(lname)) PROFANITY_LIST.push(lname);
       });
     } catch (_) {}
+  }
+
+  // Signup and rename refuse any banned name, perma or plain, in any case
+  // (the server's profiles_username_guard says the same).
+  function isPermaBannedName(name) {
+    const lower = String(name || '').toLowerCase();
+    for (const n of PERMA_BANNED) if (n.toLowerCase() === lower) return true;
+    return _bannedNameIds.has(lower);
   }
 
   function isBannedCached(username) {
@@ -200,16 +296,38 @@
     return '';
   }
 
-  // Normal ban: username check. Perma ban: UUID check.
+  // By account first (perma bans, and plain bans since they record user_id),
+  // then by name for an old row that has none.
   async function checkIfBanned(userId, username) {
-    if (userId && _permaBannedIdSet.has(userId)) return true;
-    if (_bannedSet) return _bannedSet.has(username);
-    const { data } = await sb.from('banned_usernames').select('username').eq('username', username).maybeSingle();
-    return !!data;
+    if (userId && (_permaBannedIdSet.has(userId) || _bannedIdSet.has(userId))) return true;
+    const lower = String(username || '').toLowerCase();
+    if (_bannedSet) return _bannedNameIds.has(lower) && _bannedNameIds.get(lower) === null;
+    const { data } = await sb.from('banned_usernames').select('username, user_id').ilike('username', lower.replace(/[\\%_]/g, m => '\\' + m));
+    return (data || []).some(r => !r.user_id);
   }
 
   // Load ban cache immediately so leaderboard filtering is ready
-  loadBannedCache();
+  const _bannedReady = loadBannedCache().catch(() => {});
+
+  // A session restored from storage (a reload, a second tab) never passes the
+  // login form, which is where the ban check lived. The Auth lock
+  // (lockdown.sql) stops a banned account refreshing its token, but a token
+  // already issued lives up to an hour, and an old name-only ban has no lock at
+  // all. So a restored session is checked too, under both names it can carry.
+  async function enforceBanOnRestore(user, profileName) {
+    await _bannedReady;
+    if (!user || !currentUser || currentUser.id !== user.id) return;
+    // The profile name is the account's name; the signup name in the metadata
+    // is only a fallback when the profile could not be read (a rename never
+    // updates it, so it can be a name someone else now holds).
+    const banned = await checkIfBanned(user.id, profileName || user.user_metadata?.username || '');
+    if (!banned || !currentUser || currentUser.id !== user.id) return;
+    await sb.auth.signOut();
+    currentUser = null; currentProfile = null;
+    resetScoreState();
+    renderAuthBar();
+    alert('Your account has been banned.');
+  }
 
   // ---- monthly local-HS reset ----
   // Each QTE stores highscores in localStorage and only submits to the server
@@ -238,18 +356,6 @@
     return data || null;
   }
 
-  async function ensureProfile(user) {
-    const profile = await getProfile(user.id);
-    if (profile) return profile;
-    const base = user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 17);
-    for (let i = 0; i <= 9; i++) {
-      const username = i === 0 ? base : base + i;
-      const { error } = await sb.from('profiles').upsert({ id: user.id, username }, { onConflict: 'id' });
-      if (!error) break;
-      if (error.code !== '23505') break; // unexpected error, stop retrying
-    }
-    return await getProfile(user.id);
-  }
 
   // Open modal immediately if this looks like a recovery redirect.
   // With flowType:'implicit', Supabase puts tokens in the hash (#access_token=...&type=recovery).
@@ -290,11 +396,13 @@
       renderAuthBar();
       reconcileServerScores();
       // Load full profile from DB to get avatar_url and saved username
+      const restoredUser = currentUser;
       getProfile(currentUser.id).then(profile => {
         if (profile && currentUser) {
           currentProfile = profile;
           renderAuthBar();
         }
+        enforceBanOnRestore(restoredUser, profile?.username);
       });
     } else {
       currentProfile = null;
@@ -327,6 +435,16 @@
     }
   }
 
+  // Names are unique regardless of case on the server (supabase/lockdown2.sql):
+  // "Fool" is taken if "fool" is. ilike is the API's case-insensitive match and
+  // _ is its one-character wildcard, so escape it (and \ and %).
+  async function usernameTaken(name, exceptId) {
+    let q = sb.from('profiles').select('id').ilike('username', String(name).replace(/[\\%_]/g, m => '\\' + m)).limit(1);
+    if (exceptId) q = q.neq('id', exceptId);
+    const { data } = await q;
+    return !!(data && data.length);
+  }
+
   // ---- sign up ----
   async function signUp(email, password, username) {
     validateEmail(email);
@@ -334,11 +452,12 @@
     if (username.length < 3)  throw new Error('Username must be at least 3 characters.');
     if (username.length > 20) throw new Error('Username must be 20 characters or fewer.');
     if (!/^[a-zA-Z0-9_\-]+$/.test(username)) throw new Error('Username: letters, numbers, _ and - only.');
-    if (containsProfanity(username)) throw new Error('That username is not allowed.');
+    if (containsProfanity(username) || isPermaBannedName(username)) throw new Error('That username is not allowed.');
+    // The server's minimum is set in Supabase Auth settings; keep this equal.
+    if (String(password || '').length < 8) throw new Error('Password must be at least 8 characters.');
 
     // Check uniqueness before creating auth account
-    const { data: taken } = await sb.from('profiles').select('id').eq('username', username).maybeSingle();
-    if (taken) throw new Error('Username already taken.');
+    if (await usernameTaken(username)) throw new Error('Username already taken.');
 
     _authLock = true;
     try {
@@ -347,7 +466,11 @@
         email, password,
         options: { data: { username } }
       });
-      if (error) throw new Error(error.message);
+      // The profile row is made by a trigger at signup; when the database
+      // refuses the name (taken in another case, or the shape rule) GoTrue can
+      // only say "Database error saving new user".
+      if (error) throw new Error(/database error saving new user/i.test(error.message || '')
+        ? 'That username cannot be used (it may be taken). Try another.' : error.message);
       const user = data?.user;
       if (!user) throw new Error('Registration failed — please try again.');
       if (!data.session) throw new Error('Check your email to confirm your account, then log in.');
@@ -375,19 +498,20 @@
       currentUser    = data.user;
       const username = data.user.user_metadata?.username
         || data.user.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
-      // Check ban before allowing login (UUID-first, username fallback)
-      const banned = await checkIfBanned(data.user.id, username);
+      // Check ban before allowing login: by account first, then by the
+      // account's CURRENT name (the profile's; the signup name only when the
+      // profile cannot be read - a rename never updates it).
+      const profile = await getProfile(currentUser.id);
+      await _bannedReady;
+      const banned = await checkIfBanned(data.user.id, profile?.username || username);
       if (banned) {
         await sb.auth.signOut();
         currentUser = null;
         throw new Error('Your account has been banned.');
       }
-      currentProfile = { username };
+      currentProfile = profile || { username };
       renderAuthBar();
       clearLocalScores();
-      // Load full profile to get avatar_url
-      const profile = await getProfile(currentUser.id);
-      if (profile) { currentProfile = profile; renderAuthBar(); }
     } finally {
       _authLock = false;
     }
@@ -502,6 +626,7 @@
   // What a rejection means for the score in hand. A stale or missing session is
   // worth another go with a fresh one; a verdict about the score itself (too
   // fast for the game, above the trainer's cap) will never change.
+  const _heldToldAt = {};   // qteType -> when the player was last told a score is held
   const SCORE_REFUSALS = {
     too_fast:  'Score not saved: it came in faster than this trainer allows.',
     capped:    'Score not saved: above the maximum this trainer accepts.',
@@ -540,6 +665,18 @@
     // says nothing at all — and that silence, which made a discarded score look
     // exactly like a stored one, is the whole reason this contract exists.
     const status = typeof data === 'string' ? data : 'ok';
+    // A new record, or a big jump to this month's #1, waits for an admin
+    // (supabase/qte-scores.sql, score_reviews). The server has the score, so
+    // there is nothing to retry; say so once per run, not once per point.
+    if (status === 'held') {
+      console.log('[sb] submitScore held for review', qteType, score);
+      const now = Date.now();
+      if (!_heldToldAt[qteType] || now - _heldToldAt[qteType] > 60000) {
+        _heldToldAt[qteType] = now;
+        scoreToast('Score held for review - it goes on the board once an admin approves it.');
+      }
+      return 'accepted';
+    }
     if (status !== 'ok') {
       console.warn('[sb] submitScore refused', qteType, score, status);
       if (!SCORE_REFUSALS[status]) { delete _sessionIds[qteType]; return 'retry'; }
@@ -764,8 +901,21 @@
   //  UI helpers
   // ================================================================
   const _ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  // Also drops bidi embedding/override/isolate controls: one U+202E in a name
+  // or message flips the text after it, so "Lycoris" can be drawn from
+  // "sirocyL" and the rest of the line reads backwards.
   function esc(s) {
-    return String(s).replace(/[&<>"']/g, c => _ESC_MAP[c]);
+    return String(s).replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/[&<>"']/g, c => _ESC_MAP[c]);
+  }
+  // An avatar is drawn only from our own bucket. profiles.avatar_url is a
+  // string its owner can set to anything through the API, and every viewer's
+  // browser fetched it as <img src> - a tracking pixel on someone else's
+  // server, fired at the moment an admin opened a report about them. The
+  // database refuses other origins for new writes (supabase/lockdown2.sql);
+  // this covers rows written before that, and every renderer in the site.
+  const AVATAR_URL_PREFIX = SUPABASE_URL + '/storage/v1/object/public/avatars/';
+  function safeAvatarUrl(u) {
+    return typeof u === 'string' && u.startsWith(AVATAR_URL_PREFIX) ? u : null;
   }
   // For values interpolated into a JS string inside an inline onclick attribute:
   // strip quotes/backslashes (JS-string breakout) then HTML-escape (attribute breakout).
@@ -787,6 +937,7 @@
     const color   = avatarColor(name);
     const initial = name.charAt(0).toUpperCase();
     const fs      = Math.round(size * 0.44);
+    url = safeAvatarUrl(url);
     const inner   = url
       ? `<img src="${esc(url)}" class="sb-avatar-img" alt="" onerror="this.style.display='none'">${initial}`
       : initial;
@@ -1137,20 +1288,21 @@
     const newName = (document.getElementById('sb-new-uname')?.value || '').trim();
     if (!newName) { if (errEl) errEl.textContent = 'Enter a username.'; return; }
     if (newName.length < 3) { if (errEl) errEl.textContent = 'At least 3 characters.'; return; }
+    if (newName.length > 20) { if (errEl) errEl.textContent = 'At most 20 characters.'; return; }
     if (!/^[a-zA-Z0-9_\-]+$/.test(newName)) { if (errEl) errEl.textContent = 'Letters, numbers, _ and - only.'; return; }
-    if (containsProfanity(newName)) { if (errEl) errEl.textContent = 'That username is not allowed.'; return; }
+    if (containsProfanity(newName) || isPermaBannedName(newName)) { if (errEl) errEl.textContent = 'That username is not allowed.'; return; }
     if (newName === currentProfile?.username) { closeModal(); return; }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
-    const { data: taken } = await sb.from('profiles').select('id').eq('username', newName).maybeSingle();
-    if (taken) {
+    if (await usernameTaken(newName, currentUser.id)) {
       if (errEl) errEl.textContent = 'Username already taken.';
       if (btn) { btn.disabled = false; btn.textContent = 'Save Username'; }
       return;
     }
     const { error } = await sb.from('profiles').update({ username: newName }).eq('id', currentUser.id);
     if (error) {
-      if (errEl) errEl.textContent = error.message;
+      if (errEl) errEl.textContent = error.code === '23505' ? 'Username already taken.'
+        : error.code === '23514' ? 'That username is not allowed.' : error.message;
       if (btn) { btn.disabled = false; btn.textContent = 'Save Username'; }
       return;
     }
@@ -1168,7 +1320,7 @@
     if (!errEl) return;
     errEl.style.color = '#ff8888';
     if (!oldVal) { errEl.textContent = 'Enter your current password.'; return; }
-    if (newVal.length < 6) { errEl.textContent = 'New password must be at least 6 characters.'; return; }
+    if (newVal.length < 8) { errEl.textContent = 'New password must be at least 8 characters.'; return; }
     if (newVal !== confVal) { errEl.textContent = 'Passwords do not match.'; return; }
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
     // Re-authenticate to verify current password
@@ -1241,6 +1393,7 @@
       <h2 class="sb-title">Set New Password</h2>
       <p id="np-status" style="font-size:0.85rem;color:#b0a8c8;margin-bottom:10px">Verifying reset link…</p>
       <input class="sb-input" id="np-pass" type="password" placeholder="New password" autocomplete="new-password" disabled />
+      <input class="sb-input" id="np-pass2" type="password" placeholder="Confirm new password" autocomplete="new-password" disabled />
       <div class="sb-err" id="np-err"></div>
       <button class="auth-btn sb-submit" id="np-btn" onclick="window._submitNewPassword()" disabled>Verifying…</button>
     `);
@@ -1253,8 +1406,10 @@
       const btn      = document.getElementById('np-btn');
       const statusEl = document.getElementById('np-status');
       if (!passEl) return;
+      const pass2El  = document.getElementById('np-pass2');
       passEl.disabled = false; passEl.focus();
-      passEl.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); });
+      if (pass2El) pass2El.disabled = false;
+      [passEl, pass2El].forEach(el => el && el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitNewPassword(); }));
       if (btn)      { btn.disabled = false; btn.textContent = 'Set Password'; }
       if (statusEl) statusEl.textContent = 'Enter your new password below.';
     }
@@ -1337,7 +1492,8 @@
     const errEl  = document.getElementById('np-err');
     if (!passEl || !errEl) return;
     const pass = passEl.value;
-    if (!pass || pass.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+    if (!pass || pass.length < 8) { errEl.style.color = '#ff8888'; errEl.textContent = 'Password must be at least 8 characters.'; return; }
+    if (pass !== (document.getElementById('np-pass2')?.value || '')) { errEl.style.color = '#ff8888'; errEl.textContent = 'Passwords do not match.'; return; }
     const btn = document.getElementById('np-btn');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
     errEl.textContent = '';
@@ -1350,6 +1506,8 @@
       errEl.style.color = '#88ee88';
       errEl.textContent = 'Password updated! You are now logged in. Click anywhere outside to close.';
       passEl.disabled = true;
+      const pass2El = document.getElementById('np-pass2');
+      if (pass2El) pass2El.disabled = true;
       if (btn) btn.disabled = true;
     }
   }
@@ -1382,6 +1540,7 @@
       ${isReg ? `<input class="sb-input" id="sb-uname" type="text" placeholder="Username (3–20 chars)" maxlength="20" autocomplete="off">` : ''}
       <input class="sb-input" id="sb-email" type="email" placeholder="Email" autocomplete="email">
       <input class="sb-input" id="sb-pass"  type="password" placeholder="Password" autocomplete="${isReg ? 'new-password' : 'current-password'}">
+      ${isReg ? `<input class="sb-input" id="sb-pass2" type="password" placeholder="Confirm password" autocomplete="new-password">` : ''}
       <div class="sb-err" id="sb-err"></div>
       <button class="auth-btn sb-submit" onclick="window._submitAuth('${mode}')">${isReg ? 'Register' : 'Login'}</button>
       <p class="sb-switch">${isReg ? 'Already have an account?' : "Don't have an account?"}
@@ -1390,7 +1549,7 @@
     `);
     // Allow Enter to submit
     setTimeout(() => {
-      document.querySelectorAll('#sb-uname,#sb-email,#sb-pass').forEach(el => {
+      document.querySelectorAll('#sb-uname,#sb-email,#sb-pass,#sb-pass2').forEach(el => {
         if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') window._submitAuth(mode); });
       });
     }, 0);
@@ -1402,6 +1561,11 @@
     const pass  =  document.getElementById('sb-pass')?.value  || '';
     const uname = (document.getElementById('sb-uname')?.value || '').trim();
     if (!email || !pass) { if (errEl) errEl.textContent = 'Fill in all fields.'; return; }
+    // A typo in a new password is a locked-out account: make them type it twice.
+    if (mode === 'register' && pass !== (document.getElementById('sb-pass2')?.value || '')) {
+      if (errEl) { errEl.style.color = '#ff8888'; errEl.textContent = 'Passwords do not match.'; }
+      return;
+    }
     const btn = document.querySelector('.sb-submit');
     if (btn) { btn.disabled = true; btn.textContent = '...'; }
     let success = false;
@@ -1458,7 +1622,7 @@
       <tr class="sb-lb-record-row${myName === record.username ? ' sb-lb-me' : ''}">
         <td>👑</td>
         <td><div class="lb-player-cell">${renderAvatar(record.username, record.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(record.username)}'})"`)}<span>${esc(record.username)}</span></div></td>
-        <td style="white-space:nowrap"><b>${record.score}</b> ${platformBadge(record.platform)}</td>
+        <td style="white-space:nowrap"><b>${esc(String(record.score))}</b> ${platformBadge(record.platform)}</td>
       </tr>` : '';
 
     if (!rows.length && !record) {
@@ -1469,12 +1633,12 @@
     }
 
     const inTop10 = myName && rows.some(r => r.username === myName);
-    const pbHtml = myBest ? ` &mdash; PB: <b>${myBest.score}</b>` : '';
+    const pbHtml = myBest ? ` &mdash; PB: <b>${esc(String(myBest.score))}</b>` : '';
     let myRankHtml = '';
     if (currentUser && !inTop10 && myRank) {
-      myRankHtml = `<p class="sb-my-rank">Your rank: <b>#${myRank.rank}</b> &mdash; streak <b>${myRank.score}</b>${pbHtml}</p>`;
+      myRankHtml = `<p class="sb-my-rank">Your rank: <b>#${esc(String(myRank.rank))}</b> &mdash; streak <b>${esc(String(myRank.score))}</b>${pbHtml}</p>`;
     } else if (currentUser && !inTop10 && !myRank) {
-      myRankHtml = `<p class="sb-my-rank">You have no score yet this month.${myBest ? ` Your PB: <b>${myBest.score}</b>` : ''}</p>`;
+      myRankHtml = `<p class="sb-my-rank">You have no score yet this month.${myBest ? ` Your PB: <b>${esc(String(myBest.score))}</b>` : ''}</p>`;
     }
 
     const monthlyRows = rows;
@@ -1485,7 +1649,7 @@
       <tr class="${myName === r.username ? 'sb-lb-me' : ''}">
         <td>${rank}</td>
         <td><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 22, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(r.username)}'})"`)}<span>${esc(r.username)}</span></div></td>
-        <td style="white-space:nowrap"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
+        <td style="white-space:nowrap"><b>${esc(String(r.score))}</b> ${platformBadge(r.platform)}</td>
       </tr>`;
     }).join('');
 
@@ -1494,7 +1658,7 @@
       <tbody>${recordRowHtml}${monthlyRowsHtml || `<tr><td colspan="3" class="sb-empty" style="text-align:center">No scores this month</td></tr>`}</tbody>
     </table>
     ${myRankHtml}
-    ${currentUser && inTop10 && myBest ? `<p class="sb-my-rank">Your PB: <b>${myBest.score}</b></p>` : ''}
+    ${currentUser && inTop10 && myBest ? `<p class="sb-my-rank">Your PB: <b>${esc(String(myBest.score))}</b></p>` : ''}
     ${currentUser ? '' : '<p class="sb-empty">Login to submit your scores!</p>'}`;
   }
 
@@ -1617,7 +1781,7 @@
         <tr class="sb-lb-record-row${myName && myName === rec.username ? ' sb-lb-me' : ''}">
           <td class="all-lb-rank">👑</td>
           <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(rec.username, rec.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(rec.username)}'})"`)}<span>${esc(rec.username)}</span></div></td>
-          <td class="all-lb-score"><b>${rec.score}</b> ${platformBadge(rec.platform)}</td>
+          <td class="all-lb-score"><b>${esc(String(rec.score))}</b> ${platformBadge(rec.platform)}</td>
         </tr>` : '';
       const filteredRows = monthRows;
       const monthlyHtml = filteredRows.length
@@ -1625,7 +1789,7 @@
             <tr class="${myName && myName === r.username ? 'sb-lb-me' : ''}">
               <td class="all-lb-rank">${i + 1}</td>
               <td class="all-lb-name"><div class="lb-player-cell">${renderAvatar(r.username, r.avatar_url, 20, `data-orb="1" onclick="window._openUserProfile({username:'${escAttrJs(r.username)}'})"`)}<span>${esc(r.username)}</span></div></td>
-              <td class="all-lb-score"><b>${r.score}</b> ${platformBadge(r.platform)}</td>
+              <td class="all-lb-score"><b>${esc(String(r.score))}</b> ${platformBadge(r.platform)}</td>
             </tr>`).join('')
         : (!rec ? `<tr><td colspan="3" class="all-lb-empty">No scores this month</td></tr>` : '');
       return `
@@ -1720,6 +1884,7 @@
         <button class="sb-admin-tab" data-tab="banned" onclick="window._adminSwitchTab('banned')">Banned (${(bans||[]).length})</button>
         <button class="sb-admin-tab" data-tab="testers" onclick="window._adminSwitchTab('testers');window._adminLoadTesters()">Testers</button>
         <button class="sb-admin-tab" data-tab="listings" onclick="window._adminSwitchTab('listings');window._adminLoadListings()">Listings</button>
+        <button class="sb-admin-tab" data-tab="held" onclick="window._adminSwitchTab('held');window._adminLoadHeldScores()">Held scores</button>
         <button class="sb-admin-tab" data-tab="tools" onclick="window._adminSwitchTab('tools')">Tools</button>
         <button class="sb-admin-tab" data-tab="reports" onclick="window._adminSwitchTab('reports');window._reportsLoadAdmin&&window._reportsLoadAdmin()">Reports <span id="sb-admin-reports-badge" class="sb-report-badge" style="display:none"></span></button>
       </div>
@@ -1754,6 +1919,9 @@
 
       <div class="sb-admin-panel" data-panel="banned" style="display:none">
         <div id="sb-admin-ban-rows" class="sb-admin-ban-list">${banRows}</div>
+      </div>
+      <div class="sb-admin-panel" data-panel="held" style="display:none">
+        <div id="sb-admin-held-rows" class="sb-admin-ban-list"><div class="sb-admin-empty">Loading…</div></div>
       </div>
 
       <div class="sb-admin-panel" data-panel="testers" style="display:none">
@@ -2123,12 +2291,9 @@
     const { data: banStatus, error } = await sb.rpc('admin_perma_ban_user', { p_username: username, p_user_id: userId || null });
     if (error) { adminSetStatus(error.message); return; }
 
-    PERMA_BANNED.add(username);
+    PERMA_BANNED.add(username);   // reserved by exact name (isPermaBannedName), and by the server
     _bannedSet?.add(username);
     if (userId) _permaBannedIdSet.add(userId);
-    // Block the username from future registrations via the profanity filter
-    const lname = username.toLowerCase();
-    if (!PROFANITY_LIST.includes(lname)) PROFANITY_LIST.push(lname);
 
     // Remove from the ban list UI (perma banned are hidden there)
     _refreshBannedTab(username, 'remove');
@@ -2298,6 +2463,51 @@
     adminSetStatus(status === 'not_banned' ? `${username} was not banned.` : `${username} unbanned.`, true);
   }
 
+  // ── Admin: held scores ───────────────────────────────────────
+  // A new all-time record, or a big jump to a monthly #1, is held by
+  // submit_score until an admin looks (supabase/qte-scores.sql). Approving
+  // posts it exactly as submit_score would have; rejecting posts nothing.
+  // Both are admin_review_score, which checks for an admin on the server.
+  async function adminLoadHeldScores() {
+    if (!isAdmin()) return;
+    const rowsEl = document.getElementById('sb-admin-held-rows');
+    if (!rowsEl) return;
+    const { data, error } = await sb.from('score_reviews')
+      .select('id, user_id, qte_type, score, platform, reason, submitted_at')
+      .eq('status', 'pending').order('submitted_at', { ascending: true }).limit(200);
+    if (error) { rowsEl.innerHTML = `<div class="sb-admin-empty">${esc(error.message)}</div>`; return; }
+    if (!data || !data.length) { rowsEl.innerHTML = '<div class="sb-admin-empty">No scores waiting.</div>'; return; }
+    const ids = [...new Set(data.map(r => r.user_id))];
+    const { data: profs } = await sb.from('profiles').select('id, username').in('id', ids);
+    const name = Object.fromEntries((profs || []).map(p => [p.id, p.username]));
+    rowsEl.innerHTML = data.map(r => `<div class="sb-admin-ban-row" data-held="${esc(r.id)}">
+        <span><b>${esc(name[r.user_id] || r.user_id)}</b> &mdash; ${esc(String(r.score))} on ${esc(r.qte_type)} ${platformBadge(r.platform)}
+          <br><small style="color:#888">${esc(r.reason)} &middot; ${esc(new Date(r.submitted_at).toLocaleString())}</small></span>
+        <div style="display:flex;gap:6px">
+          <button class="sb-admin-unban-btn" onclick="window._adminReviewScore('${escAttrJs(r.id)}', true, this, ${Number(r.score) | 0})">Approve</button>
+          <button class="sb-admin-perma-btn" onclick="window._adminReviewScore('${escAttrJs(r.id)}', false, this, ${Number(r.score) | 0})">Reject</button>
+        </div>
+      </div>`).join('');
+  }
+
+  // shownScore: the score on the row the admin clicked. The server refuses an
+  // approval if the pending score has moved since (its run went on).
+  async function adminReviewScore(id, approve, btn, shownScore) {
+    if (!isAdmin() || !id) return;
+    if (btn) btn.disabled = true;
+    const { error } = await sb.rpc('admin_review_score', { p_id: id, p_approve: !!approve, p_score: shownScore });
+    if (error) {
+      adminSetStatus(error.message);
+      if (btn) btn.disabled = false;
+      if (/score is now/.test(error.message)) adminLoadHeldScores();   // show the current figure
+      return;
+    }
+    document.querySelector(`.sb-admin-ban-row[data-held="${CSS.escape(id)}"]`)?.remove();
+    const rowsEl = document.getElementById('sb-admin-held-rows');
+    if (rowsEl && !rowsEl.querySelector('.sb-admin-ban-row')) rowsEl.innerHTML = '<div class="sb-admin-empty">No scores waiting.</div>';
+    adminSetStatus(approve ? 'Score approved and posted.' : 'Score rejected.', true);
+  }
+
   async function adminPurgeExpired(btn) {
     if (!isAdmin()) return;
     if (!confirm('Purge all expired trades (>2 days) and parties (open >5 h, full >2 days)?')) return;
@@ -2316,12 +2526,32 @@
   async function banAllProfanityUsers() {
     if (!isAdmin()) return;
     const btn = document.getElementById('sb-ban-profanity-btn');
+    const resetBtn = () => { if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; } };
     if (btn) { btn.disabled = true; btn.textContent = 'Scanning…'; }
-    const { data: profiles } = await sb.from('profiles').select('username');
-    const dirty = (profiles || []).filter(p => p.username && containsProfanity(p.username)).map(p => p.username);
+    // Every profile, a page at a time: one request is capped at the project's
+    // max-rows (1000), and past 1000 accounts the rest were never checked.
+    let profiles = [];
+    for (let from = 0; ; ) {
+      const { data, error } = await sb.from('profiles').select('username').order('id').range(from, from + 999);
+      if (error) { adminSetStatus('Scan failed: ' + error.message); resetBtn(); return; }
+      if (!data || !data.length) break;
+      profiles = profiles.concat(data);
+      from += data.length;
+    }
+    // Whole tokens only (usernameProfanity), and remember which word it was so
+    // the admin can see why each name is on the list.
+    const why = {};
+    profiles.forEach(p => { const w = p.username && usernameProfanity(p.username); if (w) why[p.username] = w; });
+    const dirty = Object.keys(why);
     if (!dirty.length) {
-      adminSetStatus('No profanity usernames found.', true);
-      if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; }
+      adminSetStatus(`No profanity usernames found (${profiles.length} checked).`, true);
+      resetBtn();
+      return;
+    }
+    // A ban locks the account in Auth; show the list and the reason first.
+    if (!confirm(`Ban ${dirty.length} account(s)?\n\n` + dirty.map(u => `${u}  (${why[u]})`).join('\n'))) {
+      adminSetStatus('Sweep cancelled.', true);
+      resetBtn();
       return;
     }
     // The function answers with the names it actually banned - an admin's name
@@ -2333,7 +2563,7 @@
     done.forEach(u => _bannedSet?.add(u));
     done.forEach(u => _refreshBannedTab(u, 'add'));
     const skipped = dirty.filter(u => !done.includes(u));
-    adminSetStatus(`Banned ${done.length} user(s): ${done.join(', ') || '—'}` +
+    adminSetStatus(`Banned ${done.length} user(s): ${done.map(u => `${u} (${why[u]})`).join(', ') || '—'}` +
       (skipped.length ? ` · skipped (admin): ${skipped.join(', ')}` : ''), true);
     if (btn) { btn.disabled = false; btn.textContent = '🔍 Scan & Ban All Profanity Usernames'; }
   }
@@ -2349,6 +2579,7 @@
   window._sbGetUserId        = () => currentUser?.id ?? null;
   window._sbGetAvatar        = () => currentProfile?.avatar_url || null;
   window._sbAvatar           = renderAvatar; // reuse leaderboard avatar renderer (sb.js renderAvatar)
+  window._sbSafeAvatarUrl    = safeAvatarUrl; // trades.js / party.js draw avatars through the same rule
   window._toggleProfileMenu  = toggleProfileMenu;
   window._closeProfileMenu   = closeProfileMenu;
   window._toggleTrackerSubmenu = toggleTrackerSubmenu;
@@ -2392,6 +2623,8 @@
   window._unbanUser              = unbanUser;
   window._banAllProfanityUsers   = banAllProfanityUsers;
   window._adminPurgeExpired      = adminPurgeExpired;
+  window._adminLoadHeldScores    = adminLoadHeldScores;
+  window._adminReviewScore       = adminReviewScore;
   window._sbIsAdmin              = isAdmin;
   window._sbIsTester             = isTester;
   window._sbCanUseAI             = canUseAI;
@@ -2407,6 +2640,7 @@
     } catch (_) {}
   };
   window._sbProfanityList        = PROFANITY_LIST; // live reference — mutations are reflected immediately
+  window._sbFoldChar             = foldChar;       // trades.js folds chat through the same table
 
   // Switch casual/competitive on the all-lb page (preserves platform filter)
   window._switchLbMode = function (btn) {

@@ -51,7 +51,9 @@ begin
   -- The fingerprint is client-supplied, so bound it. 64 is far more than the
   -- 'fp_' + base36 ids the site generates, and it stops anyone using this table
   -- as free storage.
-  if p_fp is null or length(p_fp) = 0 or length(p_fp) > 64 then
+  -- The shape index.html generates: 'fp_' + base36 + base36. Anything else is
+  -- not a browser of ours and does not get a row.
+  if p_fp is null or p_fp !~ '^fp_[0-9a-z]{6,48}$' then
     raise exception 'invalid fingerprint';
   end if;
 

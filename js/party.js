@@ -25,7 +25,8 @@
   const sb = window._sbClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: 'implicit' } });
 
   // ── helpers ───────────────────────────────────────────────
-  const esc    = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  // Bidi controls dropped: one U+202E flips the rest of a line (see sb.js esc).
+  const esc    = s => String(s ?? '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   // For a value interpolated into a JS string inside an inline handler. Escaping
   // alone cannot protect that position: the HTML parser decodes entities BEFORE
   // the JS parser sees the attribute, so &#39; becomes a real quote and closes
@@ -45,6 +46,9 @@
 
   function mkAvatar(name, url, size, extraAttrs) {
     const attrs = extraAttrs || '';
+    // Only our own bucket is drawn (safeAvatarUrl in sb.js): an avatar_url is
+    // a string its owner can point anywhere, and every viewer would fetch it.
+    url = typeof window._sbSafeAvatarUrl === 'function' ? window._sbSafeAvatarUrl(url) : null;
     if (url) return `<img src="${esc(url)}" alt="" ${attrs} style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex-shrink:0;">`;
     const initials = (name || '?').slice(0, 2).toUpperCase();
     const hue = [...(name || '')].reduce((h, c) => (h * 31 + c.charCodeAt(0)) & 0xFFFFFF, 0) % 360;
@@ -511,20 +515,25 @@
       }, { onConflict: 'party_id,requester_id' }).select().single();
       if (reqErr) throw reqErr;
 
-      await sb.from('notifications').insert({
+      // The name the database stamped on the request (the current profile
+      // name): the notification policy requires exactly that, and the name
+      // cached on this page is stale after a rename.
+      const myName = req.requester_name || profile.username || 'Someone';
+      const { error: nErr } = await sb.from('notifications').insert({
         user_id: party.host_id,
-        title:   `${profile.username || 'Someone'} wants to join your party`,
+        title:   `${myName} wants to join your party`,
         body:    myClass ? `Class: ${myClass}` : 'No class set',
         meta: {
           type:            'party_join',
           request_id:      req.id,
           party_id:        partyId,
           requester_id:    uid(),
-          requester_name:  profile.username || 'Unknown',
+          requester_name:  myName,
           requester_class: myClass,
           requester_build: myBuild
         }
       });
+      if (nErr) console.warn('[party] host notification failed:', nErr.message);
 
       alert('Request sent! Waiting for the host to accept.');
     } catch (e) {
@@ -874,12 +883,19 @@
   function subscribeChat(partyId) {
     if (_chatSub) { try { sb.removeChannel(_chatSub); } catch (_) {} }
     _chatSub = sb.channel('party-chat-' + partyId)
-      // Broadcast: real-time delivery for messages from other party members
-      .on('broadcast', { event: 'chat' }, ({ payload }) => {
-        if (!payload || payload.sender_id === uid()) return;
+      // New messages arrive as database rows. This used to be a public
+      // broadcast channel: anyone could listen to any party and inject lines
+      // under any name. Realtime delivers a party_messages row only to a
+      // subscriber its RLS lets read it (members and host), and the row's
+      // sender_name is the one the database stamped (supabase/lockdown2.sql).
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'party_messages',
+        filter: `party_id=eq.${partyId}`
+      }, ({ new: m }) => {
+        if (!m || m.sender_id === uid()) return;   // own lines are already shown
         // Forward to popup so it stays in sync with other members' messages
-        _partyPopupBc?.postMessage({ type: 'other-msg', msg: payload });
-        _appendMsg(payload);
+        _partyPopupBc?.postMessage({ type: 'other-msg', msg: m });
+        _appendMsg(m);
       })
       // postgres_changes: only used to detect party being closed
       .on('postgres_changes', {
@@ -916,8 +932,7 @@
     _appendMsg(msg); // optimistic in main window
     // Sync own message to popup window via browser BroadcastChannel
     _partyPopupBc?.postMessage({ type: 'own-msg', msg, from: 'main' });
-    // Broadcast to other party members via Supabase
-    _chatSub?.send({ type: 'broadcast', event: 'chat', payload: msg });
+    // Other members get it from the insert itself (subscribeChat).
     await sb.from('party_messages').insert(row);
   }
 
@@ -1056,20 +1071,23 @@
       }, { onConflict: 'party_id,requester_id' }).select().single();
       if (reqErr) throw reqErr;
 
-      await sb.from('notifications').insert({
+      // The stamped name - see the same step in joinParty above.
+      const myName = req.requester_name || profile.username || 'Someone';
+      const { error: nErr } = await sb.from('notifications').insert({
         user_id: party.host_id,
-        title:   `${profile.username || 'Someone'} wants to join via invite link`,
+        title:   `${myName} wants to join via invite link`,
         body:    myClass ? `Class: ${myClass}` : 'No class set',
         meta: {
           type:            'party_join',
           request_id:      req.id,
           party_id:        partyId,
           requester_id:    uid(),
-          requester_name:  profile.username || 'Unknown',
+          requester_name:  myName,
           requester_class: myClass,
           requester_build: myBuild
         }
       });
+      if (nErr) console.warn('[party] host notification failed:', nErr.message);
 
       alert('Request sent! Waiting for the host to accept.');
     } catch (e) {
