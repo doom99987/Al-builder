@@ -200,39 +200,83 @@
     return Array.from(set);
   }
 
+  // Unicode look-alikes (fullwidth ｎ, Cyrillic о, accented ñ, styled 𝐧) fold
+  // to plain letters through sb.js's table. One character in, one character
+  // out, so a match in the folded copy masks the same positions of the
+  // original; a character with no one-letter fold (an emoji) becomes '#'.
+  const _foldOne = c => {
+    const f = typeof window._sbFoldChar === 'function' ? window._sbFoldChar(c) : c;
+    return f.length === 1 ? f : (c.length === 1 ? c : '#');
+  };
+  // Invisible characters (zero-width, bidi controls, soft hyphen) are how a
+  // word hides from a filter while reading the same; they carry no text, so
+  // they are dropped from what is checked, sent and shown.
+  // Only the characters that hide a word: soft hyphen, Mongolian vowel
+  // separator, zero-width space, word joiners, BOM and the bidi controls. ZWJ
+  // and ZWNJ stay (emoji sequences and Persian/Arabic need them); they are
+  // skipped in the CHECKED copies instead (see _variants).
+  const _stripInvisible = s => String(s).replace(/[\u00AD\u180E\u200B\u2060-\u2064\uFEFF\u202A-\u202E\u2066-\u2069]/g, '');
+  // The copies a word is looked for in: as typed, and folded + de-leeted. A
+  // stacked combining mark (f u + U+0301 c k) is left out of the folded copy -
+  // it would split the word - and idx maps each position of a copy back to
+  // the character of the original it came from.
+  const _isMark = c => /^\p{M}$/u.test(c);
+  const _isFormat = c => /^\p{Cf}$/u.test(c);   // ZWJ, ZWNJ, tags: kept in the text, skipped when checking
+  function _variants(txt) {
+    const chars = Array.from(_stripInvisible(txt));
+    let literal = '', folded = '';
+    const litIdx = [], foldIdx = [];
+    chars.forEach((c, i) => {
+      if (_isFormat(c)) return;
+      literal += c.length === 1 ? c : '#'; litIdx.push(i);
+      if (_isMark(c)) return;
+      folded += _foldOne(c); foldIdx.push(i);
+    });
+    return { chars, literal, litIdx, folded: normalizeLeet(folded), foldIdx };
+  }
+
   function filterMsg(txt) {
     const banned = _getBanned();
-    // Pass 1: catch literal matches
-    let out = banned.reduce((s, w) =>
-      s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), txt);
-
-    // Pass 2: catch leet-speak by running the filter on the normalised copy,
-    // then masking any newly-censored positions back onto the original characters
-    const norm = normalizeLeet(txt);
-    const normCensored = banned.reduce((s, w) =>
-      s.replace(new RegExp(`\\b${w}s?\\b`, 'gi'), m => '*'.repeat(m.length)), norm);
-    let result = '';
-    for (let i = 0; i < out.length; i++) {
-      result += (normCensored[i] === '*' && out[i] !== '*') ? '*' : out[i];
+    const v = _variants(txt);
+    const hit = new Array(v.chars.length).fill(false);
+    for (const [str, idx] of [[v.literal, v.litIdx], [v.folded, v.foldIdx]]) {
+      for (const w of banned) {
+        const rx = new RegExp(`\\b${w}s?\\b`, 'gi');
+        let m;
+        while ((m = rx.exec(str))) {
+          for (let k = m.index; k < m.index + m[0].length; k++) hit[idx[k]] = true;
+          if (!m[0].length) rx.lastIndex++;
+        }
+      }
     }
-    return result;
+    // A mark stacked on a masked letter goes with it, and so does a joiner
+    // sitting inside a masked word.
+    for (let i = 1; i < v.chars.length; i++) {
+      if (hit[i] || !hit[i - 1]) continue;
+      if (_isMark(v.chars[i])) hit[i] = true;
+      else if (_isFormat(v.chars[i])) {
+        let j = i; while (j < v.chars.length && _isFormat(v.chars[j])) j++;
+        if (j < v.chars.length && hit[j]) for (let k = i; k < j; k++) hit[k] = true;
+      }
+    }
+    return v.chars.map((c, i) => (hit[i] ? '*' : c)).join('');
   }
 
   function containsBlocked(txt) {
-    const norm = normalizeLeet(txt);
+    const v = _variants(txt);
     return _BLOCK_LIST.some(w => {
       const rx = new RegExp(`\\b${w}s?\\b`, 'i');
-      return rx.test(txt) || rx.test(norm);
+      return rx.test(v.literal) || rx.test(v.folded);
     });
   }
 
   // Exposed so party.js (and others) can block a message outright if it contains profanity
   window._containsProfanity = function (txt) {
     const banned = _getBanned();
-    const norm = normalizeLeet(txt);
+    const v = _variants(txt);
     const check = s => banned.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s))
                     || _BLOCK_LIST.some(w => new RegExp(`\\b${w}s?\\b`, 'i').test(s));
-    return check(txt) || check(norm);
+    return check(v.literal) || check(v.folded);
   };
 
   // ---- tradeable items ----
@@ -399,7 +443,8 @@
 
   // ---- helpers ----
   const _E = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  function esc(s) { return String(s).replace(/[&<>"']/g, c => _E[c]); }
+  // Bidi controls dropped: one U+202E flips the rest of a line (see sb.js esc).
+  function esc(s) { return String(s).replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/[&<>"']/g, c => _E[c]); }
   // esc maps ' to &#39;, which is right for text and ordinary attributes but
   // useless inside a JS string in an inline handler: the HTML parser decodes the
   // entity back to a quote before the JS parser runs. Strip, then escape.
@@ -415,6 +460,9 @@
   function mkAvatar(name, url, size, extraAttrs) {
     const c  = avatarColor(name);
     const fs = Math.round(size * 0.44);
+    // Only our own bucket is drawn (see safeAvatarUrl in sb.js); fails closed
+    // to the initial if sb.js is not there to say.
+    url = typeof window._sbSafeAvatarUrl === 'function' ? window._sbSafeAvatarUrl(url) : null;
     const inner = url
       ? `<img src="${esc(url)}" class="sb-avatar-img" alt="" onerror="this.style.display='none'">${name.charAt(0).toUpperCase()}`
       : name.charAt(0).toUpperCase();
@@ -568,10 +616,10 @@
             </div>
           </div>
           ${own ? `<div class="trd-own-actions">
-            <button class="trd-edit-btn" onclick="window._trdEdit('${l.id}')" title="Edit">✎</button>
-            <button class="trd-del-btn"  onclick="window._trdDelete('${l.id}')" title="Delete">✕</button>
+            <button class="trd-edit-btn" onclick="window._trdEdit('${escAttrJs(l.id)}')" title="Edit">✎</button>
+            <button class="trd-del-btn"  onclick="window._trdDelete('${escAttrJs(l.id)}')" title="Delete">✕</button>
           </div>` : isAdmin ? `<div class="trd-own-actions">
-            <button class="trd-del-btn trd-del-btn--admin" onclick="window._trdAdminDelete('${l.id}')" title="Remove (admin)">✕</button>
+            <button class="trd-del-btn trd-del-btn--admin" onclick="window._trdAdminDelete('${escAttrJs(l.id)}')" title="Remove (admin)">✕</button>
           </div>` : ''}
         </div>
         <div class="trd-card-items">${itemsHtml}</div>
@@ -1134,7 +1182,8 @@
           <li>We use cookies and similar technologies for core site functionality.</li>
           <li>We show ads via <strong style="color:#ccc">Google AdSense</strong>, which may use cookies to personalize the ads you see.</li>
           <li>If you use messaging: messages are monitored for safety; harassment, spam, or abuse will result in account termination; message history is retained for moderation and deleted <strong style="color:#ccc">12 months</strong> after account termination.</li>
-          <li>If you donate: payments are processed by <strong style="color:#ccc">Stripe</strong>, and your donor name and amount appear on the public supporters list.</li>
+          <!-- Donations are disabled (2026-09-22)
+          <li>If you donate: payments are processed by <strong style="color:#ccc">Stripe</strong>, and your donor name and amount appear on the public supporters list.</li> -->
           <li>You can withdraw consent at any time in your account settings.</li>
         </ul>
         <p style="font-size:11px;color:#555;margin-bottom:4px">

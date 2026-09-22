@@ -302,7 +302,7 @@
       const name   = row.donor_name || 'Anonymous';
       return `<div class="don-lb-row">
         <span class="don-lb-rank">${medal || (i + 1)}</span>
-        <span class="don-lb-name">${name.replace(/</g, '&lt;')}</span>
+        <span class="don-lb-name">${String(name).replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))}</span>
         <span class="don-lb-amt">${dollars}</span>
       </div>`;
     }).join('');

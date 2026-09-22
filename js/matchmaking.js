@@ -153,7 +153,7 @@
 
   // ── Small helpers ───────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
   function avatar(name, url, size) { return window._sbAvatar ? window._sbAvatar(name, url, size) : `<div class="mm-av-fallback">${esc((name||'?').charAt(0))}</div>`; }
   function bcast(event, payload) { if (matchChan) matchChan.send({ type: 'broadcast', event, payload: payload || {} }); }
 

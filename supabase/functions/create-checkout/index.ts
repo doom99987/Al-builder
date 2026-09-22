@@ -16,48 +16,76 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
 // Minimum donation: $1 (100 cents). No maximum enforced server-side.
 const MIN_CENTS = 100;
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'content-type, authorization, x-client-info, apikey',
-};
+// Only the site itself may call this, and only the site may be redirected to
+// after payment. With '*' and "any https URL", anyone could mint a genuine
+// checkout page under AL Builder's Stripe branding that sends the payer to a
+// page of their choosing afterwards, and credit the donation to themselves.
+const SITE_ORIGINS = new Set([
+  'https://arcanelineagebuilder.com',
+  'https://www.arcanelineagebuilder.com',
+]);
+function isLocalDev(origin: string) {
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
 
-function json(body: unknown, status = 200) {
+// The browser only accepts the answer if the header names its own origin, so
+// an allowed origin is echoed (the site, or a local dev server); anything
+// else gets the site's origin and its browser refuses the response.
+function corsFor(req: Request) {
+  const origin = req.headers.get('origin') || '';
+  const allow = SITE_ORIGINS.has(origin) || isLocalDev(origin) ? origin : 'https://arcanelineagebuilder.com';
+  return {
+    'Access-Control-Allow-Origin': allow,
+    'Access-Control-Allow-Headers': 'content-type, authorization, x-client-info, apikey',
+    'Vary': 'Origin',
+  };
+}
+
+// cors is required, so a response without the request's CORS headers cannot
+// be written by accident (the browser would drop it without saying why).
+function json(body: unknown, status: number, cors: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json' },
+    headers: { ...cors, 'Content-Type': 'application/json' },
   });
 }
 
 Deno.serve(async (req) => {
+  const cors = corsFor(req);
   // CORS preflight
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
-  if (req.method !== 'POST')    return json({ error: 'Method not allowed.' }, 405);
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST')    return json({ error: 'Method not allowed.' }, 405, cors);
 
   let body: { amount_cents?: unknown; success_url?: unknown; cancel_url?: unknown; donor_name?: unknown };
   try {
     body = await req.json();
   } catch {
-    return json({ error: 'Invalid JSON.' }, 400);
+    return json({ error: 'Invalid JSON.' }, 400, cors);
   }
 
   const { amount_cents, success_url, cancel_url, donor_name } = body;
 
   // Server-side validation — must be a whole number of cents, minimum $1
   if (typeof amount_cents !== 'number' || !Number.isInteger(amount_cents) || amount_cents < MIN_CENTS) {
-    return json({ error: 'Invalid donation amount.' }, 400);
+    return json({ error: 'Invalid donation amount.' }, 400, cors);
   }
   if (typeof success_url !== 'string' || typeof cancel_url !== 'string') {
-    return json({ error: 'Missing redirect URLs.' }, 400);
+    return json({ error: 'Missing redirect URLs.' }, 400, cors);
   }
 
-  // Basic URL safety — allow https:// in production, http://localhost and http://127.0.0.1 for local dev
+  // The redirect targets must be the site (or a local dev server). Parsed as
+  // URLs, not prefix-matched: 'http://localhost.evil.example' starts with
+  // 'http://localhost' and is not local.
   function isSafeUrl(u: string) {
-    return u.startsWith('https://') ||
-           u.startsWith('http://localhost') ||
-           u.startsWith('http://127.0.0.1');
+    try {
+      const origin = new URL(u).origin;
+      return SITE_ORIGINS.has(origin) || isLocalDev(origin);
+    } catch {
+      return false;
+    }
   }
   if (!isSafeUrl(success_url) || !isSafeUrl(cancel_url)) {
-    return json({ error: 'Redirect URLs must use HTTPS.' }, 400);
+    return json({ error: 'Redirect URLs must point at the site.' }, 400, cors);
   }
 
   // Sanitize donor name — strip tags, limit length, fall back to Anonymous
@@ -103,10 +131,10 @@ Deno.serve(async (req) => {
       metadata: { donor_name: safeName, user_id: safeUserId },
     });
 
-    return json({ url: session.url });
+    return json({ url: session.url }, 200, cors);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Stripe error.';
     console.error('[create-checkout] Stripe error:', msg);
-    return json({ error: 'Could not create checkout session.' }, 500);
+    return json({ error: 'Could not create checkout session.' }, 500, cors);
   }
 });

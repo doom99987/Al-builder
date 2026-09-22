@@ -211,3 +211,15 @@ $$;
 grant execute on function mm_create_match(uuid)       to authenticated;
 grant execute on function mm_apply_result(uuid, uuid) to authenticated;
 grant execute on function mm_abandon_match(uuid)      to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- RE-RUN SAFETY (added 2026-09-22). Re-running this file re-creates the
+-- unhardened 2-arg mm_apply_result, and a fresh CREATE hands EXECUTE to
+-- PUBLIC, which re-opens the anonymous path rpc-anon-lockout.sql closed. Undo
+-- that here, and ALWAYS run rpc-anon-lockout.sql last: it holds the live
+-- bodies. While matchmaking is disabled, supabase/lockdown2.sql revokes all of
+-- these from authenticated as well; supabase/matchmaking-return.sql restores.
+-- ---------------------------------------------------------------------------
+drop function if exists public.mm_apply_result(uuid, uuid);
+revoke all on function public.mm_create_match(uuid)  from public, anon;
+revoke all on function public.mm_abandon_match(uuid) from public, anon;

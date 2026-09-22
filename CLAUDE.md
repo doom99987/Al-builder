@@ -55,13 +55,17 @@ Files are internally divided by a header comment, but **the style varies per fil
 
 `switchPage(name)` toggles `.site-page.active` on `#page-<name>`. Within the QTE page, `switchQteTab(name)` shows `#qte-panel-<name>` and calls that trainer's show/hide hooks. Both live in the inline `<script>` at the bottom of `index.html`, not in a JS file.
 
-**Matchmaking is disabled** (2026-09-11, owner request). In `index.html` its stylesheet, nav button, home card, page div, script tag and both `switchPage` hooks are commented out, and `'matchmaking'` is out of `_validPages` so `#matchmaking` lands on Home. `js/matchmaking.js`, `css/matchmaking.css`, the SQL and the tests that read those files are untouched and dormant. To restore: grep `index.html` for `Matchmaking is disabled`, uncomment each block, put `'matchmaking'` back in `_validPages`, and bump the stamps and `SITE_VERSION`.
+**Only the site is published.** GitHub Pages runs Jekyll over the repo, and `_config.yml` `exclude:` keeps the SQL, docs, `CLAUDE.md` and the Build AI's dev tooling off the live site. A new file the site loads at runtime must not sit under an excluded path — `tools/ai/test.js` (`site publishing`) checks every `src`/`href` in `index.html` and `html/*.html` plus `ENGINE_FILES` against the list.
+
+**Donations are disabled** (2026-09-22, owner request). In `index.html` the Support / Top Supporters section, its changelog line, the `js/donation.js` script tag and the inline supporters-list loader are commented out; `js/donation.js`, the donation styles in `css/nav.css`, `supabase/donations-privacy.sql` and the two Stripe edge functions are untouched. To restore: grep `index.html` for `Donations are disabled`, uncomment each block, and bump `SITE_VERSION`.
+
+**Matchmaking is disabled** (2026-09-11, owner request). In `index.html` its stylesheet, nav button, home card, page div, script tag and both `switchPage` hooks are commented out, and `'matchmaking'` is out of `_validPages` so `#matchmaking` lands on Home. `js/matchmaking.js`, `css/matchmaking.css`, the SQL and the tests that read those files are untouched and dormant. To restore: grep `index.html` for `Matchmaking is disabled`, uncomment each block, put `'matchmaking'` back in `_validPages`, bump the stamps and `SITE_VERSION` — and run `supabase/matchmaking-return.sql`: `lockdown2.sql` (2026-09-22) revoked every `mm_*` RPC and all writes on `mm_queue` while the feature is off, because with them reachable one account could pair itself against any queued player and claim the win.
 
 ## Supabase
 
 Client is created in `sb.js` and shared as `window._sbClient`; other modules must reuse it rather than constructing their own. The anon key is committed in several files by design (it is a public key; RLS is the actual boundary).
 
-SQL lives in `supabase/*.sql`, but **only some tables are checked in** — `banks.sql`, `builds.sql`, `matchmaking.sql`, `reports.sql`, `qte-scores.sql` (the leaderboard RPCs, added after they silently ate scores for months) and `lockdown.sql` (the score and ban tables made read-only through the API, and every admin action as an admin-checked RPC). The leaderboard *tables*, profiles, trades and party still exist only in the dashboard. If a change needs schema you cannot see, ask rather than guess.
+SQL lives in `supabase/*.sql`, but **only some tables are checked in** — `banks.sql`, `builds.sql`, `matchmaking.sql`, `reports.sql`, `qte-scores.sql` (the leaderboard RPCs, added after they silently ate scores for months) `lockdown.sql` (the score and ban tables made read-only through the API, and every admin action as an admin-checked RPC) and `lockdown2.sql` (own-row policies for profiles, notifications, direct messages, trade listings, the four party tables, shared builds and the avatars bucket — every other table the client writes; column-level update grants; a `stamp_profile_name` trigger that overwrites every denormalised display name from `profiles`, so a client-sent `username`/`sender_name`/`host_name` is never trusted). The tables themselves still exist only in the dashboard. If a change needs schema you cannot see, ask rather than guess.
 
 **`isAdmin()` in `sb.js` decides which buttons to draw, not what the database accepts.** Any table the admin panel could write directly, every signed-in user could write from a console — that is how scores were injected and accounts banned from the outside. So the client never writes `leaderboard`, `leaderboard_records`, `personal_bests`, `banned_usernames`, `perma_banned_usernames` or `qte_sessions` (a test enforces it); it calls `admin_*` RPCs, each of which checks `is_site_admin()` on the server. A new admin action is a new SECURITY DEFINER function in `lockdown.sql` with that check, revoked from `public` and granted to `authenticated` — never a direct table write. A ban also sets `auth.users.banned_until`, so it holds without the login form's own check.
 
@@ -70,7 +74,7 @@ SQL lives in `supabase/*.sql`, but **only some tables are checked in** — `bank
 | Table | Owner |
 |---|---|
 | `profiles`, `banned_usernames`, `perma_banned_usernames`, `avatars` | `sb.js` |
-| `leaderboard`, `leaderboard_records`, `personal_bests` | `sb.js` |
+| `leaderboard`, `leaderboard_records`, `personal_bests`, `score_reviews` (held scores awaiting an admin) | `sb.js` |
 | `player_vaults` (public slots), `player_vaults_full` (all slots) | `bank.js` |
 | `player_builds` | `saved-builds.js` |
 | `shared_builds` | `builds.js` |

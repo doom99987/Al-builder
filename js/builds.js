@@ -85,27 +85,41 @@
     const sb = window._sbClient;
     if (!sb) return [];
 
-    const [buildsRes, metaRes] = await Promise.all([
-      sb.from('shared_builds').select('id, payload, created_at')
-        .filter('payload->>_community', 'eq', 'true').limit(300),
-      sb.from('shared_builds').select('payload')
-        .or('payload->>_like.eq.true,payload->>_deleted.eq.true').limit(10000)
-    ]);
-
-    if (buildsRes.error) { console.error('[builds] fetch error:', buildsRes.error.message); return []; }
+    // Newest first (the server dates every row now), so a new upload is always
+    // in the page and a pile of old junk rows cannot push it out.
+    const buildsRes = await sb.from('shared_builds').select('id, payload, created_at')
+      .filter('payload->>_community', 'eq', 'true').order('created_at', { ascending: false }).limit(300);
+    if (buildsRes.error) { console.error('[builds] fetch error:', buildsRes.error.message); return null; }
 
     const fp = _getFingerprint();
     const counts  = {};
     const deleted = new Set();
 
-    (metaRes.data || []).forEach(row => {
-      const p = row.payload;
-      if (p._like === 'true' && p._buildId) {
-        counts[p._buildId] = (counts[p._buildId] || 0) + 1;
-        if (p._fp === fp) _likedSet.add(p._buildId);
-      }
-      if (p._deleted === 'true' && p._buildId) deleted.add(p._buildId);
-    });
+    // Likes and delete markers for exactly the builds on this page, one row
+    // each (build_meta, supabase/lockdown2.sql). Downloading every like and
+    // marker in one capped query let a flood of fake likes push the markers
+    // out of the result, and deleted builds came back.
+    const ids = (buildsRes.data || []).map(r => r.id);
+    const metaRes = ids.length ? await sb.rpc('build_meta', { p_ids: ids, p_fp: fp }) : { data: [] };
+    if (!metaRes.error) {
+      (metaRes.data || []).forEach(m => {
+        counts[m.build_id] = Number(m.likes) || 0;
+        if (m.deleted) deleted.add(m.build_id);
+        if (m.liked) _likedSet.add(m.build_id);
+      });
+    } else {
+      // The function is not there yet (the SQL has not been run): the old way.
+      const old = await sb.from('shared_builds').select('payload')
+        .or('payload->>_like.eq.true,payload->>_deleted.eq.true').limit(10000);
+      (old.data || []).forEach(row => {
+        const p = row.payload;
+        if (p._like === 'true' && p._buildId) {
+          counts[p._buildId] = (counts[p._buildId] || 0) + 1;
+          if (p._fp === fp) _likedSet.add(p._buildId);
+        }
+        if (p._deleted === 'true' && p._buildId) deleted.add(p._buildId);
+      });
+    }
     _saveLikedCache();
 
     return (buildsRes.data || [])
@@ -119,6 +133,7 @@
           build_summary:row.payload.summ || null,
           submitted_by: row.payload._submittedBy || 'Anonymous',
           fp:           row.payload._fp || null,
+          owner_id:     row.payload._ownerId || null,
           cls:          peek?.cls || null,
           sup:          peek?.sup || null,
           likes:        counts[row.id] || 0,
@@ -156,17 +171,18 @@
   }
 
   // ── Ownership check ───────────────────────────────────────────────────────────
+  // Decides whether to DRAW the delete button, by the same rule the database
+  // applies to the delete marker (supabase/lockdown2.sql): the signed-in
+  // account that uploaded the build, whose id the database itself wrote into
+  // the payload. Older uploads have no owner and are the admin's to remove.
   function _isOwner(build) {
-    const fp       = _getFingerprint();
-    const username = typeof window._sbGetUsername === 'function' ? window._sbGetUsername() : null;
-    if (build.fp && build.fp === fp) return true;
-    if (username && build.submitted_by === username) return true;
-    return false;
+    const userId = typeof window._sbGetUserId === 'function' ? window._sbGetUserId() : null;
+    return !!(userId && build.owner_id && build.owner_id === userId);
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
   function _esc(s) {
-    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    return String(s || '').replace(/[\u202A-\u202E\u2066-\u2069]/g, '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   // For values interpolated into a JS string inside an inline onclick attribute.
@@ -268,7 +284,7 @@
     if (list) list.innerHTML = '<div class="blds-state">Loading builds…</div>';
     _loadLikedCache();
     _setupLinkAutofill();
-    _allBuilds = await _fetchBuilds();
+    _allBuilds = (await _fetchBuilds()) || [];   // null = the fetch failed
     _loaded    = true;
     _renderClassChips();
     _render();
@@ -339,10 +355,16 @@
     submitBtn.textContent = 'Uploading…';
     const fp          = _getFingerprint();
     const submittedBy = (typeof window._sbGetUsername === 'function' && window._sbGetUsername()) || 'Anonymous';
+    // The account that uploaded it, when there is one. The database lets only
+    // this account (or an admin) write the delete marker for the build
+    // (supabase/lockdown2.sql); the fingerprint alone proves nothing, since
+    // it is public in the payload and anyone could send it back.
+    const ownerId     = (typeof window._sbGetUserId === 'function' && window._sbGetUserId()) || null;
 
     const communityPayload = {
       d: meta.d, n: meta.n || name, summ: summary, summc: meta.summc || '#dddddd',
-      _community: 'true', _displayName: name, _submittedBy: submittedBy, _fp: fp
+      _community: 'true', _displayName: name, _submittedBy: submittedBy, _fp: fp,
+      ...(ownerId ? { _ownerId: ownerId } : {})
     };
 
     const newId = typeof window._saveSharedBuild === 'function'
@@ -353,9 +375,12 @@
 
     if (!newId) { _toast('Upload failed. Try again.', 'err'); return; }
 
-    const peek = _peekBlob(meta.d);
-    _allBuilds.unshift({ id: newId, build_code: newId, build_name: name, build_summary: summary, submitted_by: submittedBy, fp, cls: peek?.cls || null, sup: peek?.sup || null, likes: 0, created_at: new Date().toISOString() });
+    // Reload rather than splice in a local copy: the row now carries what the
+    // database stamped (owner, credited name), and the list's derived search,
+    // sort and summary fields are built in one place.
+    // (A failed reload keeps the list that was showing.)
     linkEl.value = ''; nameEl.value = ''; if (descEl) descEl.value = '';
+    _allBuilds = (await _fetchBuilds()) || _allBuilds;
     _toast('Build uploaded!', 'ok');
     _renderClassChips();
     _render();
@@ -370,19 +395,30 @@
     const sb = window._sbClient;
     const fp = _getFingerprint();
 
-    // Remove from local list immediately
-    _allBuilds = _allBuilds.filter(b => b.id !== buildId);
-    _renderClassChips();
-    _render();
-
-    // Insert delete marker
+    // Insert the delete marker first. The database accepts it only from the
+    // uploading account or an admin (supabase/lockdown2.sql); a refusal is
+    // shown rather than hidden, since the button was drawn on a client-side
+    // guess (fingerprint or name) that the server does not take as proof.
     if (sb) {
       const markerId = 'del-' + buildId.slice(0, 16) + '-' + Date.now().toString(36);
-      await sb.from('shared_builds').insert({
+      const { error } = await sb.from('shared_builds').insert({
         id: markerId,
         payload: { _deleted: 'true', _buildId: buildId, _fp: fp }
       });
+      if (error) {
+        const msg = /row-level security/i.test(error.message)
+          ? 'Only the account that uploaded this build (signed in) or an admin can remove it.'
+          : 'Could not remove: ' + error.message;
+        _toast(msg, 'err');
+        // The toast sits by the upload form; say it on the card too.
+        if (btn) { btn.title = msg; btn.textContent = '!'; btn.disabled = true; }
+        return;
+      }
     }
+
+    _allBuilds = _allBuilds.filter(b => b.id !== buildId);
+    _renderClassChips();
+    _render();
   };
 
   function _toast(msg, type) {

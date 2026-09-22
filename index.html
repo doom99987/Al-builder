@@ -221,7 +221,8 @@
 
     </div>
 
-    <!-- Donation section -->
+    <!-- Donations are disabled (2026-09-22, owner request). To restore: grep this file
+         for "Donations are disabled" and uncomment each block, then bump SITE_VERSION.
     <div class="home-section-label">Support</div>
     <div class="home-donate-row">
 
@@ -240,6 +241,7 @@
       </div>
 
     </div>
+    -->
 
     <!-- Two-column lower section -->
     <div class="home-section-label">News &amp; guide</div>
@@ -273,10 +275,11 @@
             <span class="home-cl-tag home-cl-tag-new">New</span>
             <span class="home-cl-text">QTE Trainer: Thorian tab added — drag the gold diamond onto purple targets, avoid red ones</span>
           </li>
+          <!-- Donations are disabled (2026-09-22)
           <li>
             <span class="home-cl-tag home-cl-tag-new">New</span>
             <span class="home-cl-text">Donations: "Other" option — type any custom amount (min $1)</span>
-          </li>
+          </li> -->
           <li>
             <span class="home-cl-tag home-cl-tag-fix">Fix</span>
             <span class="home-cl-text">Encyclopedia: Crucible (Citadel Or) move type corrected to Holy</span>
@@ -1555,8 +1558,8 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=114"></script>
-<script src="js/reports.js?v=4"></script>
+<script src="js/sb.js?v=115"></script>
+<script src="js/reports.js?v=5"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
     core.js            : global constants, QTE SFX, ping sim, LB hook, dmgcalc state
@@ -1575,16 +1578,18 @@
 <script src="js/qte-guard.js?v=2"></script>
 <script src="js/qte.js?v=24"></script>
 <script src="js/saved-builds.js?v=16"></script>
-<script src="js/trades.js?v=52"></script>
-<script src="js/party.js?v=31"></script>
-<script src="js/builds.js?v=6"></script>
+<script src="js/trades.js?v=53"></script>
+<script src="js/party.js?v=32"></script>
+<script src="js/builds.js?v=7"></script>
 <script src="js/encyclopedia.js?v=15"></script>
 <script src="js/bank.js?v=8"></script>
 <script src="js/overlay.js?v=3"></script>
-<script src="js/donation.js?v=5"></script>
+<!-- Donations are disabled (2026-09-22)
+<script src="js/donation.js?v=6"></script> -->
 <!-- Matchmaking is disabled (2026-09-11)
-<script src="js/matchmaking.js?v=12"></script> -->
+<script src="js/matchmaking.js?v=13"></script> -->
 <script src="js/build-ai.js?v=51"></script>
+<!-- Donations are disabled (2026-09-22)
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
   (function () {
@@ -1599,7 +1604,7 @@
       setTimeout(tryLoad, 600);
     }
   })();
-</script>
+</script> -->
 
 <!-- Venia Orb Tracker Modal -->
 <div id="venia-tracker-overlay" onmousedown="if(event.target===this)window._veniaTrackerClose()" style="display:none">
@@ -2107,7 +2112,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-22.1';
+  const SITE_VERSION    = '2026-09-22.2';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {

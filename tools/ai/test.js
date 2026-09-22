@@ -8871,7 +8871,7 @@ describe('QTE score submission', () => {
     const refusals = /const SCORE_REFUSALS = (\{[\s\S]*?\n  \});/.exec(src);
     ok(refusals, 'sb.js has no SCORE_REFUSALS');
     const api = new Function('sb', 'currentUser', 'PLATFORM', 'currentMonth', 'setTimeout', 'clearTimeout', 'console', 'scoreToast',
-      'const _sessionIds = {}, _arming = {}, _pending = {}, _confirmed = {}, _sending = {}, _retryN = {}, _retryT = {};\n' +
+      'const _sessionIds = {}, _arming = {}, _pending = {}, _confirmed = {}, _sending = {}, _retryN = {}, _retryT = {}, _heldToldAt = {};\n' +
       'const SCORE_RETRY_MS = ' + retryMs[1] + ';\n' +
       'const SCORE_REFUSALS = ' + refusals[1] + ';\n' +
       siteFn('startQteSession') + '\n' + siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
@@ -8899,6 +8899,17 @@ describe('QTE score submission', () => {
     ok(sent.length <= 4, 'one run still floods the server with ' + sent.length + ' submissions');
     for (let i = 1; i < sent.length; i++) ok(sent[i] > sent[i - 1], 'scores were sent out of order: ' + sent.join(','));
     eq(Object.keys(p.api.state().pending).length, 0, 'a score was left unsent');
+  });
+
+  itAsync('a held score is taken, not retried, and the player is told once', async () => {
+    const p = mkPipe(statusRpc('held'));
+    await p.api.startQteSession('dagger');
+    for (let s = 18; s <= 25; s++) p.api.submitScore('dagger', s);   // a run past the record
+    await tick(40);
+    eq(p.api.state().confirmed['dagger'], 25, 'a held score is not treated as received');
+    eq(Object.keys(p.api.state().pending).length, 0, 'a held score is left pending, to be retried');
+    eq(p.timers.length, 0, 'a held score schedules a retry');
+    eq(p.toasts.filter(t => /held for review/.test(t)).length, 1, 'the player is told more than once, or never');
   });
 
   itAsync('a score that arrives before the session is armed waits for it', async () => {
@@ -9097,7 +9108,9 @@ describe('QTE score SQL', () => {
     // Every verdict about the score itself is final. Only a lost session, and
     // a caller id that is not the JWT's (which the real client never sends),
     // are worth another go with a fresh session.
-    const finals = statuses.filter(s => !['ok', 'no_session', 'wrong_user'].includes(s));
+    // 'held' is neither: the server kept the score for an admin, so it is taken.
+    ok(statuses.includes('held') && /if \(status === 'held'\) \{[\s\S]{0,400}return 'accepted';/.test(sb), 'a held score is retried or refused instead of taken');
+    const finals = statuses.filter(s => !['ok', 'no_session', 'wrong_user', 'held'].includes(s));
     for (const s of ['too_fast', 'capped', 'banned', 'bad_input']) ok(finals.includes(s), 'the function lost the "' + s + '" verdict');
     for (const s of finals) {
       ok(new RegExp('\\b' + s + ':').test(refusals[0]), 'the client would keep retrying a final "' + s + '"');
@@ -9113,6 +9126,44 @@ describe('QTE score SQL', () => {
     ok(/p_user_id <> v_user THEN RETURN 'wrong_user'/.test(sql), 'a caller can still submit as another user');
     ok(/GREATEST\(leaderboard\.score, EXCLUDED\.score\)/.test(sql), 'a lower score can overwrite a higher one again');
     ok(/grant execute on function public\.submit_score/.test(sql), 'the DROP took the grants and nothing puts them back');
+  });
+
+  // Owner's choice, 2026-09-22: caps follow the record, and the scores that
+  // matter wait for a person - the server cannot watch a run being played.
+  it('the cap follows the record and the scores that matter wait for an admin', () => {
+    ok(/create function public\.qte_score_cap\(p_type text\) returns integer/.test(sql)
+       && /greatest\(50, 2 \* coalesce\(\(select r\.score from leaderboard_records r where r\.qte_type = p_type\), 0\)\)/.test(sql),
+       'the cap is not twice the record (min 50)');
+    ok(/p_qte_type\s*=\s*'qte_score_cap'|p\.proname = 'qte_score_cap'/.test(sql), 'the old dashboard cap is not dropped first');
+    // The hold comes after the cap and timing checks and before anything is posted.
+    const body = sql.slice(sql.indexOf('create function public.submit_score('));
+    const iHold = body.indexOf("RETURN 'held'"), iTiming = body.indexOf("RETURN 'too_fast'"), iPost = body.indexOf('INSERT INTO leaderboard (');
+    ok(iTiming > 0 && iHold > iTiming && iPost > iHold, 'the hold is not between the checks and the posting');
+    ok(/IF p_score > GREATEST\(COALESCE\(v_record, 0\), CASE WHEN v_record IS NULL THEN 10 ELSE 0 END\) THEN/.test(body), 'a new record is posted without review');
+    ok(/p_score > v_top \* 1\.5 AND p_score - v_top >= 5/.test(body), 'a leap past the field is posted without review');
+    // Against OTHER players' best: against their own row a fake could climb unheld in 1.5x steps.
+    ok(/l\.score_month = v_month AND l\.user_id <> v_user/.test(body), 'the #1 check counts the caller\'s own row');
+    ok(/create index if not exists leaderboard_type_month_score on public\.leaderboard \(qte_type, score_month, score desc\)/.test(sql), 'every submission scans the whole board');
+    ok(/ON CONFLICT \(user_id, qte_type\) WHERE status = 'pending'/.test(body) && /GREATEST\(score_reviews\.score, EXCLUDED\.score\)/.test(body), 'a held run does not keep its best score in one pending row');
+    ok(/IF v_new AND/.test(body) && /FROM unnest\(public\.site_admin_ids\(\)\) AS a/.test(body), 'admins are not told, or are told once per point');
+    // Approval is admin-only on the server and posts exactly what submit_score would.
+    const review = /create function public\.admin_review_score\(p_id uuid, p_approve boolean, p_score integer\)[\s\S]*?\$\$([\s\S]*?)\$\$;/.exec(sql);
+    ok(review, 'no admin_review_score');
+    ok(/if public\.is_site_admin\(\) is not true then raise exception 'admin only'/.test(review[1]), 'anyone can approve a held score');
+    // An approval posts only the score the admin was shown, and never for a banned account.
+    ok(/if p_approve and r\.score is distinct from p_score then\s+raise exception/.test(review[1]), 'an approval can post a higher score than the admin looked at');
+    ok(/if p_approve and \(exists \(select 1 from perma_banned_usernames b where b\.user_id = r\.user_id\)/.test(review[1]), 'a score from an account banned since can be approved');
+    ok(/security definer/.test(sql.slice(sql.indexOf('function public.admin_review_score('), sql.indexOf(review[1]))), 'admin_review_score cannot write the locked tables');
+    for (const t of ['leaderboard (', 'leaderboard_records (', 'personal_bests (']) ok(review[1].indexOf('insert into ' + t) !== -1, 'approval does not post to ' + t);
+    ok(/revoke all on function public\.admin_review_score\(uuid, boolean, integer\) from public, anon, authenticated;/.test(sql)
+       && /grant execute on function public\.admin_review_score\(uuid, boolean, integer\) to authenticated;/.test(sql), 'admin_review_score keeps the default PUBLIC grant');
+    ok(/p\.proname = 'admin_review_score'/.test(sql), 'an older admin_review_score overload (without the shown score) survives a re-run');
+    // The table is read-only through the API; a player sees only their own rows.
+    ok(/revoke all on table public\.score_reviews from public, anon, authenticated/.test(sql)
+       && /using \(auth\.uid\(\) = user_id or public\.is_site_admin\(\)\)/.test(sql)
+       && !/create policy \S+ on public\.score_reviews for (insert|update|delete|all)/.test(sql), 'score_reviews takes writes from the API, or is readable by everyone');
+    // And the admin panel can act on it.
+    ok(/sb\.rpc\('admin_review_score', \{ p_id: id, p_approve: !!approve, p_score: shownScore \}\)/.test(sb) && /data-tab="held"/.test(sb), 'the admin panel has no way to review held scores, or does not say which score it approves');
   });
 });
 
@@ -9226,6 +9277,394 @@ describe('database lockdown', () => {
     ok(/raw_user_meta_data->>'username' = b\.username WHERE u\.id = v_user/.test(scores), 'a ban by signup name (what the login check uses) is not checked');
     ok(/p_score > COALESCE\(qte_score_cap\(p_qte_type\), 0\)/.test(scores), 'an unknown trainer with a NULL cap has no cap at all');
   });
+});
+
+// supabase/lockdown2.sql covers every other table the site writes. Probed as
+// an anonymous visitor, party_listings took inserts, updates and deletes,
+// notifications took inserts for any user_id, and shared_builds took the
+// delete markers the gallery honours. The rule for all of them: a row is
+// written by the account it belongs to, or by an admin, never by anyone else.
+describe('database lockdown 2', () => {
+  const root = path.join(__dirname, '..', '..');
+  const sql = fs.readFileSync(path.join(root, 'supabase', 'lockdown2.sql'), 'utf8');
+  const code = sql.replace(/--[^\n]*/g, '');
+  const statements = code.split(';').map(s => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const builds = fs.readFileSync(path.join(root, 'js', 'builds.js'), 'utf8');
+  const TABLES = ['profiles', 'notifications', 'direct_messages', 'trade_listings',
+                  'party_listings', 'party_members', 'party_requests', 'party_messages', 'shared_builds'];
+
+  it('resets every table it covers; the public schema and the bucket are separate transactions', () => {
+    for (const t of TABLES) ok(code.indexOf("pg_temp.reset_table('" + t + "')") !== -1, t + ' is never reset, so a dashboard-made write policy would survive');
+    ok(/drop policy %I on public\.%I/.test(code) && /revoke all on table public\.%I from public, anon, authenticated/.test(code), 'the reset helper does not drop policies and revoke privileges');
+    const commits = [...code.matchAll(/\bcommit;/g)].map(m => m.index);
+    eq(commits.length, 2, 'expected two transactions (public schema, then the bucket)');
+    ok(/^\s*begin;/.test(code) && /notify pgrst, 'reload schema';\s*commit;/.test(code), 'part 1 does not end in a schema reload');
+    // Everything touching storage.* comes after the first commit: a refusal
+    // there (postgres may not own storage.objects) must not roll back part 1.
+    const firstStorage = code.search(/storage\.(objects|buckets)/);
+    ok(firstStorage > commits[0], 'the bucket policies are inside the public-schema transaction');
+  });
+
+  it('every write policy compares the caller with the row, or asks for an admin', () => {
+    // Everything but FOR SELECT is a write policy - including one with no FOR
+    // clause, which means ALL. The one policy for supabase_auth_admin (the
+    // signup trigger's role, which no API caller can hold) is the exception.
+    const writes = statements.filter(s => /^create policy /.test(s) && !/ for select /.test(s) && !/ to supabase_auth_admin /.test(s));
+    ok(writes.length >= 20, 'expected the write policies, found ' + writes.length);
+    // "auth.uid() is not null" alone is a signed-in check, not an ownership one.
+    // An is_site_admin() branch proves nothing about the others ("admin or
+    // true" is open to all), so it is set aside: what is left must compare the
+    // caller with the row, unless the policy is admin-only outright.
+    const owns = /auth\.uid\(\)(::text)? = [a-z_.(]|[a-z_.)'>-]+ = auth\.uid\(\)|\(storage\.foldername/;
+    const adminOnly = /^create policy \S+ on \S+ for \w+ to authenticated( using \(public\.is_site_admin\(\)\))?( with check \(public\.is_site_admin\(\)\))?$/;
+    for (const s of writes) {
+      ok(adminOnly.test(s) || owns.test(s.replace(/public\.is_site_admin\(\)/g, '')), 'a write policy never compares the caller with the row: ' + s.slice(0, 90));
+      ok(!/\bor true\b|auth\.role\(\)/.test(s), 'a write policy has an open branch: ' + s.slice(0, 90));
+      ok(!/(using|with check) \(true\)/.test(s), 'a write policy is "true": ' + s.slice(0, 80));
+      ok(!/ to public\b/.test(s), 'a write policy is granted to public: ' + s.slice(0, 80));
+      if (/ for update /.test(s)) ok(/ with check \(/.test(s), 'an update policy has no WITH CHECK, so a row can be handed to another user: ' + s.slice(0, 80));
+    }
+  });
+
+  it('anon can read, insert only shared builds, and call only build_meta', () => {
+    const grants = statements.filter(s => /^grant /.test(s) && /\b(anon|public)\b/.test(s.replace(/ on (table|function) \S+/, '')));
+    for (const s of grants) {
+      if (/^grant execute on function /.test(s)) {
+        ok(/^grant execute on function public\.build_meta\(/.test(s), 'anon may call ' + s.slice(0, 90));
+        continue;
+      }
+      const priv = /^grant ([a-z, ]+?) on /.exec(s);
+      ok(priv, 'unreadable grant: ' + s);
+      const privs = priv[1].split(',').map(p => p.trim());
+      const allowed = /public\.shared_builds/.test(s) ? ['select', 'insert'] : ['select'];
+      for (const p of privs) ok(allowed.includes(p), 'anon is granted ' + p + ' in: ' + s.slice(0, 90));
+      ok(!/\bto public\b/.test(s), 'a table is granted to public: ' + s.slice(0, 90));
+    }
+    ok(!statements.some(s => /^grant all\b/.test(s)), 'a "grant all" hands out every privilege');
+    ok(!statements.some(s => /^grant /.test(s) && /storage\.objects/.test(s)), 'storage privileges are granted (they are managed by Supabase)');
+  });
+
+  it('a delete marker in the gallery needs the uploader or an admin', () => {
+    const p = statements.find(s => /^create policy sb_insert on public\.shared_builds/.test(s));
+    ok(p, 'no shared_builds insert policy');
+    ok(/coalesce\(shared_builds\.payload->>'_deleted', ''\) <> 'true'/.test(p), 'plain inserts are not exempt from the marker rule');
+    ok(/public\.is_site_admin\(\)/.test(p) && /t\.payload->>'_ownerId' = auth\.uid\(\)::text/.test(p) && /auth\.uid\(\) is not null/.test(p), 'the marker rule does not check the uploader');
+    // Inside the subquery an unqualified `payload` is t's own column: the rule
+    // would then test the wrong row - and pass for a row an attacker planted.
+    ok(/t\.id = shared_builds\.payload->>'_buildId'/.test(p), 'the marker rule reads _buildId from the wrong row');
+    ok(!statements.some(s => /^create policy \S+ on public\.shared_builds\b/.test(s) && !/ for (select|insert) /.test(s)), 'shared_builds is no longer append-only');
+    ok(!statements.some(s => /^grant .*(update|delete|all).* on table public\.shared_builds/.test(s)), 'shared_builds is no longer append-only');
+    // Owner and credited name are written by the database, never the payload.
+    ok(/create trigger stamp_shared_build before insert on public\.shared_builds/.test(code), 'the uploader is still the payload\'s word');
+    // A marker is cut to a marker, so it cannot double as a gallery card with any credit.
+    ok(/new\.payload->>'_deleted' = 'true' then\s+new\.payload := jsonb_strip_nulls\(jsonb_build_object\(\s*'_deleted', 'true', '_buildId', new\.payload->>'_buildId', '_fp', new\.payload->>'_fp'\)\);\s+return new;/.test(code),
+       'a delete marker keeps _community/_submittedBy and shows in the gallery');
+    // The server dates gallery rows, and the gallery lists newest first.
+    ok(/array\['notifications', 'direct_messages', 'party_messages', 'shared_builds'\]/.test(code), 'a gallery row can be dated at will');
+    ok(/\.order\('created_at', \{ ascending: false \}\)\.limit\(300\)/.test(builds), 'the gallery page is unordered, so old junk can push new builds out');
+    ok(/from \(select distinct b from unnest\(p_ids\[1:300\]\) as b where length\(b\) <= 64\) as d/.test(code), 'build_meta repeats work for duplicate ids');
+    ok(/new\.payload := new\.payload - '_ownerId'/.test(code) && /jsonb_build_object\('_ownerId', auth\.uid\(\)::text\)/.test(code)
+       && /jsonb_build_object\('_submittedBy',\s*coalesce\(\(select p\.username from public\.profiles p where p\.id = auth\.uid\(\)\), 'Anonymous'\)\)/.test(code),
+       'owner or credited name can be forged');
+    // Likes and markers per page of builds, one row each - never a capped dump.
+    ok(/create or replace function public\.build_meta\(p_ids text\[\], p_fp text default null\)/.test(code) && /unnest\(p_ids\[1:300\]\)/.test(code), 'no bounded build_meta');
+    ok(/sb\.rpc\('build_meta', \{ p_ids: ids, p_fp: fp \}\)/.test(builds), 'the gallery still downloads every like and marker in one capped query');
+    // The client side of the same rule.
+    ok(/return !!\(userId && build\.owner_id && build\.owner_id === userId\);/.test(builds), '_isOwner still guesses ownership from a fingerprint or a name');
+    ok(/const \{ error \} = await sb\.from\('shared_builds'\)\.insert\(\{\s*id: markerId/.test(builds) && /if \(error\) \{\s*const msg =[\s\S]{0,300}_toast\(msg, 'err'\)/.test(builds), 'a refused delete marker is hidden from the user');
+  });
+
+  it('a party cannot be re-hosted, a request names its real host, chat is the party\'s', () => {
+    const pl = statements.find(s => /^create policy pl_update on public\.party_listings/.test(s));
+    ok(pl && /^create policy pl_update on public\.party_listings for update to authenticated using \(auth\.uid\(\) = host_id or public\.is_site_admin\(\)\) with check \(auth\.uid\(\) = host_id or public\.is_site_admin\(\)\)$/.test(pl),
+       'someone other than the host or an admin can edit a listing');
+    ok(/create trigger party_member_left after delete on public\.party_members/.test(code) && /set status = 'open'\s+where id = old\.party_id and status = 'full'/.test(code),
+       'a member leaving a full party cannot reopen it (the site deletes the member row before updating the status)');
+    const pr = statements.find(s => /^create policy pr_insert on public\.party_requests/.test(s));
+    ok(pr && /host_id = \(select l\.host_id from public\.party_listings l where l\.id = party_requests\.party_id\)/.test(pr), 'a request can name any host');
+    const pru = statements.find(s => /^create policy pr_update on public\.party_requests/.test(s));
+    ok(pru && /and host_id = \(select l\.host_id from public\.party_listings l where l\.id = party_requests\.party_id\)/.test(pru), 'a re-filed request can be re-addressed to another host');
+    const pm = statements.find(s => /^create policy pmsg_read on public\.party_messages/.test(s));
+    ok(pm && /party_members m/.test(pm) && !/using \(true\)/.test(pm), 'party chat is world-readable');
+    const pmi = statements.find(s => /^create policy pmsg_insert on public\.party_messages/.test(s));
+    for (const p of [pm, pmi]) ok(p && /exists \(select 1 from public\.party_members m where m\.party_id = party_messages\.party_id and m\.user_id = auth\.uid\(\)\)/.test(p),
+      'party chat membership is not tied to the caller');
+    ok(pmi && /with check \(auth\.uid\(\) = sender_id and /.test(pmi), 'party chat can be posted under another sender');
+    ok(!statements.some(s => /^grant .* on table public\.party_messages to .*anon/.test(s)), 'anon can read party chat');
+    // Who asked, and for which party, never changes; a host cannot re-arm a request.
+    ok(/create trigger party_request_pin before update on public\.party_requests/.test(code)
+       && /new\.requester_id is distinct from old\.requester_id/.test(code)
+       && /new\.status = 'pending' and old\.status is distinct from 'pending'\s+and auth\.uid\(\) is distinct from old\.requester_id/.test(code),
+       'a host can rewrite a request to name any account, then add it to the party');
+    // Live chat comes from the table (RLS applies), not a public broadcast channel.
+    ok(/alter publication supabase_realtime add table public\.party_messages/.test(code), 'party_messages is not published to Realtime');
+    const party = fs.readFileSync(path.join(root, 'js', 'party.js'), 'utf8');
+    const popup = fs.readFileSync(path.join(root, 'html', 'party-popup.html'), 'utf8');
+    ok(/event: 'INSERT', schema: 'public', table: 'party_messages',\s*filter: `party_id=eq\.\$\{partyId\}`/.test(party), 'party chat does not arrive as database rows');
+    for (const [f, src] of [['js/party.js', party], ['html/party-popup.html', popup]]) {
+      ok(!/\.on\('broadcast', \{ event: 'chat' \}/.test(src), f + ' still listens to the public chat broadcast');
+      ok(!/send\(\{ type: 'broadcast', event: 'chat'/.test(src), f + ' still sends chat on the public broadcast channel');
+    }
+  });
+
+  it('a notification records its sender; messages are their participants\'', () => {
+    ok(/add column if not exists sender_id uuid default auth\.uid\(\)/.test(code), 'notifications have no sender');
+    const ni = statements.find(s => /^create policy notifications_insert_signed_in/.test(s));
+    ok(ni && /sender_id = auth\.uid\(\)/.test(ni) && / to authenticated /.test(ni), 'a notification can be inserted without a sender');
+    const nr = statements.find(s => /^create policy notifications_read_own/.test(s));
+    ok(nr && /auth\.uid\(\) = user_id/.test(nr), 'notifications are readable across accounts');
+    const dr = statements.find(s => /^create policy dm_read_participants/.test(s));
+    ok(dr && /auth\.uid\(\) = sender_id or auth\.uid\(\) = recipient_id/.test(dr), 'direct messages are readable across accounts');
+    ok(!statements.some(s => /^create policy .* on public\.direct_messages for delete/.test(s)), 'direct messages can be deleted');
+    const du = statements.find(s => /^create policy dm_update_recipient on public\.direct_messages/.test(s));
+    ok(du && /using \(auth\.uid\(\) = recipient_id\) with check \(auth\.uid\(\) = recipient_id\)$/.test(du), 'a sender can mark their own message read and hide it from the unread badge');
+    // The soft-delete RPC takes its identity from the JWT, never from p_me.
+    const fn = /create function public\.soft_delete_conversation\(p_me uuid, p_other uuid\)[\s\S]*?\$f\$([\s\S]*?)\$f\$/.exec(code);
+    ok(fn, 'soft_delete_conversation is not rewritten');
+    ok(!/p_me/.test(fn[1]) && /auth\.uid\(\) is not null/.test(fn[1]), 'soft_delete_conversation still acts on p_me');
+    // The ids the bell acts on, and the names it shows beside them, are the caller's own.
+    ok(ni && /coalesce\(meta->>'sender_id', auth\.uid\(\)::text\) = auth\.uid\(\)::text/.test(ni)
+       && /coalesce\(meta->>'requester_id', auth\.uid\(\)::text\) = auth\.uid\(\)::text/.test(ni), 'a notification can point the bell at another account');
+    ok(ni && /meta->>'sender_username' = \(select p\.username from public\.profiles p where p\.id = auth\.uid\(\)\)/.test(ni)
+       && /meta->>'requester_name' = \(select p\.username from public\.profiles p where p\.id = auth\.uid\(\)\)/.test(ni),
+       'a notification can carry a forged sender name');
+    // The server's clock and a fresh unread flag, whatever the sender said.
+    ok(/create or replace function public\.stamp_insert_defaults\(\)/.test(code) && /jsonb_build_object\('created_at', now\(\)\)/.test(code)
+       && /array\['notifications', 'direct_messages', 'party_messages', 'shared_builds'\]/.test(code), 'a notification or message can be back- or future-dated');
+  });
+
+  it('avatars are written only under the owner\'s folder', () => {
+    for (const cmd of ['insert', 'update', 'delete']) {
+      const p = statements.find(s => new RegExp('^create policy avatars_' + cmd + '_own on storage\\.objects for ' + cmd + ' to authenticated').test(s));
+      ok(p && /\(storage\.foldername\(name\)\)\[1\] = auth\.uid\(\)::text/.test(p) && /bucket_id = 'avatars'/.test(p), 'avatars ' + cmd + ' is not tied to the owner folder');
+    }
+    ok(/like '%avatars%'/.test(code), 'the storage policy drop is not limited to the avatars bucket');
+  });
+
+  it('display names are stamped from the profile, and signup still gets its row', () => {
+    ok(/create or replace function public\.stamp_profile_name\(\) returns trigger/.test(code) && /security definer/.test(code), 'no name-stamping trigger');
+    for (const [t, name, id] of [['trade_listings', 'username', 'user_id'], ['direct_messages', 'sender_name', 'sender_id'],
+                                 ['direct_messages', 'recipient_name', 'recipient_id'],
+                                 ['party_listings', 'host_name', 'host_id'], ['party_members', 'username', 'user_id'],
+                                 ['party_messages', 'sender_name', 'sender_id'], ['party_requests', 'requester_name', 'requester_id'],
+                                 ['reports', 'reporter_name', 'reporter_id'], ['reports', 'reported_name', 'reported_id']]) {
+      ok(new RegExp("\\('" + t + "',\\s*'" + name + "',\\s*'" + id + "'\\)").test(code), t + '.' + name + ' is not stamped from profiles');
+    }
+    // One trigger per name column (a table can carry two), on insert and update.
+    ok(/create trigger %I before insert or update on public\.%I for each row execute function public\.stamp_profile_name\(%L, %L\)',\s*'stamp_' \|\| t\.name_col/.test(code),
+       'the stamp trigger is not per name column, or does not cover updates');
+    // Fails closed: no profile name, no row - never the client's name.
+    ok(/if tg_op = 'INSERT' then\s+raise exception 'no profile name for %'/.test(code), 'the stamp keeps the client\'s name when the profile has none');
+    ok(/alter table public\.profiles alter column username set not null/.test(code), 'a NULL username slips past the shape check');
+    ok(/create policy profiles_insert_signup on public\.profiles for insert to supabase_auth_admin/.test(code)
+       && /grant insert on table public\.profiles to supabase_auth_admin/.test(code), 'the signup trigger could be refused by RLS');
+  });
+
+  it('usernames are unique and shaped, on the server', () => {
+    ok(/create unique index if not exists profiles_username_unique on public\.profiles \(username\)/.test(code), 'no unique index on username');
+    ok(/check \(username ~ '\^\[A-Za-z0-9_-\]\{3,20\}\$'\)/.test(code), 'no shape rule on username');
+    // Case-insensitive: "Fool" is taken if "fool" is; a perma-banned name stays retired.
+    ok(/create trigger profiles_username_guard before insert or update on public\.profiles/.test(code)
+       && /lower\(p\.username\) = lower\(new\.username\) and p\.id <> new\.id/.test(code), 'two names can differ only in case');
+    ok(/from perma_banned_usernames b\s+where lower\(b\.username\) = lower\(new\.username\) and b\.user_id is distinct from new\.id/.test(code), 'a perma-banned name can be taken again');
+    ok(/from banned_usernames b\s+where lower\(b\.username\) = lower\(new\.username\) and b\.user_id is distinct from new\.id/.test(code), 'a banned name can be taken by a new account, which then inherits the ban');
+    ok(/raise exception 'username "%" is taken', new\.username using errcode = '23505'/.test(code)
+       && /raise exception 'username "%" is not allowed', new\.username using errcode = '23514'/.test(code), 'the guard stops refusing, or refuses with codes the site does not map');
+    ok(/create unique index if not exists profiles_username_lower_unique on public\.profiles \(lower\(username\)\)/.test(code), 'no case-insensitive unique index');
+    const pu = statements.find(s => /^create policy profiles_update_own/.test(s));
+    ok(pu && /using \(auth\.uid\(\) = id\) with check \(auth\.uid\(\) = id\)/.test(pu), 'profiles can be updated across accounts');
+  });
+
+  it('a player edits only the columns the site edits', () => {
+    const col = (t) => statements.find(s => new RegExp('^grant update \\([^)]*\\) on table public\\.' + t + ' to authenticated$').test(s));
+    const plain = (t) => statements.find(s => new RegExp('^grant [^(]*\\bupdate\\b[^(]* on table public\\.' + t + '\\b').test(s));
+    for (const [t, cols] of [['profiles', 'username, avatar_url, chat_consent_at, chat_consent_version, party_class, attached_build'],
+                             ['notifications', 'read'], ['direct_messages', 'read'],
+                             ['trade_listings', 'type, items, lf_items, description, status'], ['party_listings', 'status']]) {
+      const g = col(t);
+      ok(g && g.indexOf('(' + cols + ')') !== -1, t + ': update is not limited to (' + cols + ')');
+      ok(!plain(t), t + ': update is granted on every column');
+    }
+  });
+
+  it('an avatar comes from our bucket, on the server and in every renderer', () => {
+    ok(/check \(avatar_url is null\s+or avatar_url like 'https:\/\/mpqohagljmvwftwqumnh\.supabase\.co\/storage\/v1\/object\/public\/avatars\/%'\) not valid/.test(code),
+       'profiles.avatar_url accepts any origin');
+    const sb = fs.readFileSync(path.join(root, 'js', 'sb.js'), 'utf8');
+    ok(/url = safeAvatarUrl\(url\);\s*const inner\s+= url/.test(sb) && /window\._sbSafeAvatarUrl\s+= safeAvatarUrl/.test(sb), 'sb.js draws avatars from any origin');
+    for (const f of ['trades.js', 'party.js']) {
+      const src = fs.readFileSync(path.join(root, 'js', f), 'utf8');
+      ok(/url = typeof window\._sbSafeAvatarUrl === 'function' \? window\._sbSafeAvatarUrl\(url\) : null;/.test(src), f + ' draws avatars from any origin');
+    }
+    const popup = fs.readFileSync(path.join(root, 'html', 'party-popup.html'), 'utf8');
+    ok(/if \(typeof url === 'string' && !url\.startsWith\(AVATAR_URL_PREFIX\)\) url = null;/.test(popup), 'the party popup draws avatars from any origin');
+    ok(/\.replace\(\/'\/g,'&#39;'\)/.test(popup) && /\.replace\(\/'\/g,'&#39;'\)/.test(fs.readFileSync(path.join(root, 'html', 'dm-popup.html'), 'utf8')), 'a popup escaper leaves the single quote');
+    const donation = fs.readFileSync(path.join(root, 'js', 'donation.js'), 'utf8');
+    ok(!/\$\{name\.replace\(\/<\/g, '&lt;'\)\}/.test(donation), 'the supporters list escapes only <');
+    const trades = fs.readFileSync(path.join(root, 'js', 'trades.js'), 'utf8');
+    ok(!/_trdEdit\('\$\{l\.id\}'\)/.test(trades) && !/_trdDelete\('\$\{l\.id\}'\)/.test(trades), 'a listing id reaches an inline handler unescaped');
+  });
+
+  it('a party is joined through its host, and the queue/match tables are off with the feature', () => {
+    // The whole rule, exactly: any extra branch is a way into someone's party.
+    const pm = statements.find(s => /^create policy pm_insert on public\.party_members/.test(s));
+    eq(pm, "create policy pm_insert on public.party_members for insert to authenticated with check (public.is_site_admin() or (auth.uid() = (select l.host_id from public.party_listings l where l.id = party_members.party_id) and (user_id = auth.uid() or exists (select 1 from public.party_requests r where r.party_id = party_members.party_id and r.requester_id = party_members.user_id and r.status = 'pending'))))",
+       'pm_insert changed: a player could join without a request, or a host add any account');
+    const pr = statements.find(s => /^create policy pr_update on public\.party_requests/.test(s));
+    ok(pr && /\(auth\.uid\(\) = requester_id and status = 'pending'\)/.test(pr), 'a requester can accept their own request');
+    const pri = statements.find(s => /^create policy pr_insert on public\.party_requests/.test(s));
+    ok(pri && /status = 'pending'/.test(pri), 'a request can be filed as already accepted');
+    const mm = /p\.proname in \(((?:(?!p\.proname in \()[\s\S])*?)\)\s*loop\s*execute format\('revoke all on function %s from public, anon, authenticated'/.exec(code);
+    ok(mm, 'no revoke loop for the matchmaking functions');
+    for (const f of ['mm_create_match', 'mm_apply_result', 'mm_abandon_match', 'mm_report_disconnect', 'mm_match_ping', 'mm_queue_counts', 'mm_settle'])
+      ok(new RegExp("'" + f + "'").test(mm[1]), f + ' stays callable while matchmaking is off');
+    for (const t of ['mm_queue', 'mm_matches', 'mm_ratings', 'online_heartbeats']) ok(code.indexOf("pg_temp.reset_table('" + t + "')") !== -1, t + ' is not reset');
+    ok(!statements.some(s => /^grant .*(insert|update|delete).* on table public\.mm_/.test(s)), 'a matchmaking table takes writes while the feature is off');
+    ok(/file_size_limit = 5242880/.test(code) && /allowed_mime_types = array\['image\/jpeg', 'image\/png', 'image\/webp', 'image\/gif'\]/.test(code), 'the avatars bucket takes any file');
+    const ret = fs.readFileSync(path.join(root, 'supabase', 'matchmaking-return.sql'), 'utf8');
+    ok(/if winner = me and opp_seen is null then\s+raise exception 'opponent never joined this match'/.test(ret), 'the return file lets a host win against an opponent who never joined');
+    ok(/if winner is null then raise exception/.test(ret) && /pg_column_size\(p_rounds\) > 4096/.test(ret), 'the return file trusts a NULL winner or an unbounded round log');
+  });
+});
+
+describe('database lockdown (client and sessions)', () => {
+  const root = path.join(__dirname, '..', '..');
+  const sql = fs.readFileSync(path.join(root, 'supabase', 'lockdown.sql'), 'utf8');
+  const sb = fs.readFileSync(path.join(root, 'js', 'sb.js'), 'utf8');
+  const ADMIN_FNS = ['admin_ban_user', 'admin_perma_ban_user', 'admin_unban_user', 'admin_ban_usernames',
+                     'admin_clear_all_scores', 'admin_clear_user_score', 'admin_delete_listings', 'admin_purge_expired'];
+
+  it('the profanity sweep bans whole names or whole pieces of them, never substrings', () => {
+    // "Assassin" holds "ass" and is a class; the sweep used to ban it (owner,
+    // 2026-09-22). Run the real function against the real list.
+    const body = name => {
+      const s = sb.indexOf('function ' + name + '(');
+      ok(s !== -1, 'sb.js has no ' + name);
+      let depth = 0, i = sb.indexOf('{', s), end = -1;
+      for (; i < sb.length; i++) { if (sb[i] === '{') depth++; else if (sb[i] === '}') { depth--; if (!depth) { end = i + 1; break; } } }
+      return sb.slice(s, end);
+    };
+    const list = /const PROFANITY_LIST = \[([\s\S]*?)\n  \];/.exec(sb);
+    ok(list, 'sb.js has no PROFANITY_LIST');
+    const tokensList = /const PROFANITY_TOKENS = (\[[^\]]*\]);/.exec(sb);
+    ok(tokensList, 'sb.js has no PROFANITY_TOKENS');
+    const anywhere = /const PROFANITY_ANYWHERE = (\[[\s\S]*?\]);/.exec(sb);
+    const confusables = /const CONFUSABLES = (\{[\s\S]*?\});/.exec(sb);
+    ok(anywhere && confusables, 'sb.js has no PROFANITY_ANYWHERE / CONFUSABLES');
+    const anywhereRx = /const PROFANITY_ANYWHERE_RX = (\[[^\n]*\]);/.exec(sb);
+    ok(anywhereRx, 'sb.js has no PROFANITY_ANYWHERE_RX');
+    const api = new Function('const PROFANITY_LIST = [' + list[1] + '];\nconst PROFANITY_TOKENS = ' + tokensList[1] + ';\n' +
+      'const PROFANITY_ANYWHERE = ' + anywhere[1] + ';\nconst PROFANITY_ANYWHERE_RX = ' + anywhereRx[1] + ';\nconst CONFUSABLES = ' + confusables[1] + ';\n' +
+      body('foldChar') + '\n' + body('foldText') + '\n' + body('nameTokens') + '\n' + body('profanityHit') + '\n' +
+      body('containsProfanity') + '\n' + body('usernameProfanity') +
+      '\nreturn { usernameProfanity, containsProfanity, foldText };')();
+    const fn = api.usernameProfanity;
+    // Innocent names with a listed word inside (owner: "Assassin" must pass).
+    const innocent = ['Assassin', 'Cassie', 'Cassandra', 'Titan', 'Bassline', 'Analyst', 'Peacock', 'Scunthorpe', 'Grape_Soda', 'Lycoris', 'CPU_main', 'EpicPlayer', 'Scp049', 'Therapist'];
+    for (const name of innocent) {
+      eq(fn(name), null, name + ' would be banned');
+      ok(!api.containsProfanity(name), name + ' cannot be registered');
+    }
+    for (const [name, word] of [['ass_kicker', 'ass'], ['NIGGER', 'nigger'], ['ChildAbuser', 'abuser'], ['Adult_Abuser', 'abuser'], ['xx-porn-xx', 'porn'],
+                                ['cp', 'cp'], ['CP', 'cp'], ['CP_lover', 'cp'], ['iLoveCP', 'cp'], ['cp123', 'cp'], ['PeaCock', 'cock'],
+                                ['XXLover_1488', '1488'], ['bignigga', 'nigg'], ['xXfuckerXx', 'fuck'],
+                                // one-case compounds the old substring check refused (review, 2026-09-22)
+                                ['bigdick', 'bigdick'], ['SHITLORD', 'shit'], ['kikehunter', 'kike'], ['childrapist', 'childrap'], ['xcuntx', 'cunt']]) {
+      ok(fn(name) !== null, name + ' can be registered');
+      if (fn(name) !== null && !/^(bigdick|shit|kike|childrap|cunt)$/.test(word)) eq(fn(name), word, name + ' is not banned for ' + word);
+    }
+    for (const name of ['Swanky', 'Cockburn', 'Dickens']) eq(fn(name), null, name + ' would be banned');
+    ok(/usernameProfanity\(p\.username\)/.test(sb) && !/containsProfanity\(p\.username\)/.test(sb), 'the sweep still matches substrings');
+    // Signup and rename refuse the same token-only words, and only as tokens.
+    ok(api.containsProfanity('CP_lover') && api.containsProfanity('cp'), 'a "cp" name can still be registered');
+    // Unicode look-alikes fold to the word they imitate.
+    for (const s of ['ｆｕｃｋ', 'fυck', 'аss_kicker', 'n\u200Bigger', 'nіgger', 'fúck']) ok(api.containsProfanity(s), JSON.stringify(s) + ' slips past the filter');
+    eq(api.foldText('Ａbс\u200D'), 'Abc', 'foldText');
+  });
+
+  it('perma-banned names are reserved exactly, not fed to the substring filter', () => {
+    ok(!/PROFANITY_LIST\.push\(/.test(sb), 'a banned name is pushed into PROFANITY_LIST, where it censors chat and blocks innocent names');
+    ok(/function isPermaBannedName\(name\)/.test(sb) && /containsProfanity\(username\) \|\| isPermaBannedName\(username\)/.test(sb)
+       && /containsProfanity\(newName\) \|\| isPermaBannedName\(newName\)/.test(sb), 'signup or rename can take a perma-banned name');
+  });
+
+  it('names are unique regardless of case, from the client too', () => {
+    ok(/async function usernameTaken\(name, exceptId\)/.test(sb) && /\.ilike\('username', String\(name\)\.replace\(\/\[\\\\%_\]\/g/.test(sb), 'the taken check is case-sensitive or leaves _ as a wildcard');
+    ok(/if \(await usernameTaken\(username\)\)/.test(sb) && /if \(await usernameTaken\(newName, currentUser\.id\)\)/.test(sb), 'signup or rename skips the case-insensitive check');
+    ok(!/from\('profiles'\)\.select\('id'\)\.eq\('username'/.test(sb), 'an exact-case taken check is left');
+  });
+
+  // Run the real ban checks: a ban on an account follows the account, never
+  // whoever holds its old name; a name-only ban still bites by name.
+  itAsync('a restored session is signed out if banned - by account, not by a name someone else now holds', async () => {
+    const body = name => {
+      const s = sb.indexOf('function ' + name + '(');
+      let start = s; if (sb.slice(s - 6, s) === 'async ') start = s - 6;
+      let depth = 0, i = sb.indexOf('{', s), end = -1;
+      for (; i < sb.length; i++) { if (sb[i] === '{') depth++; else if (sb[i] === '}') { depth--; if (!depth) { end = i + 1; break; } } }
+      return sb.slice(start, end);
+    };
+    const run = async (rows, user, profileName) => {
+      let signedOut = 0;
+      const h = new Function('rows', 'user', 'stubs',
+        'let currentUser = user, currentProfile = null;\n' +
+        'const sb = { auth: { signOut: async () => { stubs.out++; } } };\n' +
+        'const _bannedReady = Promise.resolve(), _permaBannedIdSet = new Set();\n' +
+        'const _bannedSet = new Set(rows.map(r => r.username));\n' +
+        'const _bannedIdSet = new Set(rows.filter(r => r.user_id).map(r => r.user_id));\n' +
+        'const _bannedNameIds = new Map(rows.map(r => [r.username.toLowerCase(), r.user_id || null]));\n' +
+        'const resetScoreState = () => {}, renderAuthBar = () => {}, alert = () => {};\n' +
+        body('checkIfBanned') + '\n' + body('enforceBanOnRestore') + '\nreturn enforceBanOnRestore;');
+      const stubs = { out: 0 };
+      await h(rows, user, stubs)(user, profileName);
+      return stubs.out;
+    };
+    const me = { id: 'u-new', user_metadata: { username: 'OldName' } };
+    // A ban that recorded its account (another one) does not land on me for holding the name.
+    eq(await run([{ username: 'Fool', user_id: 'u-other' }], me, 'Fool'), 0, 'a player was signed out for holding a banned account\'s former name');
+    // A name-only (old) ban still bites by name.
+    eq(await run([{ username: 'Fool', user_id: null }], me, 'fool'), 1, 'a name-only ban no longer applies');
+    // A ban on my account bites whatever I am called now.
+    eq(await run([{ username: 'Whatever', user_id: 'u-new' }], me, 'Renamed'), 1, 'a renamed banned account keeps its session');
+    // The stale signup name is not used when the profile name is known.
+    eq(await run([{ username: 'OldName', user_id: null }], me, 'NewName'), 0, 'the signup name (never updated by a rename) is used instead of the profile name');
+  });
+
+  it('a restored session is checked for a ban; passwords are 8+; scores are escaped', () => {
+    ok(/async function enforceBanOnRestore\(user, profileName\)/.test(sb) && /enforceBanOnRestore\(restoredUser, profile\?\.username\)/.test(sb), 'a banned account keeps a restored session');
+    ok(/_bannedIdSet\.has\(userId\)/.test(sb) && /select\('username, user_id'\)/.test(sb), 'a plain ban is not checked by account');
+    ok(/password \|\| ''\)\.length < 8/.test(sb) && /newVal\.length < 8/.test(sb) && /pass\.length < 8/.test(sb) && !/length < 6/.test(sb), 'a password shorter than 8 is accepted somewhere');
+    ok(!/<b>\$\{(r|rec|record|myBest|myRank)\.score\}<\/b>/.test(sb) && /esc\(String\(r\.score\)\)/.test(sb), 'a score is interpolated into HTML unescaped');
+  });
+
+  it('no escape helper lets a bidi override through, and no source hides one', () => {
+    for (const f of ['js/sb.js', 'js/trades.js', 'js/party.js', 'js/reports.js', 'js/builds.js', 'js/donation.js', 'js/matchmaking.js', 'html/dm-popup.html', 'html/party-popup.html']) {
+      const src = fs.readFileSync(path.join(root, f), 'utf8');
+      ok(src.indexOf('[\\u202A-\\u202E\\u2066-\\u2069]') !== -1, f + ' escapes text without dropping bidi controls');
+      ok(!/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/.test(src), f + ' contains an invisible character in its source');
+    }
+  });
+
+  it('the chat filter sees through Unicode look-alikes and invisible characters', () => {
+    const trades = fs.readFileSync(path.join(root, 'js', 'trades.js'), 'utf8');
+    const block = trades.slice(trades.indexOf('function normalizeLeet('), trades.indexOf('// ---- tradeable items'));
+    const banned = /const _BANNED = \[([\s\S]*?)\n  \];/.exec(trades);
+    const blockList = /const _BLOCK_LIST = \[([\s\S]*?)\n  \];/.exec(trades);
+    ok(banned && blockList && block.length > 100, 'trades.js filter pieces not found');
+    const foldSrc = sb.slice(sb.indexOf('const CONFUSABLES = '), sb.indexOf('function foldText('));
+    const win = new Function(foldSrc + '\nreturn { _sbFoldChar: foldChar, _sbProfanityList: ["fuck", "shit"] };')();
+    const chat = new Function('window', 'const _BANNED = [' + banned[1] + '];\nconst _BLOCK_LIST = [' + blockList[1] + '];\n' + block +
+      '\nreturn { filterMsg, containsBlocked, check: window._containsProfanity };')(win);
+    eq(chat.filterMsg('well ｆｕｃｋ that'), 'well **** that', 'fullwidth letters pass the censor');
+    eq(chat.filterMsg('oh sh\u200Bit'), 'oh ****', 'a zero-width space hides a word from the censor');
+    eq(chat.filterMsg('ѕhit happens'), '**** happens', 'a Cyrillic look-alike hides a word from the censor');
+    eq(chat.filterMsg('a classic assassin'), 'a classic assassin', 'the censor now hits innocent words');
+    ok(chat.containsBlocked('cр links'), 'a Cyrillic look-alike hides a blocked term');
+    ok(chat.check('fυck'), 'party chat lets a Greek look-alike through');
+    eq(chat.filterMsg('gg 😀 nice'), 'gg 😀 nice', 'an emoji is mangled');
+    eq(chat.filterMsg('shít'), '*****', 'a stacked accent hides a word, or survives its masking');
+    eq(chat.filterMsg('café time'), 'café time', 'an accented word is changed');
+  });
 
   it('start_qte_session refuses junk trainer ids and a flood of sessions', () => {
     const scores = fs.readFileSync(path.join(root, 'supabase', 'qte-scores.sql'), 'utf8');
@@ -9258,6 +9697,185 @@ describe('database lockdown', () => {
     // The shape rule must accept every trainer the site has.
     const types = (/const QTE_TYPES = \[([^\]]*)\]/.exec(sb) || [])[1].split(',').map(s => s.trim().replace(/'/g, '')).filter(Boolean);
     for (const t of types) for (const suffix of ['', '-comp']) ok(/^[a-z]+(-new)?(-comp)?$/.test(t + suffix), 'the shape rule refuses ' + t + suffix);
+  });
+});
+
+// A typo in a brand-new password locks the player out of the account they
+// just made (owner, 2026-09-22): sign-up and the reset-link page ask for it
+// twice, like change-password in settings always did.
+describe('password confirmation', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'sb.js'), 'utf8');
+  const fn = name => {
+    let start = src.indexOf('function ' + name + '(');
+    ok(start !== -1, 'sb.js has no ' + name);
+    if (src.slice(Math.max(0, start - 6), start) === 'async ') start -= 6;
+    let depth = 0, i = src.indexOf('{', start), end = -1;
+    for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}') { depth--; if (!depth) { end = i + 1; break; } } }
+    return src.slice(start, end);
+  };
+  const harness = (name, fields) => {
+    const els = {};
+    for (const [id, value] of Object.entries(fields)) els[id] = { value, style: {}, textContent: '', disabled: false, isConnected: true };
+    const calls = [];
+    const doc = { getElementById: id => els[id] || null, querySelector: () => null };
+    const sb = { auth: { updateUser: async a => { calls.push(['updateUser', a]); return { error: null }; } } };
+    const run = new Function('document', 'sb', 'signUp', 'signIn', 'closeModal', 'alert',
+      fn(name) + '\nreturn ' + name + ';')(doc, sb,
+      async (...a) => { calls.push(['signUp', a]); }, async (...a) => { calls.push(['signIn', a]); }, () => {}, () => {});
+    return { run, els, calls };
+  };
+
+  itAsync('sign-up refuses two different passwords before anything is sent', async () => {
+    const h = harness('submitAuth', { 'sb-email': 'a@b.c', 'sb-pass': 'hunter22', 'sb-pass2': 'hunter23', 'sb-uname': 'Tester', 'sb-err': '' });
+    await h.run('register');
+    eq(h.calls.length, 0, 'a mismatched sign-up reached Supabase');
+    eq(h.els['sb-err'].textContent, 'Passwords do not match.');
+    const ok2 = harness('submitAuth', { 'sb-email': 'a@b.c', 'sb-pass': 'hunter22', 'sb-pass2': 'hunter22', 'sb-uname': 'Tester', 'sb-err': '' });
+    await ok2.run('register');
+    eq(ok2.calls.map(c => c[0]).join(), 'signUp', 'a matching sign-up did not go through');
+    const login = harness('submitAuth', { 'sb-email': 'a@b.c', 'sb-pass': 'hunter22', 'sb-err': '' });
+    await login.run('login');
+    eq(login.calls.map(c => c[0]).join(), 'signIn', 'login now wants a confirmation it has no box for');
+  });
+
+  itAsync('the reset link refuses two different passwords before anything is sent', async () => {
+    const h = harness('submitNewPassword', { 'np-pass': 'hunter22', 'np-pass2': 'hunter2', 'np-err': '' });
+    await h.run();
+    eq(h.calls.length, 0, 'a mismatched reset reached Supabase');
+    eq(h.els['np-err'].textContent, 'Passwords do not match.');
+    const ok2 = harness('submitNewPassword', { 'np-pass': 'hunter22', 'np-pass2': 'hunter22', 'np-err': '' });
+    await ok2.run();
+    eq(ok2.calls.map(c => c[0]).join(), 'updateUser', 'a matching reset did not go through');
+  });
+
+  it('every new-password form draws the confirm box', () => {
+    ok(/\$\{isReg \? `<input class="sb-input" id="sb-pass2" type="password"/.test(src), 'sign-up has no confirm box');
+    ok(/<input class="sb-input" id="np-pass2" type="password"/.test(src) && /pass2El\.disabled = false/.test(src), 'the reset page has no (enabled) confirm box');
+    ok(/id="sb-conf-pass"/.test(src) && /newVal !== confVal/.test(src), 'change-password lost its confirm box');
+  });
+});
+
+// A GDPR erasure must reach every table that stores anything about a player.
+// supabase/gdpr-erase.sql keeps that list in one function; every table the
+// site writes (CLAUDE.md's table-owner list) must be on it.
+describe('GDPR erasure', () => {
+  const root = path.join(__dirname, '..', '..');
+  const sql = fs.readFileSync(path.join(root, 'supabase', 'gdpr-erase.sql'), 'utf8');
+  const claude = fs.readFileSync(path.join(root, 'CLAUDE.md'), 'utf8');
+
+  it('covers every table the site stores player data in', () => {
+    const block = /\| Table \| Owner \|([\s\S]*?)\n\n/.exec(claude);
+    ok(block, 'CLAUDE.md has no table-owner list');
+    const tables = new Set([...block[1].matchAll(/`([a-z_]+)`/g)].map(m => m[1]));
+    tables.add('qte_sessions'); tables.add('testers');
+    tables.delete('avatars');   // a storage bucket - listed by the function, deleted in the dashboard
+    const targets = /create or replace function public\.gdpr_targets\(\)[\s\S]*?\$\$([\s\S]*?)\$\$;/.exec(sql);
+    ok(targets, 'no gdpr_targets list');
+    const missing = [...tables].filter(t => !new RegExp("'" + t + "'").test(targets[1]));
+    eq(missing.join(','), '', 'these tables are never erased');
+    ok(/storage\.objects/.test(sql) && /bucket_id = 'avatars'/.test(sql), 'the avatar files are not even listed');
+    ok(/delete from auth\.users where id = p_user/.test(sql), 'the login itself is left behind');
+    // A missing column is an error, never "not in this project" (a typo must not pass for nothing to erase).
+    ok(!/when undefined_column/.test(sql.replace(/--[^\n]*/g, '')), 'a condition naming a missing column skips the whole table silently');
+    ok(/if to_regclass\('public\.' \|\| t\.tbl\) is null then/.test(sql), 'a missing table is not detected up front');
+    ok(/delete from public\.%I x where %s/.test(sql) && /to_jsonb\(x\)->>''sender_id'' = \$3/.test(targets[1]), 'the notifications condition fails before lockdown2.sql');
+    ok(/meta->>''reported_id'' = \$3/.test(targets[1]), 'report notifications naming them survive');
+    // Names change hands: a name only matches rows that record no account.
+    ok(/payload->>''_ownerId'' is null and payload->>''_community'' = ''true'' and payload->>''_submittedBy'' = \$2/.test(targets[1]), 'erasing A deletes another account\'s builds credited to the same name');
+    ok((targets[1].match(/user_id = \$1 or \(user_id is null and username = \$2\)/g) || []).length === 2, 'erasing A touches another account\'s ban row with the same name');
+  });
+
+  it('erases only on an exact confirmation, never an admin, and is callable by nobody but the SQL editor', () => {
+    ok(/if p_confirm is distinct from 'ERASE ' \|\| coalesce\(v_name, p_user::text\) then/.test(sql), 'no typed confirmation');
+    ok(/p_user = any \(public\.site_admin_ids\(\)\) then\s+raise exception/.test(sql), 'an admin account can be erased');
+    for (const f of ['gdpr_find_user(text)', 'gdpr_targets()', 'gdpr_user_data(uuid)', 'gdpr_erase_user(uuid, text, boolean)'])
+      ok(new RegExp('revoke all on function public\\.' + f.replace(/[()]/g, '\\$&') + '\\s+from public, anon, authenticated;').test(sql), f + ' is callable through the API');
+    ok(!/grant execute on function public\.gdpr_/.test(sql), 'a GDPR function is granted to an API role');
+    ok(!/security definer/.test(sql.replace(/--[^\n]*/g, '')), 'a GDPR function runs with the owner\'s rights - a stray grant would then hand out erasure');
+  });
+});
+
+// Owner requests, 2026-09-22: the donations box is off, and the owner's phone
+// number is not published anywhere on the site.
+describe('owner requests on the published pages', () => {
+  const root = path.join(__dirname, '..', '..');
+  const live = s => s.replace(/<!--[\s\S]*?-->/g, '');   // what the browser actually renders
+
+  it('the home page has no donations box, supporters list or donation script', () => {
+    const page = live(fs.readFileSync(path.join(root, 'index.html'), 'utf8'));
+    for (const bit of ['home-donate-row', 'home-donors-list', 'js/donation.js', '_loadDonorLeaderboard', '_openDonationModal'])
+      ok(page.indexOf(bit) === -1, bit + ' is still live on the home page');
+    ok(/Donations are disabled/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'the disabled blocks lost their restore marker');
+  });
+
+  // By SHAPE, never by value: this file is public too, so it must not carry
+  // the details it keeps off the pages. Any phone-number-shaped or
+  // street-address-shaped text on a published page fails, bar the public
+  // government contact lines the terms are required to print.
+  it('no page publishes a phone number or a street address', () => {
+    const ALLOWED = [/\(800\) 952-5210/, /\(916\)\s+445-1254/, /1625 North Market Blvd/];
+    const shapes = {
+      'a phone number':   /\(?\b\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}\b/g,
+      'a street address': /\b\d{3,6}\s+(?:[NSEW]{1,2}\s+)?(?:\d+\w*|\w+)(?:\s+\w+)?\s+(?:Ct|Court|St|Street|Ave|Avenue|Rd|Road|Dr|Drive|Ln|Lane|Way|Pl|Place|Blvd)\b/gi,
+      'a state and ZIP':  /\b(?:A[KLRZ]|C[AOT]|D[CE]|FL|GA|HI|I[ADLN]|K[SY]|LA|M[ADEINOST]|N[CDEHJMVY]|O[HKR]|PA|RI|S[CD]|T[NX]|UT|V[AT]|W[AIVY])\s+\d{5}(?:-\d{4})?\b/g,
+    };
+    const pages = ['index.html', ...fs.readdirSync(path.join(root, 'html')).map(f => 'html/' + f)];
+    for (const p of pages) {
+      const text = live(fs.readFileSync(path.join(root, p), 'utf8'))
+        .replace(/<[^>]+>/g, ' ').replace(/&nbsp;| /g, ' ');
+      for (const [what, rx] of Object.entries(shapes)) {
+        for (const m of text.matchAll(rx)) {
+          const around = text.slice(Math.max(0, m.index - 20), m.index + m[0].length + 20);
+          ok(ALLOWED.some(a => a.test(around)), p + ' publishes what looks like ' + what + ': "' + m[0] + '"');
+        }
+      }
+    }
+  });
+});
+
+// GitHub Pages publishes the whole repo unless _config.yml excludes a path.
+// The exclude list hides the SQL, docs and dev tooling; it must never hide a
+// file the site itself loads - the Build AI fetches its engine from tools/ai/.
+describe('site publishing', () => {
+  const root = path.join(__dirname, '..', '..');
+  const cfg = fs.readFileSync(path.join(root, '_config.yml'), 'utf8');
+  const excludes = [...cfg.matchAll(/^\s+-\s+(\S+)\s*$/gm)].map(m => m[1]);
+  // Jekyll 3's rule (EntryFilter#glob_include?): a pattern hides a path that
+  // starts with it - a plain string prefix, so "sfx" would also hide "sfxtra"
+  // - or that it matches as a glob.
+  const glob = x => new RegExp('^' + x.replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+  const hidden = p => excludes.some(x => p.startsWith(x) || glob(x).test(p));
+
+  it('hides the SQL, the docs and the dev tooling', () => {
+    for (const p of ['supabase/lockdown.sql', 'supabase/functions/stripe-webhook/index.ts', 'CLAUDE.md', 'docs/tos-ai-clause-draft.md',
+                     'tools/ai/test.js', 'tools/ai/LEARNING.md', 'tools/ai/README.md', 'tools/ai/golden/saint-healer.json', 'ep.txt'])
+      ok(hidden(p), p + ' is still published');
+  });
+
+  it('never hides a file the site loads', () => {
+    const needed = new Set(['index.html', 'ads.txt', 'CNAME', 'version.json', 'tools/ai/ai-data.json', 'tools/ai/verify.js']);
+    const bai = fs.readFileSync(path.join(root, 'js', 'build-ai.js'), 'utf8');
+    const engine = /ENGINE_FILES\s*=\s*\[([\s\S]*?)\]/.exec(bai);
+    ok(engine, 'js/build-ai.js has no ENGINE_FILES list');
+    for (const m of engine[1].matchAll(/'([^']+)'/g)) needed.add(m[1]);
+    ok([...needed].filter(p => p.startsWith('tools/ai/')).length >= 10, 'the engine file list shrank unexpectedly');
+    // Everything under the served folders, whether a page links it or a
+    // script loads it by path (popups via window.open, sounds via new Audio).
+    const walk = d => fs.readdirSync(path.join(root, d), { withFileTypes: true })
+      .flatMap(e => e.isDirectory() ? walk(d + '/' + e.name) : [d + '/' + e.name]);
+    for (const d of ['css', 'js', 'html', 'images', 'sfx']) walk(d).forEach(p => needed.add(p));
+    const pages = ['index.html', ...fs.readdirSync(path.join(root, 'html')).map(f => 'html/' + f)];
+    for (const page of pages) {
+      const src = fs.readFileSync(path.join(root, page), 'utf8');
+      for (const m of src.matchAll(/(?:src|href)="([^"#?:]+)(?:[?#][^"]*)?"/g)) {
+        if (/^(https?:|mailto:|data:|\/\/)/.test(m[1])) continue;
+        const rel = path.posix.normalize(path.posix.join(path.posix.dirname(page), m[1])).replace(/^\//, '');
+        needed.add(rel);
+      }
+    }
+    for (const p of needed) {
+      ok(!hidden(p), p + ' is loaded by the site but excluded from publishing');
+    }
   });
 });
 

@@ -138,3 +138,12 @@ grant execute on function mm_create_match(uuid) to authenticated;
 -- everyone is, the next lever is fewer buckets - one queue per mode with the
 -- QTE chosen after pairing, or letting a long wait widen to any QTE the way
 -- rrWindow() already widens the rating gap.
+
+-- ---------------------------------------------------------------------------
+-- RE-RUN SAFETY (added 2026-09-22). A fresh CREATE of either function above
+-- hands EXECUTE to PUBLIC. Taken back here; run rpc-anon-lockout.sql after
+-- this file. (lockdown2.sql revokes these from authenticated too while the
+-- feature is disabled; matchmaking-return.sql restores them.)
+-- ---------------------------------------------------------------------------
+revoke all on function public.mm_queue_counts()      from public, anon;
+revoke all on function public.mm_create_match(uuid)  from public, anon;

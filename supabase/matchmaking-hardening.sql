@@ -316,3 +316,14 @@ grant execute on function mm_report_disconnect(uuid) to authenticated;
 --
 -- The rule violations raise rather than returning silently, so a refusal
 -- reaches the client as an error instead of a result that quietly does nothing.
+
+-- ---------------------------------------------------------------------------
+-- RE-RUN SAFETY (added 2026-09-22). This file DROPs and re-CREATEs
+-- mm_report_disconnect, and a fresh CREATE hands EXECUTE to PUBLIC; its body
+-- here also predates the NULL-caller guard. Taken back here; ALWAYS run
+-- rpc-anon-lockout.sql after this file - it holds the live bodies.
+-- ---------------------------------------------------------------------------
+revoke all on function public.mm_match_ping(uuid)                from public, anon;
+revoke all on function public.mm_apply_result(uuid, uuid, jsonb) from public, anon;
+revoke all on function public.mm_report_disconnect(uuid)         from public, anon;
+revoke all on function public.mm_settle(uuid, uuid, jsonb)       from public, anon, authenticated;

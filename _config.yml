@@ -1,0 +1,28 @@
+# GitHub Pages builds this repo with Jekyll, which publishes EVERY file in it:
+# the SQL, the docs, the test suite, this repo's notes - and renders each .md
+# as a page besides (CLAUDE.md was live as /CLAUDE.html). Only the site ships.
+#
+# The repo itself is public on GitHub, so this is tidiness, not secrecy: the
+# database's own rules (supabase/lockdown*.sql) are the security boundary, and
+# they hold whoever can read them.
+#
+# Keep served: index.html, css/, js/, html/, images/, sfx/, ads.txt, CNAME,
+# version.json, and from tools/ai/ the nine engine files js/build-ai.js loads
+# (ENGINE_FILES) plus ai-data.json and verify.js, which run against the live
+# site. tools/ai/test.js checks that nothing below hides a file the site loads.
+exclude:
+  - CLAUDE.md
+  - Untitled.md
+  - ep.txt
+  - LICENSE
+  - docs
+  - supabase
+  - tools/check-data.js
+  - tools/build-ai.html
+  - tools/ai/README.md
+  - tools/ai/LEARNING.md
+  - tools/ai/test.js
+  - tools/ai/build-ai.js
+  - tools/ai/extract-data.js
+  - tools/ai/golden
+  - tools/ai/audit

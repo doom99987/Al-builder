@@ -141,3 +141,12 @@ grant select, insert, update, delete on reports to authenticated;
 do $$ begin
   alter publication supabase_realtime add table reports;
 exception when duplicate_object then null; end $$;
+
+-- ---------------------------------------------------------------------------
+-- RE-RUN SAFETY (added 2026-09-22). The mm_apply_result above predates the
+-- host-only / round-log / 15-second rules of matchmaking-hardening.sql and the
+-- NULL-caller guard of rpc-anon-lockout.sql; re-running this file puts that
+-- older body back. ALWAYS run rpc-anon-lockout.sql after this one. And a
+-- fresh CREATE hands EXECUTE to PUBLIC - taken back here.
+-- ---------------------------------------------------------------------------
+revoke all on function public.mm_apply_result(uuid, uuid, jsonb) from public, anon;
