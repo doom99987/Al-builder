@@ -147,11 +147,8 @@
         reason, detail: detail || null, match_id: matchId || null
       });
       if (error) throw error;
-      window._sbNotifyAdmins?.(
-        `New report: ${uname() || 'Someone'} reported ${reportedName || 'a player'}`,
-        `${reason}${detail ? ' — ' + detail : ''}`,
-        { type: 'report', reported_id: reportedId, reason }
-      );
+      // The admins are told by the database (trigger reports_notify_admins,
+      // supabase/admin-server.sql) - the page does not know who they are.
       return true;
     } catch (_) { return false; }
   }
@@ -314,5 +311,7 @@
     const sync = () => { if (isAdmin()) { refreshOpenCount(); subscribeReports(); } else { openCount = 0; window._reportsSyncBadges(); } };
     setTimeout(sync, 800);
     client.auth.onAuthStateChange(() => setTimeout(sync, 300));
+    // The admin flag is the server's answer and can land after both of those.
+    window.addEventListener('alb-admin-changed', sync);
   })();
 })();

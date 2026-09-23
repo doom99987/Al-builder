@@ -21,18 +21,33 @@
   const PLATFORM  = IS_MOBILE ? 'M' : 'C';
 
   // ---- admin ----
-  // Admin access is tied to Supabase user IDs so it survives username changes.
-  // To find IDs: SELECT p.username, u.id FROM profiles p JOIN auth.users u ON u.id = p.id WHERE p.username IN ('Lycoris','TheAgentsOfRoblox');
-  const ADMIN_IDS = new Set([
-    'a508b4b7-1d32-4511-a609-4a80ded49681', // Lycoris
-    '3a376365-2f03-4e4f-8c5f-6b8020271809', // TheAgentsOfRoblox
-  ]);
-  function isAdmin() { return !!currentUser && ADMIN_IDS.has(currentUser.id); }
+  // Who is an admin is the SERVER's answer: public.is_site_admin(), over the
+  // table public.site_admins (supabase/admin-server.sql), which no browser can
+  // read. This file names no admin. It asks at sign-in, and again before the
+  // admin panel opens.
+  //
+  // The flag only decides which buttons to draw. A player who flips it in dev
+  // tools gets a panel of buttons that all fail: every admin action is an
+  // admin_* function that checks is_site_admin() in the database, and the
+  // admin-only tables (reports, score_reviews, testers, qte_run_rejects) answer
+  // anyone else with nothing.
+  let _isAdmin = false;
+  function isAdmin() { return !!currentUser && _isAdmin; }
+  async function loadAdminFlag() {
+    const uid = currentUser?.id;
+    if (!uid) { _isAdmin = false; return false; }
+    let ok = false;
+    try {
+      const { data, error } = await sb.rpc('is_site_admin');
+      ok = !error && data === true;
+    } catch (e) { ok = false; }
+    // The account can change while this is in flight; a late answer must not
+    // make the next account an admin.
+    if (currentUser && currentUser.id === uid) _isAdmin = ok;
+    return isAdmin();
+  }
 
   // ---- tester ----
-  // Same mechanism as admin, deliberately: an ID list in this file, no database
-  // column, nothing to migrate, no RLS policy to get wrong.
-  //
   // A tester gets exactly ONE thing an ordinary account does not — the AI panel.
   // No admin panel, no reports, no moderation, no elevated read or write
   // anywhere. Every other feature keeps asking isAdmin(), so listing someone
@@ -392,7 +407,15 @@
         || currentUser.email.split('@')[0].replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 20);
       currentProfile = { username };
       _isTester = false;          // never carry the last account's role over
+      _isAdmin  = false;
       loadTesterFlag();
+      // The server's answer arrives after the bar is drawn: redraw it for an
+      // admin, and tell the modules that draw admin-only controls.
+      loadAdminFlag().then(admin => {
+        if (!admin) return;
+        renderAuthBar();
+        window.dispatchEvent(new Event('alb-admin-changed'));
+      });
       renderAuthBar();
       reconcileServerScores();
       // Load full profile from DB to get avatar_url and saved username
@@ -407,6 +430,7 @@
     } else {
       currentProfile = null;
       _isTester = false;
+      _isAdmin  = false;
       renderAuthBar();
     }
     // Let other modules (bank sync, etc.) react to login/logout/session restore.
@@ -570,6 +594,41 @@
     return p;
   }
 
+  // ---- verified runs (supabase/qte-verified.sql) ----
+  // Each Start asks the server for a run: { run, ticket }. The server keeps
+  // the run's secret seed; the ticket is signed with it and goes back with
+  // every score of that run, together with the run's log (js/qte-rules.js).
+  // Called by QteRules.Run.start; the run does not wait for it.
+  //
+  // Resolves to { run, ticket }, or { legacy: sessionId } while
+  // qte-verified.sql has not been run yet (the old path still works), or null
+  // (signed out, offline, too many starts) - a run with no ticket cannot be
+  // verified, so its scores are not saved.
+  const TICKET_TIMEOUT_MS = 10000;
+  function startQteRun(qteType) {
+    if (!currentUser) return Promise.resolve(null);
+    const ask = (async () => {
+      const { data, error } = await sb.rpc('start_qte_run', { p_qte_type: qteType });
+      if (error) {
+        if (isMissingFunction(error)) {
+          const id = await startQteSession(qteType);
+          return id ? { legacy: id } : null;
+        }
+        console.warn('[sb] start_qte_run error', error.message);
+        return null;
+      }
+      if (!data || typeof data.run !== 'string' || typeof data.ticket !== 'string') return null;
+      return { run: data.run, ticket: data.ticket };
+    })().catch(e => { console.warn('[sb] start_qte_run threw', e && e.message); return null; });
+    // A hung request must not hold a score (and the queue behind it) forever.
+    const timeout = new Promise(res => setTimeout(() => res(null), TICKET_TIMEOUT_MS));
+    return Promise.race([ask, timeout]);
+  }
+  // PostgREST's "no such function" (the SQL has not been run yet).
+  function isMissingFunction(error) {
+    return !!error && (error.code === 'PGRST202' || error.code === '42883' || /could not find the function/i.test(error.message || ''));
+  }
+
   // ---- submit score — server validates session timing before accepting ----
   // The trainers call this on EVERY new high of a run (streak 1, 2, 3 … 31),
   // so this is where a run's scores are kept honest:
@@ -581,22 +640,27 @@
   // session was being armed or re-armed was discarded with a console warning —
   // a competitive run that reached 31 could leave the board holding 2.
   //
-  // The same score also arrives twice in casual: the trainer calls
-  // _sbSubmitScore directly (js/qte.js:406 and siblings) and the
-  // Storage.setItem hook in js/core.js:213 fires for the same write. The second
-  // one is not above the pending or confirmed value, so it costs nothing.
+  // Each call carries the run's packet (ticket + log) from QteRules.Run; the
+  // Storage.setItem hook in js/core.js that used to submit casual scores a
+  // second time, with no log, is gone.
   const _pending   = {};   // qteType -> highest score still to send
+  const _packet    = {};   // qteType -> that score's run packet { ticket, attempt, log } (QteRules.Run)
   const _confirmed = {};   // qteType -> highest score the server has accepted
+  const _posted    = {};   // qteType -> what the server actually posted for the last accepted send
   const _sending   = {};   // qteType -> true while an RPC is in flight
   const _retryN    = {};   // qteType -> retries spent on the pending score
   const _retryT    = {};   // qteType -> retry timer
   const SCORE_RETRY_MS = [1500, 4000, 10000];
 
-  function submitScore(qteType, score) {
+  // packet: from QteRules.Run (js/qte-rules.js) - the run's ticket promise,
+  // attempt number and log. The score and the log travel together: a higher
+  // score replaces both.
+  function submitScore(qteType, score, packet) {
     if (!currentUser || !score) return Promise.resolve(false);
     if (score <= (_confirmed[qteType] || 0)) return Promise.resolve(true);
     if (score <= (_pending[qteType] || 0))   return Promise.resolve(false);
     _pending[qteType] = score;
+    _packet[qteType]  = packet || null;
     _retryN[qteType]  = 0;
     if (_retryT[qteType]) { clearTimeout(_retryT[qteType]); _retryT[qteType] = null; }
     return pumpScore(qteType);
@@ -608,18 +672,25 @@
     if (_sending[qteType]) return false;   // the send in flight will pick up the newest value
     const score = _pending[qteType];
     if (!score) return false;
+    const packet = _packet[qteType] || null;
     _sending[qteType] = true;
+    delete _posted[qteType];
     let outcome = 'retry';
-    try { outcome = await sendScore(qteType, score); }
+    try { outcome = await sendScore(qteType, score, packet); }
     catch (e) { console.error('[sb] submitScore threw', qteType, score, e && e.message); }
     finally { _sending[qteType] = false; }
     // 'refused' is the server saying it will never take this score. Retrying
     // only spends requests, so drop it — but do NOT record it as confirmed.
-    if (outcome === 'refused') { delete _pending[qteType]; return false; }
+    if (outcome === 'refused') {
+      if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; delete _packet[qteType]; return false; }
+      return pumpScore(qteType);   // a higher score (a longer log) arrived meanwhile
+    }
     if (outcome !== 'accepted') { scheduleScoreRetry(qteType); return false; }
-    _confirmed[qteType] = Math.max(_confirmed[qteType] || 0, score);
+    // A verified run can post less than was claimed (the log proves fewer
+    // points); remember what was posted, so a later run can still beat it.
+    _confirmed[qteType] = Math.max(_confirmed[qteType] || 0, _posted[qteType] ?? score);
     _retryN[qteType] = 0;
-    if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; return true; }
+    if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; delete _packet[qteType]; return true; }
     return pumpScore(qteType);
   }
 
@@ -632,11 +703,81 @@
     capped:    'Score not saved: above the maximum this trainer accepts.',
     bad_input: 'Score not saved: the server did not recognise this trainer.',
     banned:    'Score not saved: this account is banned.',
+    rejected:  'Score not saved: the run could not be verified.',
   };
+  const _lowerToldAt = {};   // qteType -> when the player was last told a score posted lower
 
   // 'accepted' | 'retry' | 'refused'
-  async function sendScore(qteType, score) {
-    let sessionId = _sessionIds[qteType] ?? null;
+  async function sendScore(qteType, score, packet) {
+    if (packet && packet.ticket) return sendVerified(qteType, score, packet);
+    return sendLegacy(qteType, score, null);
+  }
+
+  // A run from QteRules.Run: its ticket and log go to the qte-submit edge
+  // function, which checks the log and posts through qte_accept_run.
+  async function sendVerified(qteType, score, packet) {
+    let t = null;
+    try { t = await packet.ticket; } catch (e) { t = null; }
+    if (!t) {
+      // No run was made on the server at this Start (signed out then, offline,
+      // or too many starts). Nothing can vouch for this run's scores.
+      console.warn('[sb] submitScore: no ticket for this run of', qteType, '- not saved', score);
+      scoreToast('Score not saved: this run was not started with the server. Check your connection and press Start again.');
+      return 'refused';
+    }
+    // qte-verified.sql not run yet: the old path, with an old-style session.
+    if (t.legacy) return sendLegacy(qteType, score, t.legacy);
+
+    const body = { run: t.run, ticket: t.ticket, qte_type: qteType, platform: PLATFORM,
+                   attempt: packet.attempt | 0, score, log: packet.log };
+    let data = null, error = null;
+    try { ({ data, error } = await sb.functions.invoke('qte-submit', { body })); }
+    catch (e) { console.error('[sb] qte-submit threw', qteType, score, e && e.message); return 'retry'; }
+    if (error) {
+      const code = error.context && error.context.status;
+      // The function is not deployed yet: to the old path, the run is an
+      // ordinary session (same table), so the score is not lost meanwhile.
+      if (code === 404) return sendLegacy(qteType, score, t.run);
+      console.error('[sb] qte-submit error', qteType, score, code, error.message);
+      return 'retry';
+    }
+    const status = data && typeof data.status === 'string' ? data.status : 'retry';
+    if (status === 'ok') {
+      const posted = Number.isInteger(data.score) ? data.score : score;
+      _posted[qteType] = posted;
+      if (posted < score) {
+        console.warn('[sb] submitScore posted lower', qteType, score, '->', posted);
+        const now = Date.now();
+        if (!_lowerToldAt[qteType] || now - _lowerToldAt[qteType] > 60000) {
+          _lowerToldAt[qteType] = now;
+          scoreToast('Score saved as ' + posted + ' - the run could only be checked that far.');
+        }
+      } else console.log('[sb] submitScore ok (verified)', qteType, score, PLATFORM);
+      return 'accepted';
+    }
+    if (status === 'held') {
+      console.log('[sb] submitScore held for review', qteType, score);
+      const now = Date.now();
+      if (!_heldToldAt[qteType] || now - _heldToldAt[qteType] > 60000) {
+        _heldToldAt[qteType] = now;
+        scoreToast('Score held for review - it goes on the board once an admin approves it.');
+      }
+      return 'accepted';
+    }
+    if (status === 'stale') return 'accepted';        // an older attempt of a run that moved on
+    if (SCORE_REFUSALS[status]) {
+      console.warn('[sb] submitScore refused', qteType, score, status, data && data.reason);
+      scoreToast(SCORE_REFUSALS[status]);
+      return 'refused';
+    }
+    return 'retry';
+  }
+
+  // The old path: submit_score with a session id. Used before
+  // qte-verified.sql / the qte-submit function are live; closed for good by
+  // qte-verified-step2.sql.
+  async function sendLegacy(qteType, score, fixedSession) {
+    let sessionId = fixedSession || (_sessionIds[qteType] ?? null);
     // No session yet: the trainer's Start call may still be in flight, or the
     // last one was rejected. Wait for one rather than losing the score.
     if (!sessionId) {
@@ -1870,7 +2011,9 @@
 
   async function openAdminPanel() {
     closeProfileMenu();
-    if (!isAdmin()) return;
+    // Ask the server again rather than trust the flag: it may be stale (the
+    // role removed since sign-in), and it lives in a page anyone can edit.
+    if (!(await loadAdminFlag())) { renderAuthBar(); return; }
     const { data: bans } = await sb.from('banned_usernames').select('username').order('username');
     const banRows = _renderBanRows(bans || []);
     openModal(`
@@ -2034,9 +2177,8 @@
     document.getElementById('sb-admin-uname-display').textContent = profile.username;
     document.getElementById('sb-admin-user-meta').innerHTML =
       `Joined: ${joined} &nbsp;·&nbsp; Scores: ${scoreCount ?? 0} &nbsp;·&nbsp; Listings: ${listingCount ?? 0}`;
-    // The ID, one click from the clipboard. Adding a tester or an admin means
-    // pasting a UUID into a Set in this file, and the only ways to get one were
-    // a SQL query or asking the person to run something in their own console.
+    // The ID, one click from the clipboard - for adding an admin by hand
+    // (public.site_admins, SQL editor) or looking a player up in SQL.
     const uuidEl = document.getElementById('sb-admin-uuid');
     if (uuidEl) { uuidEl.textContent = profile.id; uuidEl.classList.remove('copied'); }
     card.style.display = 'block';
@@ -2575,6 +2717,7 @@
   window._submitAuth         = submitAuth;
   window._sbSubmitScore      = submitScore;
   window._sbStartQteSession  = startQteSession;
+  window._sbStartQteRun      = startQteRun;     // QteRules.Run.start (js/qte-rules.js)
   window._sbGetUsername      = () => currentProfile?.username || null;
   window._sbGetUserId        = () => currentUser?.id ?? null;
   window._sbGetAvatar        = () => currentProfile?.avatar_url || null;
@@ -2628,17 +2771,8 @@
   window._sbIsAdmin              = isAdmin;
   window._sbIsTester             = isTester;
   window._sbCanUseAI             = canUseAI;
-  window._sbAdminIds             = [...ADMIN_IDS];
-  // Ping every admin via the existing notification bell (used by the report system).
-  window._sbNotifyAdmins         = async function (title, body, meta) {
-    try {
-      const meId = currentUser?.id || null;
-      const rows = [...ADMIN_IDS].filter(id => id !== meId).map(id => ({
-        user_id: id, title, body: body || null, meta: meta || null
-      }));
-      if (rows.length) await sb.from('notifications').insert(rows);
-    } catch (_) {}
-  };
+  // No admin list is exported, and none exists here: a new report rings the
+  // admins from the database (trigger reports_notify_admins, admin-server.sql).
   window._sbProfanityList        = PROFANITY_LIST; // live reference — mutations are reflected immediately
   window._sbFoldChar             = foldChar;       // trades.js folds chat through the same table
 

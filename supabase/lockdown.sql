@@ -86,39 +86,46 @@
 begin;
 
 -- ── 1. the admin list, in one place ─────────────────────────────────────────
--- testers.sql inlines the two UUIDs in is_site_admin(). The ban functions need
--- to ask the same question about a user who is NOT the caller (so an admin can
--- never be banned), so the list moves into a function of its own and
--- is_site_admin() reads it. Re-running testers.sql later would put the inline
--- version back, which answers the same for the caller, so nothing breaks.
+-- The list is the table public.site_admins (supabase/admin-server.sql), which
+-- no API role can read; nothing in the repo names an admin. The ban functions
+-- need to ask about a user who is NOT the caller (so an admin can never be
+-- banned), hence site_admin_ids(); is_site_admin() answers for the caller.
+-- Both are SECURITY DEFINER so the caller needs no right to the list, and
+-- site_admin_ids() is not callable from the API.
 --
 -- These two are the only functions this file does not drop first: the RLS
 -- policies on testers (testers.sql) and reports bind to is_site_admin() by
 -- OID, and CREATE OR REPLACE with the same signature keeps it.
+create table if not exists public.site_admins (
+  user_id  uuid primary key references auth.users(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  note     text
+);
+alter table public.site_admins enable row level security;
+revoke all on table public.site_admins from public, anon, authenticated;
+
 create or replace function public.site_admin_ids() returns uuid[]
 language sql
-immutable
+stable
+security definer
+set search_path = public
 as $$
-  select array[
-    'a508b4b7-1d32-4511-a609-4a80ded49681'::uuid,  -- Lycoris
-    '3a376365-2f03-4e4f-8c5f-6b8020271809'::uuid   -- TheAgentsOfRoblox
-  ];
+  select coalesce(array_agg(user_id order by user_id), '{}'::uuid[]) from public.site_admins;
 $$;
 
--- SECURITY INVOKER, as testers.sql explains: auth.uid() reads the request's
--- JWT, so there is nothing to escalate. Which is also why site_admin_ids() is
--- granted to the API roles below - the RLS policies on testers evaluate this
--- function AS THE REQUEST ROLE, and a function that role may not execute inside
--- it fails the whole query with "permission denied".
+-- The RLS policies call this AS THE REQUEST ROLE, so anon and authenticated
+-- keep EXECUTE on it (below). It answers for the caller's own login only.
 --
--- coalesce: with no JWT, auth.uid() is NULL, `NULL = any(...)` is NULL, and a
--- plpgsql `if not NULL` does not branch (rpc-anon-lockout.sql, BUG 2). This
--- answers false, never NULL, and every guard below still says `is not true`.
+-- coalesce: with no JWT, auth.uid() is NULL and a plpgsql `if not NULL` does
+-- not branch (rpc-anon-lockout.sql, BUG 2). This answers false, never NULL,
+-- and every guard below still says `is not true`.
 create or replace function public.is_site_admin() returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
-  select coalesce(auth.uid() = any (public.site_admin_ids()), false);
+  select coalesce(exists (select 1 from public.site_admins where user_id = auth.uid()), false);
 $$;
 
 -- ── 2. the tables: read-only through the API ────────────────────────────────
@@ -595,14 +602,13 @@ grant execute on function public.admin_purge_expired()              to authentic
 grant execute on function public.start_qte_session(uuid, text)      to authenticated;
 grant execute on function public.submit_score(uuid, text, integer, text, text, uuid) to authenticated;
 
--- is_site_admin and site_admin_ids must stay executable by anon and
--- authenticated: the RLS policies on testers (and reports) call is_site_admin()
--- as the request role, is_site_admin is SECURITY INVOKER, and that role must be
--- allowed to execute what it calls. It answers false for anon, which is the
--- point. (The client itself uses its own ADMIN_IDS list, js/sb.js, and never
--- calls either; the two UUIDs are already in that file.)
+-- is_site_admin must stay executable by anon and authenticated: the RLS
+-- policies on testers (and reports) call it as the request role. It answers
+-- for the caller only, false for anon. site_admin_ids() is the whole list and
+-- is for the database's own functions: no API role may call it
+-- (supabase/admin-server.sql). The site asks is_site_admin() at sign-in.
+revoke all on function public.site_admin_ids() from public, anon, authenticated;
 grant execute on function public.is_site_admin()  to anon, authenticated;
-grant execute on function public.site_admin_ids() to anon, authenticated;
 
 -- Self-service functions with bodies made in the dashboard: signed-in only.
 do $$
@@ -653,7 +659,7 @@ commit;
 --   authenticated alone on personal_bests. None for qte_sessions.
 --
 -- (c) What anon can still execute. Trigger functions are left out - PostgREST
---     cannot call them. Expect is_site_admin, site_admin_ids, ping_online and
+--     cannot call them. Expect is_site_admin, ping_online and
 --     top_supporters; anything else in the list is reachable by anyone on the
 --     internet and needs a revoke:
 --
@@ -696,4 +702,4 @@ commit;
 --   await _sbClient.from('banned_usernames').delete().eq('username', 'anyone')
 --     -> error.code '42501'
 --   await _sbClient.from('testers').select('user_id')
---     -> data [] and NO error (the is_site_admin / site_admin_ids grants hold)
+--     -> data [] and NO error (the is_site_admin grant holds)

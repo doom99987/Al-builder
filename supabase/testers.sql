@@ -23,27 +23,17 @@ create table if not exists testers (
 alter table testers enable row level security;
 
 -- ---------------------------------------------------------------------------
--- One place for the admin list on the SQL side.
---
--- reports.sql inlines these same two UUIDs in three separate policies, each
--- with a comment warning they must stay in sync with ADMIN_IDS in js/sb.js.
--- That is now four copies. New policies use this function instead, and the
--- reports policies can be migrated to it whenever convenient - they work as
--- they are, so this does not touch them.
---
--- SECURITY INVOKER (the default) is correct here: auth.uid() reads the request's
--- JWT claim, not the role executing the function, so there is nothing to
--- escalate and no search_path to pin.
+-- Who is an admin is public.is_site_admin(), defined in
+-- supabase/admin-server.sql over the table public.site_admins (which no API
+-- role can read). This file used to define its own copy with the admin UUIDs
+-- written in; re-running it would have put them back.
 -- ---------------------------------------------------------------------------
-create or replace function public.is_site_admin() returns boolean
-language sql
-stable
-as $$
-  select auth.uid() in (
-    'a508b4b7-1d32-4511-a609-4a80ded49681'::uuid,  -- Lycoris
-    '3a376365-2f03-4e4f-8c5f-6b8020271809'::uuid   -- TheAgentsOfRoblox
-  );
-$$;
+do $$
+begin
+  if to_regclass('public.site_admins') is null or to_regprocedure('public.is_site_admin()') is null then
+    raise exception 'run supabase/admin-server.sql first';
+  end if;
+end $$;
 
 -- A signed-in user may read their OWN row, which is how the site knows whether
 -- to show them the AI item. Admins may read every row, which is how the panel

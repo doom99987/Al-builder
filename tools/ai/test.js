@@ -6369,9 +6369,10 @@ describe('cache busting', () => {
        'a failed submit is no longer retried - the score would be stuck');
     ok(!/_lastSubmitted/.test(sb),
        'the old sent-before-it-was-sent latch is back');
-    // Both callers must still exist; the fix is the dedupe, not removing one.
-    ok(readRoot('js/core.js').indexOf('window._sbSubmitScore(m[1]') !== -1,
-       'the core.js setItem hook is gone - comp scores are fine but this changes behaviour');
+    // The core.js setItem hook sent a second, log-less copy of every casual
+    // high; verified runs (js/qte-rules.js) carry a log, so it is gone.
+    ok(readRoot('js/core.js').indexOf('window._sbSubmitScore(') === -1,
+       'the core.js setItem hook is back - it submits casual scores a second time, with no run log');
   });
 
   // supabase-js fires TOKEN_REFRESHED roughly hourly with the same user. The
@@ -8857,31 +8858,41 @@ describe('QTE score submission', () => {
   const tick = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
 
   // The submission pipeline on its own: real code, stub client, stub timers.
-  const mkPipe = (rpcImpl) => {
+  // invokeImpl: the qte-submit edge function (verified runs); absent = the
+  // legacy tests, which never reach it.
+  const mkPipe = (rpcImpl, invokeImpl) => {
     const calls = [];
     const timers = [];
     const toasts = [];
-    // No `from`: the pipeline only ever calls the two RPCs. submit_score writes
-    // the personal best itself, and the client may not write that table at all.
+    const invokes = [];
+    // No `from`: the pipeline only ever calls the RPCs and the edge function.
+    // Every score table is written server-side; the client may not write any.
     const sb = {
       rpc: (name, args) => { calls.push({ name, score: args.p_score, session: args.p_session_id }); return rpcImpl(name, args); },
+      functions: { invoke: (name, opts) => { invokes.push({ name, body: opts.body }); return invokeImpl(name, opts.body); } },
     };
     const retryMs = /const SCORE_RETRY_MS = (\[[^\]]*\]);/.exec(src);
     ok(retryMs, 'sb.js has no SCORE_RETRY_MS');
     const refusals = /const SCORE_REFUSALS = (\{[\s\S]*?\n  \});/.exec(src);
     ok(refusals, 'sb.js has no SCORE_REFUSALS');
+    const ticketMs = /const TICKET_TIMEOUT_MS = (\d+);/.exec(src);
+    ok(ticketMs, 'sb.js has no TICKET_TIMEOUT_MS');
     const api = new Function('sb', 'currentUser', 'PLATFORM', 'currentMonth', 'setTimeout', 'clearTimeout', 'console', 'scoreToast',
-      'const _sessionIds = {}, _arming = {}, _pending = {}, _confirmed = {}, _sending = {}, _retryN = {}, _retryT = {}, _heldToldAt = {};\n' +
+      'const _sessionIds = {}, _arming = {}, _pending = {}, _packet = {}, _confirmed = {}, _posted = {}, _sending = {},' +
+      ' _retryN = {}, _retryT = {}, _heldToldAt = {}, _lowerToldAt = {};\n' +
       'const SCORE_RETRY_MS = ' + retryMs[1] + ';\n' +
       'const SCORE_REFUSALS = ' + refusals[1] + ';\n' +
-      siteFn('startQteSession') + '\n' + siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
-      siteFn('sendScore') + '\n' + siteFn('scheduleScoreRetry') + '\n' +
-      'return { submitScore, startQteSession, state: () => ({ pending: Object.assign({}, _pending), ' +
+      'const TICKET_TIMEOUT_MS = ' + ticketMs[1] + ';\n' +
+      siteFn('startQteSession') + '\n' + siteFn('startQteRun') + '\n' + siteFn('isMissingFunction') + '\n' +
+      siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
+      siteFn('sendScore') + '\n' + siteFn('sendVerified') + '\n' + siteFn('sendLegacy') + '\n' + siteFn('scheduleScoreRetry') + '\n' +
+      'return { submitScore, startQteSession, startQteRun, state: () => ({ pending: Object.assign({}, _pending), ' +
       'confirmed: Object.assign({}, _confirmed), sessions: Object.assign({}, _sessionIds) }) };'
     )(sb, { id: 'u1' }, 'C', () => '2026-09',
       (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {},
       { log() {}, warn() {}, error() {} }, (m) => toasts.push(m));
-    return { api, calls, timers, toasts, scores: () => calls.filter(c => c.name === 'submit_score').map(c => c.score) };
+    return { api, calls, timers, toasts, invokes, scores: () => calls.filter(c => c.name === 'submit_score').map(c => c.score),
+             retries: () => timers.filter(t => t.ms !== Number(ticketMs[1])) };
   };
   // A deployment that still returns void: data is null, which must read as 'ok'.
   const okRpc = async (name) => ({ data: name === 'start_qte_session' ? 'sess-' + name : null, error: null });
@@ -9011,6 +9022,87 @@ describe('QTE score submission', () => {
     eq(p.api.state().confirmed['spear'], 12, 'the old void-returning server broke the client');
   });
 
+  // ── verified runs (supabase/qte-verified.sql + the qte-submit function) ──
+  const TICKET = { run: '11111111-2222-3333-4444-555555555555', ticket: 'ab'.repeat(32) };
+  const runRpc = async (name) => name === 'start_qte_run' ? { data: TICKET, error: null }
+                                : name === 'start_qte_session' ? { data: 'sess-1', error: null } : { data: 'ok', error: null };
+  const packetFor = (p, type, n) => ({ ticket: p.api.startQteRun(type), attempt: 0, log: { v: 1, type, a: 0, env: {}, ev: [['K', n]] } });
+
+  itAsync('a verified run goes to the edge function with its ticket and log, never to submit_score', async () => {
+    const p = mkPipe(runRpc, async () => ({ data: { status: 'ok', score: 9 }, error: null }));
+    const pk = packetFor(p, 'dagger', 9);
+    await p.api.submitScore('dagger', 9, pk);
+    await tick(20);
+    eq(p.invokes.length, 1, 'the score did not go to qte-submit');
+    const b = p.invokes[0].body;
+    ok(p.invokes[0].name === 'qte-submit' && b.run === TICKET.run && b.ticket === TICKET.ticket && b.score === 9
+       && b.qte_type === 'dagger' && b.platform === 'C' && b.log === pk.log, 'the body does not carry the ticket, score and log');
+    ok(!('seed' in b) && !('user_id' in b), 'the body carries a seed or a user id');
+    eq(p.scores().length, 0, 'a verified run also went through submit_score');
+    eq(p.api.state().confirmed['dagger'], 9, 'the verified score is not recorded as stored');
+  });
+
+  itAsync('a run with no ticket is not saved, and the player is told', async () => {
+    const p = mkPipe(async (name) => name === 'start_qte_run' ? { data: null, error: null } : { data: 'ok', error: null },
+                     async () => { throw new Error('must not be called'); });
+    await p.api.submitScore('dagger', 5, packetFor(p, 'dagger', 5));
+    await tick(20);
+    eq(p.invokes.length, 0, 'a run with no ticket was sent');
+    eq(p.scores().length, 0, 'a run with no ticket fell back to submit_score');
+    eq(Object.keys(p.api.state().pending).length, 0, 'a score that can never be verified is still queued');
+    ok(p.toasts.length === 1 && /not started with the server/.test(p.toasts[0]), 'the player was not told why');
+  });
+
+  itAsync('a rejected run is not retried and says it could not be verified', async () => {
+    const p = mkPipe(runRpc, async () => ({ data: { status: 'rejected', reason: 'invalid: x' }, error: null }));
+    await p.api.submitScore('dagger', 600, packetFor(p, 'dagger', 600));
+    await tick(20);
+    eq(p.invokes.length, 1, 'a rejected run was sent more than once');
+    eq(p.retries().length, 0, 'a rejected run was scheduled for a retry');
+    eq(Object.keys(p.api.state().confirmed).length, 0, 'a rejected run was recorded as stored');
+    ok(p.toasts.length === 1 && /could not be verified/.test(p.toasts[0]), 'the player was not told the run was rejected');
+  });
+
+  itAsync('a run posted lower than claimed remembers what was posted', async () => {
+    const p = mkPipe(runRpc, async () => ({ data: { status: 'ok', score: 11, claimed: 14 }, error: null }));
+    await p.api.submitScore('dagger', 14, packetFor(p, 'dagger', 14));
+    await tick(20);
+    eq(p.api.state().confirmed['dagger'], 11, 'the client believes the board holds the claim, not what was posted');
+    ok(p.toasts.some(t => /saved as 11/.test(t)), 'the player was not told the score was saved lower');
+  });
+
+  itAsync('before the SQL or the function exists, scores still reach the old path', async () => {
+    // qte-verified.sql not run: start_qte_run is missing, the old session is used.
+    const p1 = mkPipe(async (name) => name === 'start_qte_run' ? { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } }
+                                    : name === 'start_qte_session' ? { data: 'sess-9', error: null } : { data: 'ok', error: null },
+                      async () => { throw new Error('must not be called'); });
+    await p1.api.submitScore('dagger', 4, packetFor(p1, 'dagger', 4));
+    await tick(20);
+    ok(p1.calls.some(c => c.name === 'submit_score' && c.session === 'sess-9'), 'no old session was used when start_qte_run is missing');
+    // The function not deployed yet (404): the run id is an ordinary session to the old path.
+    const p2 = mkPipe(runRpc, async () => ({ data: null, error: { message: 'not found', context: { status: 404 } } }));
+    await p2.api.submitScore('dagger', 6, packetFor(p2, 'dagger', 6));
+    await tick(20);
+    ok(p2.calls.some(c => c.name === 'submit_score' && c.session === TICKET.run), 'a 404 from qte-submit lost the score');
+  });
+
+  itAsync('a transport error on a verified run is retried with the same ticket and a longer log wins', async () => {
+    let n = 0;
+    const p = mkPipe(runRpc, async () => (++n === 1 ? { data: null, error: { message: 'boom', context: { status: 503 } } }
+                                                    : { data: { status: 'ok', score: 8 }, error: null }));
+    const t = p.api.startQteRun('dagger');
+    p.api.submitScore('dagger', 7, { ticket: t, attempt: 0, log: { ev: [1] } });
+    await tick(20);
+    p.api.submitScore('dagger', 8, { ticket: t, attempt: 0, log: { ev: [1, 2] } });
+    eq(p.retries().length, 1, 'no retry was scheduled');
+    p.retries()[0].fn();
+    await tick(20);
+    eq(p.invokes.length, 2, 'the retry did not go out');
+    eq(p.invokes[1].body.score, 8, 'the retry sent the old score, not the newest');
+    eq(p.invokes[1].body.log.ev.length, 2, 'the retry sent the old log with the new score');
+    eq(p.calls.filter(c => c.name === 'start_qte_run').length, 1, 'the retry asked for a second ticket');
+  });
+
   it('a local best the server never took is re-submitted, not deleted', () => {
     const body = siteFn('reconcileServerScores');
     ok(body.indexOf('submitScore(') !== -1, 'reconcileServerScores no longer re-submits local bests');
@@ -9032,11 +9124,19 @@ describe('QTE score submission', () => {
   it("the ping simulator's delayed keys are not treated as a macro", () => {
     const guard = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'qte-guard.js'), 'utf8');
     const core = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'core.js'), 'utf8');
-    ok(core.indexOf('ev._albSynthetic = true;') !== -1, 'core.js no longer marks its delayed key copies');
-    ok(guard.indexOf('_albSynthetic') !== -1,
-       'qte-guard still reads the ping simulator as automated input - it blocks the key and withholds scores for 2 minutes');
-    ok(/function isDelayedCopy\(e\) \{ return !!\(e && e\._albSynthetic\); \}/.test(guard),
+    // core.js remembers its own copies privately; a flag on the event was
+    // settable by any script and walked its keys straight past the guard.
+    ok(/const copies = new WeakSet\(\);/.test(core) && /copies\.add\(ev\);/.test(core)
+       && /window\._albIsPingCopy = e => copies\.has\(e\);/.test(core), 'core.js no longer remembers its delayed key copies');
+    ok(/if \(copies\.has\(e\)\) return;/.test(core), 'core.js delays its own copies again');
+    ok(/repeat: e\.repeat,/.test(core), 'a delayed copy of an auto-repeat key arrives as a fresh press');
+    ok(!/_albSynthetic\s*=|\._albSynthetic\)/.test(core + guard), 'a settable _albSynthetic flag is still trusted');
+    ok(/const isPingCopy = typeof window\._albIsPingCopy === 'function' \? window\._albIsPingCopy : \(\) => false;/.test(guard),
+       'qte-guard does not take the copy check once, at load');
+    ok(/function isDelayedCopy\(e\) \{ return !!e && isPingCopy\(e\); \}/.test(guard),
        'qte-guard has no delayed-copy test');
+    const coreAt = fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8');
+    ok(coreAt.indexOf('js/core.js') < coreAt.indexOf('js/qte-guard.js'), 'qte-guard.js loads before core.js has made the copy check');
     for (const fn of ['onKeyDown', 'onKeyUp']) {
       const at = guard.indexOf('function ' + fn + '(');
       ok(at !== -1, 'qte-guard has no ' + fn);
@@ -9219,13 +9319,18 @@ describe('database lockdown', () => {
     }
   });
 
-  it('is_site_admin stays callable by the API roles and never answers NULL', () => {
-    // The RLS policies on testers evaluate is_site_admin() AS THE REQUEST ROLE,
-    // so everything it calls must be executable by anon and authenticated too.
-    ok(/select coalesce\(auth\.uid\(\) = any \(public\.site_admin_ids\(\)\), false\)/.test(sql), 'is_site_admin can answer NULL for a request with no JWT');
+  // Owner, 2026-09-22: the admin list must not be readable from a browser.
+  // is_site_admin() answers for the caller (the RLS policies call it as the
+  // request role, so the API roles keep EXECUTE); it is a definer over the
+  // table public.site_admins, so the caller needs - and has - no right to the
+  // list, and site_admin_ids() is not callable from the API at all.
+  it('is_site_admin stays callable by the API roles, never answers NULL, and the list stays hidden', () => {
+    ok(/create or replace function public\.is_site_admin\(\) returns boolean\s+language sql\s+stable\s+security definer\s+set search_path = public\s+as \$\$\s+select coalesce\(exists \(select 1 from public\.site_admins where user_id = auth\.uid\(\)\), false\);/.test(sql),
+       'is_site_admin can answer NULL, or reads something other than site_admins as a definer');
     ok(/grant execute on function public\.is_site_admin\(\)\s+to anon, authenticated;/.test(sql), 'is_site_admin is not granted back');
-    ok(/grant execute on function public\.site_admin_ids\(\) to anon, authenticated;/.test(sql), 'site_admin_ids is revoked from the roles whose RLS policies call is_site_admin - every testers query would fail');
-    ok(!/create or replace function public\.is_site_admin\(\)[\s\S]{0,200}security definer/.test(sql), 'is_site_admin became a definer; testers.sql explains why it must not be');
+    ok(/revoke all on function public\.site_admin_ids\(\) from public, anon, authenticated;/.test(sql)
+       && !/grant execute on function public\.site_admin_ids\(\)/.test(sql), 'site_admin_ids is callable from the API - it hands out every admin id');
+    ok(/revoke all on table public\.site_admins from public, anon, authenticated;/.test(sql), 'site_admins is readable from the API');
   });
 
   it('no script writes a locked table itself', () => {
@@ -9830,6 +9935,58 @@ describe('owner requests on the published pages', () => {
         }
       }
     }
+  });
+});
+
+// Owner, 2026-09-22: "a user can overwrite the sources file and add
+// themselves to the list of administrator IDs". The list is gone from the
+// site: the server answers "am I an admin" for the caller only, and every admin
+// action and admin-only table is checked in the database.
+describe('admins are decided by the server', () => {
+  const root = path.join(__dirname, '..', '..');
+  const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+  const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+
+  it('no script the site serves names an admin', () => {
+    for (const f of fs.readdirSync(path.join(root, 'js')).filter(n => n.endsWith('.js'))) {
+      const s = read('js/' + f);
+      ok(!UUID.test(s), 'js/' + f + ' carries a user id: ' + (UUID.exec(s) || [''])[0]);
+      ok(!/ADMIN_IDS|_sbAdminIds|_sbNotifyAdmins/.test(s), 'js/' + f + ' still has a client-side admin list');
+    }
+  });
+
+  it('no SQL file names an admin either (the repo is public)', () => {
+    for (const f of fs.readdirSync(path.join(root, 'supabase')).filter(n => n.endsWith('.sql'))) {
+      const s = read('supabase/' + f).replace(/00000000-0000-0000-0000-000000000000/g, '');
+      ok(!UUID.test(s), 'supabase/' + f + ' carries a user id');
+    }
+    for (const f of ['testers.sql', 'reports.sql'])
+      ok(!/create or replace function public\.is_site_admin/.test(read('supabase/' + f)), f + ' defines its own is_site_admin again');
+  });
+
+  it('the list is a table no API role can read, and the two questions read it as its owner', () => {
+    const sql = read('supabase/admin-server.sql');
+    ok(/create table if not exists public\.site_admins/.test(sql) && /alter table public\.site_admins enable row level security;/.test(sql)
+       && /revoke all on table public\.site_admins from public, anon, authenticated;/.test(sql)
+       && !/create policy [^;]* on public\.site_admins/.test(sql), 'site_admins is readable through the API');
+    ok(/function public\.site_admin_ids\(\) returns uuid\[\]\s+language sql\s+stable\s+security definer/.test(sql)
+       && /revoke all on function public\.site_admin_ids\(\) from public, anon, authenticated;/.test(sql)
+       && !/grant execute on function public\.site_admin_ids/.test(sql), 'site_admin_ids is callable from the API');
+    ok(/function public\.is_site_admin\(\) returns boolean\s+language sql\s+stable\s+security definer/.test(sql)
+       && /where user_id = auth\.uid\(\)/.test(sql)
+       && /grant execute on function public\.is_site_admin\(\) to anon, authenticated;/.test(sql), 'is_site_admin does not answer for the caller only');
+    ok(/insert into public\.site_admins \(user_id, note\)[\s\S]*unnest\(coalesce\(v_old/.test(sql), 'the first run does not carry the old admins over');
+    ok(/create trigger reports_notify_admins after insert on public\.reports/.test(sql), 'new reports no longer reach the admins');
+  });
+
+  it('the site asks the server, and asks again before opening the panel', () => {
+    const sb = read('js/sb.js');
+    ok(/let _isAdmin = false;/.test(sb) && /function isAdmin\(\) \{ return !!currentUser && _isAdmin; \}/.test(sb), 'isAdmin() is not the server flag');
+    ok(/sb\.rpc\('is_site_admin'\)/.test(sb), 'the site never asks the server');
+    const open = sb.slice(sb.indexOf('async function openAdminPanel()'), sb.indexOf('async function openAdminPanel()') + 400);
+    ok(/if \(!\(await loadAdminFlag\(\)\)\)/.test(open), 'the panel opens on the cached flag alone');
+    ok(/_isAdmin  = false;/.test(sb), 'an account change keeps the last account\'s admin flag');
+    ok(!/from\('notifications'\)\.insert/.test(read('js/reports.js')), 'reports.js still rings the admins itself');
   });
 });
 
