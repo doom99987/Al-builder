@@ -88,12 +88,18 @@
   }
 
   // The site's own ping simulator (js/core.js) swallows a QTE key and re-fires
-  // a copy _albPing ms later, marked with _albSynthetic. That copy is not a
-  // second press: this guard already saw and measured the real key on its way
-  // out — window capture runs before core.js's document-level listener. Without
-  // this, switching the ping bar on blocked every key AND flagged the player as
-  // a macro, which silently withheld their scores for the next two minutes.
-  function isDelayedCopy(e) { return !!(e && e._albSynthetic); }
+  // a copy _albPing ms later. That copy is not a second press: this guard
+  // already saw and measured the real key on its way out — window capture runs
+  // before core.js's document-level listener. Without this, switching the ping
+  // bar on blocked every key AND flagged the player as a macro, which silently
+  // withheld their scores for the next two minutes.
+  //
+  // core.js remembers its copies in a private WeakSet; the check is taken once,
+  // here, at load, so replacing window._albIsPingCopy later changes nothing.
+  // (It used to be an _albSynthetic property, which any script could set on
+  // its own events to walk straight past this guard.)
+  const isPingCopy = typeof window._albIsPingCopy === 'function' ? window._albIsPingCopy : () => false;
+  function isDelayedCopy(e) { return !!e && isPingCopy(e); }
 
   function onKeyDown(e) {
     if (!qteContextActive()) return;

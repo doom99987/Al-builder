@@ -186,9 +186,15 @@ window._toggleQteMode = function () {
     return !!document.querySelector('#page-qte.active');
   }
 
+  // The copies this file made. Kept here, not as a property on the event: a
+  // property anyone could set on an event of their own (the old _albSynthetic
+  // flag) let a script's keys through js/qte-guard.js as "delayed copies".
+  const copies = new WeakSet();
+  window._albIsPingCopy = e => copies.has(e);
+
   // Stops the real event, waits _albPing ms, then re-dispatches a synthetic copy.
   function intercept(type, e) {
-    if (e._albSynthetic) return; // already delayed — let it through
+    if (copies.has(e)) return; // already delayed — let it through
     const ping = window._albPing || 0;
     if (ping <= 0 || !isQteActive()) return;
     if (!QTE_KEYS.has(e.code) && !['w','a','s','d','W','A','S','D'].includes(e.key)) return;
@@ -198,9 +204,10 @@ window._toggleQteMode = function () {
       const ev = new KeyboardEvent(type, {
         key: e.key, code: e.code, keyCode: e.keyCode, which: e.which,
         shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey,
+        repeat: e.repeat,   // a held key's auto-repeat must stay a repeat after the delay
         bubbles: true, cancelable: true
       });
-      ev._albSynthetic = true;
+      copies.add(ev);
       document.dispatchEvent(ev);
     }, ping);
   }
@@ -209,18 +216,11 @@ window._toggleQteMode = function () {
   document.addEventListener('keyup',   e => intercept('keyup',   e), true);
 })();
 
-// § QTE LB HOOK
-// Intercepts every localStorage.setItem call so that when a QTE highscore key
-// (pattern "alb:<trainer>-hs") is written, the score is also submitted to the
-// online leaderboard via window._sbSubmitScore if available.
-(function () {
-  const _origSet = Storage.prototype.setItem;
-  Storage.prototype.setItem = function (key, value) {
-    _origSet.call(this, key, value);
-    const m = key.match(/^alb:([a-z]+)-hs$/);
-    if (m && window._sbSubmitScore) window._sbSubmitScore(m[1], parseInt(value, 10));
-  };
-})();
+// § QTE LB HOOK (removed)
+// This used to wrap localStorage.setItem and submit a casual trainer's score a
+// second time whenever its "alb:<trainer>-hs" key was written. Every trainer
+// submits its own scores through its run (QteRules.Run, js/qte-rules.js), with
+// the run's ticket and log; a second, log-less submit would only be refused.
 
 // § DMGCALC STATE
 // These globals are declared early because updatePecents() references them before the
