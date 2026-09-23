@@ -599,8 +599,17 @@ grant execute on function public.admin_clear_all_scores(uuid)       to authentic
 grant execute on function public.admin_clear_user_score(uuid, text) to authenticated;
 grant execute on function public.admin_delete_listings(text)        to authenticated;
 grant execute on function public.admin_purge_expired()              to authenticated;
-grant execute on function public.start_qte_session(uuid, text)      to authenticated;
-grant execute on function public.submit_score(uuid, text, integer, text, text, uuid) to authenticated;
+-- The old score path, unless qte-verified-step2.sql has closed it for good
+-- (it marks both functions): re-running this file must not re-open it.
+do $$
+begin
+  if coalesce(obj_description('public.start_qte_session(uuid, text)'::regprocedure, 'pg_proc'), '') not like 'closed by qte-verified-step2%' then
+    grant execute on function public.start_qte_session(uuid, text) to authenticated;
+  end if;
+  if coalesce(obj_description('public.submit_score(uuid, text, integer, text, text, uuid)'::regprocedure, 'pg_proc'), '') not like 'closed by qte-verified-step2%' then
+    grant execute on function public.submit_score(uuid, text, integer, text, text, uuid) to authenticated;
+  end if;
+end $$;
 
 -- is_site_admin must stay executable by anon and authenticated: the RLS
 -- policies on testers (and reports) call it as the request role. It answers

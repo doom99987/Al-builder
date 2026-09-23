@@ -1,0 +1,150 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>QTE harness</title>
+<!--
+  Dev only (excluded from the published site by _config.yml).
+  Plays a REAL trainer from the site with a page bot (tools/qte/bots/<t>.bot.js)
+  and runs the server's check (js/qte-rules.js) on every score the trainer
+  submits, so the log the real code writes is proven to check out.
+
+  Serve the repo root (python -m http.server) and open:
+    /tools/qte/harness.html?t=dagger&comp=0&target=5
+  Results: window.__qteResult (also printed on the page when the bot is done).
+
+  How: this page fetches index.html, drops js/qte-guard.js (it blocks the
+  bot's untrusted events - the guard is not the boundary, the server check
+  is) and the ad/analytics tags, and writes the site into itself.
+-->
+<script>
+(async function () {
+  const q = new URLSearchParams(location.search);
+  const T = q.get('t') || 'dagger';
+  const COMP = q.get('comp') === '1';
+  const TARGET = Math.max(1, parseInt(q.get('target') || '5', 10));
+
+  let html = await (await fetch('../../index.html', { cache: 'no-store' })).text();
+  html = html
+    .replace(/<script[^>]*js\/qte-guard\.js[^>]*><\/script>/, '')
+    .replace(/<script[^>]*(googlesyndication|googletagmanager|adsbygoogle)[^>]*>[\s\S]*?<\/script>/g, '')
+    .replace('<head>', '<head><base href="../../">');
+  html = html.replace('</body>', '<script>(' + runner.toString() + ')(' + JSON.stringify({ T, COMP, TARGET }) + ');<\/script></body>');
+  document.open(); document.write(html); document.close();
+
+  // Runs inside the written document, after the site's own scripts.
+  function runner(cfg) {
+    const results = [];
+    const out = { trainer: cfg.T, comp: cfg.COMP, target: cfg.TARGET, points: null, submits: results, final: null, error: null, done: false };
+    window.__qteResult = out;
+    const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const ctx = {
+      comp: cfg.COMP, target: cfg.TARGET,
+      byId: id => document.getElementById(id),
+      click: el => { if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window })); },
+      key: (key, code, kind) => {
+        const fire = t => document.dispatchEvent(new KeyboardEvent(t, { key, code, bubbles: true, cancelable: true }));
+        if (kind === 'down' || kind === 'press') fire('keydown');
+        if (kind === 'up') fire('keyup');
+        if (kind === 'press') setTimeout(() => fire('keyup'), 50 + Math.random() * 40);
+      },
+      mouse: (type, x, y, el) => {
+        const target = el || document.elementFromPoint(x, y) || document;
+        const init = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0, buttons: /up|click/.test(type) ? 0 : 1 };
+        const ev = type.indexOf('pointer') === 0
+          ? new PointerEvent(type, Object.assign({ pointerId: 1, pointerType: 'mouse', isPrimary: true }, init))
+          : new MouseEvent(type, init);
+        target.dispatchEvent(ev);
+      },
+      sleep,
+      until: async (fn, timeoutMs) => {
+        const t0 = performance.now();
+        while (performance.now() - t0 < (timeoutMs || 10000)) { const v = fn(); if (v) return v; await sleep(8); }
+        return null;
+      },
+      run: () => window.QteRules && QteRules.Run.current,
+      lastEv: code => {
+        const r = window.QteRules && QteRules.Run.current;
+        if (!r) return null;
+        const ev = r.log.ev;
+        for (let i = ev.length - 1; i >= 0; i--) if (ev[i][0] === code) return ev[i];
+        return null;
+      },
+      human: (m, sd) => Math.max(0, m + sd * gauss()),
+      log: (...a) => console.log('[bot]', ...a),
+    };
+
+    // Check every score the trainer submits, exactly as the edge function would.
+    function wrapRuns() {
+      const Q = window.QteRules;
+      const start = Q.Run.start;
+      Q.Run.start = function (type, opts) {
+        const run = start.call(this, type, opts);
+        const submit = run.submit;
+        run.submit = function (score) {
+          const log = JSON.parse(JSON.stringify(run.log));
+          const r = Q.check(type, log, { platform: 'C', claimed: score });
+          results.push({ claimed: score, verdict: r.verdict, proven: r.score, reasons: r.reasons, stats: r.stats, events: log.ev.length });
+          return submit.call(run, score);
+        };
+        return run;
+      };
+    }
+
+    function show() {
+      const pre = document.createElement('pre');
+      pre.id = 'qte-harness-result';
+      pre.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:40vh;overflow:auto;margin:0;padding:8px;background:#000c;color:#9f9;font:12px monospace;z-index:99999';
+      pre.textContent = JSON.stringify(out, null, 1);
+      document.body.appendChild(pre);
+    }
+
+    // A document.write()n page may or may not fire 'load' again; start once
+    // either way.
+    let started = false;
+    const go = () => { if (!started) { started = true; main(); } };
+    if (document.readyState === 'complete') setTimeout(go, 0); else window.addEventListener('load', go);
+    setTimeout(go, 6000);
+
+    async function main() {
+      try {
+        // On a cold cache 'load' can beat the last of the site's scripts here.
+        for (let i = 0; i < 200 && !(window.QteRules && typeof window._toggleQteMode === 'function'
+             && typeof window.switchQteTab === 'function' && typeof window._sbSubmitScore === 'function'); i++) await sleep(100);
+        await sleep(300);
+        if (!window.QteRules) throw new Error('js/qte-rules.js is not loaded');
+        try { localStorage.setItem('alb:qte-selfcheck', '1'); } catch (e) {}
+        if (!!window._qteCompMode !== cfg.COMP) window._toggleQteMode();
+        window.dispatchEvent(new Event('alb-scores-reset'));
+        switchPage('qte');
+        switchQteTab(cfg.T);
+        wrapRuns();
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = 'tools/qte/bots/' + cfg.T + '.bot.js?cb=' + Date.now();
+          s.onload = res; s.onerror = () => rej(new Error('no bot for ' + cfg.T));
+          document.head.appendChild(s);
+        });
+        const bot = window.__qteBots && window.__qteBots[cfg.T];
+        if (typeof bot !== 'function') throw new Error('bot did not register');
+        await sleep(300);
+        const r = await bot(ctx);
+        out.points = r && r.points;
+        await sleep(1500);   // let the last submit and any end-of-run events land
+        const run = window.QteRules.Run.current;
+        if (run) {
+          const log = JSON.parse(JSON.stringify(run.log));
+          const type = cfg.T + (cfg.COMP ? '-comp' : '');
+          // The run's current attempt as it stands (a trainer that restarts by
+          // itself may be on a fresh attempt by now): no claim, just the verdict.
+          const f = window.QteRules.check(type, log, { platform: 'C', claimed: 0 });
+          out.final = { verdict: f.verdict, proven: f.score, reasons: f.reasons, stats: f.stats, events: log.ev.length };
+        }
+      } catch (e) {
+        out.error = String(e && e.stack || e);
+      }
+      out.done = true;
+      show();
+    }
+  }
+})();
+</script>

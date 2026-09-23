@@ -15,7 +15,7 @@
        crossorigin="anonymous"></script>
   <meta property="og:site_name" content="AL Builder">
   <meta property="og:title" content="AL Builder — Arcane Lineage">
-  <meta property="og:description" content="Plan builds, train QTEs, trade, and party up for Arcane Lineage.">
+  <meta property="og:description" content="Plan builds, train QTEs, and climb the leaderboards for Arcane Lineage.">
   <meta property="og:image" content="images/Logo.png">
   <meta name="theme-color" content="#0a0a0a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -53,7 +53,8 @@
   <link rel="stylesheet" href="css/saved-builds.css?v=14">
   <link rel="stylesheet" href="css/trades.css?v=19">
   <link rel="stylesheet" href="css/vl.css?v=11">
-  <link rel="stylesheet" href="css/party.css?v=12">
+  <!-- Trades and LF Party are disabled (2026-09-23)
+  <link rel="stylesheet" href="css/party.css?v=12"> -->
   <link rel="stylesheet" href="css/builds.css?v=6">
   <link rel="stylesheet" href="css/encyclopedia.css?v=7">
   <!-- Matchmaking is disabled (2026-09-11) - restore by uncommenting every block with this marker.
@@ -76,8 +77,10 @@
     <!-- Matchmaking is disabled (2026-09-11)
     <button class="site-nav-btn" data-page="matchmaking">Matchmaking</button> -->
     <button class="site-nav-btn" data-page="leaderboards">Leaderboards</button>
+    <!-- Trades and LF Party are disabled (2026-09-23). To restore: grep this file for "Trades and LF Party are disabled (2026-09-23)", uncomment each
+         block, put 'trades' back in _validPages, and bump SITE_VERSION.
     <button class="site-nav-btn" data-page="trades">Trades</button>
-    <button class="site-nav-btn" data-page="lf-party">Lf Party</button>
+    <button class="site-nav-btn" data-page="lf-party">Lf Party</button> -->
     <button class="site-nav-btn" data-page="encyclopedia">Encyclopedia</button>
     <button class="site-nav-btn" data-page="banks">Banks</button>
   </div>
@@ -99,7 +102,8 @@
     <div class="home-cta-row">
       <button class="home-cta" onclick="switchPage('builder')">Open Builder</button>
       <button class="home-cta home-cta-secondary" onclick="switchPage('qte')">QTE Trainer</button>
-      <button class="home-cta home-cta-trades" onclick="switchPage('trades')">Trades</button>
+      <!-- Trades and LF Party are disabled (2026-09-23)
+      <button class="home-cta home-cta-trades" onclick="switchPage('trades')">Trades</button> -->
     </div>
     <a href="https://discord.gg/n4YxGTwqjC" target="_blank" rel="noopener" class="discord-btn home-discord-btn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:7px;flex-shrink:0"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
@@ -114,6 +118,7 @@
       <span class="home-stat-label">Players</span>
     </div>
     <div class="home-stat-divider"></div>
+    <!-- Trades and LF Party are disabled (2026-09-23)
     <div class="home-stat">
       <span class="home-stat-num" id="stat-listings">—</span>
       <span class="home-stat-label">Active Listings</span>
@@ -124,6 +129,7 @@
       <span class="home-stat-label">Open Parties</span>
     </div>
     <div class="home-stat-divider"></div>
+    -->
     <div class="home-stat">
       <span class="home-stat-num" id="stat-online"><span class="home-stat-dot"></span>—</span>
       <span class="home-stat-label">Online Now</span>
@@ -174,6 +180,7 @@
       </div>
       -->
 
+      <!-- Trades and LF Party are disabled (2026-09-23)
       <div class="home-nav-card hnc-trades" role="button" tabindex="0" onclick="switchPage('trades')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">◈</div>
         <div class="home-nav-info">
@@ -200,6 +207,7 @@
         </div>
         <div class="home-nav-arrow">›</div>
       </div>
+      -->
 
       <div class="home-nav-card hnc-lb" role="button" tabindex="0" onclick="switchPage('leaderboards')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}">
         <div class="home-nav-icon">◆</div>
@@ -295,7 +303,7 @@
             <span class="home-step-num">1</span>
             <div>
               <div class="home-step-title">Create an account</div>
-              <div class="home-step-body">Hit Register in the top-right. A username unlocks saving builds, leaderboards, trades, and parties.</div>
+              <div class="home-step-body">Hit Register in the top-right. A username unlocks saving builds and the leaderboards.</div>
             </div>
           </li>
           <li>
@@ -312,6 +320,7 @@
               <div class="home-step-body">Head to QTE Trainer and practice your weapon's mini-game. Set your ping offset for accurate simulation.</div>
             </div>
           </li>
+          <!-- Trades and LF Party are disabled (2026-09-23)
           <li>
             <span class="home-step-num">4</span>
             <div>
@@ -319,6 +328,7 @@
               <div class="home-step-body">Browse the market, post listings for items you need, and find a party to take on bosses together.</div>
             </div>
           </li>
+          -->
         </ol>
       </div>
 
@@ -588,7 +598,7 @@
 </div>
 -->
 
-<!-- Trades page -->
+<!-- Trades and LF Party are disabled (2026-09-23): the Trades page, the LF Party page and the party chat panel.
 <div id="page-trades" class="site-page">
 
   <div class="trd-wrap">
@@ -609,7 +619,7 @@
       <div class="trd-state">Select a tab to load listings.</div>
     </div>
 
-    <!-- Value List tab content -->
+    [Value List tab content]
     <div id="trd-vl" style="display:none">
       <div class="vl-header">
         <input class="vl-search" id="vl-search" type="text" placeholder="Search items…" oninput="window._vlSearch(this.value)" autocomplete="off">
@@ -621,7 +631,7 @@
   </div>
 </div>
 
-<!-- Lf Party page -->
+[Lf Party page]
 <div id="page-lf-party" class="site-page">
   <div class="party-wrap">
     <div class="party-header">
@@ -638,7 +648,7 @@
   </div>
 </div>
 
-<!-- Party detail panel (overlay) -->
+[Party detail panel (overlay)]
 <div id="party-overlay" class="party-overlay" style="display:none">
   <div class="party-panel">
     <div class="party-panel-hdr">
@@ -657,6 +667,7 @@
     <button class="party-leave-btn" id="party-leave-btn" onclick="window._partyLeave()">Leave Party</button>
   </div>
 </div>
+-->
 
 <!-- Notification panel (fixed dropdown, positioned by JS) -->
 <div id="notif-panel">
@@ -1558,7 +1569,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=116"></script>
+<script src="js/sb.js?v=117"></script>
 <script src="js/reports.js?v=6"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
@@ -1576,10 +1587,12 @@
 <script src="js/move-renderer.js?v=13"></script>
 <script src="js/builder.js?v=106"></script>
 <script src="js/qte-guard.js?v=3"></script>
-<script src="js/qte.js?v=24"></script>
+<script src="js/qte-rules.js?v=1"></script>
+<script src="js/qte.js?v=25"></script>
 <script src="js/saved-builds.js?v=16"></script>
 <script src="js/trades.js?v=53"></script>
-<script src="js/party.js?v=32"></script>
+<!-- Trades and LF Party are disabled (2026-09-23)
+<script src="js/party.js?v=32"></script> -->
 <script src="js/builds.js?v=7"></script>
 <script src="js/encyclopedia.js?v=15"></script>
 <script src="js/bank.js?v=8"></script>
@@ -1918,6 +1931,7 @@
 </script>
 <script>
   function switchPage(name) {
+    if (!document.getElementById('page-' + name)) name = 'home';
     // Matchmaking is disabled (2026-09-11) - tear down an in-progress match when
     // navigating away from the Matchmaking tab.
     // const _leaving = document.querySelector('.site-page.active')?.id;
@@ -1956,7 +1970,8 @@
   // If a shared build link (?id=...) is in the URL, always go straight to Builder
   const _initPage = location.hash.replace('#', '') || 'home';
   // 'matchmaking' removed - Matchmaking is disabled (2026-09-11); a #matchmaking link lands on Home.
-  const _validPages = ['home', 'builder', 'builds', 'qte', 'leaderboards', 'trades', 'encyclopedia', 'banks'];
+  // 'trades' removed - Trades and LF Party are disabled (2026-09-23); a #trades link lands on Home.
+  const _validPages = ['home', 'builder', 'builds', 'qte', 'leaderboards', 'encyclopedia', 'banks'];
   const _hasSharedBuild = new URLSearchParams(location.search).has('id');
 
   // ── Home page live stats ──────────────────────────────────
@@ -1968,20 +1983,21 @@
     const sb = window._sbClient;
     if (!sb) return;
     try {
-      const [pRes, lRes, paRes] = await Promise.all([
+      // Trades and LF Party are disabled (2026-09-23): the listing and party counts are not fetched.
+      const [pRes /* , lRes, paRes */] = await Promise.all([
         sb.from('profiles').select('*', { count: 'exact', head: true }),
-        sb.from('trade_listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-        sb.from('party_listings').select('*', { count: 'exact', head: true }).eq('status', 'open')
+        // sb.from('trade_listings').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+        // sb.from('party_listings').select('*', { count: 'exact', head: true }).eq('status', 'open')
       ]);
       // 1.2k / 1.2M. The M branch starts at 999,950 because anything above that
       // rounds to "1000.0k", which is the thing the M suffix exists to avoid.
       const fmt = n => n == null ? '—' : n >= 999950 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
       const ps = document.getElementById('stat-players');
-      const ls = document.getElementById('stat-listings');
-      const pas = document.getElementById('stat-parties');
+      // const ls = document.getElementById('stat-listings');
+      // const pas = document.getElementById('stat-parties');
       if (ps)  ps.textContent  = fmt(pRes.count);
-      if (ls)  ls.textContent  = fmt(lRes.count);
-      if (pas) pas.textContent = fmt(paRes.count);
+      // if (ls)  ls.textContent  = fmt(lRes.count);
+      // if (pas) pas.textContent = fmt(paRes.count);
       _homeStatsFetched = true;
     } catch (_) {}
   }
@@ -2112,7 +2128,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-22.3';
+  const SITE_VERSION    = '2026-09-23.1';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {

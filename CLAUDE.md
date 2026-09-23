@@ -57,6 +57,8 @@ Files are internally divided by a header comment, but **the style varies per fil
 
 **Only the site is published.** GitHub Pages runs Jekyll over the repo, and `_config.yml` `exclude:` keeps the SQL, docs, `CLAUDE.md` and the Build AI's dev tooling off the live site. A new file the site loads at runtime must not sit under an excluded path — `tools/ai/test.js` (`site publishing`) checks every `src`/`href` in `index.html` and `html/*.html` plus `ENGINE_FILES` against the list.
 
+**Trades and LF Party are disabled** (2026-09-23, owner request). In `index.html` the two nav buttons, the home hero's Trades button, the Trades / Value List / LF Party home cards, the listings and parties home stats (and their queries), the "Trade and party up" step, both pages, the party chat panel, and the `js/party.js` / `css/party.css` tags are commented out; `switchPage` sends a missing page (an old `#trades` link, an old notification) to Home. `js/trades.js` stays loaded on purpose: it also runs the notification bell, direct messages, chat consent and the site's privacy/terms prompt, and `css/trades.css` styles the Banks item picker. To restore: grep `index.html` for `Trades and LF Party are disabled`, uncomment each block, put `'trades'` back in `_validPages`, and bump `SITE_VERSION`.
+
 **Donations are disabled** (2026-09-22, owner request). In `index.html` the Support / Top Supporters section, its changelog line, the `js/donation.js` script tag and the inline supporters-list loader are commented out; `js/donation.js`, the donation styles in `css/nav.css`, `supabase/donations-privacy.sql` and the two Stripe edge functions are untouched. To restore: grep `index.html` for `Donations are disabled`, uncomment each block, and bump `SITE_VERSION`.
 
 **Matchmaking is disabled** (2026-09-11, owner request). In `index.html` its stylesheet, nav button, home card, page div, script tag and both `switchPage` hooks are commented out, and `'matchmaking'` is out of `_validPages` so `#matchmaking` lands on Home. `js/matchmaking.js`, `css/matchmaking.css`, the SQL and the tests that read those files are untouched and dormant. To restore: grep `index.html` for `Matchmaking is disabled`, uncomment each block, put `'matchmaking'` back in `_validPages`, bump the stamps and `SITE_VERSION` — and run `supabase/matchmaking-return.sql`: `lockdown2.sql` (2026-09-22) revoked every `mm_*` RPC and all writes on `mm_queue` while the feature is off, because with them reachable one account could pair itself against any queued player and claim the win.
@@ -84,22 +86,29 @@ SQL lives in `supabase/*.sql`, but **only some tables are checked in** — `bank
 | `notifications`, `reports` | `reports.js` |
 | `donations` | `donation.js` + `supabase/functions/` (Stripe) |
 
-RPCs: `start_qte_session`, `submit_score`, `mm_create_match`, `mm_apply_result`, `mm_abandon_match`, `soft_delete_conversation`, `delete_own_account`, and the admin ones from `lockdown.sql` — `admin_ban_user`, `admin_perma_ban_user`, `admin_unban_user`, `admin_ban_usernames`, `admin_clear_all_scores`, `admin_clear_user_score`, `admin_delete_listings`, `admin_purge_expired` (the only way to reach `purge_expired_listings`, which is revoked from the API roles).
+RPCs: `start_qte_session`, `submit_score`, `start_qte_run` (a verified run: `{ run, ticket }`, the seed stays in `qte_sessions` - `supabase/qte-verified.sql`; scores for it go through the `bright-service` edge function, which checks the run log with `js/qte-rules.js` and posts via the service-role-only `qte_accept_run`), `mm_create_match`, `mm_apply_result`, `mm_abandon_match`, `soft_delete_conversation`, `delete_own_account`, and the admin ones from `lockdown.sql` — `admin_ban_user`, `admin_perma_ban_user`, `admin_unban_user`, `admin_ban_usernames`, `admin_clear_all_scores`, `admin_clear_user_score`, `admin_delete_listings`, `admin_purge_expired` (the only way to reach `purge_expired_listings`, which is revoked from the API roles).
 
 ## QTE trainers
 
 Twelve trainers, all in `js/qte.js`, one IIFE each. `thorian-new`, `dagger-new`, and `yarthul-new` are the "New" tab group; the rest are "Old".
 
-**Submission is a queue, not a fire-and-forget call.** Trainers call `_sbSubmitScore` on *every* new high of a run (streak 1, 2, 3 …). `submitScore` ([sb.js](js/sb.js)) keeps one send in flight per `qteType` carrying the highest score so far, treats a score as sent only once the server accepts it, and retries (`SCORE_RETRY_MS`) anything that fails or that arrives before a session is armed. Never restore the old shape — one unordered RPC per new high, with a score marked as sent before the server saw it, is how a run that reached 31 left the board holding 2.
+**Submission is a queue, not a fire-and-forget call.** Trainers call `run.submit(v)` (which calls `_sbSubmitScore(type, v, packet)`) on *every* new high of a run (streak 1, 2, 3 …). `submitScore` ([sb.js](js/sb.js)) keeps one send in flight per `qteType` carrying the highest score so far, treats a score as sent only once the server accepts it, and retries (`SCORE_RETRY_MS`) anything that fails or that arrives before a session is armed. Never restore the old shape — one unordered RPC per new high, with a score marked as sent before the server saw it, is how a run that reached 31 left the board holding 2.
 
-Every trainer must still call `_sbStartQteSession(type)` at the top of its start function, with the **same** type string it later submits, comp suffix included: the server times the session from that call. Trainers do not await it — `submitScore` waits on the same promise when a score beats it.
+**Verified runs** (owner's design, 2026-09-22). A score counts only with a run the server started and a log that passes that trainer's check:
+- Start: `QteRules.Run.start(type)` ([qte-rules.js](js/qte-rules.js)) asks `start_qte_run` for `{ run, ticket }` — the ticket is an HMAC under a secret seed that never leaves `qte_sessions`. The trainer does not wait for it.
+- Play: the trainer logs every target as it is created and every input as it is judged (`run.ev(code, ...)`), plus `P`/`U`/`E`. The browser still picks its own targets, so the checks are about how the run was played.
+- Submit: `sb.js` sends ticket + log to the `bright-service` edge function, which runs `QteRules.check` and hands the verdict to `qte_accept_run` (service_role only): invalid → rejected; too accurate / too fast / too lucky, or far above the record → held (`score_reviews`); otherwise posted by itself. Re-sends of a growing log are spaced by `VERIFIED_GAP_MS`.
+- One rules file, two places: `js/qte-rules.js` = the core, then one `// ==== qte-rules part: <id> ====` section per trainer; `supabase/functions/_shared/qte-rules.js` must be byte-identical (a test checks) and the function redeployed after any change (`supabase functions deploy bright-service`). Bump `RULES_VER` when a check changes what it accepts.
+- Each trainer has its own suite: `node tools/qte/tests/<id>.test.js` (honest-player simulation, forgeries, the real IIFE in a fake DOM); `tools/ai/test.js` runs all twelve. `tools/qte/harness.html?t=<id>&comp=0&target=5` plays the real page with `tools/qte/bots/<id>.bot.js` and checks every submit — it needs real animation frames (a visible tab, or headless Chrome), and `tools/qte/notes/<id>.md` records each check's thresholds and known limits.
+- Changing a trainer's gameplay means changing its check in the same commit; a log the check rejects is a lost score. Runbook and SQL: `supabase/qte-verified.sql`, then deploy `bright-service`, push, then `qte-verified-step2.sql` (closes the old `submit_score`).
 
 ### Adding a trainer — every touchpoint
 
 Missing any one of these fails quietly:
 
 1. `index.html` — tab button in `#qte-group-old`/`#qte-group-new`, panel `#qte-panel-<id>`, and two hook lines in `switchQteTab`
-2. `js/qte.js` — the IIFE, including `_sbStartQteSession('<id>' + (window._qteCompMode ? '-comp' : ''))`
+2. `js/qte.js` — the IIFE, starting a run with `QteRules.Run.start('<id>' + (comp ? '-comp' : ''))`, logging its targets and inputs, submitting with `run.submit(v)`
+2b. `js/qte-rules.js` — a `// ==== qte-rules part: <id> ====` section registering its `check`, copied to `supabase/functions/_shared/`; a suite in `tools/qte/tests/`, a bot in `tools/qte/bots/`, and an entry in `tools/qte/tests/_heads.json`
 3. `css/qte.css` — panel styles; `css/mobile.css` for any touch controls
 4. `js/sb.js` — add the id to `QTE_TYPES`, `_ALL_QTE_TYPES` (both plain and `-comp`), and a `QTE_LABELS` entry if the label differs from the id
 5. `js/matchmaking.js` — an entry in `QTES` with `{ id, label, group, hook }`
@@ -112,7 +121,7 @@ Shared trainer contract: separate casual/competitive bests (`alb:<id>-hs` / `-hs
 - **`core.js` ping sim** intercepts QTE keys in the capture phase and re-dispatches them after `window._albPing` ms.
 - **`qte-guard.js`** inspects the same events for macro signatures (synthetic, robotic rhythm, impossible burst, identical hold times) and withholds leaderboard submissions while flagged.
 
-Both work on any trainer that listens for real `keydown`/`keyup` on `document`. A consequence worth knowing: **synthetic `KeyboardEvent`s are blocked by design**, so trainer input cannot be tested programmatically — it needs a human at a keyboard. The one exception is the ping simulator's own delayed copy, which carries `_albSynthetic`: the guard ignores those (it already measured the real key on the way out), because otherwise switching the ping bar on blocked every key *and* withheld the player's scores for two minutes.
+Both work on any trainer that listens for real `keydown`/`keyup` on `document`. A consequence worth knowing: **synthetic `KeyboardEvent`s are blocked by design** — which is why `tools/qte/harness.html` drops `qte-guard.js` to let its bots play (the guard is not the boundary; the server's check is). The one exception is the ping simulator's own delayed copy, which core.js remembers in a private WeakSet (`window._albIsPingCopy`, taken once by the guard at load): the guard ignores those (it already measured the real key on the way out), because otherwise switching the ping bar on blocked every key *and* withheld the player's scores for two minutes.
 
 ## Game data — where content lives
 

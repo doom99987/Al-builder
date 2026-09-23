@@ -26,3 +26,4 @@ exclude:
   - tools/ai/extract-data.js
   - tools/ai/golden
   - tools/ai/audit
+  - tools/qte
