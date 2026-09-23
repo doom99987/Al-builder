@@ -6360,8 +6360,8 @@ describe('cache busting', () => {
     const sb = readRoot('js/sb.js');
     const at = sb.indexOf('function submitScore(');
     ok(at !== -1, 'submitScore not found');
-    const body = sb.slice(at, at + 700);
-    ok(body.indexOf('if (score <= (_pending[qteType] || 0))') !== -1,
+    const body = sb.slice(at, at + 900);
+    ok(body.indexOf('if (score <= (_pending[qteType] || 0) && !(hasLog && !pendingHasLog)) return Promise.resolve(false);') !== -1,
        'submitScore no longer drops the duplicate high');
     ok(body.indexOf('if (score <= (_confirmed[qteType] || 0))') !== -1,
        'submitScore no longer skips a score the server already holds');
@@ -8858,7 +8858,7 @@ describe('QTE score submission', () => {
   const tick = async (n = 6) => { for (let i = 0; i < n; i++) await new Promise(r => setImmediate(r)); };
 
   // The submission pipeline on its own: real code, stub client, stub timers.
-  // invokeImpl: the qte-submit edge function (verified runs); absent = the
+  // invokeImpl: the bright-service edge function (verified runs); absent = the
   // legacy tests, which never reach it.
   const mkPipe = (rpcImpl, invokeImpl) => {
     const calls = [];
@@ -8877,23 +8877,31 @@ describe('QTE score submission', () => {
     ok(refusals, 'sb.js has no SCORE_REFUSALS');
     const ticketMs = /const TICKET_TIMEOUT_MS = (\d+);/.exec(src);
     ok(ticketMs, 'sb.js has no TICKET_TIMEOUT_MS');
+    const gapMs = /const VERIFIED_GAP_MS = (\d+);/.exec(src);
+    ok(gapMs, 'sb.js has no VERIFIED_GAP_MS');
     const api = new Function('sb', 'currentUser', 'PLATFORM', 'currentMonth', 'setTimeout', 'clearTimeout', 'console', 'scoreToast',
-      'const _sessionIds = {}, _arming = {}, _pending = {}, _packet = {}, _confirmed = {}, _posted = {}, _sending = {},' +
-      ' _retryN = {}, _retryT = {}, _heldToldAt = {}, _lowerToldAt = {};\n' +
+      'const _sessionIds = {}, _arming = {}, _pending = {}, _packet = {}, _fallback = {}, _confirmed = {}, _sending = {}, _forceNext = {},' +
+      ' _retryN = {}, _retryT = {}, _heldToldAt = {}, _lowerToldAt = {}, _refusedToldAt = {}, _lastSentAt = {}, _gapT = {};\n' +
+      'let _scoreGen = 0;\n' +
       'const SCORE_RETRY_MS = ' + retryMs[1] + ';\n' +
       'const SCORE_REFUSALS = ' + refusals[1] + ';\n' +
       'const TICKET_TIMEOUT_MS = ' + ticketMs[1] + ';\n' +
+      'const VERIFIED_GAP_MS = ' + gapMs[1] + ';\n' +
       siteFn('startQteSession') + '\n' + siteFn('startQteRun') + '\n' + siteFn('isMissingFunction') + '\n' +
       siteFn('submitScore') + '\n' + siteFn('pumpScore') + '\n' +
       siteFn('sendScore') + '\n' + siteFn('sendVerified') + '\n' + siteFn('sendLegacy') + '\n' + siteFn('scheduleScoreRetry') + '\n' +
-      'return { submitScore, startQteSession, startQteRun, state: () => ({ pending: Object.assign({}, _pending), ' +
+      siteFn('tellOnce') + '\n' + siteFn('flushScore') + '\n' +
+      'function resetScoreState() { _scoreGen++; Object.keys(_sending).forEach(k => delete _sending[k]); Object.keys(_pending).forEach(k => delete _pending[k]); Object.keys(_confirmed).forEach(k => delete _confirmed[k]); }\n' +
+      'return { submitScore, startQteSession, startQteRun, flushScore, resetScoreState, state: () => ({ pending: Object.assign({}, _pending), ' +
       'confirmed: Object.assign({}, _confirmed), sessions: Object.assign({}, _sessionIds) }) };'
     )(sb, { id: 'u1' }, 'C', () => '2026-09',
       (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, () => {},
       { log() {}, warn() {}, error() {} }, (m) => toasts.push(m));
     return { api, calls, timers, toasts, invokes, scores: () => calls.filter(c => c.name === 'submit_score').map(c => c.score),
-             retries: () => timers.filter(t => t.ms !== Number(ticketMs[1])) };
+             retries: () => timers.filter(t => t.ms !== Number(ticketMs[1]) && t.ms > 0 && SCORE_RETRY_MS_SET.has(t.ms)),
+             gaps: () => timers.filter(t => t.ms !== Number(ticketMs[1]) && !SCORE_RETRY_MS_SET.has(t.ms)) };
   };
+  const SCORE_RETRY_MS_SET = new Set(JSON.parse(/const SCORE_RETRY_MS = (\[[^\]]*\]);/.exec(src)[1]));
   // A deployment that still returns void: data is null, which must read as 'ok'.
   const okRpc = async (name) => ({ data: name === 'start_qte_session' ? 'sess-' + name : null, error: null });
   const statusRpc = (status) => async (name) =>
@@ -9022,7 +9030,7 @@ describe('QTE score submission', () => {
     eq(p.api.state().confirmed['spear'], 12, 'the old void-returning server broke the client');
   });
 
-  // ── verified runs (supabase/qte-verified.sql + the qte-submit function) ──
+  // ── verified runs (supabase/qte-verified.sql + the bright-service function) ──
   const TICKET = { run: '11111111-2222-3333-4444-555555555555', ticket: 'ab'.repeat(32) };
   const runRpc = async (name) => name === 'start_qte_run' ? { data: TICKET, error: null }
                                 : name === 'start_qte_session' ? { data: 'sess-1', error: null } : { data: 'ok', error: null };
@@ -9033,9 +9041,9 @@ describe('QTE score submission', () => {
     const pk = packetFor(p, 'dagger', 9);
     await p.api.submitScore('dagger', 9, pk);
     await tick(20);
-    eq(p.invokes.length, 1, 'the score did not go to qte-submit');
+    eq(p.invokes.length, 1, 'the score did not go to bright-service');
     const b = p.invokes[0].body;
-    ok(p.invokes[0].name === 'qte-submit' && b.run === TICKET.run && b.ticket === TICKET.ticket && b.score === 9
+    ok(p.invokes[0].name === 'bright-service' && b.run === TICKET.run && b.ticket === TICKET.ticket && b.score === 9
        && b.qte_type === 'dagger' && b.platform === 'C' && b.log === pk.log, 'the body does not carry the ticket, score and log');
     ok(!('seed' in b) && !('user_id' in b), 'the body carries a seed or a user id');
     eq(p.scores().length, 0, 'a verified run also went through submit_score');
@@ -9083,7 +9091,7 @@ describe('QTE score submission', () => {
     const p2 = mkPipe(runRpc, async () => ({ data: null, error: { message: 'not found', context: { status: 404 } } }));
     await p2.api.submitScore('dagger', 6, packetFor(p2, 'dagger', 6));
     await tick(20);
-    ok(p2.calls.some(c => c.name === 'submit_score' && c.session === TICKET.run), 'a 404 from qte-submit lost the score');
+    ok(p2.calls.some(c => c.name === 'submit_score' && c.session === TICKET.run), 'a 404 from bright-service lost the score');
   });
 
   itAsync('a transport error on a verified run is retried with the same ticket and a longer log wins', async () => {
@@ -9103,12 +9111,107 @@ describe('QTE score submission', () => {
     eq(p.calls.filter(c => c.name === 'start_qte_run').length, 1, 'the retry asked for a second ticket');
   });
 
-  it('a local best the server never took is re-submitted, not deleted', () => {
+  itAsync('after an accepted send, a run waits before re-sending its growing log, then sends the best by then', async () => {
+    const p = mkPipe(runRpc, async (name, body) => ({ data: { status: 'ok', score: body.score }, error: null }));
+    const t = p.api.startQteRun('dagger');
+    p.api.submitScore('dagger', 1, { ticket: t, attempt: 0, log: { ev: [1] } });
+    await tick(20);
+    for (let s = 2; s <= 6; s++) p.api.submitScore('dagger', s, { ticket: t, attempt: 0, log: { ev: Array(s).fill(1) } });
+    await tick(20);
+    eq(p.invokes.length, 1, 'every new high went straight out with the whole log');
+    const gap = p.gaps();
+    ok(gap.length === 1 && gap[0].ms > 0 && gap[0].ms <= 5000, 'no single, short wait was scheduled: ' + JSON.stringify(gap.map(g => g.ms)));
+    gap[0].fn();
+    await tick(20);
+    eq(p.invokes.length, 2, 'the waiting send never went out');
+    eq(p.invokes[1].body.score, 6, 'the waiting send did not carry the best by then');
+    eq(p.api.state().confirmed['dagger'], 6, 'the best was not stored');
+  });
+
+  itAsync('the end of a run, and a run closing, send at once instead of waiting out the gap', async () => {
+    const p = mkPipe(runRpc, async (name, body) => ({ data: { status: 'ok', score: body.score }, error: null }));
+    const t = p.api.startQteRun('dagger');
+    p.api.submitScore('dagger', 1, { ticket: t, attempt: 0, log: { ev: [1] } });
+    await tick(20);
+    p.api.submitScore('dagger', 2, { ticket: t, attempt: 0, log: { ev: [1, 2] }, final: true });
+    await tick(20);
+    eq(p.invokes.length, 2, 'the last score of a run waited for the gap');
+    p.api.submitScore('dagger', 3, { ticket: t, attempt: 0, log: { ev: [1, 2, 3] } });
+    await tick(20);
+    eq(p.invokes.length, 2, 'a mid-run high skipped the gap');
+    p.api.flushScore('dagger');
+    await tick(20);
+    eq(p.invokes.length, 3, 'closing the run did not send its held score');
+  });
+
+  itAsync('a ticket still on its way is waited for later, not given up on', async () => {
+    let release;
+    const p = mkPipe(async (name) => name === 'start_qte_run'
+      ? new Promise(r => { release = () => r({ data: TICKET, error: null }); }) : { data: 'ok', error: null },
+      async (name, body) => ({ data: { status: 'ok', score: body.score }, error: null }));
+    const t = p.api.startQteRun('dagger');
+    p.api.submitScore('dagger', 4, { ticket: t, attempt: 0, log: { ev: [1] } });
+    await tick(5);
+    const wait = p.timers.find(x => x.ms === 10000);
+    ok(wait, 'no ticket wait was scheduled');
+    wait.fn();                         // ten seconds pass with no answer
+    await tick(20);
+    eq(p.invokes.length, 0, 'a score was sent without its ticket');
+    ok(p.retries().length === 1 && p.toasts.length === 0, 'a slow start was refused instead of retried');
+    release();
+    p.retries()[0].fn();
+    await tick(20);
+    eq(p.invokes.length, 1, 'the score did not go once the ticket came');
+    eq(p.api.state().confirmed['dagger'], 4, 'the late ticket lost the score');
+  });
+
+  itAsync('a refused run falls back to an earlier run\'s lower score, and a stale answer after sign-out is ignored', async () => {
+    const T1 = Promise.resolve({ run: TICKET.run, ticket: 'a1'.repeat(32) }), T2 = Promise.resolve({ run: TICKET.run, ticket: 'b2'.repeat(32) });
+    const p = mkPipe(runRpc, async (name, body) => body.ticket === 'b2'.repeat(32)
+      ? { data: { status: 'rejected' }, error: null } : { data: { status: 'ok', score: body.score }, error: null });
+    p.api.submitScore('dagger', 9, { ticket: T1, attempt: 0, log: { ev: [1] } });
+    await tick(20);                                              // run 1's 9 is stored
+    p.api.submitScore('dagger', 10, { ticket: T1, attempt: 0, log: { ev: [1, 2] } });   // held by the gap
+    await tick(20);
+    p.api.submitScore('dagger', 11, { ticket: T2, attempt: 0, log: { ev: [7] }, final: true });  // run 2, refused
+    await tick(40);
+    eq(p.api.state().confirmed['dagger'], 10, 'run 1\'s 10 was thrown away when run 2\'s 11 was refused');
+    // A send that returns after the account changed must not touch the new account's state.
+    let answer;
+    const q = mkPipe(runRpc, () => new Promise(r => { answer = () => r({ data: { status: 'ok', score: 15 }, error: null }); }));
+    q.api.submitScore('dagger', 15, { ticket: q.api.startQteRun('dagger'), attempt: 0, log: { ev: [1] } });
+    await tick(20);
+    q.api.resetScoreState();
+    answer();
+    await tick(20);
+    eq(q.api.state().confirmed['dagger'], undefined, 'the last account\'s answer landed in the new account\'s state');
+  });
+
+  itAsync('a score with its run log replaces one without, and a run\'s own expired session is not retried forever', async () => {
+    // After step 2 the old path answers "permission denied": a packetless score is stuck.
+    const p = mkPipe(async (name) => name === 'start_qte_run' ? { data: TICKET, error: null }
+      : name === 'start_qte_session' ? { data: 'sess-1', error: null } : { data: null, error: { message: 'permission denied' } },
+      async (name, body) => ({ data: { status: 'ok', score: body.score }, error: null }));
+    p.api.submitScore('dagger', 12);                 // an old packetless score, stuck
+    await tick(20);
+    const before = p.invokes.length;
+    p.api.submitScore('dagger', 5, { ticket: p.api.startQteRun('dagger'), attempt: 0, log: { ev: [1] } });
+    await tick(20);
+    eq(p.invokes.length, before + 1, 'a verified score was blocked by a packetless one');
+    const q = mkPipe(async (name) => name === 'start_qte_run' ? { data: { legacy: 'x' }, error: null }
+      : name === 'submit_score' ? { data: 'no_session', error: null } : { data: 'sess', error: null });
+    q.api.submitScore('dagger', 3, { ticket: Promise.resolve({ legacy: 'sess-old' }), attempt: 0, log: { ev: [1] } });
+    await tick(20);
+    eq(q.retries().length, 0, 'an expired run session was retried');
+    eq(Object.keys(q.api.state().pending).length, 0, 'the dead score still blocks the queue');
+  });
+
+  // A local best has no run log left to send, so it is never re-sent (that
+  // went round the verified path); it is cleared so new highs submit again.
+  it('a local best the server does not hold is cleared, never re-sent without its run log', () => {
     const body = siteFn('reconcileServerScores');
-    ok(body.indexOf('submitScore(') !== -1, 'reconcileServerScores no longer re-submits local bests');
-    const wipeAt = body.indexOf("new Event('alb-scores-reset')");
-    ok(wipeAt !== -1, 'the reset fallback is gone - a local best the server refuses would gate every later run');
-    ok(body.indexOf('submitScore(') < wipeAt, 'the local bests are wiped before they are re-submitted');
+    ok(body.indexOf('submitScore(') === -1, 'reconcileServerScores sends a local best with no run log');
+    ok(body.indexOf("new Event('alb-scores-reset')") !== -1, 'a local best the server does not hold would gate every later run');
   });
 
   it('a player with a PC and a mobile row is still given a rank', () => {
@@ -9913,6 +10016,22 @@ describe('owner requests on the published pages', () => {
     ok(/Donations are disabled/.test(fs.readFileSync(path.join(root, 'index.html'), 'utf8')), 'the disabled blocks lost their restore marker');
   });
 
+  // Owner, 2026-09-23: Trades and LF Party are off. trades.js stays: it also
+  // runs the notification bell, DMs, chat consent and the site consent prompt.
+  it('the home page has no Trades or LF Party section, and a link to one lands on Home', () => {
+    const raw = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const page = live(raw);
+    for (const bit of ['data-page="trades"', 'data-page="lf-party"', "switchPage('trades')", "switchPage('lf-party')",
+                       'id="page-trades"', 'id="page-lf-party"', 'id="party-overlay"', 'js/party.js', 'css/party.css',
+                       'id="stat-listings"', 'id="stat-parties"'])
+      ok(page.indexOf(bit) === -1, bit + ' is still live on the page');
+    ok(!/^\s*sb\.from\('(trade|party)_listings'\)/m.test(page), 'the home stats still query trade or party listings');
+    ok((raw.match(/Trades and LF Party are disabled/g) || []).length >= 6, 'the disabled blocks lost their restore marker');
+    ok(/<script src="js\/trades\.js\?v=\d+"><\/script>/.test(page), 'trades.js was unloaded - the notification bell, DMs and the consent prompt go with it');
+    ok(/function switchPage\(name\) \{\s+if \(!document\.getElementById\('page-' \+ name\)\) name = 'home';/.test(page), 'a link to a disabled page throws instead of landing on Home');
+    ok(!/_validPages = \[[^\]]*'trades'/.test(page), '#trades is still a page the site opens on load');
+  });
+
   // By SHAPE, never by value: this file is public too, so it must not carry
   // the details it keeps off the pages. Any phone-number-shaped or
   // street-address-shaped text on a published page fails, bar the public
@@ -9987,6 +10106,105 @@ describe('admins are decided by the server', () => {
     ok(/if \(!\(await loadAdminFlag\(\)\)\)/.test(open), 'the panel opens on the cached flag alone');
     ok(/_isAdmin  = false;/.test(sb), 'an account change keeps the last account\'s admin flag');
     ok(!/from\('notifications'\)\.insert/.test(read('js/reports.js')), 'reports.js still rings the admins itself');
+  });
+});
+
+// Owner, 2026-09-22: a score counts only if it comes from a run the server
+// started (a ticket signed with a secret seed the browser never sees) and a
+// log that passes the trainer's check. js/qte-rules.js is that check; the
+// bright-service edge function runs a byte-identical copy of it.
+describe('verified QTE runs', () => {
+  const root = path.join(__dirname, '..', '..');
+  const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+  const TRAINERS = ['fist', 'spear', 'sword', 'dodge', 'dagger', 'hammer', 'axe', 'staff', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new'];
+
+  it('the edge function checks runs with the same rules file the site loads', () => {
+    ok(fs.readFileSync(path.join(root, 'js', 'qte-rules.js')).equals(fs.readFileSync(path.join(root, 'supabase', 'functions', '_shared', 'qte-rules.js'))),
+       'supabase/functions/_shared/qte-rules.js differs from js/qte-rules.js - copy it over (and redeploy bright-service)');
+    const html = read('index.html');
+    const at = n => html.indexOf('js/' + n + '?v=');
+    ok(at('sb.js') !== -1 && at('sb.js') < at('qte-rules.js') && at('qte-rules.js') < at('qte.js'),
+       'index.html must load js/qte-rules.js after sb.js and before qte.js');
+  });
+
+  it('every trainer starts a run and submits through it, and has a check that refuses an empty claim', () => {
+    const qte = read('js/qte.js');
+    ok(!/_sbStartQteSession|_sbSubmitScore/.test(qte), 'a trainer still starts or submits the old way, with no run log');
+    ok((qte.match(/\bQ(teRules|R)\.Run\.start\(/g) || []).length >= TRAINERS.length, 'not every trainer starts a QteRules run');
+    const Q = require(path.join(root, 'js', 'qte-rules.js'));
+    for (const t of TRAINERS) {
+      ok(Q.trainers[t] && typeof Q.trainers[t].check === 'function', 'no check for ' + t);
+      for (const type of [t, t + '-comp']) {
+        const r = Q.check(type, { v: 1, rv: Q.RULES_VER, type, a: 0, env: {}, ev: [] }, { platform: 'C', claimed: 5 });
+        eq(r.score, 0, type + ': a claim with no events behind it proves points');
+      }
+    }
+  });
+
+  itAsync("each trainer's own suite passes (honest players valid, forgeries refused)", async () => {
+    const { execFile } = require('child_process');
+    const dir = path.join(root, 'tools', 'qte', 'tests');
+    const files = fs.readdirSync(dir).filter(f => f.endsWith('.test.js'));
+    for (const t of TRAINERS) ok(files.includes(t + '.test.js'), 'no suite for ' + t);
+    const runs = files.map(f => new Promise(res => execFile(process.execPath, [path.join(dir, f)], { timeout: 600000, maxBuffer: 1 << 26 },
+      (err, stdout, stderr) => res({ f, err, out: String(stdout) + String(stderr) }))));
+    for (const r of await Promise.all(runs)) ok(!r.err, 'tools/qte/tests/' + r.f + ' failed:\n' + r.out.slice(-1500));
+  });
+
+  it('the seed stays in the database, and only the edge function can post a run', () => {
+    const sql = read('supabase/qte-verified.sql');
+    const step2Pre = read('supabase/qte-verified-step2.sql');
+    const start = sql.slice(sql.indexOf('create or replace function public.start_qte_run('), sql.indexOf('grant execute on function public.start_qte_run(text)'));
+    ok(/v_seed := encode\(extensions\.gen_random_bytes\(32\), 'hex'\);/.test(start), 'the seed is not 32 random bytes from the server');
+    ok(/return jsonb_build_object\('run', v_id, 'ticket', public\.qte_ticket\(v_id, v_user, p_qte_type, v_seed\)\);/.test(start)
+       && !/'seed'/.test(start), 'start_qte_run hands out more than the run and its ticket');
+    ok(/extensions\.hmac\(p_run::text \|\| ':' \|\| p_user::text \|\| ':' \|\| p_type, p_seed, 'sha256'\)/.test(sql), 'the ticket is not an HMAC of run, user and trainer under the seed');
+    for (const fn of ['qte_accept_run(uuid, uuid, text, text, text, integer, integer, integer, bigint, text, jsonb, jsonb, jsonb, integer, text, integer)',
+                      'qte_note_reject(uuid, uuid, text, text, integer, integer, jsonb, jsonb, integer)']) {
+      const esc = fn.replace(/[()]/g, '\\$&');
+      ok(new RegExp('revoke all on function public\\.' + esc + ' from public, anon, authenticated;').test(sql)
+         && new RegExp('grant execute on function public\\.' + esc + ' to service_role;').test(sql)
+         && !new RegExp('grant execute on function public\\.' + esc + ' to (anon|authenticated)').test(sql), fn.split('(')[0] + ' is callable by players');
+    }
+    for (const fn of ['qte_ticket(uuid, uuid, text, text)', '_qte_post_verified(uuid, text, integer, text, text, jsonb)'])
+      ok(sql.indexOf('revoke all on function public.' + fn + ' from public, anon, authenticated;') !== -1
+         && sql.indexOf('grant execute on function public.' + fn) === -1, fn.split('(')[0] + ' is callable from the API');
+    ok(/p_ticket <> public\.qte_ticket\(s\.id, s\.user_id, s\.qte_type, s\.seed\)/.test(sql), 'qte_accept_run does not check the ticket against the run\'s own seed');
+    ok(/or p_end_ms > v_elapsed \+ least\(greatest\(coalesce\(p_ticket_at, 0\), 0\), 60000\) \+ 3000 then return 'rejected'; end if;/.test(sql), 'a log longer than its run has existed is accepted');
+    ok(/perform pg_advisory_xact_lock\(hashtext\('qte_note_reject:' \|\| p_user::text\)\);/.test(sql)
+       && /public\.qte_short_reasons\(p_reasons\)/.test(sql) && /octet_length\(coalesce\(p_stats, 'null'::jsonb\)::text\) > 4096/.test(sql),
+       'a rejected run can store unbounded text, or pass the per-player cap in parallel');
+    ok(/set last_attempt = greatest\(last_attempt, coalesce\(p_attempt, 0\) \+ 1\),/.test(sql) && /used\s+= used or rejects \+ 1 >= 5/.test(sql),
+       'one rejected log closes the whole run (a trainer that restarts itself loses every later attempt)');
+    ok(/comment on function public\.submit_score\(uuid, text, integer, text, text, uuid\) is 'closed by qte-verified-step2\.sql';/.test(step2Pre),
+       'step 2 does not mark what it closed, so re-running an older file re-opens it');
+    for (const f of ['lockdown.sql', 'qte-scores.sql'])
+      ok(!/^grant execute on function public\.(submit_score|start_qte_session)\(/m.test(read('supabase/' + f)), f + ' grants the old score path back unconditionally');
+    ok(/v_score := least\(coalesce\(p_claimed, 0\), coalesce\(p_score, 0\)\);/.test(sql), 'the server posts more than the log proves');
+    ok(/insert into qte_log_prints \(print, run_id\) values \(p_print, p_run\) on conflict \(print\) do nothing;/.test(sql)
+       && /if v_owner is distinct from p_run then return 'rejected'; end if;/.test(sql)
+       && /revoke all on table public\.qte_log_prints from public, anon, authenticated;/.test(sql), 'a log already posted by another run can be posted again');
+    const step2 = read('supabase/qte-verified-step2.sql');
+    ok(/revoke all on function public\.submit_score\(uuid, text, integer, text, text, uuid\) from public, anon, authenticated;/.test(step2)
+       && /revoke all on function public\.start_qte_session\(uuid, text\) from public, anon, authenticated;/.test(step2), 'step 2 does not close the old way in');
+  });
+
+  it('the edge function takes the player from the login, and the score from the check', () => {
+    const fn = read('supabase/functions/bright-service/index.ts');
+    ok(/import '\.\.\/_shared\/qte-rules\.js';/.test(fn), 'bright-service does not load the shared rules');
+    ok(fn.indexOf('await readCapped(req)') !== -1 && fn.indexOf('await readCapped(req)') < fn.indexOf('JSON.parse(raw)'), 'the body is parsed before its size is checked');
+    ok(/admin\.auth\.getUser\(jwt\)/.test(fn) && /p_user: userId/.test(fn) && !/body\.user|user_id\s*[,}]/.test(fn), 'the player is taken from the request body, not the login');
+    ok(/Q\.check\(qte_type, log, \{ platform, claimed: score \}\)/.test(fn) && /p_score: res\.score/.test(fn), 'the posted score does not come from the check');
+    ok(/no ticket for this run/.test(fn), 'a run with no ticket is not refused up front');
+    ok(/JSON\.stringify\(log\.ev\.slice\(0, 24\)\)/.test(fn) && /p_print: print/.test(fn), 'the log fingerprint is not sent to qte_accept_run');
+    ok(!/\.rpc\([\s\S]{0,600}?\}\)\s*\.catch\(/.test(fn), 'an rpc() builder is .catch()ed - it has no catch, and every rejected run crashes the function');
+    ok(/async function readCapped\(/.test(fn) && fn.indexOf('await req.text()') === -1, 'the whole body is read before its size is checked');
+    ok(/return await handle\(req, cors\);/.test(fn), 'an unexpected throw reaches the browser without CORS headers');
+  });
+
+  it('the harness, bots and trainer suites are not published', () => {
+    const cfg = read('_config.yml');
+    ok(/^\s+-\s+tools\/qte\s*$/m.test(cfg), '_config.yml does not exclude tools/qte');
   });
 });
 

@@ -37,6 +37,13 @@
 
 begin;
 
+-- Has qte-verified-step2.sql closed the old score path? (It marks both
+-- functions.) Remembered for this transaction: submit_score is dropped and
+-- re-created below, which loses the mark, and neither may be granted again.
+select set_config('alb.qte_legacy_closed',
+  case when coalesce(obj_description(to_regprocedure('public.submit_score(uuid, text, integer, text, text, uuid)')::oid, 'pg_proc'), '')
+            like 'closed by qte-verified-step2%' then 'on' else 'off' end, true);
+
 -- ── 1. how long a legitimate run needs, per point ───────────────────────────
 -- Numbers come from the trainers themselves: fixed post-success delays, spawn
 -- intervals, travel time and round timers, taken at their fastest, then cut by
@@ -142,7 +149,11 @@ $function$;
 -- create or replace keeps an existing function's grants, but a fresh create
 -- hands EXECUTE to PUBLIC; revoke either way, then grant on purpose.
 revoke all on function public.start_qte_session(uuid, text) from public, anon, authenticated;
-grant execute on function public.start_qte_session(uuid, text) to authenticated;
+do $$ begin
+  if current_setting('alb.qte_legacy_closed', true) is distinct from 'on' then
+    grant execute on function public.start_qte_session(uuid, text) to authenticated;
+  end if;
+end $$;
 
 -- ── 2b. the cap: twice the trainer's all-time record, never under 50 ───────
 -- The old qte_score_cap was dashboard-made with fixed numbers far above real
@@ -429,8 +440,17 @@ $function$;
 -- DROP took the old grants with it and CREATE handed EXECUTE to PUBLIC; only
 -- signed-in players may submit. anon and authenticated are named as well as
 -- public, in case the project's default privileges grant them explicitly.
+--
+-- Once qte-verified-step2.sql has run, scores go only through the bright-service
+-- edge function: then this file leaves submit_score closed (and marked).
 revoke all on function public.submit_score(uuid, text, integer, text, text, uuid) from public, anon, authenticated;
-grant execute on function public.submit_score(uuid, text, integer, text, text, uuid) to authenticated;
+do $$ begin
+  if current_setting('alb.qte_legacy_closed', true) is distinct from 'on' then
+    grant execute on function public.submit_score(uuid, text, integer, text, text, uuid) to authenticated;
+  else
+    comment on function public.submit_score(uuid, text, integer, text, text, uuid) is 'closed by qte-verified-step2.sql';
+  end if;
+end $$;
 
 notify pgrst, 'reload schema';
 

@@ -602,27 +602,30 @@
   //
   // Resolves to { run, ticket }, or { legacy: sessionId } while
   // qte-verified.sql has not been run yet (the old path still works), or null
-  // (signed out, offline, too many starts) - a run with no ticket cannot be
-  // verified, so its scores are not saved.
+  // (signed out, too many starts, the server failing twice) - a run with no
+  // ticket cannot be verified, so its scores are not saved. A slow answer is
+  // never given up on here: a send waits TICKET_TIMEOUT_MS for it and, if it is
+  // still out, retries later (sendVerified).
   const TICKET_TIMEOUT_MS = 10000;
   function startQteRun(qteType) {
     if (!currentUser) return Promise.resolve(null);
-    const ask = (async () => {
+    // A score that ran out of retries gets another go at the next Start.
+    if (_pending[qteType] && !_retryT[qteType] && !_sending[qteType]) { _retryN[qteType] = 0; pumpScore(qteType, true); }
+    const once = async () => {
       const { data, error } = await sb.rpc('start_qte_run', { p_qte_type: qteType });
       if (error) {
         if (isMissingFunction(error)) {
           const id = await startQteSession(qteType);
           return id ? { legacy: id } : null;
         }
-        console.warn('[sb] start_qte_run error', error.message);
-        return null;
+        throw error;
       }
       if (!data || typeof data.run !== 'string' || typeof data.ticket !== 'string') return null;
       return { run: data.run, ticket: data.ticket };
-    })().catch(e => { console.warn('[sb] start_qte_run threw', e && e.message); return null; });
-    // A hung request must not hold a score (and the queue behind it) forever.
-    const timeout = new Promise(res => setTimeout(() => res(null), TICKET_TIMEOUT_MS));
-    return Promise.race([ask, timeout]);
+    };
+    return once()
+      .catch(e => { console.warn('[sb] start_qte_run failed, asking once more', e && e.message); return once(); })
+      .catch(e => { console.warn('[sb] start_qte_run failed', e && e.message); return null; });
   }
   // PostgREST's "no such function" (the SQL has not been run yet).
   function isMissingFunction(error) {
@@ -644,13 +647,22 @@
   // Storage.setItem hook in js/core.js that used to submit casual scores a
   // second time, with no log, is gone.
   const _pending   = {};   // qteType -> highest score still to send
-  const _packet    = {};   // qteType -> that score's run packet { ticket, attempt, log } (QteRules.Run)
+  const _packet    = {};   // qteType -> that score's run packet { ticket, attempt, log, ticketAt, final } (QteRules.Run)
+  const _fallback  = {};   // qteType -> { score, packet } an earlier run's unsent score, replaced by a higher one
   const _confirmed = {};   // qteType -> highest score the server has accepted
-  const _posted    = {};   // qteType -> what the server actually posted for the last accepted send
   const _sending   = {};   // qteType -> true while an RPC is in flight
+  const _forceNext = {};   // qteType -> a send was asked for "now" while another was in flight
   const _retryN    = {};   // qteType -> retries spent on the pending score
   const _retryT    = {};   // qteType -> retry timer
+  const _lastSentAt = {};  // qteType -> when a verified run's send was last accepted
+  const _gapT      = {};   // qteType -> timer holding the next verified send
+  let _scoreGen    = 0;    // bumped by resetScoreState: a send that returns after it belongs to the last account
   const SCORE_RETRY_MS = [1500, 4000, 10000];
+  // A verified run re-sends its whole log with every new high, and the log
+  // grows with every point. After one is accepted, the next waits this long
+  // and carries whatever the best is by then. The end of a run, and a hidden
+  // tab, send at once.
+  const VERIFIED_GAP_MS = 5000;
 
   // packet: from QteRules.Run (js/qte-rules.js) - the run's ticket promise,
   // attempt number and log. The score and the log travel together: a higher
@@ -658,40 +670,88 @@
   function submitScore(qteType, score, packet) {
     if (!currentUser || !score) return Promise.resolve(false);
     if (score <= (_confirmed[qteType] || 0)) return Promise.resolve(true);
-    if (score <= (_pending[qteType] || 0))   return Promise.resolve(false);
+    const hasLog = !!(packet && packet.ticket);
+    const pendingHasLog = !!(_packet[qteType] && _packet[qteType].ticket);
+    // A score with its run's log always replaces one without (which can no
+    // longer be verified); otherwise only a higher score does.
+    if (score <= (_pending[qteType] || 0) && !(hasLog && !pendingHasLog)) return Promise.resolve(false);
+    // An earlier run's unsent score is kept in case this one is refused.
+    const prev = _pending[qteType], prevPacket = _packet[qteType];
+    if (prev && pendingHasLog && hasLog && prevPacket.ticket !== packet.ticket
+        && prev > ((_fallback[qteType] && _fallback[qteType].score) || 0)) {
+      _fallback[qteType] = { score: prev, packet: prevPacket };
+    }
     _pending[qteType] = score;
     _packet[qteType]  = packet || null;
     _retryN[qteType]  = 0;
     if (_retryT[qteType]) { clearTimeout(_retryT[qteType]); _retryT[qteType] = null; }
-    return pumpScore(qteType);
+    return pumpScore(qteType, !!(packet && packet.final));
   }
 
   // Sends the pending score, then whatever higher score arrived while it was in
   // flight. Resolves true once the server holds the highest value offered.
-  async function pumpScore(qteType) {
-    if (_sending[qteType]) return false;   // the send in flight will pick up the newest value
+  // force: send now, skipping the gap between a run's sends.
+  async function pumpScore(qteType, force) {
+    if (_sending[qteType]) {               // the send in flight will pick up the newest value
+      if (force) _forceNext[qteType] = true;
+      return false;
+    }
     const score = _pending[qteType];
     if (!score) return false;
     const packet = _packet[qteType] || null;
+    const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    if (packet && packet.ticket && _lastSentAt[qteType] && !force && !hidden) {
+      const wait = VERIFIED_GAP_MS - (Date.now() - _lastSentAt[qteType]);
+      if (wait > 0) {
+        // When it fires, the gap is over: send.
+        if (!_gapT[qteType]) _gapT[qteType] = setTimeout(() => { _gapT[qteType] = null; pumpScore(qteType, true); }, wait);
+        return false;
+      }
+    }
+    if (_gapT[qteType]) { clearTimeout(_gapT[qteType]); _gapT[qteType] = null; }
     _sending[qteType] = true;
-    delete _posted[qteType];
+    const gen = _scoreGen;
+    const result = {};
     let outcome = 'retry';
-    try { outcome = await sendScore(qteType, score, packet); }
+    try { outcome = await sendScore(qteType, score, packet, result); }
     catch (e) { console.error('[sb] submitScore threw', qteType, score, e && e.message); }
-    finally { _sending[qteType] = false; }
+    finally { if (gen === _scoreGen) _sending[qteType] = false; }
+    if (gen !== _scoreGen) return false;   // signed out (or into another account) meanwhile
+    const again = !!_forceNext[qteType];
+    delete _forceNext[qteType];
     // 'refused' is the server saying it will never take this score. Retrying
     // only spends requests, so drop it — but do NOT record it as confirmed.
     if (outcome === 'refused') {
-      if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; delete _packet[qteType]; return false; }
-      return pumpScore(qteType);   // a higher score (a longer log) arrived meanwhile
+      if ((_pending[qteType] || 0) <= score) {
+        delete _pending[qteType]; delete _packet[qteType];
+        // A lower score from an earlier run was replaced by this one: it still counts.
+        const fb = _fallback[qteType];
+        delete _fallback[qteType];
+        if (fb && fb.packet !== packet && fb.score > (_confirmed[qteType] || 0)) {
+          _pending[qteType] = fb.score; _packet[qteType] = fb.packet; _retryN[qteType] = 0;
+          return pumpScore(qteType, true);
+        }
+        return false;
+      }
+      return pumpScore(qteType, again);   // a higher score (a longer log) arrived meanwhile
     }
     if (outcome !== 'accepted') { scheduleScoreRetry(qteType); return false; }
+    if (packet && packet.ticket) _lastSentAt[qteType] = Date.now();
     // A verified run can post less than was claimed (the log proves fewer
     // points); remember what was posted, so a later run can still beat it.
-    _confirmed[qteType] = Math.max(_confirmed[qteType] || 0, _posted[qteType] ?? score);
+    _confirmed[qteType] = Math.max(_confirmed[qteType] || 0, result.posted ?? score);
+    if (_fallback[qteType] && _fallback[qteType].score <= _confirmed[qteType]) delete _fallback[qteType];
     _retryN[qteType] = 0;
     if ((_pending[qteType] || 0) <= score) { delete _pending[qteType]; delete _packet[qteType]; return true; }
-    return pumpScore(qteType);
+    return pumpScore(qteType, again);
+  }
+
+  // Once a minute per trainer is enough to say the same thing.
+  function tellOnce(map, qteType, msg) {
+    const now = Date.now();
+    if (map[qteType] && now - map[qteType] < 60000) return;
+    map[qteType] = now;
+    scoreToast(msg);
   }
 
   // What a rejection means for the score in hand. A stale or missing session is
@@ -703,79 +763,87 @@
     capped:    'Score not saved: above the maximum this trainer accepts.',
     bad_input: 'Score not saved: the server did not recognise this trainer.',
     banned:    'Score not saved: this account is banned.',
-    rejected:  'Score not saved: the run could not be verified.',
+    rejected:  'Score not saved: this run could not be verified. Press Start to begin a new run.',
   };
   const _lowerToldAt = {};   // qteType -> when the player was last told a score posted lower
+  const _refusedToldAt = {}; // qteType -> when the player was last told a score was refused
 
-  // 'accepted' | 'retry' | 'refused'
-  async function sendScore(qteType, score, packet) {
-    if (packet && packet.ticket) return sendVerified(qteType, score, packet);
+  // 'accepted' | 'retry' | 'refused'. result.posted: what the server posted,
+  // when it says (a verified run can post less than it claimed).
+  async function sendScore(qteType, score, packet, result) {
+    if (packet && packet.ticket) return sendVerified(qteType, score, packet, result || {});
     return sendLegacy(qteType, score, null);
   }
 
-  // A run from QteRules.Run: its ticket and log go to the qte-submit edge
+  // A run from QteRules.Run: its ticket and log go to the bright-service edge
   // function, which checks the log and posts through qte_accept_run.
-  async function sendVerified(qteType, score, packet) {
+  async function sendVerified(qteType, score, packet, result) {
     let t = null;
-    try { t = await packet.ticket; } catch (e) { t = null; }
+    try {
+      t = await Promise.race([packet.ticket, new Promise(res => setTimeout(() => res('waiting'), TICKET_TIMEOUT_MS))]);
+    } catch (e) { t = null; }
+    if (t === 'waiting') return 'retry';   // the server has not answered this run's Start yet
     if (!t) {
-      // No run was made on the server at this Start (signed out then, offline,
-      // or too many starts). Nothing can vouch for this run's scores.
+      // No run was made on the server at this Start (signed out then, or too
+      // many starts, or it failed twice). Nothing can vouch for this run.
       console.warn('[sb] submitScore: no ticket for this run of', qteType, '- not saved', score);
-      scoreToast('Score not saved: this run was not started with the server. Check your connection and press Start again.');
+      tellOnce(_refusedToldAt, qteType, 'Score not saved: this run was not started with the server. Check your connection and press Start again.');
       return 'refused';
     }
     // qte-verified.sql not run yet: the old path, with an old-style session.
     if (t.legacy) return sendLegacy(qteType, score, t.legacy);
 
+    const ticketAt = typeof packet.ticketAt === 'function' ? packet.ticketAt() : null;
     const body = { run: t.run, ticket: t.ticket, qte_type: qteType, platform: PLATFORM,
-                   attempt: packet.attempt | 0, score, log: packet.log };
+                   attempt: packet.attempt | 0, score, log: packet.log,
+                   ticket_at: Number.isInteger(ticketAt) ? ticketAt : null };
     let data = null, error = null;
-    try { ({ data, error } = await sb.functions.invoke('qte-submit', { body })); }
-    catch (e) { console.error('[sb] qte-submit threw', qteType, score, e && e.message); return 'retry'; }
+    // 'bright-service' is the name Supabase gave the function when it was created
+    // in the dashboard (a function's name cannot change); its source is
+    // supabase/functions/bright-service.
+    try { ({ data, error } = await sb.functions.invoke('bright-service', { body })); }
+    catch (e) { console.error('[sb] bright-service threw', qteType, score, e && e.message); return 'retry'; }
     if (error) {
       const code = error.context && error.context.status;
-      // The function is not deployed yet: to the old path, the run is an
-      // ordinary session (same table), so the score is not lost meanwhile.
-      if (code === 404) return sendLegacy(qteType, score, t.run);
-      console.error('[sb] qte-submit error', qteType, score, code, error.message);
+      // The function is not deployed yet - which a browser usually sees as a
+      // failed CORS preflight (FunctionsFetchError, no status), not a 404. The
+      // old path takes the score while it is open, and refuses it (permission
+      // denied -> retry here) once qte-verified-step2.sql has closed it.
+      if (code === 404 || (!code && error.name === 'FunctionsFetchError')) return sendLegacy(qteType, score, t.run);
+      console.error('[sb] bright-service error', qteType, score, code, error.message);
       return 'retry';
     }
     const status = data && typeof data.status === 'string' ? data.status : 'retry';
     if (status === 'ok') {
       const posted = Number.isInteger(data.score) ? data.score : score;
-      _posted[qteType] = posted;
+      result.posted = posted;
       if (posted < score) {
         console.warn('[sb] submitScore posted lower', qteType, score, '->', posted);
-        const now = Date.now();
-        if (!_lowerToldAt[qteType] || now - _lowerToldAt[qteType] > 60000) {
-          _lowerToldAt[qteType] = now;
-          scoreToast('Score saved as ' + posted + ' - the run could only be checked that far.');
-        }
+        tellOnce(_lowerToldAt, qteType, 'Score saved as ' + posted + ' - the run could only be checked that far.');
       } else console.log('[sb] submitScore ok (verified)', qteType, score, PLATFORM);
       return 'accepted';
     }
     if (status === 'held') {
       console.log('[sb] submitScore held for review', qteType, score);
-      const now = Date.now();
-      if (!_heldToldAt[qteType] || now - _heldToldAt[qteType] > 60000) {
-        _heldToldAt[qteType] = now;
-        scoreToast('Score held for review - it goes on the board once an admin approves it.');
-      }
+      tellOnce(_heldToldAt, qteType, 'Score held for review - it goes on the board once an admin approves it.');
       return 'accepted';
     }
-    if (status === 'stale') return 'accepted';        // an older attempt of a run that moved on
+    // An attempt the run has moved past (or one the server closed after a
+    // rejected log): nothing was posted, so nothing is "stored" - and the
+    // player has already been told about the rejection.
+    if (status === 'stale') return 'refused';
     if (SCORE_REFUSALS[status]) {
       console.warn('[sb] submitScore refused', qteType, score, status, data && data.reason);
-      scoreToast(SCORE_REFUSALS[status]);
+      tellOnce(_refusedToldAt, qteType, SCORE_REFUSALS[status]);
       return 'refused';
     }
     return 'retry';
   }
 
   // The old path: submit_score with a session id. Used before
-  // qte-verified.sql / the qte-submit function are live; closed for good by
-  // qte-verified-step2.sql.
+  // qte-verified.sql / the bright-service function are live; closed for good by
+  // qte-verified-step2.sql. fixedSession: a verified run's own id (or its
+  // legacy session), which cannot be swapped for a fresh one.
   async function sendLegacy(qteType, score, fixedSession) {
     let sessionId = fixedSession || (_sessionIds[qteType] ?? null);
     // No session yet: the trainer's Start call may still be in flight, or the
@@ -811,16 +879,21 @@
     // there is nothing to retry; say so once per run, not once per point.
     if (status === 'held') {
       console.log('[sb] submitScore held for review', qteType, score);
-      const now = Date.now();
-      if (!_heldToldAt[qteType] || now - _heldToldAt[qteType] > 60000) {
-        _heldToldAt[qteType] = now;
-        scoreToast('Score held for review - it goes on the board once an admin approves it.');
-      }
+      tellOnce(_heldToldAt, qteType, 'Score held for review - it goes on the board once an admin approves it.');
       return 'accepted';
     }
     if (status !== 'ok') {
       console.warn('[sb] submitScore refused', qteType, score, status);
-      if (!SCORE_REFUSALS[status]) { delete _sessionIds[qteType]; return 'retry'; }
+      if (!SCORE_REFUSALS[status]) {
+        // A run's own session cannot be re-armed (the server times a score
+        // from its session's start, so a fresh one would read as too fast):
+        // it has expired, and this score with it.
+        if (fixedSession) {
+          tellOnce(_refusedToldAt, qteType, 'Score not saved: this run\'s session expired. Press Start to begin a new run.');
+          return 'refused';
+        }
+        delete _sessionIds[qteType]; return 'retry';
+      }
       scoreToast(SCORE_REFUSALS[status]);
       return 'refused';
     }
@@ -858,14 +931,23 @@
   // pending one more chance on the way out.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'hidden') return;
-    Object.keys(_pending).forEach(t => pumpScore(t));
+    Object.keys(_pending).forEach(t => pumpScore(t, true));
   });
 
   // Sign-out must not leave one account's scores queued against the next one.
   function resetScoreState() {
+    _scoreGen++;   // a send still in flight now belongs to the last account (pumpScore)
     Object.keys(_retryT).forEach(t => { if (_retryT[t]) clearTimeout(_retryT[t]); });
-    [_pending, _confirmed, _sending, _retryN, _retryT, _sessionIds, _arming]
+    Object.keys(_gapT).forEach(t => { if (_gapT[t]) clearTimeout(_gapT[t]); });
+    [_pending, _packet, _fallback, _confirmed, _sending, _forceNext, _retryN, _retryT, _lastSentAt, _gapT, _sessionIds, _arming]
       .forEach(o => Object.keys(o).forEach(k => { delete o[k]; }));
+  }
+
+  // A run is over (QteRules.Run.close): its last score goes now, not after
+  // the gap between a run's sends.
+  function flushScore(qteType) {
+    if (_gapT[qteType]) { clearTimeout(_gapT[qteType]); _gapT[qteType] = null; }
+    if (_pending[qteType]) pumpScore(qteType, true);
   }
 
   // ---- fetch the current user's all-time personal best for a QTE ----
@@ -885,10 +967,10 @@
   // ---- reconcile local bests vs the server leaderboard ----
   // QTE trainers only submit when a score beats the LOCAL stored best, so a
   // best that never reached the server gates every later run: the player cannot
-  // beat it, nothing is sent, and the board stays frozen below it. This used to
-  // wipe the local bests so the player could climb back up — which threw a real
-  // score away. Offer them to the server instead, and only fall back to the
-  // wipe for the ones it will not take.
+  // beat it, nothing is sent, and the board stays frozen below it. It cannot be
+  // sent now either: a score counts only with the log of the run that made it
+  // (verified runs, js/qte-rules.js), and that run is gone. So the local bests
+  // are cleared, and the next runs submit as they climb.
   let _reconciledScores = false;
   async function reconcileServerScores() {
     if (_reconciledScores || !currentUser) return;
@@ -911,15 +993,11 @@
       if (local > (serverBest[type] || 0)) behind.push({ type, local });
     });
     if (!behind.length) return;
-    console.log('[sb] local bests the server never took — re-submitting:',
+    // A score still on its way (or held for review) is not "behind".
+    if (behind.every(b => (_pending[b.type] || 0) >= b.local)) return;
+    console.log('[sb] local bests the server does not hold — clearing them so new highs submit:',
                 behind.map(b => b.type + ' ' + b.local).join(', '));
-    const results = await Promise.all(behind.map(b => submitScore(b.type, b.local)));
-    if (results.some(r => !r)) {
-      // The server would not take them — a session rule we cannot see from here.
-      // Clear the local bests so climbing back up submits normally again.
-      console.log('[sb] some local bests were refused — resetting them so scores re-submit as you climb');
-      window.dispatchEvent(new Event('alb-scores-reset'));
-    }
+    window.dispatchEvent(new Event('alb-scores-reset'));
   }
 
   // ---- fetch top-10 for a QTE (current month only) ----
@@ -2718,6 +2796,7 @@
   window._sbSubmitScore      = submitScore;
   window._sbStartQteSession  = startQteSession;
   window._sbStartQteRun      = startQteRun;     // QteRules.Run.start (js/qte-rules.js)
+  window._sbFlushScore       = flushScore;      // QteRules.Run close()
   window._sbGetUsername      = () => currentProfile?.username || null;
   window._sbGetUserId        = () => currentUser?.id ?? null;
   window._sbGetAvatar        = () => currentProfile?.avatar_url || null;

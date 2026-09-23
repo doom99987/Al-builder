@@ -1,4 +1,12 @@
 // === FIST QTE TRAINER ===
+// Each run writes a log for the server's check (js/qte-rules.js, 'fist'):
+//   ['R', t, '0312']   a round starts; its arrows as ARROWS indexes
+//   ['K', t, d, h(, f)] a key judged: direction 0-3, 1 hit / 0 miss;
+//                      f (only when non-zero): 1 autorepeat, 2 touch, 4 ping-sim copy
+//   ['S', t, streak]   the point is scored (end of the success flash)
+//   ['P', t] / ['U', t, '0312']   paused mid-round / resumed with new arrows
+//   ['E', t, 'fail'|'time'|'hide']   the attempt ended
+// Every restart after a fail or timeout is a new attempt (run.newAttempt()).
 (function () {
   const ARROWS = [
     { dir: 'up',    symbol: '↑', keys: ['ArrowUp',    'w', 'W'] },
@@ -6,6 +14,9 @@
     { dir: 'left',  symbol: '←', keys: ['ArrowLeft',  'a', 'A'] },
     { dir: 'right', symbol: '→', keys: ['ArrowRight', 'd', 'D'] },
   ];
+  // Lengths, time limits and delays live in the rules file so the check
+  // and the game can never disagree.
+  const R = QteRules.trainers['fist'];
 
   const bar      = document.getElementById('fist-qte-bar');
   const status   = document.getElementById('fist-qte-status');
@@ -28,13 +39,37 @@
   })();
   let roundStart = 0;
 
+  // The run log (QteRules.Run) of the current Start, its mode, whether the
+  // current attempt has already ended, and a generation that invalidates the
+  // success-flash callback when the run is reset under it.
+  let run         = null;
+  let runComp     = false;
+  let attemptOver = false;
+  let gen         = 0;
+  // Bytes the current attempt's log holds (an over-estimate), and whether it
+  // has reached R.LOG_BUDGET: then the attempt is no longer logged and its
+  // later highs are not submitted - the last one sent stands (a log over the
+  // server's size limit would be refused whole).
+  let logBytes    = 0;
+  let logFull     = false;
+  function freshLog() { logBytes = 0; logFull = false; }
+  function ev() {
+    if (!run || logFull) return;
+    // the event as JSON, plus its time (at most 8 digits) and separators
+    const size = JSON.stringify(Array.prototype.slice.call(arguments)).length + 10;
+    if (logBytes + size > R.LOG_BUDGET) { logFull = true; return; }
+    logBytes += size;
+    run.ev.apply(run, arguments);
+  }
+  function seqCode() { return sequence.map(a => ARROWS.indexOf(a)).join(''); }
+
   function updateHighscore(val) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     if (window._qteCompMode) {
-      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('fist-comp', val); }
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run && !logFull) run.submit(val); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
     } else {
-      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('fist', val); }
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run && !logFull) run.submit(val); }
       if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
   }
@@ -71,7 +106,8 @@
   let timeLeft       = 0;
   let restartTimeout = null;
 
-  function getTimeLimit() { return window._qteCompMode ? (length >= 6 ? 4 : 6) : (length >= 8 ? 5 : 8); }
+  // Mode is fixed at Start (core.js blocks switching mid-run anyway).
+  function getTimeLimit() { return R.timeLimit(runComp, length); }
 
   function startTimer() {
     clearInterval(timerInterval);
@@ -84,7 +120,7 @@
         clearInterval(timerInterval);
         onTimeout();
       }
-    }, 1000);
+    }, R.TICK_MS);
   }
 
   function stopTimer() {
@@ -101,13 +137,15 @@
   function onTimeout() {
     lockout = true;
     running = false;
+    ev('E', 'time');
+    attemptOver = true;
     bar.querySelectorAll('.fist-arrow-box').forEach(b => b.classList.add('wrong'));
     streak = 0;
-    length = 2;
+    length = R.LEN_START;
     setStatus('⏱ Time\'s up!', '#ee8888');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
-    restartTimeout = setTimeout(startRound, 900);
+    restartTimeout = setTimeout(startRound, R.RESTART_MS);
   }
 
   function randomArrow() {
@@ -138,10 +176,11 @@
     if (!boxes[idx]) { if (cb) cb(); return; }
     boxes[idx].classList.remove('active');
     boxes[idx].classList.add(cls);
-    setTimeout(() => { if (cb) cb(); }, 300);
+    setTimeout(() => { if (cb) cb(); }, R.FLASH_MS);
   }
 
   function resetToStart() {
+    gen++;
     clearTimeout(restartTimeout);
     stopTimer();
     started = false;
@@ -155,9 +194,23 @@
     if (resumeBtn) resumeBtn.style.display = 'none';
   }
 
+  // A restart after a fail or timeout is a new attempt with its own log. The
+  // server drops a run an hour after its last submit, and the trainer can loop
+  // for hours under one Start, so after 10 minutes a restart takes a fresh run
+  // (a new ticket) instead.
+  function nextAttempt() {
+    attemptOver = false;
+    if (!run) return;
+    if (run.now() > R.RENEW_RUN_MS) run = QteRules.Run.start(run.type);
+    else run.newAttempt();
+    freshLog();
+  }
+
   function startRound() {
     restartTimeout = null;
+    if (attemptOver) nextAttempt();
     buildSequence();
+    ev('R', seqCode());
     current = 0;
     running = true;
     lockout = false;
@@ -175,14 +228,19 @@
   function onSuccess() {
     stopTimer();
     lockout = true;
+    // Leaving the tab during the flash resets the run (resetToStart bumps
+    // gen): the point must not be scored, nor the next round started, after it.
+    const g = gen;
     flashBox(current - 1, 'correct', () => {
+      if (g !== gen) return;
       streak++;
-      length = Math.min(length + 1, 9);
+      length = R.nextLength(length);
       setStatus(`✓ Nice! Next: ${length} arrows`, '#88ee88');
       streakEl.textContent = `Streak: ${streak}`;
+      ev('S', streak);
       updateHighscore(streak);
       recordRoundTime();
-      restartTimeout = setTimeout(startRound, 600);
+      restartTimeout = setTimeout(startRound, R.NEXT_MS);
     });
   }
 
@@ -190,14 +248,25 @@
     stopTimer();
     lockout = true;
     running = false;
+    ev('E', 'fail');
+    attemptOver = true;
     const boxes = bar.querySelectorAll('.fist-arrow-box');
     boxes.forEach((b, i) => { if (i >= current) b.classList.add('wrong'); });
     streak = 0;
-    length = 2;
+    length = R.LEN_START;
     setStatus(`✗ Wrong! Expected ${sequence[current].symbol}, got ${keyToSymbol(key)}`, '#ee8888');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
-    restartTimeout = setTimeout(startRound, 900);
+    restartTimeout = setTimeout(startRound, R.RESTART_MS);
+  }
+
+  // Direction index of a key, and the flags the log keeps with it.
+  function dirOf(key) { return ARROWS.findIndex(a => a.keys.includes(key)); }
+  const isPingCopy = typeof window._albIsPingCopy === 'function' ? window._albIsPingCopy : () => false;
+  function keyFlags(e) { return (e.repeat ? 1 : 0) | (isPingCopy(e) ? 4 : 0); }
+  function logKey(key, matched, flags) {
+    if (flags) ev('K', dirOf(key), matched ? 1 : 0, flags);
+    else ev('K', dirOf(key), matched ? 1 : 0);
   }
 
   function keyToSymbol(key) {
@@ -226,6 +295,7 @@
 
     const expected = sequence[current];
     const matched  = expected.keys.includes(e.key);
+    logKey(e.key, matched, keyFlags(e));
 
     if (matched) {
       window._playQteSfx('fist', true);
@@ -246,8 +316,16 @@
   // Start button
   if (startBtn) {
     startBtn.addEventListener('click', () => {
-      if (window._sbStartQteSession) window._sbStartQteSession('fist' + (window._qteCompMode ? '-comp' : ''));
-      length = 2; streak = 0;
+      // A Start always begins from a clean state: drop a pending restart or
+      // success callback from before (only a programmatic click can reach one).
+      gen++;
+      clearTimeout(restartTimeout);
+      if (run) run.close();
+      run = QteRules.Run.start('fist' + (window._qteCompMode ? '-comp' : ''));
+      runComp = !!window._qteCompMode;
+      freshLog();
+      attemptOver = false;
+      length = R.LEN_START; streak = 0;
       startRound();
     });
   }
@@ -260,6 +338,7 @@
       lockout = false;
       // Re-randomize arrows but keep remaining time
       buildSequence();
+      ev('U', seqCode());
       current = 0;
       renderBar();
       if (resumeBtn) resumeBtn.style.display = 'none';
@@ -272,7 +351,7 @@
           clearInterval(timerInterval);
           onTimeout();
         }
-      }, 1000);
+      }, R.TICK_MS);
       roundStart = Date.now() - ((getTimeLimit() - timeLeft) * 1000);
     });
   }
@@ -284,11 +363,14 @@
       // Mid-run — pause
       clearInterval(timerInterval);
       paused = true;
+      ev('P');
     } else {
       // Lost, pending restart, or not started — reset to Start
+      if (started && !attemptOver) ev('E', 'hide');
+      if (run) run.close();
       resetToStart();
       streak = 0;
-      length = 2;
+      length = R.LEN_START;
     }
   };
 
@@ -321,6 +403,7 @@
         const key = btn.dataset.key;
         const expected = sequence[current];
         const matched  = expected.keys.includes(key);
+        logKey(key, matched, 2);
         if (matched) {
           window._playQteSfx('fist', true);
           flashBox(current, 'correct', () => {});
@@ -345,9 +428,15 @@
 })();
 
 // === SPEAR QTE TRAINER (osu!-style) ===
+// Curves, geometry and the ring test live in js/qte-rules.js
+// (QteRules.trainers.spear) so the server's check judges with the same numbers.
+// The run's log: 'G' canvas size (Start, and resizes mid-run), 'S' each spawn
+// (frame time, x, y, approach, failed tries), 'K' each judged click (circle,
+// position, elapsed, hit/early), 'E' when the run ends, 'P'/'U' pause/resume.
 (function () {
   const canvas     = document.getElementById('spear-qte-canvas');
   if (!canvas) return;
+  const RL         = QteRules.trainers['spear'];
   const ctx        = canvas.getContext('2d');
   const statusEl   = document.getElementById('spear-qte-status');
   const streakEl   = document.getElementById('spear-qte-streak');
@@ -384,28 +473,43 @@
   let nextSpawn     = 0;
   let lastMissGuard = 0;
   let pauseTime     = 0;
+  let spawnFails    = 0;     // spawns that found no free spot since the last circle
+  let run           = null;  // QteRules.Run of the current Start
+  let runComp       = false; // mode at Start (switching is blocked mid-run)
 
   // Circle constants — INNER_R and HIT_TOLERANCE are updated in resizeCanvas
+  let geo             = RL.geom(200); // R 52, HT 22: the defaults below, until the first resize
   let INNER_R         = 52;
   let OUTER_R_START   = INNER_R * 2.2;
   let HIT_TOLERANCE   = 22; // scaled with INNER_R so hit-window fraction stays constant regardless of canvas size
   const FADE_MS       = 280;
 
+  const r1 = v => Math.round(v * 10) / 10;
+
   // Casual: original scaling; comp: power curve (exponent 0.65) — drops fast early, levels off, caps at streak 200
-  function getMaxSimul()      { return window._qteCompMode ? Math.min(5 + Math.floor(10 * Math.pow(streak / 200, 0.65)), 14) : Math.min(4 + Math.floor(streak / 4), 8); }
-  function getApproachMs()    { return window._qteCompMode ? Math.max(500, Math.round(950 - 450 * Math.pow(streak / 200, 0.65))) : Math.max(850, 1100 - streak * 2); }
-  function getSpawnInterval() { return window._qteCompMode ? Math.max(200, Math.round(850 - 650 * Math.pow(streak / 200, 0.65))) : Math.max(550, 1000 - streak * 10); }
+  function getMaxSimul()      { return RL.maxSimul(streak, runComp); }
+  function getApproachMs()    { return RL.approach(streak, runComp); }
+  function getSpawnInterval() { return RL.interval(streak, runComp); }
 
   // ---- highscore ----
+  // A score counts for the mode its run started in: the Start button can show
+  // mid-run (_onSpearQteShow while running) and let the mode be switched under
+  // a live run. The Best label follows the selected mode, as before.
   function updateHighscore(val) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
-    if (window._qteCompMode) {
-      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('spear-comp', val); }
-      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    const comp = (run && !run.closed) ? runComp : !!window._qteCompMode;
+    if (comp) {
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} submitRun(val); }
     } else {
-      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('spear', val); }
-      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} submitRun(val); }
     }
+    const best = window._qteCompMode ? highscoreComp : highscore;
+    if (hsEl) hsEl.textContent = best > 0 ? `Best: ${best}` : '';
+  }
+  // A log whose times pass the rules' limit (a run left paused for half a day)
+  // can only be refused; keep it to ourselves.
+  function submitRun(val) {
+    if (run && run.now() <= QteRules.LIMITS.MAX_T) run.submit(val);
   }
   updateHighscore(0);
   window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
@@ -419,29 +523,32 @@
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     if (!wrap) return;
-    canvas.width = Math.min(wrap.clientWidth - 24 || 800, 900);
-    const tall = IS_MOBILE || canvas.width < 480;
-    canvas.height = tall
-      ? Math.min(Math.round(canvas.width * 0.65), 400)
-      : Math.min(Math.round(canvas.width * 0.38), 340);
-    INNER_R       = Math.min(52, Math.round(canvas.height * 0.26));
-    OUTER_R_START = INNER_R * 2.2;
-    HIT_TOLERANCE = Math.round(INNER_R * (22 / 52)); // keep hit-window ~35% of approach regardless of canvas size
+    canvas.width = Math.min(wrap.clientWidth - 24 || 800, RL.C.W_MAX);
+    canvas.height = RL.canvasH(canvas.width, IS_MOBILE);
+    geo           = RL.geom(canvas.height);
+    INNER_R       = geo.R;
+    OUTER_R_START = geo.OUT;
+    HIT_TOLERANCE = geo.HT; // keep hit-window ~35% of approach regardless of canvas size
   }
 
   // ---- spawn ----
   function spawnCircle(now) {
-    const margin  = OUTER_R_START + 10;
-    const minDist = INNER_R * 2 + 20;
+    const margin  = geo.margin;
+    const minDist = geo.minDist;
     let x, y, attempts = 0, valid = false;
     do {
       x = margin + Math.random() * (canvas.width  - margin * 2);
       y = margin + Math.random() * (canvas.height - margin * 2);
       attempts++;
       valid = !circles.some(c => Math.hypot(x - c.x, y - c.y) < minDist);
-    } while (!valid && attempts < 30);
+    } while (!valid && attempts < RL.C.TRIES);
     if (!valid) return false; // no valid position found — skip this spawn
-    circles.push({ x, y, spawnTime: now, duration: getApproachMs() });
+    // Logged as drawn: the check places circles and judges clicks with these numbers.
+    x = r1(x); y = r1(y);
+    const duration = getApproachMs();
+    circles.push({ x, y, spawnTime: now, duration });
+    if (run) run.ev('S', r1(now - run.t0), x, y, duration, spawnFails);
+    spawnFails = 0;
     return true;
   }
 
@@ -506,6 +613,7 @@
     running = false;
     paused  = false;
     updateHighscore(streak);
+    if (run) run.close();
     setStatus(msg, '#ee6666');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
@@ -534,6 +642,7 @@
       const c = circles[i];
       const progress = (now - c.spawnTime) / c.duration;
       if (progress >= 1) {
+        if (run) run.ev('E', 'slow', i, r1(now - c.spawnTime));
         dying.push({ x: c.x, y: c.y, dieTime: now, hit: false });
         circles.splice(i, 1);
         triggerMiss('Miss! Too slow.');
@@ -544,7 +653,8 @@
     // Spawn new circles
     if (now >= nextSpawn && circles.length < getMaxSimul()) {
       const spawned = spawnCircle(now);
-      nextSpawn = now + (spawned ? getSpawnInterval() : 120);
+      if (!spawned) spawnFails++;
+      nextSpawn = now + (spawned ? getSpawnInterval() : RL.C.RETRY_MS);
     }
 
     drawFrame(now);
@@ -553,7 +663,9 @@
 
   // ---- start ----
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('spear' + (window._qteCompMode ? '-comp' : ''));
+    if (run) run.close();
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('spear' + (runComp ? '-comp' : ''));
     streak        = 0;
     running       = true;
     gameStarted   = true;
@@ -561,9 +673,11 @@
     circles       = [];
     dying         = [];
     lastMissGuard = 0;
+    spawnFails    = 0;
     resizeCanvas();
+    run.ev('G', canvas.width, canvas.height);
     canvas.style.display = '';
-    nextSpawn = performance.now() + 300;
+    nextSpawn = performance.now() + RL.C.FIRST_SPAWN;
     setStatus('Click when the ring reaches the circle!', '#aaaaff');
     streakEl.textContent = '';
     if (startBtn)  startBtn.style.display  = 'none';
@@ -574,10 +688,11 @@
   // ---- resume ----
   function resumeGame() {
     if (!paused) return;
-    // Shift all circle timestamps forward by how long we were paused
-    const pausedFor = performance.now() - pauseTime;
+    // Shift all circle timestamps forward by how long we were paused (in 0.01 ms steps, as logged)
+    const pausedFor = Math.round((performance.now() - pauseTime) * 100) / 100;
     circles.forEach(c => { c.spawnTime += pausedFor; if (c.fadeStart) c.fadeStart += pausedFor; });
     nextSpawn += pausedFor;
+    if (run) run.ev('U', pausedFor);
     paused  = false;
     running = true;
     if (resumeBtn) resumeBtn.style.display = 'none';
@@ -596,17 +711,18 @@
     for (let i = 0; i < circles.length; i++) {
       const c    = circles[i];
       const dist = Math.hypot(mx - c.x, my - c.y);
-      if (dist > INNER_R + HIT_TOLERANCE + 6) continue;
+      if (dist > geo.reach) continue;
 
       const elapsed  = now - c.spawnTime;
-      const progress = elapsed / c.duration;
-      const outerR   = INNER_R + (OUTER_R_START - INNER_R) * (1 - progress);
+      const early    = RL.isEarly(elapsed, c.duration, geo);
+      if (run) run.ev('K', i, r1(mx), r1(my), r1(elapsed), early ? 0 : 1);
 
       // Remove from active array immediately — no lingering clickable state
       circles.splice(i, 1);
 
-      if (outerR > INNER_R + HIT_TOLERANCE) {
+      if (early) {
         // Clicked too early
+        if (run) run.ev('E', 'early');
         dying.push({ x: c.x, y: c.y, dieTime: now, hit: false });
         triggerMiss('Too early!');
         return;
@@ -643,6 +759,7 @@
       running   = false;
       paused    = true;
       pauseTime = performance.now();
+      if (run) run.ev('P');
     } else {
       // failed, pending restart, or not started — full reset
       resetToStart();
@@ -651,7 +768,10 @@
   };
 
   window._onSpearQteShow = function () {
+    const wBefore = canvas.width, hBefore = canvas.height;
     resizeCanvas();
+    // Live circles keep their spots but take the new radius and hit band.
+    if (run && (running || paused) && (canvas.width !== wBefore || canvas.height !== hBefore)) run.ev('G', canvas.width, canvas.height);
     if (paused) {
       if (resumeBtn) resumeBtn.style.display = '';
       if (startBtn)  startBtn.style.display  = 'none';
@@ -671,9 +791,16 @@
 })();
 
 // === SWORD QTE TRAINER ===
+// Tables, the hit test and the constants live in js/qte-rules.js
+// (QteRules.trainers.sword) so the server's check judges with the same numbers.
+// The run's log: 'R' at each round start (streak, canvas width, bar count, the
+// gap draws), 'K' at each judged press (bar, x, round game time, hit), 'E' when
+// the run ends, 'P'/'U' on pause/resume, 'Z' on a resize mid-run.
 (function () {
   const canvas    = document.getElementById('sword-qte-canvas');
   if (!canvas) return;
+  const R         = window.QteRules && QteRules.trainers['sword'];
+  if (!R) { console.error('sword trainer: js/qte-rules.js is not loaded'); return; }
   const ctx       = canvas.getContext('2d');
   const statusEl  = document.getElementById('sword-qte-status');
   const streakEl  = document.getElementById('sword-qte-streak');
@@ -695,32 +822,28 @@
   let bars        = [];
   let currentBar  = 0;
   let roundPending = false; // waiting to start next round
+  let run         = null;   // QteRules.Run of the current Start
+  let runComp     = false;  // mode at Start: the tables and the log's type must agree all run
+  let roundGT     = 0;      // this round's game time, ms (sum of clamped dt)
+  let roundDue    = false;  // the between-rounds timer fired while paused: the round starts on Resume
 
-  const TRACK_H     = 26;
-  const BAR_W       = 10;
-  const BAR_MIN_GAP = 75;  // min px gap between bars
-  const BAR_MAX_GAP = 130; // max px gap between bars (randomized)
+  const TRACK_H     = R.TRACK_H;
+  const BAR_W       = R.BAR_W;
+  const BAR_MIN_GAP = R.GAP_MIN; // min px gap between bars
+  const BAR_MAX_GAP = R.GAP_MAX; // max px gap between bars (randomized)
 
   let trackX, trackY, trackW, zoneX, zoneW;
 
-  function getSpeed()     { return window._qteCompMode
-    ? (IS_MOBILE ? Math.min(220 + streak * 8, 420)  : Math.min(400 + streak * 9, 610))
-    : (IS_MOBILE ? Math.min(160 + streak * 6, 320)  : Math.min(300 + streak * 10, 520)); }
-  function getBarCount()  { return window._qteCompMode
-    ? (IS_MOBILE ? Math.min(3 + Math.floor(streak / 3), 6) : Math.min(4 + Math.floor(streak / 2), 8))
-    : (IS_MOBILE ? Math.min(2 + Math.floor(streak / 4), 5) : Math.min(3 + Math.floor(streak / 3), 7)); }
-  function getZoneStart() { return 0.70; }
-  function getZoneWidth() { return window._qteCompMode
-    ? (IS_MOBILE ? Math.max(0.21 - streak * 0.007, 0.10) : Math.max(0.14 - streak * 0.004, 0.07))
-    : (IS_MOBILE ? Math.max(0.28 - streak * 0.007, 0.14) : Math.max(0.16 - streak * 0.004, 0.10)); }
+  function getSpeed()     { return R.speed(streak, runComp, !!IS_MOBILE); }
+  function getBarCount()  { return R.bars(streak, runComp, !!IS_MOBILE); }
 
   function updateHighscore(v) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
-      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword-comp', v); }
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run) run.submit(v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
     } else {
-      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('sword', v); }
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run) run.submit(v); }
       if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
   }
@@ -744,15 +867,15 @@
   }
 
   function computeLayout() {
-    const pad = 50;
-    trackX = pad;
-    trackW = canvas.width - pad * 2;
+    trackX = R.PAD;
+    trackW = canvas.width - R.PAD * 2;
     trackY = canvas.height / 2 - TRACK_H / 2;
   }
 
   function computeZone() {
-    zoneX = trackX + trackW * getZoneStart();
-    zoneW = trackW * getZoneWidth();
+    const z = R.zone(trackW, streak, runComp, !!IS_MOBILE);
+    zoneX = z.x;
+    zoneW = z.w;
   }
 
   function startRound() {
@@ -761,12 +884,17 @@
     const count = getBarCount();
     bars = [];
     currentBar = 0;
+    roundGT = 0;
+    const gaps = [];
     // Bars stagger from left with randomized gaps so timing isn't predictable
     let xPos = trackX - BAR_W;
     for (let i = 0; i < count; i++) {
       bars.push({ x: xPos, stopped: false, inZone: false });
-      xPos -= BAR_MIN_GAP + Math.random() * (BAR_MAX_GAP - BAR_MIN_GAP);
+      const gap = BAR_MIN_GAP + Math.random() * (BAR_MAX_GAP - BAR_MIN_GAP);
+      gaps.push(gap);
+      xPos -= gap;
     }
+    if (run) run.ev('R', streak, canvas.width, count, ...gaps);
     setStatus(IS_MOBILE ? 'Tap to stop each bar in the zone!' : 'Press SPACE to stop each bar in the zone!', '#aaaaff');
   }
 
@@ -804,7 +932,7 @@
 
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const dt = Math.min((now - lastTime) / 1000, R.DT_MAX);
     lastTime = now;
 
     if (!roundPending) {
@@ -812,10 +940,12 @@
       for (const b of bars) {
         if (!b.stopped) b.x += speed * dt;
       }
+      roundGT += dt * 1000;
 
       // Check if lead bar flew off the right
       const cur = bars[currentBar];
-      if (cur && !cur.stopped && cur.x > trackX + trackW + BAR_W) {
+      if (cur && !cur.stopped && R.pastEnd(cur.x, trackW)) {
+        if (run) run.ev('E', 'slow', currentBar, cur.x, roundGT);
         triggerFail('Too slow!');
         return;
       }
@@ -831,9 +961,11 @@
     if (!cur || cur.stopped) return;
 
     cur.stopped = true;
-    cur.inZone  = cur.x < zoneX + zoneW + 2 && cur.x + BAR_W > zoneX - 2; // any overlap with zone counts
+    cur.inZone  = R.inZone(cur.x, zoneX, zoneW); // any overlap with zone counts
+    if (run) run.ev('K', currentBar, cur.x, roundGT, cur.inZone ? 1 : 0);
 
     if (!cur.inZone) {
+      if (run) run.ev('E', 'zone');
       triggerFail('Outside the zone!');
       return;
     }
@@ -851,9 +983,16 @@
     updateHighscore(streak);
     setStatus(`✓ All in zone! Next: ${getBarCount()} bars`, '#88ee88');
     roundPending = true;
+    // Only this run's next round: a timer left over from a run that was
+    // restarted inside these 800 ms must not start a round into the new one.
+    // Paused when it fires (the panel was left in these 800 ms): the round
+    // starts on Resume. It used to be dropped, which left the run stuck.
+    const myRun = run;
     setTimeout(() => {
+      if (run !== myRun) return;
       if (running) startRound();
-    }, 800);
+      else if (paused && roundPending) roundDue = true;
+    }, R.ROUND_DELAY);
   }
 
   function triggerFail(msg) {
@@ -862,11 +1001,15 @@
     paused      = false;
     roundPending = false;
     updateHighscore(streak);
+    if (run) run.close();
     drawFrame();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
-    setTimeout(resetToStart, 900);
+    // Only this run: Start clicked inside these 900 ms (possible when the
+    // canvas was hidden) must not have the new run stopped by the old reset.
+    const myRun = run;
+    setTimeout(() => { if (run === myRun) resetToStart(); }, R.FAIL_RESET);
   }
 
   function resetToStart() {
@@ -875,6 +1018,7 @@
     gameStarted  = false;
     paused       = false;
     roundPending = false;
+    roundDue     = false;
     bars         = [];
     canvas.style.display = 'none';
     if (startBtn)  startBtn.style.display  = '';
@@ -883,12 +1027,15 @@
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('sword' + (window._qteCompMode ? '-comp' : ''));
+    if (run) run.close();
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('sword' + (runComp ? '-comp' : ''));
     streak       = 0;
     running      = true;
     gameStarted  = true;
     paused       = false;
     roundPending = false;
+    roundDue     = false;
     resizeCanvas();
     canvas.style.display = '';
     lastTime = performance.now();
@@ -904,8 +1051,10 @@
     paused   = false;
     running  = true;
     lastTime = performance.now();
+    if (run) run.ev('U');
     if (resumeBtn) resumeBtn.style.display = 'none';
     setStatus(IS_MOBILE ? 'Tap to stop each bar in the zone!' : 'Press SPACE to stop each bar in the zone!', '#aaaaff');
+    if (roundDue) { roundDue = false; startRound(); }
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -942,6 +1091,7 @@
       cancelAnimationFrame(animFrame);
       running  = false;
       paused   = true;
+      if (run) run.ev('P');
     } else {
       resetToStart();
       streak = 0;
@@ -949,7 +1099,11 @@
   };
 
   window._onSwordQteShow = function () {
+    const cwBefore = canvas.width;
     resizeCanvas();
+    // Bars keep their x and the zone keeps its place until the next round;
+    // only the run-off edge follows the new width, so the log needs it.
+    if (run && (running || paused) && canvas.width !== cwBefore) run.ev('Z', canvas.width);
     if (paused) {
       canvas.style.display = '';
       if (resumeBtn) resumeBtn.style.display = '';
@@ -969,10 +1123,17 @@
 })();
 
 // === DODGE QTE TRAINER (moving yellow target) ===
+// Curves, timers and the log's meaning live in js/qte-rules.js ('dodge'), which
+// the server's check also runs. The run's log (QteRules.Run): 'G' at Start (track
+// width), 'T' each target made, 'L' each launch, 'H' each press judged (bar x,
+// game ms flown, hit, ms since the last frame), 'Z' a resize, 'P'/'U' pause and
+// resume, 'E' the end ('miss' / 'slow' / 'reset').
 (function () {
   const canvas    = document.getElementById('dodge-qte-canvas');
   if (!canvas) return;
-  const ctx       = canvas.getContext('2d');
+  const R         = window.QteRules && QteRules.trainers['dodge'];
+  if (!R) return;
+  const ctx      = canvas.getContext('2d');
   const statusEl  = document.getElementById('dodge-qte-status');
   const streakEl  = document.getElementById('dodge-qte-streak');
   const hsEl      = document.getElementById('dodge-qte-highscore');
@@ -991,38 +1152,46 @@
   let animFrame    = null;
   let lastTime     = 0;
   let whiteX       = 0;    // current x of white bar
+  let travel       = 0;    // game seconds the bar has flown (sum of clamped dt), logged with each press
   let inFlight      = false; // white bar currently moving
-  let yellowCenter  = 0.70; // fraction of track (fixed per round, randomised after each hit)
+  let yellowCenter  = R.YC_START; // fraction of track (fixed per round, randomised after each hit)
   let yellowWidth   = 0;    // px, shrinks with streak
+  let run           = null; // QteRules.Run for the current Start
+  let runComp       = false; // the mode this Start was made in (its curves and its board)
+  let launchTimer   = null; // the one pending launch (cleared on pause / reset / new Start)
 
-  const TRACK_H = 26;
-  const BAR_W   = 10;
-  const PAD     = 50;
+  const TRACK_H = R.TRACK_H;
+  const BAR_W   = R.BAR_W;
+  const PAD     = R.PAD;
 
   let trackX, trackW, trackY;
 
-  function getWhiteSpeed()  { return window._qteCompMode ? Math.min(480 + streak * 16, 720) : Math.min(370 + streak * 12, 580); }
-  function calcYellowWidth(){ return window._qteCompMode ? Math.max(trackW * (0.065 - streak * 0.007), BAR_W * 0.5) : Math.max(trackW * (0.09 - streak * 0.008), BAR_W * 0.5); }
+  function getWhiteSpeed()  { return R.speed(streak, runComp); }
+  function calcYellowWidth(){ return R.width(streak, trackW, runComp); }
   function getYellowX()     { return trackX + trackW * yellowCenter; }
+  function ev()             { if (run) run.ev.apply(run, arguments); }
 
   function randomiseYellow() {
     // Pick a new random centre in the 62–80% range, different from current
-    let next;
-    do { next = 0.62 + Math.random() * 0.18; } while (Math.abs(next - yellowCenter) < 0.06);
-    yellowCenter = next;
+    yellowCenter = R.nextCenter(yellowCenter, Math.random);
     yellowWidth  = calcYellowWidth();
+    ev('T', streak + 1, yellowCenter, yellowWidth);
   }
 
-  function updateHighscore(v) {
+  // fromRun: a point (or the end) of the current run - judged against the best of
+  // the mode the run was started in, which is also the board run.submit posts to.
+  function updateHighscore(v, fromRun) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
-    if (window._qteCompMode) {
-      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge-comp', v); }
+    if (fromRun ? runComp : window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} submit(v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
     } else {
-      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dodge', v); }
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} submit(v); }
       if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
   }
+  // A run left paused for half a day would log past the log's time limit.
+  function submit(v) { if (run && run.now() < R.SUBMIT_MAX_MS) run.submit(v); }
   updateHighscore(0);
   window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
   window.addEventListener('alb-mode-changed', () => updateHighscore(0));
@@ -1044,9 +1213,19 @@
     trackY = canvas.height / 2 - TRACK_H / 2;
   }
 
+  // One pending launch at a time: a stale timer (from before a pause, or from an
+  // earlier Start) must never launch or relaunch a bar the log did not schedule.
+  function scheduleLaunch(ms) {
+    clearTimeout(launchTimer);
+    launchTimer = setTimeout(() => { launchTimer = null; if (running) launchBar(); }, ms);
+  }
+  function cancelLaunch() { clearTimeout(launchTimer); launchTimer = null; }
+
   function launchBar() {
     whiteX   = trackX;
+    travel   = 0;
     inFlight = true;
+    ev('L', streak + 1);
     setStatus(IS_MOBILE ? 'Tap when the bar hits the yellow!' : 'Press SPACE when the bar hits the yellow!', '#aaaaff');
   }
 
@@ -1074,14 +1253,16 @@
 
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const dt = Math.min((now - lastTime) / 1000, R.DT_CAP);
     lastTime = now;
 
     if (inFlight) {
       whiteX += getWhiteSpeed() * dt;
+      travel += dt;
       // Missed — bar exited right side
       if (whiteX > trackX + trackW) {
         inFlight = false;
+        ev('E', 'slow', whiteX, travel * 1000);
         triggerFail('Too slow!');
         return;
       }
@@ -1097,36 +1278,42 @@
 
     const yw      = yellowWidth;
     const yx      = getYellowX() - yw / 2;
-    const tolerance = 8; // px buffer — any part of white bar touching yellow counts
+    const tolerance = R.TOL; // px buffer — any part of white bar touching yellow counts
     const overlap = whiteX < yx + yw + tolerance && whiteX + BAR_W > yx - tolerance;
+    ev('H', streak + 1, whiteX, travel * 1000, overlap ? 1 : 0, performance.now() - lastTime);
 
     if (!overlap) {
+      ev('E', 'miss');
       triggerFail('Missed the target!');
       return;
     }
 
     streak++;
     streakEl.textContent = `Streak: ${streak}`;
-    updateHighscore(streak);
+    updateHighscore(streak, true);
     setStatus('Hit!', '#88ee88');
     randomiseYellow(); // new position + smaller width for next round
-    setTimeout(() => { if (running) launchBar(); }, 550);
+    scheduleLaunch(R.NEXT_LAUNCH_MS);
   }
 
   function triggerFail(msg) {
     if (!running && !gameStarted) return;
     running = paused = false;
     inFlight = false;
-    updateHighscore(streak);
+    cancelLaunch();
+    updateHighscore(streak, true);
+    if (run) run.close();
     drawFrame();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
-    setTimeout(resetToStart, 900);
+    setTimeout(resetToStart, R.RESET_MS);
   }
 
   function resetToStart() {
     cancelAnimationFrame(animFrame);
+    cancelLaunch();
+    if (gameStarted && run && !run.closed) { ev('E', 'reset'); run.close(); }
     running = gameStarted = paused = false;
     inFlight = false;
     canvas.style.display = 'none';
@@ -1136,21 +1323,24 @@
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('dodge' + (window._qteCompMode ? '-comp' : ''));
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('dodge' + (runComp ? '-comp' : ''));
     streak = 0;
     running = gameStarted = true;
     paused = false;
     inFlight = false;
     resizeCanvas();
-    yellowCenter = 0.70;
+    yellowCenter = R.YC_START;
     yellowWidth  = calcYellowWidth();
+    ev('G', trackW);
+    ev('T', 1, yellowCenter, yellowWidth);
     canvas.style.display = '';
     lastTime = performance.now();
     streakEl.textContent = '';
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
     animFrame = requestAnimationFrame(gameLoop);
-    setTimeout(launchBar, 400);
+    scheduleLaunch(R.FIRST_LAUNCH_MS);
   }
 
   function resumeGame() {
@@ -1158,9 +1348,10 @@
     paused   = false;
     running  = true;
     lastTime = performance.now();
+    ev('U');
     if (resumeBtn) resumeBtn.style.display = 'none';
     animFrame = requestAnimationFrame(gameLoop);
-    if (!inFlight) setTimeout(launchBar, 400);
+    if (!inFlight) scheduleLaunch(R.RESUME_LAUNCH_MS);
     else setStatus(IS_MOBILE ? 'Tap when the bar hits the yellow!' : 'Press SPACE when the bar hits the yellow!', '#aaaaff');
   }
 
@@ -1185,12 +1376,16 @@
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame);
+      cancelLaunch();
       running = false; paused = true;
+      ev('P');
     } else { resetToStart(); streak = 0; }
   };
 
   window._onDodgeQteShow = function () {
+    const prevW = trackW;
     resizeCanvas();
+    if (gameStarted && trackW !== prevW) ev('Z', trackW);
     if (paused) {
       canvas.style.display = '';
       if (resumeBtn) resumeBtn.style.display = '';
@@ -1210,9 +1405,19 @@
 })();
 
 // === DAGGER QTE TRAINER (spinning rings) ===
+// Tables, the hit test and the constants live in js/qte-rules.js
+// (QteRules.trainers.dagger) so the server's check judges with the same numbers.
+// The run's log: 'R' at each round start (streak, each ring's start angle signed
+// by its direction), 'K' at each judged press (ring, the round's game time the
+// judged angle comes from, hit, source), 'E' when the run ends, 'P'/'U' on
+// pause/resume.
 (function () {
   const canvas    = document.getElementById('dagger-qte-canvas');
   if (!canvas) return;
+  // Without its rules this trainer cannot run; return instead of throwing, so the
+  // trainers after this one in qte.js still load.
+  const R         = window.QteRules && window.QteRules.trainers && window.QteRules.trainers['dagger'];
+  if (!R) { canvas.style.display = 'none'; return; }
   const ctx       = canvas.getContext('2d');
   const statusEl  = document.getElementById('dagger-qte-status');
   const timerEl   = document.getElementById('dagger-qte-timer');
@@ -1254,30 +1459,36 @@
   let pendingRoundTimer = null; // tracks the between-round setTimeout so it can be cancelled on pause
   let arrowRadius       = 0;
   let roundEndTime      = 0; // performance.now() when the round expires
+  let run               = null;  // QteRules.Run of the current Start
+  let runComp           = false; // mode at Start: the tables and the log's type must agree all run
+  let roundGT           = 0;     // this round's game time, ms (sum of the clamped frame dts)
 
   const RING_THICK = 16;
   const RING_GAP   = 12;
   const BASE_R     = 48;
   const RING_STEP  = RING_THICK + RING_GAP;
 
-  function getRingCount()  { return window._qteCompMode ? Math.min(3 + streak, 9) : Math.min(2 + streak, 8); }
-  function getGapSize()    { return window._qteCompMode
-    ? Math.max((40 - streak * 1.8) * Math.PI / 180, 16 * Math.PI / 180)
-    : Math.max((52 - streak * 1.8) * Math.PI / 180, 22 * Math.PI / 180); }
-  function getHitExtra()   { return 7 * Math.PI / 180; }
+  function getRingCount()  { return R.ringCount(streak, runComp); }
+  function getGapSize()    { return R.gapSize(streak, runComp); }
   function getRingSpeed(i, total) {
-    const base = window._qteCompMode ? Math.min(4.2 + streak * 0.32, 9.0) : Math.min(3.2 + streak * 0.25, 7.0);
-    const spd  = base + (total - 1 - i) * 0.5;
+    const spd  = R.ringSpeed(streak, i, total, runComp);
     return spd * (Math.random() < 0.5 ? 1 : -1);
   }
 
+  // A submit carries the log so far. Past the rules' MAX_T (a run left paused
+  // for half a day) the log could only be refused, so it is not sent.
+  function submit(v) { if (run && !run.closed && run.now() <= QteRules.LIMITS.MAX_T) run.submit(v); }
+
   function updateHighscore(v) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
-    if (window._qteCompMode) {
-      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-comp', v); }
+    // The run's own mode while it is open: the mode can be switched mid-run
+    // (clicking the Dagger tab again shows Start, which unblocks the toggle),
+    // and the score belongs to the board the run was started for.
+    if (run && !run.closed ? runComp : window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} submit(v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
     } else {
-      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger', v); }
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} submit(v); }
       if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
   }
@@ -1304,16 +1515,18 @@
     rings = [];
     for (let i = 0; i < count; i++) {
       const spd      = getRingSpeed(i, count);
-      const startGap = Math.PI * (0.6 + Math.random() * 0.8);
-      rings.push({ gapAngle: startGap, vel: spd });
+      const startGap = R.startGap(Math.random()); // PI*(0.6 + rand*0.8), to the 4 dp the log keeps
+      rings.push({ gapAngle: startGap, start: startGap, vel: spd });
     }
     currentRing  = count - 1;
-    roundEndTime = performance.now() + 8000;
+    roundGT      = 0;
+    roundEndTime = performance.now() + R.C.ROUND_MS;
     roundStart   = performance.now();
+    if (run) run.ev('R', streak, ...rings.map(r => r.vel > 0 ? r.start : -r.start));
     setStatus(IS_MOBILE ? 'Tap when the arrow enters the gap!' : 'Press SPACE when the arrow enters the gap!', '#aaaaff');
   }
 
-  const EXPAND_MS = 220; // zoom-in animation duration
+  const EXPAND_MS = R.C.EXPAND_MS; // zoom-in animation duration
 
   function drawFrame(now) {
     now = now || performance.now();
@@ -1375,11 +1588,14 @@
 
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const dtMs = Math.min(now - lastTime, R.C.DT_MAX_MS);
     lastTime = now;
 
     if (!roundPending) {
-      for (const ring of rings) ring.gapAngle += ring.vel * dt;
+      // Angles from the round's game time: the same expression the hit test
+      // (and the server's check) uses, so what is drawn is what is judged.
+      roundGT += dtMs;
+      for (const ring of rings) ring.gapAngle = R.angle(ring.start, ring.vel, roundGT);
 
       // Countdown timer — only write to DOM when displayed text changes (~10fps)
       const secsLeft = Math.max(0, (roundEndTime - now) / 1000);
@@ -1390,28 +1606,25 @@
           timerEl.style.color = secsLeft <= 2 ? '#ee8888' : '#aaaaff';
         }
       }
-      if (secsLeft <= 0) { triggerFail("Time's up!"); return; }
+      if (secsLeft <= 0) { triggerFail("Time's up!", 'time'); return; }
     }
 
     drawFrame(now);
     animFrame = requestAnimationFrame(gameLoop);
   }
 
-  function onSpacePress() {
+  function onSpacePress(src) {
     if (!running || paused || roundPending) return;
     const ring = rings[currentRing];
     if (!ring || ring.expandFrom !== undefined) return; // block during zoom-in
 
-    // CCW rings are skippable — pressing space always counts as a hit
-    if (ring.vel < 0) {
-      // auto-pass, fall through to success logic below
-    } else {
-      const gapSize = getGapSize();
-      const norm = ((ring.gapAngle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-      const dist = Math.min(norm, Math.PI * 2 - norm);
-      const hit  = dist < gapSize / 2 + getHitExtra();
-      if (!hit) { triggerFail('Missed the gap!'); return; }
-    }
+    // CCW rings are skippable — judge() passes any press on them. A CW ring's
+    // gap has to be within gapSize/2 + 7 deg of the arrow, at the angle of the
+    // last drawn frame (the round's game time as logged).
+    const gT  = R.roundG(roundGT);
+    const hit = R.judge(ring.start, ring.vel, gT, streak, runComp).hit;
+    if (run) run.ev('K', currentRing, gT, hit ? 1 : 0, src || 'k');
+    if (!hit) { triggerFail('Missed the gap!', 'miss'); return; }
 
     // Compute where the next ring was drawn as a preview (it's the outermost preview)
     const activeR    = arrowRadius - RING_THICK / 2;
@@ -1443,19 +1656,21 @@
     setStatus(`✓ All rings! Next: ${getRingCount()} rings`, '#88ee88');
     roundPending = true;
     if (pendingRoundTimer) clearTimeout(pendingRoundTimer);
-    pendingRoundTimer = setTimeout(() => { pendingRoundTimer = null; if (running) startRound(); }, 800);
+    pendingRoundTimer = setTimeout(() => { pendingRoundTimer = null; if (running) startRound(); }, R.C.ROUND_GAP_MS);
   }
 
-  function triggerFail(msg) {
+  function triggerFail(msg, why) {
     if (!running && !gameStarted) return;
     running = paused = roundPending = false;
+    if (run) run.ev('E', why);
     updateHighscore(streak);
+    if (run) run.close();
     drawFrame();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
     if (timerEl) timerEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
-    setTimeout(resetToStart, 900);
+    setTimeout(resetToStart, R.C.FAIL_RESET_MS);
   }
 
   function resetToStart() {
@@ -1472,7 +1687,15 @@
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('dagger' + (window._qteCompMode ? '-comp' : ''));
+    // Start can be clicked while a run is still going: clicking the Dagger tab
+    // again runs _onDaggerQteShow, which shows Start. The old run's frame loop
+    // and its between-round timer must not carry over (the timer used to start
+    // a second round 1 inside the new run).
+    cancelAnimationFrame(animFrame);
+    if (pendingRoundTimer) { clearTimeout(pendingRoundTimer); pendingRoundTimer = null; }
+    if (run) run.close();
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('dagger' + (runComp ? '-comp' : ''));
     streak = 0;
     running = gameStarted = true;
     paused = roundPending = false;
@@ -1490,12 +1713,13 @@
   function resumeGame() {
     if (!paused) return;
     paused = false; running = true;
+    if (run) run.ev('U');
     lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (tapBtn && IS_MOBILE) tapBtn.style.display = '';
     // If we were paused mid-between-rounds, reschedule the startRound timeout
     if (roundPending && !pendingRoundTimer) {
-      pendingRoundTimer = setTimeout(() => { pendingRoundTimer = null; if (running) startRound(); }, 400);
+      pendingRoundTimer = setTimeout(() => { pendingRoundTimer = null; if (running) startRound(); }, R.C.RESUME_GAP_MS);
     }
     setStatus(IS_MOBILE ? 'Tap when the arrow enters the gap!' : 'Press SPACE when the arrow enters the gap!', '#aaaaff');
     animFrame = requestAnimationFrame(gameLoop);
@@ -1509,22 +1733,25 @@
     const panel = document.getElementById('qte-panel-dagger');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
-    onSpacePress();
+    // src: k key, r auto-repeat; p / q the same, delivered late by the ping simulator
+    const late = typeof window._albIsPingCopy === 'function' && window._albIsPingCopy(e);
+    onSpacePress(late ? (e.repeat ? 'q' : 'p') : (e.repeat ? 'r' : 'k'));
   });
   if (IS_MOBILE) {
-    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
-    if (tapBtn) tapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress('t'); }, { passive: false });
+    if (tapBtn) tapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress('t'); }, { passive: false });
   }
 
   if (startBtn)  startBtn.addEventListener('click', startGame);
   if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
-  if (tapBtn && IS_MOBILE) tapBtn.addEventListener('click', onSpacePress);
+  if (tapBtn && IS_MOBILE) tapBtn.addEventListener('click', () => onSpacePress('c'));
 
   window._onDaggerQteHide = function () {
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame);
       running = false; paused = true;
+      if (run) run.ev('P');
       // Cancel the between-round timeout so it doesn't fire while paused (running = false)
       // — resumeGame will reschedule it if roundPending is still true
       if (pendingRoundTimer) { clearTimeout(pendingRoundTimer); pendingRoundTimer = null; }
@@ -1554,9 +1781,16 @@
 })();
 
 // === HAMMER QTE TRAINER (hold-and-release charge bar) ===
+// Curves, the zone draw range and the 700 ms gap live in js/qte-rules.js
+// (QteRules.trainers.hammer) so the server's check and this game share them.
+// The run log (QteRules.Run) records: 'R' each round/zone, 'D' each hold start,
+// 'X' each release as judged, 'E' the miss that ends it, 'P'/'U' pause/resume.
 (function () {
   const canvas    = document.getElementById('hammer-qte-canvas');
   if (!canvas) return;
+  const QR        = window.QteRules;
+  const RULES     = QR && QR.trainers && QR.trainers['hammer'];
+  if (!RULES || !QR.Run) { try { console.error('[hammer] js/qte-rules.js must load before js/qte.js'); } catch (e) {} return; }
   const ctx       = canvas.getContext('2d');
   const statusEl  = document.getElementById('hammer-qte-status');
   const streakEl  = document.getElementById('hammer-qte-streak');
@@ -1575,15 +1809,18 @@
   let releaseFlash = null, flashStart = 0;
   const FLASH_MS = 500;
   let zoneMin = 0, zoneMax = 0;
+  let run = null;        // this Start's QteRules run (log + ticket)
+  let runComp = false;   // the mode this Start was made in (the log's type)
+  let holdFrames = 0;    // frames (dt > 0) integrated into fillPct during this hold
   const BAR_H = 40; // horizontal bar height
   const PAD   = 50; // left/right padding
 
-  function getFillSpeed() { return window._qteCompMode ? Math.min(0.42 + streak * 0.030, 0.85) : Math.min(0.30 + streak * 0.025, 0.70); }
-  function getZoneSize()  { return window._qteCompMode ? Math.max(0.07 - streak * 0.005, 0.025) : Math.max(0.10 - streak * 0.006, 0.04); }
+  function getFillSpeed() { return RULES.speed(streak, runComp); }
+  function getZoneSize()  { return RULES.size(streak, runComp); }
 
   function randomiseZone() {
     const size   = getZoneSize();
-    const center = 0.45 + Math.random() * 0.35;
+    const center = RULES.C_MIN + Math.random() * RULES.C_SPAN;
     zoneMin = Math.max(0.05, center - size / 2);
     zoneMax = Math.min(0.95, zoneMin + size);
     zoneMin = zoneMax - size;
@@ -1592,10 +1829,10 @@
   function updateHighscore(v) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
-      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer-comp', v); }
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run) run.submit(v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
     } else {
-      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('hammer', v); }
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run) run.submit(v); }
       if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
   }
@@ -1666,45 +1903,66 @@
     ctx.fillText('RELEASE', zoneX1 + zoneW / 2, by - 6);
   }
 
-  function startRound() {
-    fillPct = 0; holding = false; releaseFlash = null; inSuccessDelay = false;
+  // why: 's' Start, 'n' the gap timer after a hit, 'u' Resume
+  function startRound(why) {
+    fillPct = 0; holding = false; releaseFlash = null; inSuccessDelay = false; holdFrames = 0;
     randomiseZone();
+    if (run) run.ev('R', streak, zoneMin, zoneMax, why);
     setStatus(IS_MOBILE ? 'Hold button to charge, release in the box!' : 'Hold SPACE to charge, release in the box!', '#aaaaff');
     drawFrame();
   }
 
+  // A hold starts (only on the false -> true change, so repeats log nothing).
+  function startHold(src) {
+    if (holding) return;
+    holding = true; holdFrames = 0;
+    if (run) run.ev('D', src);
+  }
+
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const dt = Math.min((now - lastTime) / 1000, RULES.DT_MAX);
     lastTime = now;
     if (holding) {
       fillPct = Math.min(1, fillPct + getFillSpeed() * dt);
-      if (fillPct >= 1) { holding = false; onRelease(); return; }
+      // Count the frames that moved the bar. A second loop in the same frame
+      // (Start pressed again while a run is live: re-clicking the Hammer tab
+      // shows the Start button) gets dt = 0 and adds nothing.
+      if (dt > 0) holdFrames++;
+      if (fillPct >= 1) { holding = false; onRelease('o'); return; }
     }
     drawFrame(now);
     animFrame = requestAnimationFrame(gameLoop);
   }
 
-  function onRelease() {
+  // cause: 'k' Space, 't' canvas touch, 'b' HOLD button, 'o' overfill
+  function onRelease(cause) {
     if (!running || inSuccessDelay) return;
     const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
+    if (run) run.ev('X', fillPct, holdFrames, cause, inZone ? 1 : 0);
     releaseFlash = inZone ? 'hit' : 'miss';
     flashStart   = performance.now();
     drawFrame(flashStart);
-    if (!inZone) { triggerFail(fillPct < zoneMin ? 'Too early!' : 'Too late!'); return; }
+    if (!inZone) {
+      const early = fillPct < zoneMin;
+      if (run) run.ev('E', early ? 'early' : 'late');
+      triggerFail(early ? 'Too early!' : 'Too late!');
+      return;
+    }
     window._playQteSfx('hammer');
     streak++;
     inSuccessDelay = true;
     streakEl.textContent = `Streak: ${streak}`;
     updateHighscore(streak);
     setStatus('Perfect!', '#88ee88');
-    setTimeout(() => { if (running) startRound(); }, 700);
+    setTimeout(() => { if (running) startRound('n'); }, RULES.GAP_MS);
   }
 
   function triggerFail(msg) {
     if (!running && !gameStarted) return;
     running = paused = false; holding = false; inSuccessDelay = false;
     updateHighscore(streak);
+    if (run) run.close();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
@@ -1721,13 +1979,14 @@
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('hammer' + (window._qteCompMode ? '-comp' : ''));
+    runComp = !!window._qteCompMode;
+    run = QR.Run.start('hammer' + (runComp ? '-comp' : ''));
     streak = 0; running = gameStarted = true; paused = holding = false; fillPct = 0;
     resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
     streakEl.textContent = '';
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
-    startRound();
+    startRound('s');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -1735,7 +1994,8 @@
     if (!paused) return;
     paused = false; running = true; holding = false; lastTime = performance.now();
     if (resumeBtn) resumeBtn.style.display = 'none';
-    startRound();
+    if (run) run.ev('U');
+    startRound('u');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
@@ -1748,7 +2008,7 @@
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
     if (!running || paused || inSuccessDelay) return;
-    holding = true;
+    startHold('k');
   });
 
   document.addEventListener('keyup', e => {
@@ -1757,19 +2017,19 @@
     if (!panel || panel.style.display === 'none') return;
     if (!running || paused || !holding) return;
     holding = false;
-    onRelease();
+    onRelease('k');
   });
   if (IS_MOBILE) {
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
       if (!running || paused || inSuccessDelay) return;
-      holding = true;
+      startHold('t');
     }, { passive: false });
     canvas.addEventListener('touchend', e => {
       e.preventDefault();
       if (!running || paused || !holding) return;
       holding = false;
-      onRelease();
+      onRelease('t');
     }, { passive: false });
 
     // Dedicated HOLD button
@@ -1780,7 +2040,7 @@
     hammerHoldBtn.addEventListener('touchstart', e => {
       e.preventDefault();
       if (!running || paused || inSuccessDelay) return;
-      holding = true;
+      startHold('b');
       hammerHoldBtn.classList.add('active');
     }, { passive: false });
     hammerHoldBtn.addEventListener('touchend', e => {
@@ -1788,7 +2048,7 @@
       hammerHoldBtn.classList.remove('active');
       if (!running || paused || !holding) return;
       holding = false;
-      onRelease();
+      onRelease('b');
     }, { passive: false });
     canvas.parentElement.appendChild(hammerHoldBtn);
     new MutationObserver(() => {
@@ -1808,6 +2068,7 @@
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame); running = false; paused = true; holding = false;
+      if (run) run.ev('P');
     } else { resetToStart(); streak = 0; }
   };
 
@@ -1830,9 +2091,17 @@
 })();
 
 // === AXE QTE TRAINER (press to fill, bar drains, land in zone when timer ends) ===
+// Curves, drain/press amounts, the zone draw range and the 700 ms gap live in
+// js/qte-rules.js (QteRules.trainers.axe) so the server's check and this game share them.
+// The run log (QteRules.Run) records: 'R' each round/zone, 'K' each press in a round
+// (the fill after it), 'G' a press between rounds, 'J' each judgement, 'E' the end,
+// 'P'/'U' pause/resume.
 (function () {
   const canvas    = document.getElementById('axe-qte-canvas');
   if (!canvas) return;
+  const QR        = window.QteRules;
+  const RULES     = QR && QR.trainers && QR.trainers['axe'];
+  if (!RULES || !QR.Run) { try { console.error('[axe] js/qte-rules.js must load before js/qte.js'); } catch (e) {} return; }
   const ctx       = canvas.getContext('2d');
   const statusEl  = document.getElementById('axe-qte-status');
   const streakEl  = document.getElementById('axe-qte-streak');
@@ -1852,18 +2121,24 @@
   let roundEndTime = 0, pauseTimeRemaining = 0;
   const FLASH_MS = 600;
   let zoneMin = 0, zoneMax = 0;
+  let run = null;         // this Start's QteRules run (log + ticket)
+  let live = false;       // a round is on and not yet judged
+  let gapTimer = null;    // the 700 ms timer between a hit and the next round
+  let gapEndAt = 0;       // when that timer is due (performance.now())
+  let gapPaused = false;  // paused during that gap
+  let gapLeft = 0;        // ...with this much of it still to run
 
   const BAR_H = 40;
   const PAD   = 50;
-  const DRAIN_RATE  = 0.06;  // fraction lost per second
-  const PRESS_AMT   = 0.09;  // fraction added per space press
+  const DRAIN_RATE  = RULES.DRAIN;  // fraction lost per second
+  const PRESS_AMT   = RULES.PRESS;  // fraction added per space press
 
-  function getTimer()    { return window._qteCompMode ? Math.max(5 - streak * 0.3, 2.5) : Math.max(6 - streak * 0.3, 3); }
-  function getZoneSize() { return window._qteCompMode ? Math.max(0.08 - streak * 0.006, 0.02) : Math.max(0.11 - streak * 0.007, 0.03); }
+  function getTimer()    { return RULES.timer(streak, !!window._qteCompMode); }
+  function getZoneSize() { return RULES.size(streak, !!window._qteCompMode); }
 
   function randomiseZone() {
     const size   = getZoneSize();
-    const center = 0.45 + Math.random() * 0.35;
+    const center = RULES.C_MIN + Math.random() * RULES.C_SPAN;
     zoneMin = Math.max(0.05, center - size / 2);
     zoneMax = Math.min(0.95, zoneMin + size);
     zoneMin = zoneMax - size;
@@ -1872,10 +2147,10 @@
   function updateHighscore(v) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
     if (window._qteCompMode) {
-      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe-comp', v); }
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run) run.submit(v); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
     } else {
-      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('axe', v); }
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run) run.submit(v); }
       if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
     }
   }
@@ -1958,40 +2233,57 @@
     ctx.fillText('ZONE', zoneX1 + zoneW / 2, by - 10);
   }
 
-  function startRound() {
+  // why: 's' Start, 'n' the gap timer after a hit
+  function startRound(why) {
     fillPct      = 0;
     releaseFlash = null;
     randomiseZone();
+    // Logged before the round clock is read, so the logged round can only
+    // look longer than the real one, never shorter.
+    if (run) run.ev('R', streak, zoneMin, zoneMax, why);
     roundEndTime = performance.now() + getTimer() * 1000;
+    live = true;
     setStatus(IS_MOBILE ? 'Tap to fill — land in the zone when time runs out!' : 'Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
     drawFrame();
   }
 
   function evaluateRound() {
     const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
+    live = false;
+    if (run) run.ev('J', fillPct, inZone ? 1 : 0);
     releaseFlash = inZone ? 'hit' : 'miss';
     flashStart   = performance.now();
     drawFrame(flashStart);
     if (!inZone) {
-      triggerFail(fillPct < zoneMin ? 'Too low!' : 'Too high!');
+      const low = fillPct < zoneMin;
+      if (run) run.ev('E', low ? 'low' : 'high');
+      triggerFail(low ? 'Too low!' : 'Too high!');
       return;
     }
     streak++;
     streakEl.textContent = `Streak: ${streak}`;
     updateHighscore(streak);
     setStatus('Landed it!', '#88ee88');
-    setTimeout(() => {
+    armGap(RULES.GAP_MS);
+  }
+
+  // The wait before the next round. A pause holds it and Resume runs only what
+  // was left of it, the same way a pause holds the round timer.
+  function armGap(ms) {
+    gapEndAt = performance.now() + ms;
+    gapTimer = setTimeout(() => {
+      gapTimer = null;
       if (running) {
-        startRound();
+        startRound('n');
         lastTime = performance.now();
         animFrame = requestAnimationFrame(gameLoop);
       }
-    }, 700);
+    }, ms);
   }
 
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const dt = Math.min((now - lastTime) / 1000, RULES.DT_MAX);
     lastTime = now;
 
     // Drain bar over time
@@ -2007,15 +2299,18 @@
     animFrame = requestAnimationFrame(gameLoop);
   }
 
-  function onSpacePress() {
+  // src: 'k' Space, 't' canvas touch, 'b' TAP button
+  function onSpacePress(src) {
     if (!running || paused) return;
     fillPct = Math.min(1, fillPct + PRESS_AMT);
+    if (run) { if (live) run.ev('K', fillPct, src); else run.ev('G'); }
   }
 
   function triggerFail(msg) {
     if (!running && !gameStarted) return;
     running = paused = false;
     updateHighscore(streak);
+    if (run) run.close();
     setStatus(msg, '#ee5555');
     streakEl.textContent = '';
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
@@ -2024,7 +2319,9 @@
 
   function resetToStart() {
     cancelAnimationFrame(animFrame);
-    running = gameStarted = paused = false; fillPct = 0;
+    if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+    if (run && gameStarted && (running || paused)) { run.ev('E', 'x'); run.close(); }
+    running = gameStarted = paused = false; fillPct = 0; live = false; gapPaused = false;
     canvas.style.display = 'none';
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
@@ -2032,24 +2329,34 @@
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('axe' + (window._qteCompMode ? '-comp' : ''));
-    streak = 0; running = gameStarted = true; paused = false; fillPct = 0;
+    // A Start over a run still going (matchmaking clicks Start itself) ends
+    // that run and its frame loop first, so two loops never drain one bar.
+    if (run && gameStarted && (running || paused)) { run.ev('E', 'x'); run.close(); }
+    cancelAnimationFrame(animFrame);
+    run = QR.Run.start('axe' + (window._qteCompMode ? '-comp' : ''));
+    if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+    streak = 0; running = gameStarted = true; paused = false; fillPct = 0; gapPaused = false;
     resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
     streakEl.textContent = '';
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
-    startRound();
+    startRound('s');
     animFrame = requestAnimationFrame(gameLoop);
   }
 
   function resumeGame() {
     if (!paused) return;
+    if (run) run.ev('U');   // before the clock is read (see startRound)
     paused = false; running = true; lastTime = performance.now();
     // Restore the exact time remaining from before the pause
     roundEndTime = performance.now() + pauseTimeRemaining;
     if (resumeBtn) resumeBtn.style.display = 'none';
     setStatus(IS_MOBILE ? 'Tap to fill — land in the zone when time runs out!' : 'Press SPACE to fill — land in the zone when time runs out!', '#aaaaff');
-    animFrame = requestAnimationFrame(gameLoop);
+    // Paused between rounds: the rest of the wait runs, then the next round.
+    // (Resume used to judge the finished round a second time - a free point
+    // per pause.)
+    if (gapPaused) { gapPaused = false; armGap(gapLeft); }
+    else animFrame = requestAnimationFrame(gameLoop);
   }
 
   document.addEventListener('keydown', e => {
@@ -2060,17 +2367,17 @@
     const panel = document.getElementById('qte-panel-axe');
     if (!panel || panel.style.display === 'none') return;
     e.preventDefault();
-    onSpacePress();
+    onSpacePress('k');
   });
   if (IS_MOBILE) {
-    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress('t'); }, { passive: false });
 
     // Dedicated TAP button — synced to canvas visibility via MutationObserver
     const axeTapBtn = document.createElement('button');
     axeTapBtn.className = 'qte-mobile-action-btn';
     axeTapBtn.textContent = 'TAP';
     axeTapBtn.style.display = 'none';
-    axeTapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress(); }, { passive: false });
+    axeTapBtn.addEventListener('touchstart', e => { e.preventDefault(); onSpacePress('b'); }, { passive: false });
     canvas.parentElement.appendChild(axeTapBtn);
     new MutationObserver(() => {
       axeTapBtn.style.display = canvas.style.display === 'none' ? 'none' : '';
@@ -2085,6 +2392,13 @@
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame); running = false; paused = true;
       pauseTimeRemaining = Math.max(0, roundEndTime - performance.now());
+      // Between rounds: hold the rest of the wait until Resume (the gap timer
+      // would otherwise start a second frame loop if Resume came within 700 ms).
+      if (!live) {
+        gapPaused = true; gapLeft = Math.max(0, gapEndAt - performance.now());
+        if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+      }
+      if (run) run.ev('P');
     } else { resetToStart(); streak = 0; }
   };
 
@@ -2109,9 +2423,22 @@
 /* ============================================================
    STAFF QTE  — runic drag-and-drop matching
    ============================================================ */
+// Each run writes a log for the server's check (js/qte-rules.js, 'staff'):
+//   ['R', t, cause, streak, pattern, bank, leftMs]  a round is drawn
+//        (cause 0 Start, 1 after a win, 2 restart after a timeout, 3 Resume)
+//   ['L', t, tile, from, dx, dy]      a tile picked up (from -1 = bank, or a slot)
+//   ['D', t, tile, slot, ok, dx, dy]  the held tile let go, as judged
+//   ['P', t] / ['U', t]               paused mid-round / Resume pressed
+//   ['X', t]                          local scores reset (streak -> 0)
+//   ['E', t, 'time'|'hide'|'restart'] the attempt ended
+// Every restart after a timeout is a new attempt (run.newAttempt()), or, once
+// the run is an hour old, a fresh run (QteRules.Run.start, cause 0).
 (function () {
   var RUNE_MAP = { A:'ᚨ', B:'ᛒ', E:'ᛖ', F:'ᚠ', H:'ᚺ', N:'ᚾ', R:'ᚱ', U:'ᚢ', W:'ᚹ', X:'ᛉ' };
-  var KEYS = Object.keys(RUNE_MAP);
+  // Runes, lengths, timers and gaps live in the rules file so the check and
+  // the game can never disagree.
+  var RULES = QteRules.trainers['staff'];
+  var KEYS = RULES.KEYS;
 
   var canvas    = document.getElementById('staff-qte-canvas');
   var ctx       = canvas.getContext('2d');
@@ -2125,8 +2452,22 @@
   var streak = 0;
   var highscore     = parseInt(localStorage.getItem(HS_KEY)      || '0', 10);
   var highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  // The run log (QteRules.Run) of the current Start, the mode it started in,
+  // and a generation that invalidates a pending next-round callback when the
+  // run is ended or restarted under it.
+  var run = null, runComp = false, gen = 0;
+  function ev() { if (run && !run.closed) run.ev.apply(run, arguments); }
+  function endRun(why) { if (run && !run.closed) { run.ev('E', why); run.close(); } }
+  function r2(v) { return Math.round(v * 100) / 100; }
+  var RUN_RENEW_MS = 3600000;     // see the restart after a timeout
+  // A new best is sent with the attempt's log so far. Past MAX_T (a round
+  // paused overnight, then resumed) the log cannot be checked, so it is not sent.
+  function submit(score) { if (run && run.now() <= QteRules.LIMITS.MAX_T) run.submit(score); }
+
   window.addEventListener('alb-scores-reset', function() {
     streak = 0; highscore = 0; highscoreComp = 0;
+    ev('X');
     try { localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); } catch(e) {}
     if (highEl) highEl.textContent = '';
   });
@@ -2157,8 +2498,8 @@
     canvas.height = CH;
   }
 
-  function getPatternLen() { return window._qteCompMode ? Math.min(3 + streak, 9) : Math.min(2 + streak, 9); }
-  function getTimerDur()   { return window._qteCompMode ? (streak <= 5 ? 7 : Math.max(7 - (streak - 5), 4)) : (streak <= 7 ? 8 : Math.max(8 - (streak - 7), 5)); }
+  function getPatternLen() { return RULES.patternLen(streak, runComp); }
+  function getTimerDur()   { return RULES.timerDur(streak, runComp); }
 
   function shuffle(arr) {
     var a = arr.slice();
@@ -2179,7 +2520,9 @@
     return out;
   }
 
-  function newRound() {
+  // cause: 0 Start, 1 after a win, 2 restart after a timeout, 3 Resume.
+  // keepLeft (Resume only): seconds left on the timer, kept over the pause.
+  function newRound(cause, keepLeft) {
     var len = getPatternLen();
     // Build pattern
     pattern = [];
@@ -2200,8 +2543,13 @@
     });
 
     drag = null;
-    timeLeft = getTimerDur();
-    timerStart = performance.now();
+    timeLeft = keepLeft === undefined ? getTimerDur() : keepLeft;
+    // Logged BEFORE the timer is read, so the logged round start is never
+    // later than the real one (a coarse clock can tick between two reads; the
+    // other order would put the check's deadline after the game's and make an
+    // honest timeout look early).
+    ev('R', cause, streak, pattern.join(''), shuffled.join(''), Math.round(timeLeft * 1000));
+    timerStart = performance.now() - (getTimerDur() - timeLeft) * 1000;
   }
 
   function setStatus(txt, color) { statusEl.textContent = txt; statusEl.style.color = color || '#a08fd0'; }
@@ -2222,14 +2570,30 @@
 
   function triggerFail(msg) {
     running = false; drag = null;
+    ev('E', 'time');
     setStatus(msg || 'Failed!', '#e05555');
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
+    var g = gen;
     setTimeout(function () {
+      if (g !== gen) return;      // the run was ended or restarted meanwhile
       streak = 0; updateHUD();
-      newRound();
+      // The trainer restarts itself forever (even on another page of the
+      // site), but a log's clock must stay under QteRules.LIMITS.MAX_T and the
+      // server drops runs that go an hour without a submit. So after an hour
+      // the next attempt opens a fresh run instead (invisible to the player).
+      var fresh = null;
+      if (run && run.now() > RUN_RENEW_MS) { try { fresh = QteRules.Run.start(run.type); } catch (e) {} }
+      if (fresh) {
+        run.close();
+        run = fresh;
+        newRound(0);
+      } else {
+        if (run) run.newAttempt();
+        newRound(2);
+      }
       running = true;
       animFrame = requestAnimationFrame(staffGameLoop);
-    }, 900);
+    }, RULES.GAP_FAIL);
   }
 
   function triggerSuccess() {
@@ -2239,23 +2603,25 @@
       if (streak > highscoreComp) {
         highscoreComp = streak;
         try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('staff-comp', streak);
+        submit(streak);
       }
     } else {
       if (streak > highscore) {
         highscore = streak;
         try { localStorage.setItem(HS_KEY, highscore); } catch(e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('staff', streak);
+        submit(streak);
       }
     }
     updateHUD();
     setStatus('Complete!', '#55e09a');
     drawFrame(); // render all slots green before the loop stops
+    var g = gen;
     setTimeout(function () {
-      newRound();
+      if (g !== gen) return;      // the run was ended or restarted meanwhile
+      newRound(1);
       running = true;
       animFrame = requestAnimationFrame(staffGameLoop);
-    }, 1000);
+    }, RULES.GAP_WIN);
   }
 
   // ── drawing ────────────────────────────────────────────────
@@ -2351,8 +2717,12 @@
     return px >= tx && px <= tx + TW && py >= ty && py <= ty + TH;
   }
 
-  canvas.addEventListener('mousedown', function (e) {
-    if (!running || !gameStarted) return;
+  // Where p lands on the tile/slot at (x, y), in tile sizes from its centre.
+  function offX(p, x) { return r2((p.x - x - TW / 2) / TW); }
+  function offY(p, y) { return r2((p.y - y - TH / 2) / TH); }
+
+  // Pick-up, shared by mousedown and touchstart.
+  function pickUp(e) {
     var p = canvasPos(e);
     // pick up from bank
     for (var i = 0; i < bankTiles.length; i++) {
@@ -2360,6 +2730,7 @@
       if (t.inBank && hitTest(p.x, p.y, t.x, t.y)) {
         t.inBank = false;
         drag = { tile: t, curX: p.x, curY: p.y };
+        ev('L', t.id, -1, offX(p, t.x), offY(p, t.y));
         return;
       }
     }
@@ -2371,9 +2742,15 @@
         s.filledTile = null;
         tile.inBank = false;
         drag = { tile: tile, curX: p.x, curY: p.y };
+        ev('L', tile.id, j, offX(p, s.x), offY(p, s.y));
         return;
       }
     }
+  }
+
+  canvas.addEventListener('mousedown', function (e) {
+    if (!running || !gameStarted) return;
+    pickUp(e);
   });
 
   canvas.addEventListener('mousemove', function (e) {
@@ -2384,6 +2761,11 @@
 
   function dropDrag(e) {
     if (!drag) return;
+    // The timer ran out and no frame has noticed yet (the browser tab was
+    // hidden, or a frame is late): the round is over, not cleared.
+    if (running && (performance.now() - timerStart) / 1000 >= getTimerDur()) {
+      cancelAnimationFrame(animFrame); triggerFail("Time's up!"); return;
+    }
     var p = canvasPos(e);
     var tile = drag.tile;
     drag = null;
@@ -2395,20 +2777,25 @@
           window._playQteSfx('staff');
           s.filledTile = tile;
           tile.inBank = false;
+          // Logged once the tile is really in the slot (if the sound threw,
+          // the tile is lost for the round, and the log says so by omission).
+          ev('D', tile.id, j, 1, offX(p, s.x), offY(p, s.y));
           if (checkWin()) { cancelAnimationFrame(animFrame); drawFrame(); triggerSuccess(); }
         } else {
+          ev('D', tile.id, j, 0, offX(p, s.x), offY(p, s.y));
           returnToBank(tile); // wrong rune → back to bank
         }
         return;
       }
     }
     // dropped on nothing
+    ev('D', tile.id, -1, 0);
     returnToBank(tile);
   }
 
   canvas.addEventListener('mouseup',    dropDrag);
   canvas.addEventListener('mouseleave', function (e) {
-    if (drag) { returnToBank(drag.tile); drag = null; }
+    if (drag) { ev('D', drag.tile.id, -1, 0); returnToBank(drag.tile); drag = null; }
   });
 
   // Touch equivalents for drag-and-drop on mobile
@@ -2416,25 +2803,7 @@
     canvas.addEventListener('touchstart', function (e) {
       e.preventDefault();
       if (!running || !gameStarted) return;
-      var p = canvasPos(e);
-      for (var i = 0; i < bankTiles.length; i++) {
-        var t = bankTiles[i];
-        if (t.inBank && hitTest(p.x, p.y, t.x, t.y)) {
-          t.inBank = false;
-          drag = { tile: t, curX: p.x, curY: p.y };
-          return;
-        }
-      }
-      for (var j = 0; j < slots.length; j++) {
-        var s = slots[j];
-        if (s.filledTile && hitTest(p.x, p.y, s.x, s.y)) {
-          var tile = s.filledTile;
-          s.filledTile = null;
-          tile.inBank = false;
-          drag = { tile: tile, curX: p.x, curY: p.y };
-          return;
-        }
-      }
+      pickUp(e);
     }, { passive: false });
     canvas.addEventListener('touchmove', function (e) {
       e.preventDefault();
@@ -2450,8 +2819,12 @@
 
   // ── start / resume ─────────────────────────────────────────
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('staff' + (window._qteCompMode ? '-comp' : ''));
-    streak = 0; updateHUD(); newRound();
+    endRun('restart');
+    gen++;
+    cancelAnimationFrame(animFrame);
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('staff' + (runComp ? '-comp' : ''));
+    streak = 0; updateHUD(); newRound(0);
     gameStarted = true; paused = false; running = true;
     canvas.style.display = '';
     startBtn.style.display  = 'none';
@@ -2462,9 +2835,8 @@
 
   function resumeGame() {
     var savedTime = timeLeft;
-    newRound();                   // re-randomize runes
-    timeLeft   = savedTime;       // but keep the time that was left
-    timerStart = performance.now() - (getTimerDur() - timeLeft) * 1000;
+    ev('U');
+    newRound(3, savedTime);       // re-randomize runes, but keep the time that was left
     paused = false; running = true;
     resumeBtn.style.display = 'none'; setStatus('', '#a08fd0');
     animFrame = requestAnimationFrame(staffGameLoop);
@@ -2479,8 +2851,16 @@
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame);
       running = false; paused = true;
+      ev('P');                    // before the clock read: the kept time is never more than the log allows
       timeLeft = Math.max(0, getTimerDur() - (performance.now() - timerStart) / 1000);
-    } else { streak = 0; gameStarted = false; }
+      // A tile held when the panel hides goes home: it cannot be dropped
+      // into a paused round.
+      if (drag) { returnToBank(drag.tile); drag = null; }
+    } else {
+      streak = 0; gameStarted = false;
+      gen++;                      // no next round for a run that has ended
+      endRun('hide');
+    }
   };
 
   window._onStaffQteShow = function () {
@@ -2505,9 +2885,17 @@
 // Purple hearts come in strips toward the center. The bar physically blocks any heart
 // it overlaps. Hearts that get past it hit Thorian and cost a life.
 // Survive the round timer — each round adds length, speed, and active sides.
+// The difficulty curves and the canvas layout live in js/qte-rules.js
+// (QteRules.trainers.thorian) so the server's check judges with the same numbers.
+// The run's log (QteRules.Run): 'G' each round (rounds won, canvas size), 'H' each
+// heart as it is made (side, offset draw, round game time, frame step), 'B'/'X'/'O'
+// each heart blocked / reaching Thorian / leaving the screen, 'K' each bar turn,
+// 'W' each round won, 'P'/'U' pause/resume, 'Z' a resize mid-run, 'E' the end.
 (function () {
   const canvas    = document.getElementById('thorian-qte-canvas');
   if (!canvas) return;
+  const R         = window.QteRules && QteRules.trainers['thorian'];
+  if (!R) { console.error('thorian trainer: js/qte-rules.js is not loaded'); return; }
   const ctx       = canvas.getContext('2d');
   const statusEl  = document.getElementById('thorian-qte-status');
   const streakEl  = document.getElementById('thorian-qte-streak');
@@ -2533,6 +2921,19 @@
   let hearts        = [];  // { x, y, vx, vy, dying, dyingT }
   let particles     = [];  // block-burst particles
 
+  // ---- Run log ----
+  let run           = null;   // QteRules.Run of the current Start
+  let runComp       = false;  // mode at Start: the curves and the log's type agree all run
+  let roundG        = 0;      // this round's game time, ms (sum of the clamped frame steps)
+  let heartId       = 0;      // hearts made this round, in order (the log's heart ids)
+  let curSz         = 0;      // canvas size the layout was last made for
+  let betweenRounds = false;  // a round was won and the next has not begun
+  let gapDue        = false;  // the 1.6 s gap ran out while paused
+  // Log times to 0.1 ms and the offset draw in hundredths: enough for the check,
+  // and the log stays small.
+  function r1(n) { return Math.round(n * 10) / 10; }
+  function logEv() { if (run) run.ev.apply(run, arguments); }
+
   // ---- Strip scheduler ----
   let stripHeartLeft    = 0;
   let stripHeartTimer   = 0;   // ms until next heart in strip
@@ -2551,19 +2952,20 @@
   let PROJ_R    = 9;   // projectile collision radius
   let PROJ_SZ   = 20;  // projectile font size
 
-  const MAX_LIVES = 2;
+  const MAX_LIVES = R.MAX_LIVES;
   function stepBar(dir) {
+    if (dir !== barDir) logEv('K', R.DIR_IX[dir], r1(roundG));
     barDir = dir;
   }
 
   // ---- Difficulty ----
   // Round timer starts short and grows a little each round
-  function getRoundSecs()     { return Math.min(8 + streak * 1.5, 20); }
-  function getSpeed()         { return window._qteCompMode ? Math.min(155 + streak * 28, 380) : Math.min(145 + streak * 20, 285); }
-  function getStripLen()      { return window._qteCompMode ? Math.min(4 + streak, 10)          : Math.min(3 + Math.floor(streak * 0.85), 9); }
-  function getHeartInterval() { return window._qteCompMode ? Math.max(170, 390 - streak * 22)  : Math.max(210, 430 - streak * 20); }
-  function getGapDelay()      { return window._qteCompMode ? Math.max(420, 1300 - streak * 90)  : Math.max(500, 1500 - streak * 85); }
-  function getActiveSides()   { return ['top', 'left', 'right']; }
+  function getRoundSecs()     { return R.roundSecs(streak); }
+  function getSpeed()         { return R.speed(streak, runComp); }
+  function getStripLen()      { return R.stripLen(streak, runComp); }
+  function getHeartInterval() { return R.interval(streak, runComp); }
+  function getGapDelay()      { return R.gapDelay(streak, runComp); }
+  function getActiveSides()   { return R.SIDES; }
 
   // ---- Highscore ----
   function updateHighscore(val) {
@@ -2572,14 +2974,14 @@
       if (val > highscoreComp) {
         highscoreComp = val;
         try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('thorian-comp', val);
+        if (run) run.submit(val);
       }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
     } else {
       if (val > highscore) {
         highscore = val;
         try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('thorian', val);
+        if (run) run.submit(val);
       }
       if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
     }
@@ -2602,14 +3004,17 @@
     if (!wrap) return;
     const sz    = Math.min(wrap.clientWidth - 24 || 440, 440);
     canvas.width = canvas.height = sz;
-    CX = CY      = sz / 2;
-    BAR_OFF      = Math.round(sz * 0.052);
-    BAR_LEN      = Math.round(sz * 0.135);
-    BAR_THICK    = Math.round(sz * 0.024);
-    THORIAN_R    = Math.round(sz * 0.038);
-    THORIAN_SZ   = Math.round(sz * 0.100);
-    PROJ_R       = Math.round(sz * 0.022);
-    PROJ_SZ      = Math.round(sz * 0.056);
+    const G      = R.geom(sz);
+    CX = CY      = G.C;
+    BAR_OFF      = G.off;
+    BAR_LEN      = G.len;
+    BAR_THICK    = G.th;
+    THORIAN_R    = G.tr;
+    THORIAN_SZ   = G.tsz;
+    PROJ_R       = G.pr;
+    PROJ_SZ      = G.psz;
+    if (sz !== curSz) logEv('Z', sz);   // mid-run (panel shown again); no run, no log
+    curSz        = sz;
   }
 
   // ---- Bar bounding box ----
@@ -2749,24 +3154,27 @@
   }
 
   // ---- Spawn one projectile from a side, aimed at center ----
-  function spawnHeart(side) {
+  // dtMs: the step of the frame it is made in (it moves by that step this frame).
+  function spawnHeart(side, dtMs) {
     const speed   = getSpeed();
-    const spread  = BAR_LEN * 0.38;  // lateral spread within bar coverage
+    const spread  = BAR_LEN * R.SPREAD;  // lateral spread within bar coverage
     const W = canvas.width, H = canvas.height;
+    const u = Math.random();
     let x, y;
     if (side === 'top') {
-      x = CX + (Math.random() - 0.5) * spread * 2;
+      x = CX + (u - 0.5) * spread * 2;
       y = -PROJ_R;
     } else if (side === 'left') {
       x = -PROJ_R;
-      y = CY + (Math.random() - 0.5) * spread * 2;
+      y = CY + (u - 0.5) * spread * 2;
     } else {
       x = W + PROJ_R;
-      y = CY + (Math.random() - 0.5) * spread * 2;
+      y = CY + (u - 0.5) * spread * 2;
     }
     // Velocity directed toward center
     const dx = CX - x, dy = CY - y, dist = Math.sqrt(dx * dx + dy * dy);
-    hearts.push({ x, y, vx: dx / dist * speed, vy: dy / dist * speed, dying: 0 });
+    hearts.push({ x, y, vx: dx / dist * speed, vy: dy / dist * speed, dying: 0, id: heartId++ });
+    logEv('H', R.SIDE_IX[side], Math.floor(u * 100), r1(roundG), r1(dtMs));
   }
 
   // ---- Collision ----
@@ -2785,13 +3193,14 @@
     const dt   = Math.min((now - lastTime) / 1000, 0.05);
     lastTime   = now;
     const dtMs = dt * 1000;
+    roundG    += dtMs;
 
     // Strip scheduler
     if (stripHeartLeft > 0) {
       stripHeartTimer -= dtMs;
       if (stripHeartTimer <= 0) {
         const sides = getActiveSides();
-        spawnHeart(sides[Math.floor(Math.random() * sides.length)]);
+        spawnHeart(sides[Math.floor(Math.random() * sides.length)], dtMs);
         stripHeartLeft--;
         stripHeartTimer = getHeartInterval();
       }
@@ -2815,11 +3224,12 @@
       h.y += h.vy * dt;
 
       // Off-screen
-      if (h.x < -40 || h.x > W + 40 || h.y < -40 || h.y > H + 40) return false;
+      if (h.x < -40 || h.x > W + 40 || h.y < -40 || h.y > H + 40) { logEv('O', h.id, r1(roundG)); return false; }
 
       // Hit bar → block
       if (overlapsBar(h)) {
         h.dying = 1.0;
+        logEv('B', h.id, r1(roundG));
         for (let i = 0; i < 7; i++) {
           particles.push({
             x: h.x, y: h.y,
@@ -2835,6 +3245,7 @@
       // Hit Thorian heart → damage
       if (hitsThorian(h)) {
         lives--;
+        logEv('X', h.id, r1(roundG));
         thorianFlash = 0.5;
         if (window._playQteSfx) window._playQteSfx('dodge', false);
         if (lives <= 0) { onGameOver(); return false; }
@@ -2851,22 +3262,34 @@
   }
 
   function onRoundWin() {
+    logEv('W', r1(roundG));
     streak++;
+    betweenRounds = true; gapDue = false;
     updateHighscore(streak);
     hearts = []; particles = []; lives = MAX_LIVES;
     if (streakEl) streakEl.textContent = 'Rounds: ' + streak;
     setStatus('Round ' + streak + ' survived!', '#88ffaa');
     drawFrame();
-    setTimeout(() => { if (running) beginRound(); }, 1600);
+    // (a restart inside the gap already began a round: this timer is then stale)
+    setTimeout(() => { if (!betweenRounds) return; if (running) beginRound(); else if (paused) gapDue = true; }, R.NEXT_ROUND_MS);
+  }
+
+  function endRun(reason) {
+    if (!run) return;
+    run.ev('E', reason);
+    run.close();
+    run = null;
   }
 
   function onGameOver() {
     cancelAnimationFrame(animFrame);
     running = false; hearts = []; particles = [];
+    endRun('dead');
     if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     setStatus('Thorian fell! ' + streak + ' round' + (streak !== 1 ? 's' : '') + ' survived', '#ee5555');
     drawFrame();
     setTimeout(() => {
+      if (run) return;   // a new run was started in the meantime: leave it alone
       gameStarted = false;
       if (startBtn)  startBtn.style.display  = '';
       if (resumeBtn) resumeBtn.style.display = 'none';
@@ -2877,18 +3300,25 @@
     hearts = []; particles = [];
     roundTime         = getRoundSecs();
     stripHeartLeft    = 0;
-    betweenStripTimer = 700;
+    betweenStripTimer = R.FIRST_GAP_MS;
     running           = true;
+    betweenRounds     = false; gapDue = false;
+    roundG            = 0; heartId = 0;
+    logEv('G', streak, curSz);
     setStatus('Block the hearts!', '#cc88ff');
+    cancelAnimationFrame(animFrame);   // Start pressed with a loop still queued: one loop only
     animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('thorian' + (window._qteCompMode ? '-comp' : ''));
+    endRun('restart');
+    resizeCanvas();   // before the new run: its first round logs the size, not a resize
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('thorian' + (runComp ? '-comp' : ''));
     streak = 0; lives = MAX_LIVES; thorianFlash = 0;
     paused = false; gameStarted = true; barDir = 'right';
+    betweenRounds = false; gapDue = false;
     hearts = []; particles = [];
-    resizeCanvas();
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (streakEl)  streakEl.textContent = '';
@@ -2899,6 +3329,8 @@
   function resetToStart() {
     cancelAnimationFrame(animFrame);
     running = false; gameStarted = false; paused = false;
+    betweenRounds = false; gapDue = false;
+    endRun('reset');
     hearts = []; particles = [];
     streak = 0; lives = MAX_LIVES; thorianFlash = 0; barDir = 'right';
     if (startBtn)  startBtn.style.display  = '';
@@ -2929,9 +3361,14 @@
   if (resumeBtn) resumeBtn.addEventListener('click', () => {
     if (!paused) return;
     paused = false; running = true;
-    betweenStripTimer = 700;
+    logEv('U');
     if (resumeBtn) resumeBtn.style.display = 'none';
     setStatus('Block the hearts!', '#cc88ff');
+    // Paused between rounds: the next round begins when the 1.6 s gap is over
+    // (at once if it ran out while paused). Resuming the finished round's loop
+    // here used to score that round a second time.
+    if (betweenRounds) { if (gapDue) beginRound(); return; }
+    betweenStripTimer = R.RESUME_GAP_MS;
     animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
   });
 
@@ -2956,6 +3393,7 @@
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame); running = false; paused = true;
+      logEv('P', r1(roundG));
     } else { resetToStart(); streak = 0; }
   };
 
@@ -3001,6 +3439,10 @@
   // Clear old local highscore key (scoring system changed to rounds)
   localStorage.removeItem('alb:thorian-new-hs');
 
+  // The rules (radii, caps, timers, orb speed, the draws, canvas size) live in
+  // js/qte-rules.js, shared with the score check.
+  const R = QteRules.trainers['thorian-new'];
+
   // Canvas size
   let W = 0, H = 0;
 
@@ -3009,12 +3451,12 @@
   let shards = [];
 
   // Targets
-  const TARGET_R    = 22;
-  const PLAYER_R    = 26;
-  const MAX_TARGETS  = 5;
-  const GAME_SECS    = 15;
+  const TARGET_R    = R.TARGET_R;
+  const PLAYER_R    = R.PLAYER_R;
+  const MAX_TARGETS  = R.MAX_TARGETS;
+  const GAME_SECS    = R.GAME_SECS;
 
-  const MAX_YELLOWS = 3;
+  const MAX_YELLOWS = R.MAX_YELLOWS;
   let targets    = [];
   let yellows    = [];
   let heldYellow = null;
@@ -3036,6 +3478,28 @@
   let transitioning = false; // between-round countdown
   let transitionTimer = 0;
 
+  // Score log (QteRules.Run). The game runs on its own clock: gameT is the sum
+  // of clamped frame dts (frozen while paused), lastDt the last frame's dt.
+  // Orbs/diamonds carry run-wide spawn indexes (k / j) that the log refers to.
+  let run = null, runComp = false, logBytes = 0;
+  let gameT = 0, lastDt = 0, orbN = 0, yelN = 0;
+  function gMs() { return R.ms(gameT); }
+  function dMs() { return R.ms(lastDt); }
+  function ev() {
+    if (!run || run.closed || logBytes > R.LOG_BUDGET) return;
+    // A log may not run past QteRules.LIMITS.MAX_T: close the run first (no
+    // more events or submits; the rounds already submitted stay proven).
+    if (run.now() > QteRules.LIMITS.MAX_T - R.LOG_T_MARGIN) { run.close(); return; }
+    const L = run.log.ev, n = L.length;
+    run.ev.apply(run, arguments);
+    if (L.length > n) logBytes += JSON.stringify(L[n]).length + 1;
+  }
+  // A diamond position for the log; null if the game's value went NaN.
+  function lp(v) { return isFinite(v) ? R.px(v) : null; }
+  // Submit only from an open run: after the run's end (a red drop while
+  // paused leaves the game resumable) its log cannot prove later rounds.
+  function submit(val) { if (run && !run.closed) run.submit(val); }
+
   function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
   function updateHs(val) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
@@ -3043,14 +3507,14 @@
       if (val > highscoreComp) {
         highscoreComp = val;
         try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('thorian-new-comp', val);
+        submit(val);
       }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
     } else {
       if (val > highscore) {
         highscore = val;
         try { localStorage.setItem(HS_KEY, highscore); } catch(e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('thorian-new', val);
+        submit(val);
       }
       if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
     }
@@ -3063,13 +3527,15 @@
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     if (!wrap) return;
+    const pw = W, ph = H;
     W = Math.min(wrap.clientWidth, 900);
-    H = Math.max(240, Math.min(360, Math.round(W * 0.38)));
+    H = R.canvasH(W);
     canvas.width        = W;
     canvas.height       = H;
     canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
     initShards();
+    if (W !== pw || H !== ph) ev('Z', W, H); // only while a run is logging
   }
 
   // ---- Background shards ----
@@ -3286,41 +3752,45 @@
 
   // ---- Spawn ----
   // 5 fixed vertical columns
-  function getColumnX(col) { return Math.round(W * (col * 2 + 1) / 10); }
+  function getColumnX(col) { return R.colX(W, col); }
 
+  // Draw order is unchanged (column, type, speed; the gap is drawn by the loop).
   function spawnTarget() {
-    const margin = TARGET_R + 20;
     const usedCols = new Set(targets.map(t => t.col));
     const freeCols = [0,1,2,3,4].filter(c => !usedCols.has(c));
-    if (freeCols.length === 0) return;
+    if (freeCols.length === 0) return null;
     const col  = freeCols[Math.floor(Math.random() * freeCols.length)];
     const x    = getColumnX(col);
-    const type = Math.random() < 0.75 ? 'purple' : 'red';
-    const spd  = getOrbSpeed() * (0.85 + Math.random() * 0.3); // slight per-orb variation
-    targets.push({ x, y: H + TARGET_R + 4, col, type, vy: -spd });
+    const type = R.isPurple(Math.random()) ? 'purple' : 'red';
+    const mul  = R.orbMul(Math.random()); // slight per-orb variation
+    const spd  = getOrbSpeed() * mul;
+    const t = { x, y: R.spawnY(H), col, type, vy: -spd, mul, k: orbN++ };
+    targets.push(t);
+    return t;
   }
 
   function spawnYellow() {
-    const margin = PLAYER_R + 20;
     const usedCols = new Set(yellows.map(y => y.col));
     const freeCols = [0,1,2,3,4].filter(c => !usedCols.has(c));
-    if (freeCols.length === 0) return;
+    if (freeCols.length === 0) return null;
     const col = freeCols[Math.floor(Math.random() * freeCols.length)];
     const x   = getColumnX(col);
-    const y   = margin + Math.random() * (H - margin * 2);
-    yellows.push({ x, y, col, life: 3 + Math.random() * 3 });
+    const y   = R.yelY(H, Math.random());
+    const yl  = { x, y, col, life: R.yelLife(Math.random()), j: yelN++ };
+    yl.life0 = yl.life;
+    yellows.push(yl);
+    return yl;
   }
 
   function dist2(ax, ay, bx, by) { return (ax - bx) ** 2 + (ay - by) ** 2; }
 
-  // Orb speed scales with round (px/s) — comp mode scales faster
+  // Orb speed scales with round (px/s) — comp mode scales faster (mode is fixed at Start)
   function getOrbSpeed() {
-    return window._qteCompMode
-      ? Math.min(300, 65 + (round - 1) * 28)
-      : Math.min(220, 45 + (round - 1) * 18);
+    return R.orbSpeed(round, runComp);
   }
 
   // ---- Collision ----
+  // (Not called: releaseDrag is what judges a drop.)
   function checkCollisions() {
     if (!heldYellow) return;
     const threshold = (PLAYER_R + TARGET_R * 0.72) ** 2;
@@ -3334,7 +3804,7 @@
           if (lives <= 0) {
             yellows = yellows.filter(y => y !== heldYellow);
             heldYellow = null;
-            onGameOver();
+            onGameOver('D');
             return false;
           }
         }
@@ -3368,8 +3838,10 @@
   // ---- Game loop ----
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
-    lastTime = now;
+    // Never negative (the game clock only moves forward).
+    const dt = Math.min(Math.max(0, now - lastTime) / 1000, R.DT_MAX);
+    if (now > lastTime) lastTime = now;
+    gameT += dt; lastDt = dt;
 
     updateShards(dt);
 
@@ -3379,9 +3851,10 @@
       if (transitionTimer <= 0) {
         transitioning = false;
         gameTimer = GAME_SECS;
-        lives = 2;
+        lives = R.LIVES;
         targets = []; yellows = []; heldYellow = null;
         spawnTimer = 0; yellowSpawnTimer = 0;
+        ev('R', gMs(), dMs(), round);
         setStatus('Round ' + round + ' — Survive!', '#cc88ff');
       } else {
         drawTransition();
@@ -3398,25 +3871,28 @@
     // Spawn targets
     spawnTimer -= dt;
     if (spawnTimer <= 0 && targets.length < MAX_TARGETS) {
-      spawnTarget();
-      spawnTimer = 0.4 + Math.random() * 0.8;
+      const t = spawnTarget();
+      spawnTimer = R.orbGap(Math.random());
+      if (t) ev('O', gMs(), dMs(), t.col, t.type === 'purple' ? 1 : 0, t.mul, spawnTimer);
     }
 
     // Spawn yellows
     yellowSpawnTimer -= dt;
     if (yellowSpawnTimer <= 0 && yellows.length < MAX_YELLOWS) {
-      spawnYellow();
-      yellowSpawnTimer = 0.3 + Math.random() * 0.4;
+      const y = spawnYellow();
+      yellowSpawnTimer = R.yelGap(Math.random());
+      if (y) ev('Y', gMs(), dMs(), y.col, y.y, y.life0, yellowSpawnTimer);
     }
 
     // Move orbs upward and remove when off-screen
     targets = targets.filter(t => {
       t.y += t.vy * dt;
-      if (t.y < -TARGET_R - 4) {
+      if (t.y < R.ESC_Y) {
+        ev('X', gMs(), t.k);
         if (t.type === 'purple') {
           lives--;
           flashTimer = 0.55;
-          if (lives <= 0) { onGameOver(); return false; }
+          if (lives <= 0) { onGameOver('X'); return false; }
         }
         return false;
       }
@@ -3427,7 +3903,9 @@
     yellows = yellows.filter(y => {
       if (y === heldYellow) return true;
       y.life -= dt;
-      return y.life > 0;
+      if (y.life > 0) return true;
+      ev('V', gMs(), y.j);
+      return false;
     });
 
     drawFrame();
@@ -3438,18 +3916,22 @@
     score++;
     round++;
     transitioning = true;
-    transitionTimer = 1.0;
+    transitionTimer = R.TRANSITION_S;
+    ev('C', gMs(), dMs(), score);
     updateHs(score);
     if (streakEl) streakEl.textContent = 'Rounds: ' + score;
     animFrame = requestAnimationFrame(gameLoop);
   }
 
-  function onGameOver() {
+  // why: 'X' the second purple of the round escaped, 'D' dropped on a red orb
+  function onGameOver(why) {
     cancelAnimationFrame(animFrame);
     running = false;
+    ev('E', why, gMs());
     if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     transitioning = false;
     updateHs(score);
+    if (run) run.close();
     setStatus('Game over!  Rounds: ' + score, '#ee5544');
     if (streakEl) streakEl.textContent = '';
     setTimeout(() => {
@@ -3460,12 +3942,16 @@
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('thorian-new' + (window._qteCompMode ? '-comp' : ''));
-    score = 0; round = 1; lives = 2; gameTimer = GAME_SECS;
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('thorian-new' + (runComp ? '-comp' : ''));
+    logBytes = 0; gameT = 0; lastDt = 0; orbN = 0; yelN = 0;
+    score = 0; round = 1; lives = R.LIVES; gameTimer = GAME_SECS;
     targets = []; yellows = []; heldYellow = null;
     spawnTimer = 0; yellowSpawnTimer = 0; flashTimer = 0;
     transitioning = false; transitionTimer = 0;
     paused = false; gameStarted = true;
+    ev('Z', W, H);
+    ev('R', gMs(), dMs(), round);
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (streakEl)  streakEl.textContent    = '';
@@ -3502,12 +3988,13 @@
 
   function tryStartDrag(pos) {
     if (!gameStarted || !running || heldYellow) return;
-    const grab2 = (PLAYER_R * 1.8) ** 2;
+    const grab2 = R.GRAB_R2;
     for (const y of yellows) {
       if (dist2(pos.x, pos.y, y.x, y.y) < grab2) {
         heldYellow = y;
         dragOX = pos.x - y.x;
         dragOY = pos.y - y.y;
+        ev('G', gMs(), y.j, R.px(pos.x), R.px(pos.y));
         return;
       }
     }
@@ -3519,18 +4006,22 @@
     heldYellow.y = Math.max(PLAYER_R, Math.min(H - PLAYER_R, pos.y - dragOY));
   }
 
+  // Judged on the diamond's position (not the pointer's): the first orb in
+  // reach, in spawn order. Logged as it is judged, before anything changes.
   function releaseDrag(pos) {
     if (!heldYellow) return;
-    const threshold = (PLAYER_R + TARGET_R * 0.72) ** 2;
+    const threshold = R.DROP_R2;
+    const hx = lp(heldYellow.x), hy = lp(heldYellow.y);
     let hit = false;
     targets = targets.filter(t => {
       if (hit) return true;
       if (dist2(heldYellow.x, heldYellow.y, t.x, t.y) < threshold) {
         hit = true;
+        ev('L', gMs(), hx, hy, t.k);
         if (t.type === 'red') {
           yellows = yellows.filter(y => y !== heldYellow);
           heldYellow = null;
-          onGameOver();
+          onGameOver('D');
           return false;
         }
         // purple: both disappear
@@ -3540,7 +4031,7 @@
       }
       return true;
     });
-    if (heldYellow) heldYellow = null; // released over nothing
+    if (heldYellow) { ev('L', gMs(), hx, hy, -1); heldYellow = null; } // released over nothing
   }
 
   function getTouchReleasePos(e) {
@@ -3551,7 +4042,10 @@
   canvas.addEventListener('mousedown',  e => tryStartDrag(getCanvasPos(e)));
   canvas.addEventListener('mousemove',  e => moveDrag(getCanvasPos(e)));
   canvas.addEventListener('mouseup',    e => releaseDrag(getCanvasPos(e)));
-  canvas.addEventListener('mouseleave', () => { heldYellow = null; });
+  canvas.addEventListener('mouseleave', () => {
+    if (heldYellow) ev('D', gMs(), lp(heldYellow.x), lp(heldYellow.y));
+    heldYellow = null;
+  });
 
   canvas.addEventListener('touchstart', e => { e.preventDefault(); tryStartDrag(getCanvasPos(e)); }, { passive: false });
   canvas.addEventListener('touchmove',  e => { e.preventDefault(); moveDrag(getCanvasPos(e)); }, { passive: false });
@@ -3561,6 +4055,7 @@
   if (resumeBtn) resumeBtn.addEventListener('click', () => {
     if (!paused) return;
     paused = false; running = true;
+    ev('U', gMs());
     if (resumeBtn) resumeBtn.style.display = 'none';
     setStatus('Round ' + round + ' — Survive!', '#cc88ff');
     animFrame = requestAnimationFrame(ts => { lastTime = ts; gameLoop(ts); });
@@ -3586,6 +4081,7 @@
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame); running = false; paused = true;
+      ev('P', gMs());
     } else { resetToStart(); }
   };
 
@@ -3610,27 +4106,38 @@
   let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
   let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
-  // Canvas: 0 rad = right (3 o'clock), π/2 = bottom, 3π/2 = top (12 o'clock)
-  const NEEDLE_ANGLE = 3 * Math.PI / 2; // fixed marker at 12 o'clock
-  // Bar half-width: based on level count (fixed for the level, doesn't change as bars are removed)
-  function getZoneHalf() {
-    const n = Math.max(level, 1);
-    return Math.max(Math.min((Math.PI / n) * 0.5, (32 * Math.PI) / 180), (7 * Math.PI) / 180);
-  }
+  // The rules (zone width, speed, bar count, lives, timer, press limit, phase
+  // draw) live in js/qte-rules.js, shared with the score check. That file must
+  // load before this one; if it did not, stop HERE rather than throw - a throw
+  // at load would also kill every trainer after this one in qte.js.
+  const R = window.QteRules && window.QteRules.trainers && window.QteRules.trainers['dagger-new'];
+  if (!R) { try { console.error('[dagger-new] js/qte-rules.js with the dagger-new rules must load before js/qte.js'); } catch (e) {} return; }
 
-  const LIVES_MAX        = 3;
-  const MIN_PRESS_MS     = 140;   // fastest plausible human reaction
+  // Canvas: 0 rad = right (3 o'clock), π/2 = bottom, 3π/2 = top (12 o'clock)
+  const NEEDLE_ANGLE = R.NEEDLE; // fixed marker at 12 o'clock
+  // Bar half-width: based on level count (fixed for the level, doesn't change as bars are removed)
+  function getZoneHalf() { return R.zoneHalf(level); }
+
+  const LIVES_MAX        = R.LIVES_MAX;
+  const MIN_PRESS_MS     = R.MIN_PRESS_MS;   // fastest plausible human reaction
   const MACRO_MIN_HITS   = 12;    // need at least this many hits before checking
   const MACRO_AVG_DEG    = 2.5;   // avg hit offset below this = suspiciously perfect
   const MACRO_STD_DEG    = 1.8;   // std-dev below this = suspiciously consistent
 
   let running = false, gameStarted = false, paused = false;
-  let score = 0, timeLeft = 10, timerMax = 10;
+  let score = 0, timeLeft = R.TIMER_MAX, timerMax = R.TIMER_MAX;
   let level = 1, hitsThisLevel = 0;
   let lives = LIVES_MAX, maxLives = LIVES_MAX;
-  let bars = [];        // { angle, speed }
+  let bars = [];        // { k, base, angle, speed }
   let flashMiss = 0, flashLevel = 0;
   let animFrame = null, lastTime = 0;
+
+  // Score log (QteRules.Run). The game runs on its own clock: gameT is the sum
+  // of clamped frame dts (frozen while paused); bars move linearly in it and a
+  // press is judged on the last frame, so gameT is what the log records.
+  let run = null, runComp = false;
+  let gameT = 0, spawnT = 0;          // seconds
+  function gMs() { return gameT * 1000; }
 
   // Anti-macro tracking
   let lastPressMs  = 0;
@@ -3658,10 +4165,10 @@
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
     const blocked = fromGameOver && isSuspectedMacro();
     if (window._qteCompMode) {
-      if (!blocked && val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new-comp', val); }
+      if (!blocked && val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run) run.submit(val); }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
     } else {
-      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (window._sbSubmitScore) window._sbSubmitScore('dagger-new', val); }
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run) run.submit(val); }
       if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
     }
   }
@@ -3671,28 +4178,29 @@
 
   function setStatus(text, color) { if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; } }
 
-  function getBaseSpeed()     { const b = window._qteCompMode ? 2.4 : 1.7, s = window._qteCompMode ? 0.09 : 0.06; return Math.min(b + level * s, window._qteCompMode ? 7.0 : 5.0); }
+  // Mode is fixed for the run at Start (switching mid-run is blocked anyway).
+  function getBaseSpeed()     { return R.speed(level, runComp); }
   function getSpawnInterval() { return Math.max(window._qteCompMode ? 0.8 : 1.0, (window._qteCompMode ? 2.5 : 3.2) - level * 0.15); }
-  function getMaxBars()       { return Math.min(level, 11); }
-  function hitsNeeded()       { return level; }
+  function getMaxBars()       { return R.bars(level); }
+  function hitsNeeded()       { return R.hitsNeeded(level); }
 
-  function normalise(a)      { return ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI); }
-  function angDist(a, b)     { const d = Math.abs(normalise(a) - normalise(b)); return Math.min(d, 2 * Math.PI - d); }
+  const normalise = R.normalise;
+  const angDist   = R.angDist;
   function barInZone(bar)    { return angDist(bar.angle, NEEDLE_ANGLE) <= getZoneHalf(); }
 
   function spawnAllBars() {
     const count     = getMaxBars();
     const spd       = getBaseSpeed();
-    const slotAngle = (2 * Math.PI) / count;
-    const zh        = getZoneHalf();
     // Place nearest bar randomly within the gap, never on the marker
-    const margin    = zh * 1.3;
-    const phase     = margin + Math.random() * (slotAngle - margin * 2);
-    const offset    = normalise(NEEDLE_ANGLE - phase);
+    // (phase in [1.3 zh, slot - 1.3 zh], rounded to 4 dp so the log holds the exact value)
+    const phase     = R.drawPhase(level, Math.random());
+    spawnT = gameT;
     bars = [];
     for (let i = 0; i < count; i++) {
-      bars.push({ angle: normalise(offset + slotAngle * i), speed: spd });
+      const base = R.barBase(level, phase, i);
+      bars.push({ k: i, base: base, angle: base, speed: spd });
     }
+    if (run) run.ev('L', level, phase, gMs());
   }
 
   function resizeCanvas() {
@@ -3792,16 +4300,19 @@
 
   function gameLoop(now) {
     if (!running) return;
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
-    lastTime = now;
+    // Never negative: the first frame's stamp can be a little before the
+    // performance.now() taken at Start/Resume (the bars used to step back).
+    const dt = Math.min(Math.max(0, now - lastTime) / 1000, R.DT_MAX);
+    if (now > lastTime) lastTime = now;
+    gameT += dt;
 
     // Countdown timer
     timeLeft -= dt;
-    if (timeLeft <= 0) { timeLeft = 0; drawFrame(false); onGameOver(); return; }
+    if (timeLeft <= 0) { timeLeft = 0; drawFrame(false); onGameOver('T'); return; }
 
-    // Advance bars
+    // Advance bars (from their spawn position, on the game clock)
     for (const bar of bars) {
-      bar.angle = normalise(bar.angle + bar.speed * dt);
+      bar.angle = R.barAngle(bar.base, bar.speed, gameT - spawnT);
     }
 
 if (flashMiss  > 0) flashMiss  -= dt;
@@ -3835,6 +4346,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     lastPressMs = now;
     // Find first bar currently in the zone and remove it
     const idx = bars.findIndex(b => barInZone(b));
+    if (run) run.ev('K', gMs(), idx === -1 ? -1 : bars[idx].k);
     if (idx === -1) { triggerMiss(); return; } // hit the gap
     // Record precision of this hit
     const offset = angDist(bars[idx].angle, NEEDLE_ANGLE);
@@ -3843,7 +4355,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     bars.splice(idx, 1);
     score++;
     hitsThisLevel++;
-    timeLeft = Math.min(timeLeft + 0.3, 10);
+    timeLeft = Math.min(timeLeft + R.HIT_BONUS, R.TIMER_MAX);
     updateHs(score);
     if (hitsThisLevel >= hitsNeeded()) {
       levelUp();
@@ -3855,27 +4367,35 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   function triggerMiss() {
     lives--; flashMiss = 0.4; setStatus('Miss!', '#ee4466');
-    timeLeft = Math.max(0, timeLeft - 3);
-    if (lives <= 0 || timeLeft <= 0) onGameOver();
+    timeLeft = Math.max(0, timeLeft - R.MISS_COST);
+    if (lives <= 0 || timeLeft <= 0) onGameOver('M');
   }
 
-  function onGameOver() {
+  // why: 'T' the timer ran out in a frame, 'M' the miss just logged ended it
+  function onGameOver(why) {
     cancelAnimationFrame(animFrame); running = false;
+    if (run) run.ev('E', why, gMs());
     if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     updateHs(score, true); setStatus('Game over! Hits: ' + score, '#ee5544');
+    if (run) run.close();
     if (startBtn)  startBtn.style.display  = '';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (tapBtn)    tapBtn.style.display    = 'none';
   }
 
   function startGame() {
-    if (window._sbStartQteSession) window._sbStartQteSession('dagger-new' + (window._qteCompMode ? '-comp' : ''));
+    // One loop per run: a Start while a loop is live (matchmaking clicks Start
+    // itself) would add every frame's dt to the game clock twice.
+    cancelAnimationFrame(animFrame);
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('dagger-new' + (runComp ? '-comp' : ''));
     resizeCanvas();
-    timerMax = 10;
-    maxLives = window._qteCompMode ? 1 : LIVES_MAX;
+    timerMax = R.TIMER_MAX;
+    maxLives = runComp ? R.LIVES_COMP : LIVES_MAX;
     score = 0; level = 1; hitsThisLevel = 0; lives = maxLives;
     timeLeft = timerMax; flashMiss = 0; flashLevel = 0;
     lastPressMs = 0; hitOffsets = []; hitIntervals = [];
+    gameT = 0; spawnT = 0;
     spawnAllBars();
     running = true; gameStarted = true; paused = false;
     if (startBtn)  startBtn.style.display  = 'none';
@@ -3906,6 +4426,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
   if (resumeBtn) resumeBtn.addEventListener('click', () => {
     if (!paused) return;
     paused = false; running = true;
+    if (run) run.ev('U');
     if (resumeBtn) resumeBtn.style.display = 'none';
     setStatus(IS_MOBILE ? 'Tap the bar at the marker!' : 'Space when bar hits the marker!', '#aa88ff');
     lastTime = performance.now(); animFrame = requestAnimationFrame(gameLoop);
@@ -3916,6 +4437,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     if (paused) return;
     if (gameStarted && running) {
       cancelAnimationFrame(animFrame); running = false; paused = true;
+      if (run) run.ev('P', gMs());
       if (resumeBtn) resumeBtn.style.display = ''; if (startBtn) startBtn.style.display = 'none';
     }
   };
@@ -3933,9 +4455,17 @@ if (flashMiss  > 0) flashMiss  -= dt;
 // Blue flame on a rock platform beneath Yar'Thul's eye. Meteors fall in a constant
 // stream; A/D slides the flame left and right. One hit ends the run.
 // Stage n lasts min(5 + (n-1), 20) seconds. Stages are infinite.
+// Geometry, stage lengths and the spawn/fall/drift curves live in js/qte-rules.js
+// (QteRules.trainers['yarthul-new']) so the server's check judges with the same numbers.
+// The run's log (QteRules.Run): 'S' at Start, 'M' each meteor made (its two draws and
+// where in its frame it spawned), 'D' each change of the keys' direction as a frame
+// applies it, 'C'/'B' each stage cleared/begun, 'Z' a resize mid-run, 'P'/'U' the tab
+// hidden/shown, 'E' the end, 'X' the log full (a very long run plays on unlogged).
+// Game times are the run's own clock (sum of frame dt).
 (function () {
   const canvas = document.getElementById('yarthul-new-qte-canvas');
   if (!canvas) return;
+  const R = QteRules.trainers['yarthul-new'];
   const ctx       = canvas.getContext('2d');
   const statusEl  = document.getElementById('yarthul-new-qte-status');
   const stageEl   = document.getElementById('yarthul-new-qte-streak');
@@ -3949,22 +4479,44 @@ if (flashMiss  > 0) flashMiss  -= dt;
   let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
 
   // ---- TUNING ----
-  const PLATFORM_TOP_FRAC   = 0.80; // platform surface, as a fraction of H
-  const PLATFORM_WIDTH_FRAC = 0.62; // platform span, as a fraction of W
+  // Shared with the server's check (js/qte-rules.js): same numbers, same meaning.
+  const PLATFORM_TOP_FRAC   = R.K.PLATFORM_TOP_FRAC;   // platform surface, as a fraction of H
+  const PLATFORM_WIDTH_FRAC = R.K.PLATFORM_WIDTH_FRAC; // platform span, as a fraction of W
 
-  const PLAYER_SPEED_FRAC = 0.42; // W travelled per second
-  const PLAYER_H_FRAC     = 0.13; // flame height, as a fraction of H
-  const PLAYER_HIT_FRAC   = 0.60; // hit radius vs. drawn flame half-width
+  const PLAYER_SPEED_FRAC = R.K.PLAYER_SPEED_FRAC; // W travelled per second
+  const PLAYER_H_FRAC     = R.K.PLAYER_H_FRAC;     // flame height, as a fraction of H
+  const PLAYER_HIT_FRAC   = R.K.PLAYER_HIT_FRAC;   // hit radius vs. drawn flame half-width
 
-  const METEOR_R_FRAC = 0.034; // meteor head radius, as a fraction of H
+  const METEOR_R_FRAC = R.K.METEOR_R_FRAC; // meteor head radius, as a fraction of H
   const BURST_SECS    = 0.35;  // impact ring lifetime
 
-  const BASE_STAGE_SECS = 5;   // stage 1 duration
-  const STAGE_STEP_SECS = 1;   // added per stage
-  const MAX_STAGE_SECS  = 20;  // cap, reached at stage 16
-  const TRANSITION_SECS = 1.5; // "Stage N" banner between stages
+  const TRANSITION_SECS = R.K.TRANSITION_SECS; // "Stage N" banner between stages
 
   let W = 0, H = 0;
+
+  // ---- RUN LOG ----
+  let run       = null;  // QteRules.Run of the current Start
+  let runComp   = false; // the mode the run started in (its type says which)
+  let gameT     = 0;     // the run's game clock, s: the sum of its frames' dt
+  let loggedDir = 0;     // the key direction the log last recorded
+  let hiddenLog = false; // a 'P' is open (tab hidden mid-run)
+  let logBytes  = 0;     // about how much of the log's JSON the events take
+  let logFull   = false; // the log reached its budget: 'X' ends it, the run plays on
+  function logEv() {
+    if (!run || logFull) return;
+    // The edge function refuses a body over its size limit unread, so a very long
+    // run stops logging (with 'X') in time; its score then counts up to there.
+    const est = JSON.stringify(Array.prototype.slice.call(arguments)).length + 10;
+    if (logBytes + est > R.K.LOG_BUDGET || run.log.ev.length >= QteRules.LIMITS.MAX_EVENTS - 1) {
+      logFull = true;
+      run.ev('X');
+      return;
+    }
+    logBytes += est;
+    run.ev.apply(null, arguments);
+  }
+  function gms(s) { return Math.round(s * 10000) / 10; }   // s -> ms, 0.1 ms
+  function px1(x) { return Math.round(x * 10) / 10; }
 
   let playerX   = 0;     // flame centre x
   let moveLeft  = false;
@@ -4000,14 +4552,14 @@ if (flashMiss  > 0) flashMiss  -= dt;
       if (val > highscoreComp) {
         highscoreComp = val;
         try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('yarthul-new-comp', val);
+        if (run) run.submit(val);
       }
       if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
     } else {
       if (val > highscore) {
         highscore = val;
         try { localStorage.setItem(HS_KEY, highscore); } catch (e) {}
-        if (window._sbSubmitScore) window._sbSubmitScore('yarthul-new', val);
+        if (run) run.submit(val);
       }
       if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
     }
@@ -4025,33 +4577,27 @@ if (flashMiss  > 0) flashMiss  -= dt;
   // ---- DIFFICULTY RAMP ----
   // Speeds are fractions of canvas height so difficulty is identical at every
   // viewport size. Competitive mode uses a steeper curve, as other trainers do.
-  function stageDuration(n) {
-    return Math.min(BASE_STAGE_SECS + (n - 1) * STAGE_STEP_SECS, MAX_STAGE_SECS);
-  }
-  function spawnIntervalMs(n) {
-    return window._qteCompMode
-      ? Math.max(70, 150 - 5 * (n - 1))
-      : Math.max(105, 210 - 7 * (n - 1));
-  }
-  function fallSpeedFrac(n) {
-    return window._qteCompMode
-      ? Math.min(1.10 + 0.06 * (n - 1), 1.90)
-      : Math.min(0.90 + 0.05 * (n - 1), 1.55);
-  }
-  function driftFrac() { return window._qteCompMode ? 0.22 : 0.18; }
+  // The curves are in js/qte-rules.js; the mode is the one the run started in.
+  function stageDuration(n)   { return R.stageDuration(n); }
+  function spawnIntervalMs(n) { return R.spawnIntervalMs(n, runComp); }
+  function fallSpeedFrac(n)   { return R.fallSpeedFrac(n, runComp); }
+  function driftFrac()        { return R.driftFrac(runComp); }
 
   // ---- CANVAS SIZE ----
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     if (!wrap) return;
-    W = Math.min(wrap.clientWidth, 900);
-    H = Math.max(260, Math.min(380, Math.round(W * 0.46)));
+    const oldW = W, oldH = H;
+    W = R.canvasW(wrap.clientWidth);
+    H = R.canvasH(W);
     canvas.width        = W;
     canvas.height       = H;
     canvas.style.width  = W + 'px';
     canvas.style.height = H + 'px';
     if (!playerX) playerX = W / 2;
     clampPlayer();
+    // Live meteors keep their size and speed; the check replays the new geometry.
+    if (running && (W !== oldW || H !== oldH)) logEv('Z', gms(gameT), W, H, px1(playerX));
   }
 
   function clampPlayer() {
@@ -4239,16 +4785,21 @@ if (flashMiss  > 0) flashMiss  -= dt;
   }
 
   // ---- METEORS ----
-  function spawnMeteor() {
+  // lagMs: how far into this frame's dt the spawn accumulator reached this meteor,
+  // which pins the frame it was made in on the run's game clock.
+  function spawnMeteor(lagMs) {
     const spd = fallSpeedFrac(stage) * H;
     const r   = H * METEOR_R_FRAC;
+    const u1  = Math.random();   // x, drawn first as before
+    const u2  = Math.random();   // drift
     meteors.push({
-      x:  Math.random() * W,
-      y:  -r * 3,
-      vx: (Math.random() * 2 - 1) * driftFrac() * spd,
+      x:  u1 * W,
+      y:  -r * R.K.SPAWN_Y_R,
+      vx: (u2 * 2 - 1) * driftFrac() * spd,
       vy: spd,
       r:  r,
     });
+    logEv('M', Math.floor(u1 * R.K.U_SCALE), Math.floor(u2 * R.K.U_SCALE), Math.round(lagMs * 10));
   }
 
   function updateMeteors(dt) {
@@ -4358,6 +4909,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
   // ---- RUN LIFECYCLE ----
   function onStageCleared() {
     score = stage;
+    logEv('C', stage, gms(gameT));   // before updateHs: the submit carries it
     updateHs(score);
     stage++;
     meteors         = [];
@@ -4369,11 +4921,13 @@ if (flashMiss  > 0) flashMiss  -= dt;
   }
 
   function onHit() {
+    logEv('E', 'hit', gms(gameT));
     running     = false;
     gameStarted = false;
     stopLoop();
-    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); closeRun(); return; }
     updateHs(score);
+    closeRun();
     setStatus('Hit! Cleared ' + score + (score === 1 ? ' stage' : ' stages'), '#e05555');
     draw();
     if (startBtn)  { startBtn.style.display  = ''; startBtn.textContent = 'Start'; }
@@ -4382,7 +4936,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   // ---- LOOP ----
   function loop(now) {
-    const dt = Math.min((now - lastTime) / 1000, 0.05);
+    const dt = Math.min((now - lastTime) / 1000, R.K.DT_CAP);
     lastTime = now;
     flickerT += dt;
 
@@ -4393,22 +4947,30 @@ if (flashMiss  > 0) flashMiss  -= dt;
       return;
     }
 
+    // This frame spans [g0, gameT] of game time.
+    const g0 = gameT;
+    if (running) gameT += dt;
+
     if (running) {
       if (transitioning) {
         transitionTimer -= dt;
         if (transitionTimer <= 0) {
           transitioning = false;
           stageTimer    = stageDuration(stage);
+          logEv('B', stage, gms(g0), gms(gameT));
           setStatus('Avoid the meteors', '#ff8844');
         }
       } else {
+        const acc0 = spawnAccum;
         spawnAccum += dt * 1000;
         const iv = spawnIntervalMs(stage);
-        while (spawnAccum >= iv) { spawnMeteor(); spawnAccum -= iv; }
+        let k = 0;
+        while (spawnAccum >= iv) { k++; spawnMeteor(k * iv - acc0); spawnAccum -= iv; }
       }
     }
 
     const dir = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
+    if (running && dir !== loggedDir) { loggedDir = dir; logEv('D', gms(g0), dir, px1(playerX)); }
     playerX += dir * PLAYER_SPEED_FRAC * W * dt;
     clampPlayer();
 
@@ -4437,13 +4999,19 @@ if (flashMiss  > 0) flashMiss  -= dt;
     moveLeft = moveRight = false;
   }
 
+  function closeRun() { if (run) run.close(); }
+
   function startGame() {
-    // Arm the server session first. submitScore() drops any score that has no
-    // matching session, so without this the leaderboard never updates. The type
-    // string must match the one updateHs() submits, comp suffix included.
-    if (window._sbStartQteSession) {
-      window._sbStartQteSession('yarthul-new' + (window._qteCompMode ? '-comp' : ''));
-    }
+    // Open the run first: it asks the server for this run's ticket, and every
+    // score it submits carries the ticket and the log. Its type fixes the mode.
+    runComp   = !!window._qteCompMode;
+    try { run = QteRules.Run.start('yarthul-new' + (runComp ? '-comp' : '')); }
+    catch (e) { run = null; }   // no run, no submits: the game itself still starts
+    gameT     = 0;
+    loggedDir = 0;
+    hiddenLog = false;
+    logBytes  = 0;
+    logFull   = false;
     stage           = 1;
     score           = 0;
     stageTimer      = stageDuration(1);
@@ -4457,6 +5025,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     running     = true;
     gameStarted = true;
     paused      = false;
+    logEv('S', W, H);
     setStatus('Avoid the meteors', '#ff8844');
     if (stageEl)   stageEl.textContent = 'Stage 1';
     if (startBtn)  startBtn.style.display  = 'none';
@@ -4491,6 +5060,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
   // would be exploitable on the leaderboard, and leaving the loop stopped while
   // running stayed true soft-locked the panel with no Start button to press.
   function abandonRun() {
+    if (running) { logEv('E', 'abandon'); closeRun(); }
     resetToStart();
     if (W && H) draw();
   }
@@ -4555,6 +5125,13 @@ if (flashMiss  > 0) flashMiss  -= dt;
     if (!panelActive()) return;
     resizeCanvas();
     draw();
+  });
+
+  // A hidden tab gets no frames, so the game freezes; the log notes when.
+  document.addEventListener('visibilitychange', () => {
+    if (!running) return;
+    if (document.hidden) { if (!hiddenLog) { hiddenLog = true; logEv('P'); } }
+    else if (hiddenLog)  { hiddenLog = false; logEv('U'); }
   });
 
   setStatus('Press Start', '#888');

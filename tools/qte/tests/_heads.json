@@ -1,0 +1,14 @@
+{
+ "fist": "// === FIST QTE TRAINER ===",
+ "spear": "// === SPEAR QTE TRAINER (osu!-style) ===",
+ "sword": "// === SWORD QTE TRAINER ===",
+ "dodge": "// === DODGE QTE TRAINER (moving yellow target) ===",
+ "dagger": "// === DAGGER QTE TRAINER (spinning rings) ===",
+ "hammer": "// === HAMMER QTE TRAINER (hold-and-release charge bar) ===",
+ "axe": "// === AXE QTE TRAINER (press to fill, bar drains, land in zone when timer ends) ===",
+ "staff": "/* ============================================================",
+ "thorian": "// === THORIAN QTE ===",
+ "thorian-new": "// === THORIAN NEW QTE ===",
+ "dagger-new": "// === DAGGER NEW QTE (multiple spinning bars, fixed marker at 12 o'clock) ===",
+ "yarthul-new": "// === YARTHUL NEW QTE ==="
+}

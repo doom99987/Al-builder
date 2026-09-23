@@ -90,6 +90,7 @@ as $$
     (10, 'leaderboard',            'user_id = $1',                                                                                 'delete'),
     (11, 'personal_bests',         'user_id = $1',                                                                                 'delete'),
     (12, 'qte_sessions',           'user_id = $1',                                                                                 'delete'),
+    (12, 'qte_run_rejects',        'user_id = $1',                                                                                 'delete'),
     (12, 'score_reviews',          'user_id = $1',                                                                                 'delete'),
     (13, 'leaderboard_records',    'user_id = $1',                                                                                 'records'),
     (14, 'player_vaults',          'user_id = $1',                                                                                 'delete'),
