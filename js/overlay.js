@@ -2,7 +2,8 @@
    Opens a Document Picture-in-Picture window (always on top).
    Toggle via keybind or the "UI Overlay" button in the profile dropdown.
    Requires Chrome 116+ for PiP; shows an alert otherwise.
-   Tabs: Encyclopedia · Venia Tracker · Petent Tracker · Astra Tracker · Party Chat · Bank · Settings
+   Tabs: Encyclopedia · Venia Tracker · Petent Tracker · Astra Tracker · Amorus Tracker · Bank · Settings
+   (the Party Chat tab is off while LF Party is disabled, 2026-09-24)
    ──────────────────────────────────────────────────────────────────────────── */
 (function () {
   'use strict';
@@ -97,7 +98,7 @@
       { key: 'petent',   icon: '📜', title: 'Petent Tracker' },
       { key: 'astra',    icon: '✦',  title: 'Astra Tracker'  },
       { key: 'amorus',   icon: '◆',  title: 'Amorus Tracker' },
-      { key: 'chat',     icon: '💬', title: 'Party Chat'     },
+      // { key: 'chat',     icon: '💬', title: 'Party Chat'     }, // off while LF Party is disabled (2026-09-24)
       { key: 'bank',     icon: '🏦', title: 'Bank'           },
       { key: 'settings', icon: '⚙',  title: 'Settings'       },
     ];
@@ -141,6 +142,7 @@
 
     /* ── Switch tab ── */
     function switchTab(key) {
+      if (!tabs.some(t => t.key === key)) key = 'enc'; // e.g. the Party Chat tab, now off
       doc.querySelectorAll('[data-pip-tab]').forEach(b => {
         const on = b.dataset.pipTab === key;
         b.style.color              = on ? '#fff' : '#555';

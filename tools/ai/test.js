@@ -10032,6 +10032,28 @@ describe('owner requests on the published pages', () => {
     ok(!/_validPages = \[[^\]]*'trades'/.test(page), '#trades is still a page the site opens on load');
   });
 
+  // Owner, 2026-09-24: chat is off - the Messages button and panel, and the
+  // overlay's Party Chat tab. trades.js keeps the bell and the consent prompt.
+  it('the page has no Messages button or panel, and nothing opens a DM', () => {
+    const raw = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+    const page = live(raw);
+    for (const bit of ['id="dm-fab-btn"', 'id="dm-panel"', 'id="dm-input"', 'window._toggleDm()'])
+      ok(page.indexOf(bit) === -1, bit + ' is still live on the page');
+    ok(/Messages are disabled/.test(raw), 'the disabled block lost its restore marker');
+    const trd = fs.readFileSync(path.join(root, 'js', 'trades.js'), 'utf8');
+    ok(/\n  const DM_ENABLED = false;/.test(trd), 'DM_ENABLED is not false in trades.js');
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const head of ['function toggleDm() {', 'function dmTogglePopout() {',
+                        'window._notifOpenDm = function (senderId, senderName) {',
+                        'window._trdMessage = function (userId, username, listingId) {'])
+      ok(new RegExp(esc(head) + '\\s+if \\(!DM_ENABLED\\) return;').test(trd), head + ' still runs with DMs off');
+    ok(/if \(!DM_ENABLED \|\| _dmSub\) return;/.test(trd), 'subscribeDm still subscribes with DMs off');
+    ok(/if \(!DM_ENABLED \|\| _dmTableMissing\) return;/.test(trd), 'syncMsgBadge still queries with DMs off');
+    ok(/const isTradeAccepted\s+= DM_ENABLED &&/.test(trd), 'old trade notifications still offer to open a chat');
+    const ovl = fs.readFileSync(path.join(root, 'js', 'overlay.js'), 'utf8').replace(/\/\/.*$/gm, '');
+    ok(!/key:\s*'chat'/.test(ovl), 'the overlay still has a Party Chat tab');
+  });
+
   // By SHAPE, never by value: this file is public too, so it must not carry
   // the details it keeps off the pages. Any phone-number-shaped or
   // street-address-shaped text on a published page fails, bar the public

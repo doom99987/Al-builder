@@ -678,13 +678,15 @@
   <div id="notif-list"></div>
 </div>
 
-<!-- Floating DM button (bottom-right) -->
+<!-- Messages are disabled (2026-09-24): the floating Messages button and the direct-message panel.
+     To restore: remove this comment wrapper, set DM_ENABLED = true in js/trades.js and bump its stamp.
+[Floating DM button (bottom-right)]
 <button class="dm-fab" id="dm-fab-btn" onclick="window._toggleDm()" title="Messages">
   💬
   <span id="msg-badge" style="display:none">0</span>
 </button>
 
-<!-- Direct message panel (fixed, positioned by JS) -->
+[Direct message panel (fixed, positioned by JS)]
 <div id="dm-panel" style="display:none">
   <div class="dm-panel-hdr">
     <button id="dm-back-btn" class="dm-back-btn" onclick="window._dmBack()" style="display:none">‹ Back</button>
@@ -698,6 +700,7 @@
     <button class="dm-send-btn" onclick="window._dmSend()">Send</button>
   </div>
 </div>
+-->
 
 <!-- Leaderboards page -->
 <div id="page-leaderboards" class="site-page">
@@ -1590,13 +1593,13 @@
 <script src="js/qte-rules.js?v=1"></script>
 <script src="js/qte.js?v=25"></script>
 <script src="js/saved-builds.js?v=16"></script>
-<script src="js/trades.js?v=53"></script>
+<script src="js/trades.js?v=54"></script>
 <!-- Trades and LF Party are disabled (2026-09-23)
 <script src="js/party.js?v=32"></script> -->
 <script src="js/builds.js?v=7"></script>
 <script src="js/encyclopedia.js?v=15"></script>
 <script src="js/bank.js?v=8"></script>
-<script src="js/overlay.js?v=3"></script>
+<script src="js/overlay.js?v=4"></script>
 <!-- Donations are disabled (2026-09-22)
 <script src="js/donation.js?v=6"></script> -->
 <!-- Matchmaking is disabled (2026-09-11)
@@ -2128,7 +2131,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-23.1';
+  const SITE_VERSION    = '2026-09-24.1';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
