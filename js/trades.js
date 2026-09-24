@@ -431,6 +431,11 @@
     try { localStorage.removeItem(CONSENT_LS_KEY); } catch (_) {}
   };
 
+  // Owner, 2026-09-24: direct messages are off. The Messages button and panel
+  // are commented out in index.html ("Messages are disabled"); with this false
+  // nothing here opens, subscribes to or counts messages. Set true to restore.
+  const DM_ENABLED = false;
+
   // DM state
   let _dmOpen     = false;
   let _dmView     = 'list'; // 'list' | 'thread'
@@ -1181,7 +1186,8 @@
         <ul style="color:#888;font-size:12px;line-height:1.8;margin:0 0 12px;padding-left:18px">
           <li>We use cookies and similar technologies for core site functionality.</li>
           <li>We show ads via <strong style="color:#ccc">Google AdSense</strong>, which may use cookies to personalize the ads you see.</li>
-          <li>If you use messaging: messages are monitored for safety; harassment, spam, or abuse will result in account termination; message history is retained for moderation and deleted <strong style="color:#ccc">12 months</strong> after account termination.</li>
+          <!-- Messages are disabled (2026-09-24)
+          <li>If you use messaging: messages are monitored for safety; harassment, spam, or abuse will result in account termination; message history is retained for moderation and deleted <strong style="color:#ccc">12 months</strong> after account termination.</li> -->
           <!-- Donations are disabled (2026-09-22)
           <li>If you donate: payments are processed by <strong style="color:#ccc">Stripe</strong>, and your donor name and amount appear on the public supporters list.</li> -->
           <li>You can withdraw consent at any time in your account settings.</li>
@@ -1230,6 +1236,7 @@
   }
 
   function toggleDm() {
+    if (!DM_ENABLED) return;
     if (!authed()) { window._openAuthModal?.('login'); return; }
     checkChatConsent(() => {
       _dmOpen = !_dmOpen;
@@ -1414,7 +1421,7 @@
   const _dmPopupBc = (() => { try { return new BroadcastChannel('alb-dm-popup'); } catch(_) { return null; } })();
 
   function subscribeDm() {
-    if (_dmSub) return;
+    if (!DM_ENABLED || _dmSub) return;
     const id = uid(); if (!id) return;
     try {
       _dmSub = sb
@@ -1449,7 +1456,7 @@
   let _dmTableMissing = false; // stop polling if table doesn't exist yet
 
   async function syncMsgBadge() {
-    if (_dmTableMissing) return;
+    if (!DM_ENABLED || _dmTableMissing) return;
     const id = uid(); if (!id) return;
     try {
       const { count, error } = await sb
@@ -1573,7 +1580,7 @@
       return;
     }
     el.innerHTML = _notifications.map(n => {
-      const isTradeAccepted   = n.meta?.type === 'trade_accepted' && n.meta?.sender_id && n.meta?.sender_username;
+      const isTradeAccepted   = DM_ENABLED && n.meta?.type === 'trade_accepted' && n.meta?.sender_id && n.meta?.sender_username;
       const isClosePrompt     = n.meta?.type === 'trade_close_prompt' && n.meta?.listing_id;
       const alreadyClosed     = n.meta?._closed === true;
       const clickAttr = isTradeAccepted
@@ -1757,6 +1764,7 @@
   window._trdAdvAddRow     = addAdvSearchRow;
   window._trdAdvRemoveRow  = removeAdvRow;
   window._trdMessage = function (userId, username, listingId) {
+    if (!DM_ENABLED) return;
     if (!authed()) { window._openAuthModal?.('login'); return; }
     checkChatConsent(() => _trdMessageInner(userId, username, listingId));
   };
@@ -1826,6 +1834,7 @@
   // ── DM pop-out ────────────────────────────────────────
   let _dmPopupWin = null;
   function dmTogglePopout() {
+    if (!DM_ENABLED) return;
     if (!authed()) { window._openAuthModal?.('login'); return; }
     if (!hasLocalConsent()) { showChatConsentModal(null); return; } // no consent = no chat
     if (_dmPopupWin && !_dmPopupWin.closed) {
@@ -1853,6 +1862,7 @@
   window._dmDeleteConv  = deleteConversation;
   window._dmSend        = sendDm;
   window._notifOpenDm = function (senderId, senderName) {
+    if (!DM_ENABLED) return;
     toggleNotifs(); // close notif panel
     if (!_dmOpen) toggleDm();
     setTimeout(() => openThread(senderId, senderName), _dmOpen ? 0 : 80);
