@@ -5001,13 +5001,13 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   }
 
   // Full formula: BaseDMG(1 + stat1/scl1 + stat2/scl2 ...)
-  // Flowing Dance Proficiency (Blade Dancer rm2): override scaling to SPD/50
+  // Flowing Dance Proficiency (Blade Dancer rm2): the Speed half becomes SPD/50, STR/75 stays
   // Parry Master (Blade Dancer rm1): upgrades Parry Counter to 12 base + STR/32
   // Arbiter's Mantle (Arbiter (N)): Strike → 10 base + ARC/150; Lookout gains ARC/50; Pronouncement base 25 if karma≥1
   // Holy Crash Proficiency (Paladin, Warrior-tree lm2): Holy Crash base 20
   let _activeScalings = scalings;
   if (m.name === "Flowing Dance" && masteryState["rm2"] && superPicker.value === "Blade Dancer (N)") {
-    _activeScalings = [{ stat: "spd", scaling: 50, label: "SPD" }];
+    _activeScalings = scalings.map(s => s.stat === "spd" ? { ...s, scaling: 50 } : s);
   }
   if (m.name === "Parry Counter" && masteryState["rm1"] && superPicker.value === "Blade Dancer (N)") {
     baseDmgNum = 12;
@@ -8137,7 +8137,7 @@ const masteryClassData = {
       r7:  { name: "Speed Node" }, r8:  { name: "Speed Node" },
       r9:  { name: "Speed Node" },
       rm1: { name: "Parry Master",               desc: "Parry is now guaranteed at base, so this mastery no longer changes the proc chance. Mastery damage increased to 12 base damage on parry." },
-      rm2: { name: "Flowing Dance Proficiency",  desc: "Increased speed scaling, now deals bonus damage and turns a tinge of red against bleeding targets.\nChanges scaling to SPD/50. The bleeding buff does not work." },
+      rm2: { name: "Flowing Dance Proficiency",  desc: "Increased speed scaling, now deals bonus damage and turns a tinge of red against bleeding targets.\nChanges the SPD scaling to SPD/50 (STR/75 stays). The bleeding buff does not work." },
     }
   },
   "Berserker (Ch)": {
