@@ -1788,8 +1788,8 @@ describe('mastery reaches the move', () => {
     ok((r.build.masteryNodes || []).includes('rm2'),
        'this build no longer takes rm2, so the test proves nothing - pick another goal');
     eq(r.ctx.bestMove.name, 'Flowing Dance', 'best move changed; retarget this test');
-    eq(r.ctx.bestMove.scaling, 'SPD/50',
-       'the mastery was bought but the move still reports ' + r.ctx.bestMove.scaling);
+    eq(r.ctx.bestMove.scaling, 'STR/75 + SPD/50',
+       'the mastery was bought but the move reports ' + r.ctx.bestMove.scaling);
     ok(r.ctx.bestMove.shapeNote, 'nothing says why the move changed');
   });
 
@@ -7571,6 +7571,30 @@ const additiveSite = (() => {
       data.lostScrollMoves || {}, data.scrollMoves || {}, {});
   };
 })();
+
+// Owner, 2026-09-27: Flowing Dance Proficiency (Blade Dancer rm2) raises only
+// the Speed half of the move's scaling: STR/75 + SPD/75 becomes STR/75 +
+// SPD/50. The calc used to replace the whole scaling with SPD/50 and drop the
+// Strength half.
+describe('Blade Dancer mastery on the DMG calc', () => {
+  const flowing = () => [].concat((data.classMoves['Blade Dancer (N)'] || {}).learns || [])
+                          .find(m => m && m.name === 'Flowing Dance');
+  const work = mastery => additiveSite({ sup: 'Blade Dancer (N)', mastery, stats: { str: 110, spd: 56 } })('__work')(flowing());
+
+  it('Flowing Dance Proficiency keeps STR/75 and makes the Speed half SPD/50', () => {
+    eq(flowing().scaling, 'STR/75 + SPD/75', 'the move data changed; retarget this test');
+    const text = work({ rm2: true });
+    ok(/STR\(110\)\/75/.test(text), 'the Strength half is gone with the mastery: ' + text);
+    ok(/SPD\(56\)\/50/.test(text), 'the Speed half is not SPD/50 with the mastery: ' + text);
+    // 1.75 x (1 + 110/75 + 56/50) = 6.28 a hit before the Multi
+    ok(/\) = 6\.3 /.test(text), 'the hit is not 1.75 x (1 + 110/75 + 56/50): ' + text);
+  });
+
+  it('without the mastery the move is its printed STR/75 + SPD/75', () => {
+    const text = work({});
+    ok(/STR\(110\)\/75/.test(text) && /SPD\(56\)\/75/.test(text), 'the move is not STR/75 + SPD/75 without rm2: ' + text);
+  });
+});
 
 describe('additive damage (Withered Grove §12)', () => {
   const near = patchSite.near;

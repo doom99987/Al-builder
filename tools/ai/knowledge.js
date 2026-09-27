@@ -2700,11 +2700,11 @@
     // to base 20 ("+100% if invisible" read as a doubled base). Under the
     // Withered Grove §12 formula that +100% is a term of the move's damage
     // bonus sum like any other buff - see MOVE_CONDITIONAL_DMG.
-    // Blade Dancer rm2: Flowing Dance Proficiency changes the scaling stat.
+    // Blade Dancer rm2: Flowing Dance Proficiency raises the Speed half only (owner, 2026-09-27).
     'Flowing Dance': [{
       when: b => b.klass === 'Blade Dancer (N)' && (b.masteryNodes || []).includes('rm2'),
-      scaling: 'SPD/50',
-      note: 'Flowing Dance Proficiency rescales it onto Speed at SPD/50',
+      scaling: 'STR/75 + SPD/50',
+      note: 'Flowing Dance Proficiency raises its Speed scaling to SPD/50; STR/75 stays',
     }],
     // Arbiter's Mantle: the class rewrites two of its own moves, mastery or not.
     'Strike': [{
@@ -3628,7 +3628,7 @@
   });
   Object.assign(MASTERY_ABILITIES, {
     'Simple Domain Proficiency': { kind: 'note', note: 'Reworked: the Taunt Simple Domain puts on every enemy lasts 5 turns instead of 2, and the cooldown drops from 6 to 4, so the counter stance is up more often and more attacks are pulled into it - the parry build this node is meant to enable. The counter copies the base damage of the move it parries (capped at 25), which the data cannot supply, so it is reported, not scored.' },
-    'Flowing Dance Proficiency': { kind: 'onSite', note: 'Flowing Dance rescales to SPD/50 in place of STR/75 + SPD/75; that is already applied by the move override. It only gains when Speed exceeds twice Strength, and the bonus against bleeding targets is dead text.' },
+    'Flowing Dance Proficiency': { kind: 'onSite', note: 'Flowing Dance scales STR/75 + SPD/50 in place of STR/75 + SPD/75; that is already applied by the move override. The bonus against bleeding targets is dead text.' },
     'Delayed Hex': { kind: 'note', party: true, note: 'When an ally or your own summon dies, its killer gets 2 Hexed, so the next two hits on it deal double. A Hexer has no summons, so solo it never triggers. In a party it depends on a teammate dying, which a build should not plan for, and the count is unstated.' },
     'Inverse Abyss Proficiency': { kind: 'note', party: true, note: 'Each Inverse Abyss proc gives you +1 energy and puts 3 random statuses at 3 stacks on the debuffer. Procs depend on how often enemies debuff your team and are capped at ARC/65 per cast. The statuses are random, so no status gate can rely on them.' },
     'Death Edge': { kind: 'note', note: '-1 cooldown on Darklight Drain each time anything on the field dies. How many deaths a fight has is unstated, and masteries have no cooldown-cut column. Free skeletons (Call Skeleton Proficiency) and multi-mob encounters are what feed it.' },
