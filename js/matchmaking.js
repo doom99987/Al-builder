@@ -57,6 +57,10 @@
     { id: 'thorian-new', label: 'Thorian', group: 'new', hook: 'ThorianNew' },
     { id: 'dagger-new',  label: 'Dagger',  group: 'new', hook: 'DaggerNew'  },
     { id: 'yarthul-new', label: "Yar'Thul", group: 'new', hook: 'YarthulNew' },
+    { id: 'sword-new',   label: 'Sword',   group: 'new', hook: 'SwordNew'   },
+    { id: 'spear-new',   label: 'Spear',   group: 'new', hook: 'SpearNew'   },
+    { id: 'axe-new',     label: 'Axe',     group: 'new', hook: 'AxeNew'     },
+    { id: 'hammer-new',  label: 'Hammer',  group: 'new', hook: 'HammerNew'  },
   ];
   const qteById = id => QTES.find(q => q.id === id);
   const qteLabel = id => { const q = qteById(id); return q ? (q.label + (q.group === 'new' ? ' (New)' : '')) : id; };

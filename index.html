@@ -38,7 +38,7 @@
       base.css        : core layout, stat widgets, soul/mastery tree base, move cards
       nav.css         : site nav bar + home page
       builder.css     : fonts, mastery nodes, share modal, dmg calc, summary tab
-      qte.css         : all 12 QTE trainer styles + ping bar + competitive/casual mode
+      qte.css         : all 16 QTE trainer styles + ping bar + competitive/casual mode
       mobile.css      : responsive overrides (max-width: 768px) + mobile d-pads / arrows
       auth.css        : auth modal, leaderboard tables, profile avatar/dropdown
       saved-builds.css: saved builds panel + Discord button
@@ -46,7 +46,7 @@
   <link rel="stylesheet" href="css/base.css?v=12">
   <link rel="stylesheet" href="css/nav.css?v=18">
   <link rel="stylesheet" href="css/builder.css?v=31">
-  <link rel="stylesheet" href="css/qte.css?v=13">
+  <link rel="stylesheet" href="css/qte.css?v=14">
   <link rel="stylesheet" href="css/mobile.css?v=17">
   <link rel="stylesheet" href="css/auth.css?v=24">
   <link rel="stylesheet" href="css/overlay.css?v=1">
@@ -401,6 +401,10 @@
       <button class="tab" data-qte="thorian-new">Thorian</button>
       <button class="tab" data-qte="dagger-new">Dagger</button>
       <button class="tab" data-qte="yarthul-new">Yar&#39;Thul</button>
+      <button class="tab" data-qte="sword-new">Sword</button>
+      <button class="tab" data-qte="spear-new">Spear</button>
+      <button class="tab" data-qte="axe-new">Axe</button>
+      <button class="tab" data-qte="hammer-new">Hammer</button>
     </div>
   </div>
   <div class="qte-ping-bar">
@@ -585,6 +589,72 @@
         <button class="fist-qte-start-btn" id="yarthul-new-qte-resume-btn" style="display:none">Resume</button>
       </div>
     </div>
+    <!-- >>> sword-new panel (keep this line) -->
+    <!-- Sword New QTE (Warrior "Pommel Strike") -->
+    <div class="qte-panel" id="qte-panel-sword-new" style="display:none">
+      <div class="sword-new-qte-wrap">
+        <div class="sword-new-qte-header">
+          <span class="sword-new-qte-status" id="sword-new-qte-status"></span>
+          <span class="sword-new-qte-streak" id="sword-new-qte-streak"></span>
+          <span class="sword-new-qte-highscore" id="sword-new-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('sword-new')">&#127942; Leaderboard</button>
+        </div>
+        <canvas id="sword-new-qte-canvas" class="sword-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="sword-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="sword-new-qte-resume-btn" style="display:none">Resume</button>
+        <button class="qte-mobile-action-btn sword-new-tap-btn" id="sword-new-tap-btn" style="display:none">TAP</button>
+      </div>
+    </div>
+    <!-- <<< sword-new panel (keep this line) -->
+    <!-- >>> spear-new panel (keep this line) -->
+    <!-- Spear New QTE (Bloody Burst: click circles, follow sliders) -->
+    <div class="qte-panel" id="qte-panel-spear-new" style="display:none">
+      <div class="spear-new-qte-wrap">
+        <div class="spear-new-qte-header">
+          <span class="spear-new-qte-status" id="spear-new-qte-status"></span>
+          <span class="spear-new-qte-streak" id="spear-new-qte-streak"></span>
+          <span class="spear-new-qte-highscore" id="spear-new-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('spear-new')">&#127942; Leaderboard</button>
+        </div>
+        <canvas id="spear-new-qte-canvas" class="spear-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="spear-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="spear-new-qte-resume-btn" style="display:none">Resume</button>
+      </div>
+    </div>
+    <!-- <<< spear-new panel (keep this line) -->
+    <!-- >>> axe-new panel (keep this line) -->
+    <div class="qte-panel" id="qte-panel-axe-new" style="display:none">
+      <div class="axe-new-qte-wrap">
+        <div class="axe-new-qte-header">
+          <span class="axe-new-qte-status" id="axe-new-qte-status"></span>
+          <span class="axe-new-qte-streak" id="axe-new-qte-streak"></span>
+          <span class="axe-new-qte-highscore" id="axe-new-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('axe-new')">&#127942; Leaderboard</button>
+        </div>
+        <canvas id="axe-new-qte-canvas" class="axe-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="axe-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="axe-new-qte-resume-btn" style="display:none">Resume</button>
+        <button class="qte-mobile-action-btn axe-new-tap-btn" id="axe-new-tap-btn" style="display:none">TAP</button>
+      </div>
+    </div>
+    <!-- <<< axe-new panel (keep this line) -->
+    <!-- >>> hammer-new panel (keep this line) -->
+    <!-- Hammer New QTE (Sentry "Prepare": hold to keep the fill in the zone) -->
+    <div class="qte-panel" id="qte-panel-hammer-new" style="display:none">
+      <div class="hammer-new-qte-wrap">
+        <div class="hammer-new-qte-header">
+          <span class="hammer-new-qte-status" id="hammer-new-qte-status"></span>
+          <span class="hammer-new-qte-streak" id="hammer-new-qte-streak"></span>
+          <span class="hammer-new-qte-highscore" id="hammer-new-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('hammer-new')">&#127942; Leaderboard</button>
+        </div>
+        <canvas id="hammer-new-qte-canvas" class="hammer-new-qte-canvas"></canvas>
+        <button class="fist-qte-start-btn" id="hammer-new-qte-start-btn">Start</button>
+        <button class="fist-qte-start-btn" id="hammer-new-qte-resume-btn" style="display:none">Resume</button>
+        <button class="qte-mobile-action-btn qte-mobile-hold-btn hammer-new-hold-btn" id="hammer-new-hold-btn" style="display:none">HOLD</button>
+      </div>
+    </div>
+    <!-- <<< hammer-new panel (keep this line) -->
   </div>
   <img class="qte-logo-watermark" src="images/Logo.png" alt="">
 </div>
@@ -1572,7 +1642,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=117"></script>
+<script src="js/sb.js?v=118"></script>
 <script src="js/reports.js?v=6"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
@@ -1581,7 +1651,7 @@
     data-race-moves.js : raceMoves data  (read by move-renderer)
     move-renderer.js   : move card HTML generators + renderMoves()
     builder.js         : full builder UI (stats, pickers, dmgcalc, soul/mastery trees, build I/O)
-    qte.js             : all 12 QTE trainer IIFEs
+    qte.js             : all 16 QTE trainer IIFEs
     saved-builds.js    : saved builds (localStorage + account sync to player_builds)
 -->
 <script src="js/core.js?v=17"></script>
@@ -1590,8 +1660,8 @@
 <script src="js/move-renderer.js?v=13"></script>
 <script src="js/builder.js?v=107"></script>
 <script src="js/qte-guard.js?v=3"></script>
-<script src="js/qte-rules.js?v=1"></script>
-<script src="js/qte.js?v=25"></script>
+<script src="js/qte-rules.js?v=2"></script>
+<script src="js/qte.js?v=26"></script>
 <script src="js/saved-builds.js?v=16"></script>
 <script src="js/trades.js?v=54"></script>
 <!-- Trades and LF Party are disabled (2026-09-23)
@@ -2131,7 +2201,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-09-27.1';
+  const SITE_VERSION    = '2026-09-28.1';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
@@ -2222,6 +2292,14 @@
     if (name !== 'dagger-new' && typeof window._onDaggerNewQteHide === 'function') window._onDaggerNewQteHide();
     if (name === 'yarthul-new' && typeof window._onYarthulNewQteShow === 'function') window._onYarthulNewQteShow();
     if (name !== 'yarthul-new' && typeof window._onYarthulNewQteHide === 'function') window._onYarthulNewQteHide();
+    if (name === 'sword-new' && typeof window._onSwordNewQteShow === 'function') window._onSwordNewQteShow();
+    if (name !== 'sword-new' && typeof window._onSwordNewQteHide === 'function') window._onSwordNewQteHide();
+    if (name === 'spear-new' && typeof window._onSpearNewQteShow === 'function') window._onSpearNewQteShow();
+    if (name !== 'spear-new' && typeof window._onSpearNewQteHide === 'function') window._onSpearNewQteHide();
+    if (name === 'axe-new' && typeof window._onAxeNewQteShow === 'function') window._onAxeNewQteShow();
+    if (name !== 'axe-new' && typeof window._onAxeNewQteHide === 'function') window._onAxeNewQteHide();
+    if (name === 'hammer-new' && typeof window._onHammerNewQteShow === 'function') window._onHammerNewQteShow();
+    if (name !== 'hammer-new' && typeof window._onHammerNewQteHide === 'function') window._onHammerNewQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

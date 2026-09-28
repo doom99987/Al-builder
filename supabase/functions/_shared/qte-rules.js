@@ -530,6 +530,10 @@
     for (var i = 0; i < a.length; i++) if (a[i] < lim) n++;
     return n / a.length;
   }
+  // The trainer's own count of a log against LOG_BUDGET (js/qte.js ev()):
+  // each event's JSON without its time, + 10.
+  function evBytes(e) { return JSON.stringify([e[0]].concat(e.slice(2))).length + 10; }
+  function logBytes(ev) { var n = 0; for (var i = 0; i < ev.length; i++) n += evBytes(ev[i]); return n; }
 
   function check(log, env) {
     var r = Q.result();
@@ -687,7 +691,13 @@
       }
     }
     if (r.verdict === 'invalid') return r;
-    if (phase === 'failed' && !truncated) return r.invalid('log ends on a wrong key without its end');
+    // A wrong key's E follows it at once, unless the log was full: at
+    // MAX_EVENTS, or when the E would take it past LOG_BUDGET (the trainer
+    // stops logging the attempt there). The points before it stand.
+    if (phase === 'failed') {
+      if (!truncated && logBytes(ev) + evBytes(['E', 0, 'fail']) <= F.LOG_BUDGET) return r.invalid('log ends on a wrong key without its end');
+      r.stat('capped', 1);
+    }
 
     // The claim: a real client submits right after logging the S it claims.
     var nS = streak;
@@ -5245,3 +5255,1453 @@
     check: check,
   });
 })(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
+
+// ==== qte-rules part: sword-new ====
+// ── sword-new ─────
+// Sword (new) trainer ('sword-new', 'sword-new-comp'; js/qte.js "SWORD NEW
+// QTE"): the game's Warrior "Pommel Strike". A round slides n markers in from
+// the left end of a horizontal track, spaced by random gaps. Space / tap stops
+// the LEADING moving marker where it is, and it has to overlap the teal zone,
+// fixed at 0.535 of the track. A red bar under the track drains with the
+// round's timer. Clearing every marker of a round is one point; the first
+// marker stopped outside the zone, a lead marker that slides past the zone's
+// right edge ("Too slow!"), or the timer running out ends the run.
+//
+// Everything is in TRACK UNITS (0 = the track's left end, 1 = its right end),
+// so every canvas size plays the same game and the log carries no widths.
+// Markers move x = x0 + v*g/1000 in the round's game time g (ms: the sum of
+// the frame dts, each clamped to [0, 50 ms], frozen while paused), and a
+// press is judged against the markers of the LAST DRAWN frame.
+//
+// The log (t = ms since the run's Start; numbers rounded to 4 dp by run.ev):
+//   ['R', t, s, n, g1 .. g(n-1)]  a round starts: streak s (rounds cleared so
+//                                 far), marker count n, the n-1 gaps between
+//                                 the markers (track units, drawn already at
+//                                 4 dp: the exact numbers the game uses)
+//   ['K', t, i, x, g, hit]        a press, as judged: lead marker i, its x in
+//                                 the last drawn frame, the round's game time
+//                                 g (ms), 1 = in the zone
+//   ['E', t, 'zone']              right after a missed K
+//   ['E', t, 'slow', i, x, g]     the lead marker slid past the zone
+//   ['E', t, 'time', g]           the round timer ran out with markers left
+//   ['P', t] / ['U', t]           paused (panel, page or browser tab hidden) /
+//                                 Resume clicked
+//
+// A marker's x is a pure function of its start (from the logged gaps) and the
+// round's game time, so check() re-derives it for every press, re-judges the
+// zone test, and holds game time to the wall clock.
+(function (Q) {
+  'use strict';
+  var S = Q.stats;
+
+  // ── constants the trainer reads (js/qte.js) ─────────────────────────────────
+  // Measured from the owner's clip (a 697 px track at 1920x1048): zone 0.535-
+  // 0.680, markers ~15 px wide sliding ~620 px/s, 4 a QTE ~0.30 track apart, a
+  // red timer draining over ~3.37 s.
+  var C = {
+    ZONE_START: 0.535,  // the zone's left edge; its width follows the streak
+    MARKER_W: 0.022,    // a marker's width (~15 px of the game's 697)
+    GRACE: 0.003,       // hit grace each side: the old sword's 2 px, on the game's 697 px track
+    GAP_MIN: 0.22,      // gap between markers, uniform in [GAP_MIN, GAP_MAX]
+    GAP_MAX: 0.38,
+    TIMER_MS: 3400,     // the round timer (the red bar), game ms
+    ROUND_DELAY: 800,   // ms from the last hit of a round to the next round
+    FAIL_RESET: 900,    // ms from a fail to the Start button coming back
+    DT_MAX: 0.05,       // s, frame dt clamp
+  };
+
+  // Curves by streak s (rounds cleared) and mode. Mobile plays the same tables
+  // (positions are in track units, so a narrow screen changes nothing).
+  function zoneW(s, comp) { return comp ? Math.max(0.12 - 0.004 * s, 0.06) : Math.max(0.145 - 0.004 * s, 0.08); }
+  function speed(s, comp) { return comp ? Math.min(1.00 + 0.025 * s, 1.50) : Math.min(0.89 + 0.02 * s, 1.30); }   // track per second
+  function markers(s, comp) { return comp ? Math.min(4 + Math.floor(s / 3), 8) : Math.min(4 + Math.floor(s / 4), 7); }
+  // Browser side only: u = Math.random(). Rounded to 4 dp INSIDE the range, so
+  // the logged gap is exactly the one the game uses.
+  function drawGap(u) {
+    var g = Math.round((C.GAP_MIN + u * (C.GAP_MAX - C.GAP_MIN)) * 10000) / 10000;
+    return Math.min(Math.max(g, C.GAP_MIN), C.GAP_MAX);
+  }
+  // Each marker's x at game time 0: the first just off the track's left end,
+  // every next one a gap further back. Both sides build it with this function.
+  function starts(gaps, n) {
+    var x0 = [], xp = -C.MARKER_W;
+    for (var k = 0; k < n; k++) {
+      x0.push(xp);
+      if (k < n - 1) xp -= gaps[k];
+    }
+    return x0;
+  }
+  function pos(x0, v, g) { return x0 + v * g / 1000; }
+  // The hit test: any overlap with the zone, GRACE each side.
+  function inZone(x, zx, zw) { return x < zx + zw + C.GRACE && x + C.MARKER_W > zx - C.GRACE; }
+  // "Too slow!": the lead marker can no longer touch the zone.
+  function pastZone(x, zx, zw) { return x >= zx + zw + C.GRACE; }
+
+  // ── tolerances (never reasons to reject a real client) ─────────────────────
+  var T = {
+    X_EPS: 0.0002,      // track: logged x vs x0 + v*g (4 dp rounding of x and g)
+    EDGE_EPS: 0.00001,  // track: a hit flag this close to a zone edge is taken as logged
+    G_EPS: 0.001,       // ms: 4 dp rounding of g
+    GT_AHEAD: 200,      // ms: game time ahead of the unpaused wall clock, since the
+                        // round's R and since the round's previous hit. dt >= 0
+                        // and clamped to 50, so only the first frame after each
+                        // (at most 50 ms from before it) + coarse clocks
+                        // (privacy modes floor performance.now to 16.7 or 100 ms)
+                        // + rounding can put it ahead
+    DELAY_EPS: 120,     // ms: next round no sooner than ROUND_DELAY - this
+  };
+  // ── review thresholds (far outside what hands produce) ─────────────────────
+  // Spreads use the MAD (robust, scaled to an SD) so a few dropped frames or
+  // double taps cannot hide a machine, and a few wild presses cannot make a
+  // person look like one. Calibrated on tools/qte/tests/sword-new.test.js;
+  // numbers in tools/qte/notes/sword-new.md.
+  var RV = {
+    // where the stopped marker's centre was from the zone centre, in ms of
+    // travel: the judged frame alone scatters this (60 Hz: MAD ~6 ms)
+    ACC_N: 30,  ACC_MAD: 1.5,
+    // press-to-press time (on the clock with pauses taken out, so a pause
+    // between two presses hides nothing) vs the time the gap between the two
+    // markers takes to travel: a person's error counts twice here, a script
+    // pressing on the ideal moments is exact to its timer (0.4-1.6 ms). 30
+    // intervals, not 20: at 20 the best simulated hands (sigma 5 ms a press)
+    // fall under 2 ms about once in 4,000 checks, at 30 once in 70,000
+    IV_N: 30,   IV_MAD: 2.0,
+    // gap draws not uniform (doctored gaps land at 1e-9 and below)
+    KS_N: 20,   KS_ALPHA: 1e-6,
+    // median over >= 8 rounds of game time / unpaused wall time: a slow-motion
+    // client (rAF timestamps slowed). A 15 fps machine honestly runs at 75%
+    // (67 ms frames, dt clamped to 50), one that also drops frames down to 70%
+    SLOW_N: 8,  SLOW_RATIO: 0.65, SLOW_MIN_WALL: 300,
+    COARSE_Q: 100, COARSE_SHARE: 0.9, // clocks floored to 100 ms (Tor / resist-
+                        // fingerprinting): frames there get dt 0 or a clamped
+                        // 100, so the game clock honestly runs at ~50%
+  };
+
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+
+  function check(log, env) {
+    var r = Q.result();
+    var ev = log.ev;
+    var comp = !!env.comp;
+    var le = log.env || {};
+    var mob = le.mob === true;
+    var claimed = env.claimed | 0;
+    r.stat('claimed', claimed);
+    r.stat('mob', mob);
+    if (isNum(le.ping)) r.stat('ping', le.ping);
+    if (env.platform) r.stat('platform', env.platform);
+    if (env.platform && (env.platform === 'M') !== mob) r.stat('platformMismatch', true);
+    if (log.a !== 0) r.stat('attempt', log.a);
+
+    var phase = 'idle';          // idle | round | pending | missed | ended
+    var paused = false, tP = 0, pausedTotal = 0;
+    var s = 0, n = 0, v = 0, zw = 0, zx = C.ZONE_START, gaps = [], x0 = [], next = 0;
+    var tR = 0, pausedAtR = 0, tDone = 0;
+    var prevT = 0, prevG = 0, pausedAtPrev = 0;   // the round's R, then its last hit
+    var lastHitA = 0;                             // the round's last hit, on the clock with pauses taken out
+    var offsets = [], ivs = [], draws = [], ratios = [];
+    var presses = 0, pauses = 0, rounds = 0, coarse = 0, times = 0;
+    var why = null, at = -1;
+
+    // The clock checks every judged event goes through, and (x given) where
+    // marker bi has to be at game time g.
+    function motion(bi, x, g, t) {
+      if (g < prevG - T.G_EPS) return 'game time went back (' + g + ' ms after ' + prevG + ')';
+      if (x !== null && Math.abs(pos(x0[bi], v, g) - x) > T.X_EPS) return 'marker ' + bi + ' is not where its start and the game time put it';
+      var wall = t - tR - (pausedTotal - pausedAtR);
+      if (g > wall + T.GT_AHEAD) return 'game time ahead of the clock (' + Math.round(g) + ' ms in ' + wall + ' ms)';
+      // and hit to hit: two presses logged at (nearly) one time cannot be a
+      // marker's travel apart in game time
+      var step = t - prevT - (pausedTotal - pausedAtPrev);
+      if (g - prevG > step + T.GT_AHEAD) return 'game time ahead of the clock between presses (' + Math.round(g - prevG) + ' ms in ' + step + ' ms)';
+      return null;
+    }
+    function nearEdge(p) {
+      return Math.abs(p - (zx + zw + C.GRACE)) < T.EDGE_EPS || Math.abs(p + C.MARKER_W - (zx - C.GRACE)) < T.EDGE_EPS;
+    }
+
+    for (var i = 0; i < ev.length && !why; i++) {
+      var e = ev[i], c = e[0], t = e[1];
+      at = i;
+      if (t > 0) { times++; if (t % RV.COARSE_Q === 0) coarse++; }
+      if (phase === 'ended') { why = 'event after the run ended'; break; }
+      if (phase === 'missed' && !(c === 'E' && e[2] === 'zone')) { why = 'a miss not followed by the end of the run'; break; }
+
+      if (c === 'R') {
+        if (phase !== 'idle' && phase !== 'pending') { why = 'a round started before the last one was cleared'; break; }
+        if (paused) { why = 'a round started while paused'; break; }
+        if (e.length < 4) { why = 'malformed round'; break; }
+        var rs = e[2], rn = e[3];
+        if (rs !== s) { why = 'round ' + rs + ' logged after ' + s + ' cleared'; break; }
+        if (rn !== markers(s, comp)) { why = 'wrong marker count for streak ' + s; break; }
+        if (e.length !== 4 + rn - 1) { why = 'wrong number of gaps'; break; }
+        if (phase === 'pending' && t - tDone < C.ROUND_DELAY - T.DELAY_EPS) { why = 'next round came ' + (t - tDone) + ' ms after the last'; break; }
+        gaps = [];
+        for (var k = 0; k < rn - 1; k++) {
+          var gp = e[4 + k];
+          if (!isNum(gp) || gp < C.GAP_MIN || gp > C.GAP_MAX) { why = 'marker gap out of range'; break; }
+          gaps.push(gp);
+          draws.push((gp - C.GAP_MIN) / (C.GAP_MAX - C.GAP_MIN));
+        }
+        if (why) break;
+        n = rn; v = speed(s, comp); zw = zoneW(s, comp); x0 = starts(gaps, n);
+        next = 0; tR = t; pausedAtR = pausedTotal; phase = 'round'; rounds++;
+        prevT = t; prevG = 0; pausedAtPrev = pausedTotal;
+      } else if (c === 'K') {
+        if (phase !== 'round') { why = 'a press outside a round'; break; }
+        if (paused) { why = 'a press while paused'; break; }
+        var bi = e[2], x = e[3], gt = e[4], h = e[5];
+        if (e.length !== 6 || bi !== next || !isNum(x) || !isNum(gt) || (h !== 0 && h !== 1)) { why = 'malformed or out-of-order press'; break; }
+        why = motion(bi, x, gt, t);
+        if (why) break;
+        // every drawn frame had the timer running and the lead marker short
+        // of the zone's end (else that frame ended the run)
+        if (!(gt < C.TIMER_MS + T.G_EPS)) { why = 'a press after the round timer ran out'; break; }
+        var p = pos(x0[bi], v, gt);
+        if (p >= zx + zw + C.GRACE + T.EDGE_EPS) { why = 'a press on a marker that had already slid past the zone'; break; }
+        presses++;
+        var hitNow = inZone(p, zx, zw);
+        if (hitNow !== (h === 1)) {
+          if (!nearEdge(p)) { why = h === 1 ? 'a miss logged as a hit' : 'a hit logged as a miss'; break; }
+          hitNow = h === 1;
+        }
+        if (hitNow) {
+          var tA = t - pausedTotal;
+          offsets.push(((p + C.MARKER_W / 2) - (zx + zw / 2)) / v * 1000);
+          // press interval vs the travel time of the gap between the two markers
+          if (bi > 0) ivs.push((tA - lastHitA) - gaps[bi - 1] / v * 1000);
+          lastHitA = tA;
+          prevT = t; prevG = gt; pausedAtPrev = pausedTotal;
+          next++;
+          if (next === n) {
+            s++;
+            var wall = t - tR - (pausedTotal - pausedAtR);
+            if (wall >= RV.SLOW_MIN_WALL) ratios.push(gt / wall);
+            phase = 'pending'; tDone = t;
+          }
+        } else {
+          phase = 'missed';
+        }
+      } else if (c === 'E') {
+        var reason = e[2];
+        if (reason === 'zone') {
+          if (phase !== 'missed' || e.length !== 3) { why = 'a zone miss with no missed press'; break; }
+          phase = 'ended';
+        } else if (reason === 'slow') {
+          if (phase !== 'round' || paused) { why = 'a marker slid past outside a live round'; break; }
+          if (e.length !== 6 || e[3] !== next || !isNum(e[4]) || !isNum(e[5])) { why = 'malformed end'; break; }
+          why = motion(e[3], e[4], e[5], t);
+          if (why) break;
+          if (!(e[5] < C.TIMER_MS + C.DT_MAX * 1000 + T.G_EPS)) { why = 'a marker slid past after the timer ran out'; break; }
+          if (!(pos(x0[next], v, e[5]) >= zx + zw + C.GRACE - T.EDGE_EPS)) { why = 'run ended as too slow with the marker still on the zone'; break; }
+          phase = 'ended';
+        } else if (reason === 'time') {
+          if (phase !== 'round' || paused) { why = 'a timer end outside a live round'; break; }
+          if (e.length !== 4 || !isNum(e[3])) { why = 'malformed end'; break; }
+          why = motion(next, null, e[3], t);
+          if (why) break;
+          if (e[3] < C.TIMER_MS - T.G_EPS || !(e[3] < C.TIMER_MS + C.DT_MAX * 1000 + T.G_EPS)) { why = 'timer end at ' + e[3] + ' ms of a ' + C.TIMER_MS + ' ms timer'; break; }
+          if (pos(x0[next], v, e[3]) >= zx + zw + C.GRACE + T.EDGE_EPS) { why = 'timer end with the lead marker already past the zone'; break; }
+          phase = 'ended';
+        } else { why = 'unknown end'; break; }
+      } else if (c === 'P') {
+        if (paused) { why = 'paused twice'; break; }
+        if (phase !== 'round' && phase !== 'pending') { why = 'paused outside a run'; break; }
+        if (e.length !== 2) { why = 'malformed pause'; break; }
+        paused = true; tP = t; pauses++;
+      } else if (c === 'U') {
+        if (!paused) { why = 'resumed without a pause'; break; }
+        if (e.length !== 2) { why = 'malformed resume'; break; }
+        pausedTotal += t - tP; paused = false;
+      } else {
+        why = 'unknown event ' + c;
+      }
+    }
+
+    if (why) { r.invalid('event ' + at + ': ' + why); r.score = 0; return r; }
+    if (claimed > 0 && rounds === 0) { r.invalid('a score with no rounds behind it'); return r; }
+    // A submit carries the log as it stood at the new high, so it proves the
+    // claim; only a log cut off at MAX_EVENTS may claim more than it shows.
+    var full = ev.length >= Q.LIMITS.MAX_EVENTS;
+    if (claimed > s && !full) { r.invalid('claim ' + claimed + ' above the ' + s + ' rounds the log proves'); return r; }
+
+    r.score = s;
+    if (full) r.stat('logFull', true);
+    r.stat('rounds', s);
+    r.stat('presses', presses);
+    r.stat('hits', offsets.length);
+    r.stat('pauses', pauses);
+    var isCoarse = times >= 20 && coarse / times >= RV.COARSE_SHARE;
+    if (isCoarse) r.stat('coarseClock', true);
+
+    // ── is this a person ──
+    if (offsets.length) {
+      r.stat('offMeanMs', S.mean(offsets));
+      r.stat('offSdMs', S.sd(offsets));
+      var offMad = S.mad(offsets);
+      r.stat('offMadMs', offMad);
+      if (offsets.length >= RV.ACC_N && offMad < RV.ACC_MAD) {
+        r.review('too accurate (marker-to-zone-centre spread ' + offMad.toFixed(2) + ' ms over ' + offsets.length + ' hits)');
+      }
+    }
+    if (ivs.length) {
+      var ivMad = S.mad(ivs);
+      r.stat('ivMadMs', ivMad);
+      r.stat('ivN', ivs.length);
+      if (ivs.length >= RV.IV_N && ivMad < RV.IV_MAD) {
+        r.review('press timing matches the marker gaps to ' + ivMad.toFixed(2) + ' ms over ' + ivs.length + ' presses');
+      }
+    }
+    if (draws.length >= RV.KS_N) {
+      var ks = S.ksUniform(draws);
+      r.stat('gapsP', ks.p);
+      var lucky = Q.tooLucky(ks.p, RV.KS_ALPHA, draws.length + ' marker gaps');
+      if (lucky) r.review(lucky);
+    }
+    if (ratios.length) {
+      var med = S.median(ratios);
+      r.stat('clockRatio', med);
+      if (ratios.length >= RV.SLOW_N && med < RV.SLOW_RATIO && !isCoarse) {
+        r.review('game clock ran at ' + Math.round(med * 100) + '% of the wall clock over ' + ratios.length + ' rounds');
+      }
+    }
+    return r;
+  }
+
+  Q.register('sword-new', {
+    ZONE_START: C.ZONE_START, MARKER_W: C.MARKER_W, GRACE: C.GRACE, GAP_MIN: C.GAP_MIN, GAP_MAX: C.GAP_MAX,
+    TIMER_MS: C.TIMER_MS, ROUND_DELAY: C.ROUND_DELAY, FAIL_RESET: C.FAIL_RESET, DT_MAX: C.DT_MAX,
+    zoneW: zoneW, speed: speed, markers: markers, drawGap: drawGap, starts: starts, pos: pos,
+    inZone: inZone, pastZone: pastZone,
+    T: T, RV: RV,
+    check: check,
+  });
+})(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
+// <<< end of qte-rules part: sword-new (keep this line)
+// ==== qte-rules part: spear-new ====
+// ── spear-new ───────────────────────────────────────────────────────────────
+// Spear, new version (Slayer "Bloody Burst"; js/qte.js "SPEAR NEW QTE").
+// Types 'spear-new' and 'spear-new-comp'. A round is a chain of targets around
+// the character, one active at a time (the next one shows as a ghost): a
+// circle is clicked; a slider is pressed on its start and held while its ball
+// runs a curved path, the pointer staying within 2 r of the ball to the end.
+// Every target before the round timer runs out = one point (the next round
+// 800 ms later); a slider released early or left behind, or the timer, ends
+// the run. The trainer reads every rule it plays by from here (curves, radii,
+// the target draw, the path table), so the check and the game cannot drift.
+//
+// The game runs on its own clock g: the sum of frame steps, each clamped to
+// [0, 50 ms], frozen while paused, kept in whole tenths of a ms (g is the
+// rounded float sum, so it never drifts from the frames). The ball, the round
+// timer and the round gap are functions of g, and an input is judged against
+// the LAST RENDERED FRAME (its g). Every decision is taken on the numbers the
+// log holds (draws and pointer positions at 0.1 px, g in tenths), so check()
+// re-judges each one exactly, with no tolerance.
+//
+// Log events (t = ms since the run's Start):
+//   ['Z', t, W, H]               canvas size: at Start, and at a round start where it changed
+//   ['R', t, g, d, s]            a round starts in the frame at g (step d); s = rounds cleared
+//   ['T', t, 0, x, y]            ... then each of its targets, in order: a circle at (x, y),
+//   ['T', t, 1, x, y, ex, ey, o1, o2]   or a slider from (x, y) to (ex, ey) whose control
+//                                points sit o1 / o2 px off the chord at its two ends
+//                                (same sign: bowed to one side)
+//   ['K', t, g, k, px, py]       target k (the active one) pressed at (px, py); a press
+//                                off the active target does nothing and is not logged
+//   ['M', t, g, d, px, py]       a follow sample: the pointer in a frame while a slider is
+//                                held, the first frame 25 ms or more after the last one
+//   ['F', t, g, d, px, py]       the frame the ball reached the slider's end, still held
+//   ['C', t, g, n]               round cleared (n rounds), right after the last K or F
+//   ['P', t, g] / ['U', t, g]    paused (panel or tab hidden; a held slider is let go and
+//                                starts over) / Resume
+//   ['E', t, 'time', g, d]       the round timer ran out in the frame at g
+//   ['E', t, 'far', g, d, px, py]  the pointer was more than 2 r from the ball
+//   ['E', t, 'up', g]            the slider was let go before its end
+(function (Q) {
+  'use strict';
+  if (!Q) return;
+  var S = Q.stats;
+
+  // ── the rules (read by the IIFE) ──
+  var R = {
+    DT_MAX: 50,          // ms: a frame's step is clamped to this
+    ROUND_GAP: 800,      // ms of game time from Start, or a cleared round, to the next round
+    SAMPLE_MS: 25,       // ms of game time between follow samples while a slider is held
+    SLIDER_P: 0.4,       // a target is a slider (the first of a round always is)
+    R_K: 0.045, R_K_MOB: 0.06, R_MIN: 18,   // r = max(18, min(W, H) x 0.045; mobile 0.06)
+    HIT_K: 1.25,         // a press counts within 1.25 r (the circle and its thin outer ring)
+    FOLLOW_K: 2,         // a held slider: the pointer within 2 r of the ball
+    SEP_K: 3,            // a target is 3 r or more from the previous one (start and end)
+    DIST_MIN: 0.12, DIST_MAX: 0.40,   // a target from the centre, x min(W, H)
+    LEN_MIN: 0.30, LEN_MAX: 0.45,     // a slider's end from its start, x min(W, H)
+    BOW_MIN: 0.20, BOW_MAX: 0.35,     // its control points off the chord, x min(W, H)
+    SEGS: 48,            // the path table: points along the curve
+    TRIES: 400,          // spots drawn for one shape before the shape is drawn again
+    SHAPES: 40,
+    W_MIN: 240, W_MAX: 900,
+    // The trainer stops logging once its events pass this many bytes of JSON
+    // (a marathon run's body stays under Q.LIMITS.MAX_BYTES); the check then
+    // proves the rounds before the cut.
+    LOG_BUDGET: 600000,
+    // ... and closes the run this long before Q.LIMITS.MAX_T (a run kept
+    // paused overnight). Rounds submitted before that stay proven.
+    LOG_T_MARGIN: 60000,
+  };
+
+  // Curves for s = rounds cleared this run. Whole ms, so both sides agree.
+  R.targets = function (s, comp) { return comp ? Math.min(8 + Math.floor(s / 2), 14) : Math.min(6 + Math.floor(s / 2), 12); };
+  R.timerMs = function (s, comp) { return comp ? Math.max(7000 - 100 * s, 5500) : Math.max(7500 - 100 * s, 6000); };
+  R.travMs  = function (s, comp) { return comp ? Math.max(450 - 10 * s, 300) : Math.max(550 - 10 * s, 350); };
+
+  // Canvas: the panel's width less 24 px, 240..900; tall (phones, narrow) or wide.
+  R.canvasW = function (wrapW) { var w = Math.floor(wrapW) - 24; if (!(w > 0)) w = 800; return Math.max(R.W_MIN, Math.min(R.W_MAX, w)); };
+  R.canvasH = function (W, tall) {
+    return tall ? Math.max(R.W_MIN, Math.min(Math.round(W * 0.95), 480)) : Math.max(R.W_MIN, Math.min(Math.round(W * 0.6), 540));
+  };
+  R.radius = function (W, H, mob) { return Math.max(R.R_MIN, Math.min(W, H) * (mob ? R.R_K_MOB : R.R_K)); };
+  R.px = function (v) { return Math.round(v * 10) / 10; };      // logged positions (0.1 px)
+  R.dist = function (ax, ay, bx, by) { var dx = ax - bx, dy = ay - by; return Math.sqrt(dx * dx + dy * dy); };
+
+  // The path table of a slider: SEGS + 1 points of the cubic Bezier from
+  // (x, y) to (ex, ey), control points o1 / o2 px along the chord's normal off
+  // its two ends, and the arc length up to each point. The ball moves at
+  // constant arc-length speed along the polyline, which is also what is drawn.
+  R.path = function (tg) {
+    var sx = tg.x, sy = tg.y, ex = tg.ex, ey = tg.ey;
+    var L = R.dist(sx, sy, ex, ey), nx = L > 0 ? -(ey - sy) / L : 0, ny = L > 0 ? (ex - sx) / L : 0;
+    var c1x = sx + nx * tg.o1, c1y = sy + ny * tg.o1, c2x = ex + nx * tg.o2, c2y = ey + ny * tg.o2;
+    var xs = [], ys = [], cum = [0];
+    for (var i = 0; i <= R.SEGS; i++) {
+      var t = i / R.SEGS, u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+      xs.push(a * sx + b * c1x + c * c2x + d * ex);
+      ys.push(a * sy + b * c1y + c * c2y + d * ey);
+      if (i > 0) cum.push(cum[i - 1] + R.dist(xs[i], ys[i], xs[i - 1], ys[i - 1]));
+    }
+    return { xs: xs, ys: ys, cum: cum, len: cum[R.SEGS] };
+  };
+  // How far along its path the ball is: g, gPress and trav in tenths of a ms.
+  R.frac = function (g10, gPress10, trav10) { return (g10 - gPress10) / trav10; };
+  // The ball at share f of the path's length (clamped to the ends).
+  R.ballAt = function (p, f) {
+    var n = R.SEGS;
+    if (!(f > 0)) return { x: p.xs[0], y: p.ys[0] };
+    if (f >= 1) return { x: p.xs[n], y: p.ys[n] };
+    var s = f * p.len, lo = 0, hi = n;
+    while (hi - lo > 1) { var mid = (lo + hi) >> 1; if (p.cum[mid] <= s) lo = mid; else hi = mid; }
+    var seg = p.cum[lo + 1] - p.cum[lo], k = seg > 0 ? (s - p.cum[lo]) / seg : 0;
+    return { x: p.xs[lo] + (p.xs[lo + 1] - p.xs[lo]) * k, y: p.ys[lo] + (p.ys[lo + 1] - p.ys[lo]) * k };
+  };
+
+  function bowOk(o1, o2, m) {
+    var a1 = Math.abs(o1), a2 = Math.abs(o2);
+    return a1 >= R.BOW_MIN * m && a1 <= R.BOW_MAX * m && a2 >= R.BOW_MIN * m && a2 <= R.BOW_MAX * m && (o1 > 0) === (o2 > 0);
+  }
+  // Where a target may be, given the one before it in the round (null for
+  // the first). null = fine, else why not. The trainer draws with this and
+  // the check replays it on the same numbers.
+  R.targetOk = function (tg, prev, W, H, r) {
+    var m = Math.min(W, H);
+    var inside = function (x, y) { return x >= r && x <= W - r && y >= r && y <= H - r; };
+    var dc = R.dist(tg.x, tg.y, W / 2, H / 2);
+    if (dc < R.DIST_MIN * m || dc > R.DIST_MAX * m) return 'target not at its distance from the centre';
+    if (!inside(tg.x, tg.y)) return 'target off the canvas';
+    if (prev) {
+      if (R.dist(tg.x, tg.y, prev.x, prev.y) < R.SEP_K * r) return 'target on top of the one before it';
+      if (prev.kind === 1 && R.dist(tg.x, tg.y, prev.ex, prev.ey) < R.SEP_K * r) return 'target on top of the end of the slider before it';
+    }
+    if (tg.kind === 1) {
+      var L = R.dist(tg.x, tg.y, tg.ex, tg.ey);
+      if (L < R.LEN_MIN * m || L > R.LEN_MAX * m) return 'slider length out of range';
+      if (!bowOk(tg.o1, tg.o2, m)) return 'slider bow out of range';
+      var p = R.path(tg);
+      for (var i = 0; i <= R.SEGS; i++) if (!inside(p.xs[i], p.ys[i])) return 'slider path off the canvas';
+    }
+    return null;
+  };
+  // Browser side: draw one target (u = Math.random). Kind first; a slider's
+  // shape (length, bows, side) next, then spots and directions until one
+  // fits. Everything is rounded to 0.1 px BEFORE the fit test, and the game
+  // plays the rounded numbers, so the log holds exactly what was played.
+  R.drawTarget = function (u, first, prev, W, H, r) {
+    var m = Math.min(W, H), cx = W / 2, cy = H / 2, TAU = 2 * Math.PI, tg = null;
+    var kind = first ? 1 : (u() < R.SLIDER_P ? 1 : 0);
+    for (var sh = 0; sh < R.SHAPES; sh++) {
+      var L = 0, o1 = 0, o2 = 0;
+      if (kind === 1) {
+        L = m * (R.LEN_MIN + (R.LEN_MAX - R.LEN_MIN) * u());
+        var side = u() < 0.5 ? -1 : 1;
+        o1 = R.px(side * m * (R.BOW_MIN + (R.BOW_MAX - R.BOW_MIN) * u()));
+        o2 = R.px(side * m * (R.BOW_MIN + (R.BOW_MAX - R.BOW_MIN) * u()));
+        if (!bowOk(o1, o2, m)) continue;
+      }
+      for (var k = 0; k < R.TRIES; k++) {
+        var a = TAU * u(), d = m * (R.DIST_MIN + (R.DIST_MAX - R.DIST_MIN) * u());
+        tg = { kind: kind, x: R.px(cx + d * Math.cos(a)), y: R.px(cy + d * Math.sin(a)) };
+        if (kind === 1) {
+          var b = TAU * u();
+          tg.ex = R.px(tg.x + L * Math.cos(b)); tg.ey = R.px(tg.y + L * Math.sin(b)); tg.o1 = o1; tg.o2 = o2;
+        }
+        if (R.targetOk(tg, prev, W, H, r) === null) return tg;
+      }
+    }
+    return tg;   // never on a canvas the trainer makes; the check refuses it
+  };
+
+  // ── tolerances ──
+  // None on the game's own decisions (exact replay). The game clock may lead
+  // the run clock by this much: the first frame's stamp can predate the Start
+  // click's handling, and coarse (privacy) clocks round both.
+  var G_AHEAD = 1000;
+  var DT10 = R.DT_MAX * 10, GAP10 = R.ROUND_GAP * 10, SAMPLE10 = R.SAMPLE_MS * 10;
+  // A follow sample is the first frame 25 ms after the last one, and a frame
+  // step is at most 50 ms, so no two samples of a slider are further apart
+  // than this (tenths of a ms; +1 for the rounding of g).
+  var MAX_GAP10 = SAMPLE10 + DT10 + 1;
+
+  // ── person checks (review; far outside real play, see notes/spear-new.md) ──
+  var P = {
+    // Follow samples: the pointer's mean distance from the ball, in radii. A
+    // hand tracking a ball that crosses the canvas in half a second trails
+    // and wobbles by a good share of a radius; a script sits on it.
+    FOL_N: 40, FOL_MEAN: 0.05,
+    // Presses: the RMS distance from the target's centre (px).
+    AIM_N: 20, AIM_PX: 1,
+    // Presses under 45 ms of game time after their target became active
+    // (the previous one done, or the round start), in half the presses.
+    RT_N: 20, RT_MS: 45, RT_SHARE: 0.5,
+    // Press-to-press times within a round (wall clock) as even as a
+    // metronome: an SD under 5 ms, or half of them within 2 ms of their
+    // median (a metronome with the odd irregular step).
+    STEADY_N: 20, STEADY_SD: 5, CLUSTER_N: 20, CLUSTER_MS: 2, CLUSTER_SHARE: 0.5,
+    // Loaded draws: too few sliders (one-sided binomial), slider lengths and
+    // bows not uniform (KS).
+    LUCK_N: 30, LUCK_P: 1e-5,
+    // Slow motion: logged frames at the 50 ms clamp (the game ran under
+    // 20 fps), or the game clock under 80% of the wall clock over 30 s or
+    // more of play (stalls cost an honest run a few %; a slowed client more).
+    SLOW_N: 40, SLOW_SHARE: 0.6, RATIO_MS: 30000, RATIO_MIN: 0.8,
+    // Pausing no hand does (three clicks), over and over, or to save sliders.
+    PAUSE_SHORT_MS: 150, PAUSE_SHORT_N: 3, PAUSE_N: 10, PAUSE_PER_MIN: 2,
+    RESET_N: 5, RESET_SHARE: 0.8,
+  };
+  R.PERSON = P;
+
+  function isNum(x) { return typeof x === 'number' && isFinite(x); }
+  function isInt(x) { return isNum(x) && Math.floor(x) === x; }
+  // A logged game time or step in whole tenths of a ms, or -1.
+  function tenths(v) {
+    if (!isNum(v) || v < 0) return -1;
+    var k = Math.round(v * 10);
+    return Math.abs(v * 10 - k) < 1e-6 ? k : -1;
+  }
+  function logBytes(ev) { var n = 0; for (var i = 0; i < ev.length; i++) n += JSON.stringify(ev[i]).length + 1; return n; }
+
+  R.check = function (log, env) {
+    var r = Q.result();
+    var ev = log.ev, comp = !!(env && env.comp), claimed = (env && env.claimed) | 0;
+    var le = log.env || {}, mob = le.mob === true;
+    r.stat('mob', mob);
+    if (isNum(le.ping)) r.stat('ping', le.ping);
+    if (env && env.platform) { r.stat('platform', env.platform); if ((env.platform === 'M') !== mob) r.stat('platformMismatch', true); }
+
+    var fail = null;
+    function bad(i, why) { if (fail === null) fail = why + ' (event ' + i + ')'; return false; }
+
+    var W = -1, H = -1, m = 0, rad = 0;
+    var phase = 'pre';           // pre (no canvas yet) | gap | play | over
+    var paused = false, pauseG = 0, pauseT = 0;
+    var score = 0, R0 = 0, timer10 = 0, trav10 = 0, gC = 0, need = 0, toCome = 0;
+    var tgs = [], paths = [], active = 0, actFrom = 0, prev = null;
+    var held = false, gP = 0, lastS = 0;
+    var lastG = 0, pendC = -1, pendE = -1;
+    // stats
+    var rounds = 0, presses = 0, samples = 0, sliders = 0, nZ = 0, endWhy = '';
+    var fol = [], aimX = [], aimY = [], rts = [], ivs = [], lastKT = -1, maxGap = 0;
+    var kindN = 0, kindS = 0, lenU = [], bowU = [];
+    var nFrames = 0, nClamped = 0, pauses = 0, shortPauses = 0, pausedWall = 0, resets = 0;
+
+    // T = the time of a frame whose events are all logged before this one:
+    // nothing may have been due at it.
+    function tight(i, T) {
+      if (phase === 'gap') {
+        if (T - gC >= GAP10) return bad(i, 'a round start is missing');
+      } else if (phase === 'play' && toCome === 0) {
+        if (held && T - gP >= trav10) return bad(i, 'the slider reached its end with no end logged');
+        if (held && T - lastS >= SAMPLE10) return bad(i, 'a follow sample is missing');
+        if (T - R0 >= timer10) return bad(i, 'the round timer ran out with no end logged');
+      }
+      return true;
+    }
+    // A frame event at g with step d: the previous frame was at g - d, so no
+    // event logged before it may be later than that (or it is this frame).
+    function frame(i, g, d) {
+      if (d < 0 || d > DT10 + 1) return bad(i, 'bad frame step');
+      if (lastG !== g && lastG > g - d) return bad(i, 'events fall between this frame and the one before it');
+      nFrames++; if (d >= DT10 - 10) nClamped++;
+      return true;
+    }
+    function complete(g) { active++; actFrom = g; if (active >= need) pendC = g; }
+
+    for (var i = 0; i < ev.length && fail === null; i++) {
+      var e = ev[i], c = e[0], t = e[1];
+      if (phase === 'over') { bad(i, 'event after the run ended'); break; }
+      if (toCome > 0 && c !== 'T') { bad(i, 'a round without all its targets'); break; }
+      if (pendC >= 0 && c !== 'C') { bad(i, 'a cleared round without its C'); break; }
+      if (pendE >= 0 && c !== 'E') { bad(i, 'the round timer ran out here'); break; }
+
+      if (c === 'Z') {
+        var w = e[2], h = e[3];
+        if (e.length !== 4 || !isInt(w) || w < R.W_MIN || w > R.W_MAX || (h !== R.canvasH(w, true) && h !== R.canvasH(w, false))) { bad(i, 'bad canvas size'); break; }
+        if (phase === 'pre') { phase = 'gap'; gC = 0; }
+        else if (phase !== 'gap' || paused || !ev[i + 1] || ev[i + 1][0] !== 'R') { bad(i, 'canvas resized outside a round start'); break; }
+        W = w; H = h; m = Math.min(W, H); rad = R.radius(W, H, mob); nZ++;
+        continue;
+      }
+      if (phase === 'pre') { bad(i, 'the log does not start with the canvas size'); break; }
+
+      if (c === 'T') {
+        var kind = e[2], tg = null;
+        if (toCome <= 0) { bad(i, 'a target outside a round start'); break; }
+        if (kind === 0 && e.length === 5) tg = { kind: 0, x: e[3], y: e[4] };
+        else if (kind === 1 && e.length === 9) tg = { kind: 1, x: e[3], y: e[4], ex: e[5], ey: e[6], o1: e[7], o2: e[8] };
+        var nums = !!tg;
+        for (var q = 3; nums && q < e.length; q++) if (!isNum(e[q])) nums = false;
+        if (!nums) { bad(i, 'bad target'); break; }
+        if (tgs.length === 0 && kind !== 1) { bad(i, 'a round must open with a slider'); break; }
+        var why = R.targetOk(tg, prev, W, H, rad);
+        if (why) { bad(i, why); break; }
+        if (tgs.length > 0) { kindN++; if (kind === 1) kindS++; }
+        if (kind === 1) {
+          sliders++;
+          lenU.push((R.dist(tg.x, tg.y, tg.ex, tg.ey) / m - R.LEN_MIN) / (R.LEN_MAX - R.LEN_MIN));
+          bowU.push((Math.abs(tg.o1) / m - R.BOW_MIN) / (R.BOW_MAX - R.BOW_MIN), (Math.abs(tg.o2) / m - R.BOW_MIN) / (R.BOW_MAX - R.BOW_MIN));
+        }
+        tgs.push(tg); paths.push(kind === 1 ? R.path(tg) : null); prev = tg; toCome--;
+        continue;
+      }
+
+      // everything else carries a game time
+      var gi = c === 'E' ? 3 : 2, g = tenths(e[gi]);
+      if (g < 0) { bad(i, 'bad game time'); break; }
+      if (g < lastG) { bad(i, 'game time goes back'); break; }
+      if (e[gi] > t + G_AHEAD) { bad(i, 'game time runs ahead of the clock'); break; }
+
+      if (c === 'R') {
+        var d = tenths(e[3]);
+        if (e.length !== 5 || phase !== 'gap' || paused) { bad(i, 'a round start out of place'); break; }
+        if (!frame(i, g, d) || !tight(i, g - d)) break;
+        if (g - gC < GAP10) { bad(i, 'a round started before its gap ran out'); break; }
+        if (e[4] !== score) { bad(i, 'a round logged with the wrong streak'); break; }
+        need = R.targets(score, comp); timer10 = R.timerMs(score, comp) * 10; trav10 = R.travMs(score, comp) * 10;
+        R0 = g; actFrom = g; tgs = []; paths = []; active = 0; prev = null; held = false; toCome = need;
+        phase = 'play'; rounds++; lastKT = -1;
+      } else if (c === 'K') {
+        var k = e[3], kx = e[4], ky = e[5];
+        if (e.length !== 6 || phase !== 'play' || paused || held || k !== active || !isNum(kx) || !isNum(ky)) { bad(i, 'a press out of place'); break; }
+        if (!tight(i, g)) break;
+        var tk = tgs[active];
+        if (R.dist(kx, ky, tk.x, tk.y) > R.HIT_K * rad) { bad(i, 'a press off its target'); break; }
+        presses++; aimX.push(kx - tk.x); aimY.push(ky - tk.y); rts.push((g - actFrom) / 10);
+        if (lastKT >= 0) ivs.push(t - lastKT);
+        lastKT = t;
+        if (tk.kind === 0) complete(g);
+        else { held = true; gP = g; lastS = g; }
+      } else if (c === 'M' || c === 'F') {
+        var d2 = tenths(e[3]), px = e[4], py = e[5];
+        if (e.length !== 6 || !held || paused || !isNum(px) || !isNum(py)) { bad(i, c === 'M' ? 'a follow sample with no slider held' : 'a slider end with no slider held'); break; }
+        if (!frame(i, g, d2) || !tight(i, g - d2)) break;
+        if (c === 'M') {
+          if (g - gP >= trav10) { bad(i, 'a follow sample after the slider\'s end'); break; }
+          if (g - lastS < SAMPLE10) { bad(i, 'a follow sample before it was due'); break; }
+        } else if (g - gP < trav10) { bad(i, 'the slider ended before its time'); break; }
+        if (g - lastS > MAX_GAP10) { bad(i, 'follow samples too far apart'); break; }
+        var b = R.ballAt(paths[active], R.frac(g, gP, trav10)), fd = R.dist(px, py, b.x, b.y);
+        if (fd > R.FOLLOW_K * rad) { bad(i, 'the pointer was not on the ball'); break; }
+        if (g - lastS > maxGap) maxGap = g - lastS;
+        lastS = g; samples++; fol.push(fd / rad);
+        if (c === 'F') { held = false; complete(g); }
+        if (pendC < 0 && g - R0 >= timer10) pendE = g;
+      } else if (c === 'C') {
+        if (e.length !== 4 || pendC < 0 || g !== pendC || e[3] !== score + 1) { bad(i, 'a round cleared that was not'); break; }
+        score++; pendC = -1; phase = 'gap'; gC = g;
+      } else if (c === 'E') {
+        var ew = e[2];
+        if (phase !== 'play' || paused) { bad(i, 'the run ended out of place'); break; }
+        if (ew === 'time') {
+          var d3 = tenths(e[4]);
+          if (e.length !== 5) { bad(i, 'bad end'); break; }
+          if (pendE >= 0) {
+            if (g !== pendE) { bad(i, 'the timer ran out in another frame'); break; }
+          } else {
+            if (!frame(i, g, d3) || !tight(i, g - d3)) break;
+            // the slider step of this frame comes first: its end or sample would be logged
+            if (held && (g - gP >= trav10 || g - lastS >= SAMPLE10)) { bad(i, 'the slider step of this frame is missing'); break; }
+            if (g - R0 < timer10) { bad(i, 'the round timer had not run out'); break; }
+          }
+        } else if (ew === 'far') {
+          var d4 = tenths(e[4]), fx = e[5], fy = e[6];
+          if (e.length !== 7 || !held || pendE >= 0 || !isNum(fx) || !isNum(fy)) { bad(i, 'bad end'); break; }
+          if (!frame(i, g, d4) || !tight(i, g - d4)) break;
+          var bb = R.ballAt(paths[active], R.frac(g, gP, trav10));
+          if (R.dist(fx, fy, bb.x, bb.y) <= R.FOLLOW_K * rad) { bad(i, 'a slider break that did not happen'); break; }
+        } else if (ew === 'up') {
+          if (e.length !== 4 || !held || pendE >= 0) { bad(i, 'bad end'); break; }
+          if (!tight(i, g)) break;
+        } else { bad(i, 'unknown end'); break; }
+        phase = 'over'; pendE = -1; endWhy = ew;
+      } else if (c === 'P') {
+        if (e.length !== 3 || paused || (phase !== 'gap' && phase !== 'play')) { bad(i, 'a pause out of place'); break; }
+        if (!tight(i, g)) break;
+        paused = true; pauseG = g; pauseT = t; lastKT = -1;
+        if (held) { held = false; resets++; }       // the slider starts over after Resume
+      } else if (c === 'U') {
+        if (e.length !== 3 || !paused || g !== pauseG) { bad(i, 'resume without a pause'); break; }
+        paused = false; pauses++;
+        pausedWall += t - pauseT;
+        if (t - pauseT < P.PAUSE_SHORT_MS) shortPauses++;
+      } else { bad(i, 'unknown event'); break; }
+      lastG = g;
+    }
+
+    r.stat('rounds', score); r.stat('presses', presses); r.stat('sliders', sliders); r.stat('samples', samples);
+    r.stat('resizes', Math.max(0, nZ - 1)); if (endWhy) r.stat('end', endWhy);
+    if (fail !== null) { r.score = 0; return r.invalid(fail); }
+    r.score = score;
+
+    if (claimed > score) {
+      if (!ev.length) return r.invalid('claims ' + claimed + ' with no events');
+      var capped = ev.length >= Q.LIMITS.MAX_EVENTS || logBytes(ev) > R.LOG_BUDGET;
+      if (!capped) return r.invalid('claims ' + claimed + ' rounds, the log proves ' + score);
+      r.stat('capped', 1);
+    }
+
+    // ── does this look like a person ──
+    var why2, pMin = 1;
+    var folMean = S.mean(fol), aimRms = Math.sqrt((S.mean(aimX.map(function (v) { return v * v; })) + S.mean(aimY.map(function (v) { return v * v; }))) / 2);
+    var fast = 0; for (var z = 0; z < rts.length; z++) if (rts[z] < P.RT_MS) fast++;
+    var lastT = ev.length ? ev[ev.length - 1][1] : 0, activeWall = Math.max(0, lastT - pausedWall);
+    r.stat('followMean', folMean); r.stat('aimRmsPx', aimRms); r.stat('rtMedMs', S.median(rts)); r.stat('rtFastShare', rts.length ? fast / rts.length : 0);
+    var ivMed = S.median(ivs), ivNear = 0;
+    for (var zi = 0; zi < ivs.length; zi++) if (Math.abs(ivs[zi] - ivMed) <= P.CLUSTER_MS) ivNear++;
+    r.stat('ivSdMs', ivs.length >= 2 ? S.sd(ivs) : 0); r.stat('ivClusterShare', ivs.length ? ivNear / ivs.length : 0); r.stat('ivN', ivs.length);
+    r.stat('maxGapMs', maxGap / 10);
+    r.stat('pauses', pauses); r.stat('shortPauses', shortPauses); r.stat('sliderResets', resets);
+    if (nFrames) r.stat('clampedShare', nClamped / nFrames);
+    if (activeWall > 0) r.stat('gameToWall', lastG / 10 / activeWall);
+    if (fol.length >= P.FOL_N && folMean < P.FOL_MEAN) r.review('follows the ball too exactly (mean ' + (folMean * rad).toFixed(2) + ' px over ' + fol.length + ' samples)');
+    if (aimX.length >= P.AIM_N && aimRms < P.AIM_PX) r.review('presses too exact (spread ' + aimRms.toFixed(2) + ' px over ' + aimX.length + ')');
+    if ((why2 = Q.tooFast(rts, P.RT_N, P.RT_MS, P.RT_SHARE))) r.review('presses after their target appeared: ' + why2);
+    if ((why2 = Q.tooSteady(ivs, P.STEADY_N, P.STEADY_SD))) r.review(why2);
+    else if (ivs.length >= P.CLUSTER_N && ivNear / ivs.length >= P.CLUSTER_SHARE) r.review('press timing too even (' + ivNear + ' of ' + ivs.length + ' within ' + P.CLUSTER_MS + ' ms of ' + ivMed.toFixed(0) + ' ms)');
+    if (kindN >= P.LUCK_N) {
+      var pS = 1 - S.binomUpper(kindN, kindS + 1, R.SLIDER_P);
+      r.stat('pSliders', pS); pMin = Math.min(pMin, pS);
+      if ((why2 = Q.tooLucky(pS, P.LUCK_P, kindS + ' sliders of ' + kindN))) r.review(why2);
+    }
+    var draws = [['slider length', lenU], ['slider bow', bowU]];
+    for (var dz = 0; dz < draws.length; dz++) {
+      if (draws[dz][1].length < P.LUCK_N) continue;
+      var ks = S.ksUniform(draws[dz][1]);
+      r.stat('p_' + draws[dz][0].replace(' ', '_'), ks.p); pMin = Math.min(pMin, ks.p);
+      if ((why2 = Q.tooLucky(ks.p, P.LUCK_P, draws[dz][0]))) r.review(why2);
+    }
+    r.stat('drawPMinLog10', pMin > 0 ? Math.log(pMin) / Math.LN10 : -999);
+    if (nFrames >= P.SLOW_N && nClamped / nFrames >= P.SLOW_SHARE) r.review('game ran in slow motion (' + nClamped + ' of ' + nFrames + ' logged frames at the 50 ms clamp)');
+    if (activeWall >= P.RATIO_MS && lastG / 10 / activeWall < P.RATIO_MIN) r.review('game clock ran at ' + Math.round(lastG / activeWall * 10) + '% of the wall clock');
+    if (shortPauses >= P.PAUSE_SHORT_N) r.review('pauses too short to be clicked (' + shortPauses + ' under ' + P.PAUSE_SHORT_MS + ' ms)');
+    var activeMin = activeWall / 60000;
+    if (pauses >= P.PAUSE_N && pauses >= P.PAUSE_PER_MIN * activeMin) r.review('paused over and over (' + pauses + ' pauses in ' + activeMin.toFixed(1) + ' min of play)');
+    if (resets >= P.RESET_N && resets >= P.RESET_SHARE * pauses) r.review('sliders saved by pausing (' + resets + ' of ' + pauses + ' pauses with a slider held)');
+    return r;
+  };
+
+  Q.register('spear-new', R);
+})(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
+// <<< end of qte-rules part: spear-new (keep this line)
+// ==== qte-rules part: axe-new ====
+// ── axe-new ─────────────────────────────────────────────────────────────────
+// Marauder "Grudge" (js/qte.js AXE NEW QTE): every Space tap pumps a bar that
+// drains between taps; when the round timer runs out the fill freezes and its
+// end must be inside the zone. Types 'axe-new' and 'axe-new-comp'. The same
+// mechanic as 'axe' (above), with the numbers measured from the game's clip:
+// a bigger tap, a faster drain, a shorter timer and a wider zone. The trainer
+// reads its curves from here (timer, size, zone, DRAIN, PRESS, C_MIN/C_SPAN,
+// Z_LO/Z_HI, GAP_MS, DT_MAX), so the check and the game cannot drift.
+//
+// Log events (t = ms since the run's Start, numbers rounded to 4 dp by run.ev):
+//   ['R', t, k, zoneMin, zoneMax, why]  a round starts; k = streak before it.
+//        The zone is the round's one random draw: centre C_MIN + random x
+//        C_SPAN, width size(k), kept inside [Z_LO, Z_HI] by zone().
+//        why: 's' Start, 'n' the 700 ms timer after a hit (a pause between
+//        rounds holds that timer; Resume runs the rest of it)
+//   ['K', t, fill, src]   a tap in a live round: the fill AFTER it;
+//        src 'k' Space, 't' canvas touch, 'b' TAP button
+//   ['G', t]              a tap between rounds (the 700 ms wait: it does nothing,
+//        the judged bar stays frozen)
+//   ['J', t, fill, hit]   the round is judged: the fill compared, hit 1/0
+//   ['E', t, why]         the attempt ended: 'low' / 'high' (the miss just
+//        judged) or 'x' (the trainer was reset in the middle of a run)
+//   ['P', t] / ['U', t]   paused (the panel or the browser tab hidden) / Resume clicked
+//
+// The fill is integrated per animation frame (drain 0.10/s, dt clamped to
+// [0, 50 ms], never past the timer's end), so it cannot be recomputed exactly
+// from the tap times. As in 'axe', every logged fill is checked against the one
+// before it: between two events the bar can lose at most DRAIN x (active time +
+// slack) and can never gain - dt is never negative here, so unlike the old axe
+// there is no rise allowance at all; a tap adds exactly PRESS, capped at 1.
+// Losing LESS than the full drain is legal (a long task runs no frames and the
+// first frame after it is clamped to 50 ms), so it is watched in aggregate
+// only: drainEff, and judgements that came long after the timer (a bar frozen
+// in the zone).
+//
+// Time: the round clock and the 700 ms wait both stop while paused, so each is
+// checked as unpaused time, less one coarse-clock allowance. Pauses earn no
+// extra allowance: the trainer logs R and U before it reads the clock and P
+// after, so a pause can only make the logged time longer than the real one,
+// and a pile of zero-length pauses cannot shorten a round (the server's clock
+// check is the only thing that makes a forged run take real time).
+(function (Q) {
+  'use strict';
+
+  var DRAIN   = 0.10;      // fraction lost per second (clip: ~0.10 of the track/s)
+  var PRESS   = 0.125;     // fraction added per tap (clip: ~0.126), capped at 1
+  var GAP_MS  = 700;       // hit -> next round (setTimeout, never early)
+  var C_MIN   = 0.50;      // zone centre = C_MIN + Math.random() * C_SPAN...
+  var C_SPAN  = 0.35;
+  var Z_LO    = 0.05;      // ...then the zone is moved (not shrunk) to lie inside [Z_LO, Z_HI]
+  var Z_HI    = 0.98;
+  var DT_MAX  = 0.05;      // per-frame dt clamp, seconds (and dt >= 0)
+
+  // Round length in SECONDS and zone width; k = streak before the round.
+  function timer(k, comp) { return comp ? Math.max(2.35 - k * 0.04, 1.6) : Math.max(2.6 - k * 0.04, 1.8); }
+  function size(k, comp)  { return comp ? Math.max(0.14 - k * 0.006, 0.045) : Math.max(0.18 - k * 0.007, 0.06); }
+  // The zone [min, max] for a centre draw c and width w. (With these numbers
+  // the draw never reaches the bounds; the clamp is the spec's, kept exact.)
+  function zone(c, w) {
+    var b = Math.min(Z_HI, Math.max(Z_LO, c - w / 2) + w);
+    return [b - w, b];
+  }
+
+  // ── tolerances (all in the honest player's favour) ──
+  var T = {
+    EPS: 0.0002,           // two 4-dp roundings
+    SIZE_EPS: 0.00015,     // zoneMax - zoneMin vs size(k): two roundings + float
+    DRAIN_SLACK_MS: 200,   // the first frame after an event reaches back <= one clamped dt (50) + a rAF stamp before
+                           // the handler + ms rounding + coarse clocks (Firefox resistFingerprinting rounds performance.now())
+    PAUSE_SLACK_MS: 20,    // per pause inside an interval (a rAF stamp on each side)
+    // Times below carry a coarse-clock allowance: with privacy.resistFingerprinting
+    // (Tor Browser) performance.now() can be floored to 100 ms, so two stamps of
+    // one real interval can differ by up to 100 ms less than it.
+    GAP_EARLY_MS: 110,     // the 700 ms timer after a hit never fires early
+    JUDGE_EARLY_MS: 110,   // judged on a frame stamped >= roundEndTime
+    START_MS: 1000,        // Start -> first round (synchronous in startGame)
+  };
+
+  // ── person checks (review only; far outside real play, see notes/axe-new.md) ──
+  var P = {
+    ACC_MIN_N: 20, ACC_MAX_SD_MS: 12,          // judged fill vs zone centre, in ms of drain, over hits
+    STEADY_MIN_N: 30, STEADY_MAX_SD_MS: 1.5,   // pooled within-round SD of tap intervals (not on a 100 ms clock)...
+    STEADY_LO_MS: 40, STEADY_HI_MS: 400,       // ...counting intervals in this band only
+    // No reaction-time check: nothing here needs a reaction. A round starts a
+    // fixed 700 ms after the judgement the player just watched, so a tap right
+    // at the start is anticipation (and on the shortest comp timers it is the
+    // way to reach the middle zones), not superhuman (firstTapMedMs is a stat).
+    KS_MIN_N: 20, KS_ALPHA: 1e-5,              // zone centres uniform in [0.50, 0.85)
+    DRAIN_MIN_S: 30, DRAIN_MIN_EFF: 0.2,       // the bar must really drain while a person plays...
+    DRAIN_MAX_IV_MS: 2500,                     // ...measured over intervals this short only
+    // A bar frozen in the zone: hits judged LATE_MS or more after the timer ran
+    // out (no frames ran: the page was stopped - a debugger, alert(), a blocked
+    // main thread). A hidden tab pauses the trainer, so a person meets this only
+    // on rare long stalls.
+    LATE_MS: 300, LATE_MIN_N: 4, LATE_SHARE: 0.1,
+  };
+
+  function num(x) { return typeof x === 'number' && isFinite(x); }
+  function isInt(x) { return num(x) && Math.floor(x) === x; }
+
+  function check(log, env) {
+    var r = Q.result();
+    var comp = !!env.comp;
+    var ev = log.ev;
+
+    // none | round | paused | gap | gpaused | missed | ended
+    var phase = 'none';
+    var streak = 0, rounds = 0, pauses = 0, presses = 0, gapPresses = 0, resets = 0;
+    var zMin = 0, zMax = 0, zC = 0, rT = 0, dur = 0, pausedIn = 0, pAt = 0;
+    var hitT = 0, gapPausedMs = 0, low = false;
+    // the bar: last known value f at fT, and the pauses since then
+    var f = 0, fT = 0, pausedSinceF = 0, pausesSinceF = 0;
+    var firstDone = false, lastK = -1, roundIv = [];
+    var offsets = [], centres = [], latAll = [], lateHits = 0, lateMax = 0;
+    var ivSS = 0, ivN = 0, ivAll = [];
+    var drainObs = 0, drainMaxS = 0;
+
+    function bad(i, why) { r.invalid('event ' + i + ': ' + why); }
+
+    // The range the bar can be in at time t, from the last known value. It
+    // never rises between taps.
+    function span(t) {
+      var active = Math.max(0, (t - fT) - pausedSinceF);
+      var lo = Math.max(0, f - DRAIN * (active + T.DRAIN_SLACK_MS + T.PAUSE_SLACK_MS * pausesSinceF) / 1000);
+      return { lo: lo, hi: f, active: active };
+    }
+    // The bar was at `before` just ahead of this event: drain bookkeeping.
+    function settle(before, s) {
+      if (f > 0.002 && before > 0.002 && s.active <= P.DRAIN_MAX_IV_MS) { drainObs += f - before; drainMaxS += s.active / 1000; }
+    }
+    function closeRoundIntervals() {
+      var a = [];
+      for (var j = 0; j < roundIv.length; j++) if (roundIv[j] >= P.STEADY_LO_MS && roundIv[j] <= P.STEADY_HI_MS) a.push(roundIv[j]);
+      if (a.length >= 2) {
+        var m = Q.stats.mean(a);
+        for (var j2 = 0; j2 < a.length; j2++) { ivSS += (a[j2] - m) * (a[j2] - m); ivAll.push(a[j2]); }
+        ivN += a.length - 1;
+      }
+      roundIv = [];
+    }
+
+    for (var i = 0; i < ev.length && r.verdict !== 'invalid'; i++) {
+      var e = ev[i], c = e[0], t = e[1];
+      if (phase === 'ended') { bad(i, 'event after the attempt ended'); break; }
+      if (phase === 'missed' && c !== 'E') { bad(i, 'a miss not followed by its end'); break; }
+
+      if (c === 'R') {
+        var k = e[2], a = e[3], b = e[4], why = e[5];
+        if (e.length !== 6 || !isInt(k) || !num(a) || !num(b) || (why !== 's' && why !== 'n')) { bad(i, 'malformed round'); break; }
+        if (k !== streak) { bad(i, 'round says streak ' + k + ', log proves ' + streak); break; }
+        var sz = size(k, comp);
+        if (Math.abs((b - a) - sz) > T.SIZE_EPS) { bad(i, 'zone width ' + (b - a).toFixed(4) + ' is not ' + sz.toFixed(4) + ' for streak ' + k); break; }
+        if (a < Z_LO - T.EPS || b > Z_HI + T.EPS) { bad(i, 'zone [' + a + ', ' + b + '] off the track'); break; }
+        // The centre after zone()'s clamp of a draw in [C_MIN, C_MIN + C_SPAN].
+        var cen = (a + b) / 2;
+        var cLo = Math.max(C_MIN, Z_LO + sz / 2), cHi = Math.min(C_MIN + C_SPAN, Z_HI - sz / 2);
+        if (cen < cLo - T.EPS || cen > cHi + T.EPS) { bad(i, 'zone centre ' + cen.toFixed(4) + ' outside the draw range'); break; }
+        if (why === 's') {
+          if (i !== 0 || phase !== 'none' || t > T.START_MS) { bad(i, 'a Start round that is not the first event'); break; }
+        } else {
+          if (phase !== 'gap') { bad(i, 'a next round with no hit before it'); break; }
+          var gapAct = (t - hitT) - gapPausedMs;
+          if (gapAct < GAP_MS - T.GAP_EARLY_MS) {
+            bad(i, 'next round ' + gapAct + ' ms (unpaused) after the hit (the wait is ' + GAP_MS + ')'); break;
+          }
+        }
+        zMin = a; zMax = b; zC = cen; rT = t; dur = timer(k, comp) * 1000;
+        pausedIn = 0;
+        f = 0; fT = t; pausedSinceF = 0; pausesSinceF = 0;
+        firstDone = false; lastK = -1; roundIv = [];
+        rounds++; centres.push((cen - C_MIN) / C_SPAN);
+        phase = 'round';
+      } else if (c === 'K') {
+        var fa = e[2], src = e[3];
+        if (e.length !== 4 || !num(fa) || (src !== 'k' && src !== 't' && src !== 'b')) { bad(i, 'malformed tap'); break; }
+        if (phase !== 'round') { bad(i, 'a tap with no live round'); break; }
+        if (fa < -T.EPS || fa > 1 + T.EPS) { bad(i, 'fill ' + fa + ' out of range'); break; }
+        var s = span(t);
+        var lo = Math.min(1, s.lo + PRESS), hi = Math.min(1, s.hi + PRESS);
+        if (fa < lo - T.EPS || fa > hi + T.EPS) {
+          bad(i, 'fill after a tap is ' + fa + ', the bar allows [' + lo.toFixed(4) + ', ' + hi.toFixed(4) + ']'); break;
+        }
+        if (fa < 1 - T.EPS) settle(fa - PRESS, s);
+        f = fa; fT = t; pausedSinceF = 0; pausesSinceF = 0;
+        presses++;
+        if (!firstDone) { firstDone = true; latAll.push(t - rT - pausedIn); }
+        if (lastK >= 0) roundIv.push(t - lastK);
+        lastK = t;
+      } else if (c === 'G') {
+        if (e.length !== 2) { bad(i, 'malformed gap tap'); break; }
+        if (phase !== 'gap') { bad(i, 'a between-rounds tap outside the gap'); break; }
+        gapPresses++;
+      } else if (c === 'J') {
+        var fj = e[2], hit = e[3];
+        if (e.length !== 4 || !num(fj) || (hit !== 0 && hit !== 1)) { bad(i, 'malformed judgement'); break; }
+        if (phase !== 'round') { bad(i, 'a judgement with no live round'); break; }
+        var act = t - rT - pausedIn;
+        if (act < dur - T.JUDGE_EARLY_MS) { bad(i, 'judged after ' + act + ' ms (unpaused) of a ' + dur + ' ms round'); break; }
+        var sj = span(t);
+        if (fj < sj.lo - T.EPS || fj > sj.hi + T.EPS) {
+          bad(i, 'judged fill ' + fj + ', the bar allows [' + sj.lo.toFixed(4) + ', ' + sj.hi.toFixed(4) + ']'); break;
+        }
+        settle(fj, sj);
+        var inZone = fj >= zMin && fj <= zMax;
+        // Rounding is monotone: a real hit logs zMin <= fill <= zMax; a real
+        // miss logs fill <= zMin (low) or fill >= zMax (high).
+        if (hit === 1 && !inZone) { bad(i, 'logged a hit at ' + fj + ' outside [' + zMin + ', ' + zMax + ']'); break; }
+        if (hit === 0 && inZone && fj !== zMin && fj !== zMax) { bad(i, 'logged a miss at ' + fj + ' inside [' + zMin + ', ' + zMax + ']'); break; }
+        closeRoundIntervals();
+        lateMax = Math.max(lateMax, act - dur);
+        if (hit === 1) {
+          streak++;
+          if (act - dur >= P.LATE_MS) lateHits++;
+          hitT = t; gapPausedMs = 0;
+          offsets.push((fj - zC) / DRAIN * 1000);
+          phase = 'gap';
+        } else {
+          low = fj <= zMin;
+          phase = 'missed';
+        }
+      } else if (c === 'E') {
+        var ew = e[2];
+        if (e.length !== 3 || (ew !== 'low' && ew !== 'high' && ew !== 'x')) { bad(i, 'malformed end'); break; }
+        if (ew === 'x') {
+          if (phase === 'none' || phase === 'missed') { bad(i, 'a reset with no run going'); break; }
+          resets++;
+        } else {
+          if (phase !== 'missed') { bad(i, 'an end with no miss'); break; }
+          if ((ew === 'low') !== low) { bad(i, 'end reason does not match the judged fill'); break; }
+        }
+        phase = 'ended';
+      } else if (c === 'P') {
+        if (e.length !== 2) { bad(i, 'malformed pause'); break; }
+        if (phase === 'round') phase = 'paused';
+        else if (phase === 'gap') phase = 'gpaused';
+        else { bad(i, 'a pause while not running'); break; }
+        pAt = t; pauses++;
+      } else if (c === 'U') {
+        if (e.length !== 2) { bad(i, 'malformed resume'); break; }
+        if (phase === 'paused') {
+          pausedIn += t - pAt;
+          pausedSinceF += t - pAt; pausesSinceF++;
+          phase = 'round';
+        } else if (phase === 'gpaused') {
+          gapPausedMs += t - pAt;
+          phase = 'gap';
+        } else { bad(i, 'a resume while not paused'); break; }
+      } else {
+        bad(i, 'unknown event ' + c);
+        break;
+      }
+    }
+
+    if (r.verdict === 'invalid') return r;
+    r.score = streak;
+    var S = Q.stats;
+    r.stat('hits', streak).stat('rounds', rounds).stat('presses', presses).stat('pauses', pauses);
+    if (gapPresses) r.stat('gapPresses', gapPresses);
+    if (resets) r.stat('resets', resets);
+    if (env.claimed > streak) {
+      // run.ev stops logging at MAX_EVENTS; a run that long keeps scoring on
+      // screen. Its score is what the log proves, not a rejection.
+      if (ev.length >= Q.LIMITS.MAX_EVENTS) r.stat('truncated', 1);
+      else return r.invalid('claims ' + env.claimed + ' but the log proves ' + streak);
+    }
+
+    if (offsets.length) r.stat('offMeanMs', S.mean(offsets)).stat('offSdMs', S.sd(offsets));
+    if (latAll.length) r.stat('firstTapMedMs', S.median(latAll));
+    if (ivN) r.stat('tapIvMedMs', S.median(ivAll)).stat('tapIvSdMs', Math.sqrt(ivSS / ivN));
+    if (drainMaxS > 0) r.stat('drainEff', drainObs / (DRAIN * drainMaxS)).stat('drainS', drainMaxS);
+    if (rounds) r.stat('lateMaxMs', lateMax);
+    if (lateHits) r.stat('lateHits', lateHits);
+
+    // Too accurate: where the judged fill landed against the zone centre, in
+    // ms of drain. A person times the start of the burst by eye; a script
+    // lands on the centre give or take a frame.
+    var why2 = Q.tooAccurate(offsets, P.ACC_MIN_N, P.ACC_MAX_SD_MS, ' ms');
+    if (why2) r.review(why2);
+    // A metronome: taps inside a round spaced the same to within ~1.5 ms.
+    // Not on a coarse clock: with performance.now() floored to 100 ms (Tor
+    // Browser) every logged time is a multiple of 100, and a person tapping
+    // about ten times a second logs the same 100 ms interval every time.
+    var coarse = ev.length >= P.STEADY_MIN_N;
+    for (var q = 0; q < ev.length && coarse; q++) if (ev[q][1] !== Math.floor(ev[q][1] / 100) * 100) coarse = false;
+    if (coarse) r.stat('coarseClock', 1);
+    if (ivN >= P.STEADY_MIN_N && !coarse) {
+      var ivSd = Math.sqrt(ivSS / ivN);
+      if (ivSd < P.STEADY_MAX_SD_MS) r.review('tap timing too even (pooled SD ' + ivSd.toFixed(1) + ' ms over ' + ivN + ')');
+    }
+    // Played zones must look like uniform draws.
+    if (centres.length >= P.KS_MIN_N) {
+      var ks = S.ksUniform(centres);
+      r.stat('zonesP', ks.p);
+      why2 = Q.tooLucky(ks.p, P.KS_ALPHA, 'zone positions of ' + centres.length + ' rounds');
+      if (why2) r.review(why2);
+    }
+    // While a person taps keys the page is visible and frames run, so the bar
+    // drains at close to full rate; a log where it barely drains was not
+    // played in a browser.
+    if (drainMaxS >= P.DRAIN_MIN_S && drainObs / (DRAIN * drainMaxS) < P.DRAIN_MIN_EFF) {
+      r.review('the bar barely drained (' + (drainObs / (DRAIN * drainMaxS)).toFixed(2) + ' of the rate over ' + drainMaxS.toFixed(0) + ' s)');
+    }
+    // The bar stopped in the zone, again and again: hits judged long after the
+    // timer ran out, with no pause logged (no frames ran, so it did not drain).
+    if (lateHits >= P.LATE_MIN_N && lateHits >= P.LATE_SHARE * streak) {
+      r.review('bar frozen at the judgement (' + lateHits + ' of ' + streak + ' hits judged ' + P.LATE_MS + '+ ms after the timer)');
+    }
+    return r;
+  }
+
+  Q.register('axe-new', {
+    DRAIN: DRAIN, PRESS: PRESS, GAP_MS: GAP_MS, C_MIN: C_MIN, C_SPAN: C_SPAN, Z_LO: Z_LO, Z_HI: Z_HI, DT_MAX: DT_MAX,
+    timer: timer, size: size, zone: zone,
+    TOL: T, PERSON: P,
+    check: check,
+  });
+})(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
+// <<< end of qte-rules part: axe-new (keep this line)
+// ==== qte-rules part: hammer-new ====
+// ── hammer-new ──────────────────────────────────────────────────────────────
+// Sentry "Prepare" (js/qte.js HAMMER NEW QTE). Types 'hammer-new' and
+// 'hammer-new-comp'. Hold Space (a touch on the canvas, the HOLD button) and
+// the blue fill rises RATE of the track per second; let go and it falls just
+// as fast (kept in [0, 1], empty at each round start). While the fill's end is
+// in the green zone the yellow progress bar fills (full after FILL_S s in the
+// zone); outside it the bar drains at half that rate. Full = the round is
+// cleared, one point, and the next round starts GAP_MS later; the round timer
+// running out ends the run. The trainer reads every rule it plays by from here
+// (rates, curves, zone draw, dt clamp, gap), so the check and the game cannot
+// drift.
+//
+// The game runs on its own clock: g = the sum of frame dts, each clamped to
+// [0, 50 ms], frozen while paused. An input changes the fill's direction from
+// the last frame's g on (the next frame integrates its whole dt the new way),
+// so the fill is a pure function of the logged D/X/P game times: piecewise
+// linear and clamped. check() recomputes it exactly - that IS the trainer's
+// per-frame sum, the dt clamp being inside g. The progress is a per-frame sum
+// too, but each frame counts as in or out by where the fill ENDS it, and the
+// frame times are not in the log. So the trainer logs every frame that changed
+// the in-zone state (Z: the frame's start and end g), and check() holds each
+// one to the recomputed fill: the old state at its start, the new state at its
+// end, at most one clamped dt long, and no change anywhere between two of them
+// (one frame moves the fill 0.0235 at most; a zone is 0.08 wide at least).
+// With those pinned the progress is exact as well, so a clear that the logged
+// holds cannot produce, or a round played on past its timer, is refused.
+//
+// Log events (t = ms since the run's Start; g = game ms; numbers 4 dp by run.ev):
+//   ['R', t, k, zMin, zMax, g]  a round starts at game ms g (Start: 0; later: the
+//        first frame GAP_MS after the clear): streak k, the zone as drawZone
+//        made it (4 dp, the exact numbers the game plays)
+//   ['D', t, g, src]            a hold starts / ['X', t, g, src] it ends, from the
+//        last frame's g on. src 'k' Space, 't' canvas touch, 'b' HOLD button;
+//        X only: 'w' the window lost focus (its keyup would never arrive)
+//   ['Z', t, g0, g1, in]        the frame (g0, g1] moved the fill's end into (1)
+//        or out of (0) the zone
+//   ['S', t, g0, g1]            the frame (g0, g1] filled the progress: a point
+//   ['E', t, 'time', g0, g1]    the frame (g0, g1] ran the round timer out
+//   ['P', t, g] / ['U', t]      paused at game ms g (panel or tab hidden, or the
+//        QTE page left; a pause drops the hold) / Resume clicked
+(function (Q) {
+  'use strict';
+
+  // ── the rules (read by the IIFE) ──
+  var R = {
+    RATE: 0.47,          // track per second, up while held, down while not (clip: ~0.47 both ways)
+    FILL_S: 2.3,         // s in the zone fill the progress (clip: ~2.3)
+    DRAIN_S: 4.6,        // s out of the zone empty it: half the rate (the clip never left the zone - our choice)
+    GAP_MS: 700,         // a clear -> the next round, on the game clock
+    C_MIN: 0.40,         // zone centre = C_MIN + u * (C_MAX - C_MIN)
+    C_MAX: 0.80,
+    EDGE_LO: 0.05,       // the zone is kept inside [EDGE_LO, EDGE_HI] (never binds with these curves)
+    EDGE_HI: 0.98,
+    DT_MAX: 0.05,        // per-frame dt clamp, s
+  };
+  // k = rounds cleared so far this run. Width as a share of the track, timer in s.
+  R.width = function (k, comp) { return comp ? Math.max(0.20 - 0.009 * k, 0.08) : Math.max(0.245 - 0.01 * k, 0.10); };
+  // The floors keep every draw clearable: the highest zone start at RATE plus
+  // FILL_S leaves >= 0.5 s (casual ~1.1 s, comp ~0.58 s at the curves' end).
+  // (The spec's 4.0 / 3.5 s floors made comp zones centred above 0.604 impossible.)
+  R.timer = function (k, comp) { return comp ? Math.max(5.5 - 0.15 * k, 4.5) : Math.max(6.2 - 0.15 * k, 5.0); };
+  // Browser side only: u = Math.random(). Rounded to 4 dp here, so the logged
+  // zone is exactly the one the game plays.
+  R.drawZone = function (k, comp, u) {
+    var w = R.width(k, comp), c = R.C_MIN + u * (R.C_MAX - R.C_MIN);
+    var a = Math.round(Math.max(R.EDGE_LO, Math.min(c - w / 2, R.EDGE_HI - w)) * 10000) / 10000;
+    return [a, Math.round((a + w) * 10000) / 10000];
+  };
+  // dt s of fill in direction dir (+1 held, -1 not), and of progress, in or out.
+  R.move = function (f, dir, dt) { return Math.min(1, Math.max(0, f + dir * R.RATE * dt)); };
+  R.progress = function (p, inZone, dt) { return inZone ? p + dt / R.FILL_S : Math.max(0, p - dt / R.DRAIN_S); };
+  R.inZone = function (f, zMin, zMax) { return f >= zMin && f <= zMax; };
+
+  // ── tolerances (all in the honest player's favour) ──
+  var T = {
+    EPS: 0.00002,        // fill / progress: the log's 4-dp g (<= 5e-8 s each) summed over a round's
+                         // toggles and crossings, either way (~45 us of fill travel or progress)
+    G_EPS: 0.001,        // ms: a 4-dp g against the game's own float sums
+    SIZE_EPS: 0.00015,   // zMax - zMin vs width(k), and the centre's range: two roundings + float
+    AHEAD_MS: 150,       // g may not gain on the ACTIVE wall clock (run time minus logged pauses),
+                         // cumulative over the run; slack for rAF-stamp skew and coarse timers
+    AHEAD_BAD_MS: 1000,  // beyond this: impossible. Between: stop counting
+    PAUSE_SLACK_MS: 150, // each pause adds min(its length, this) to both allowances (so never more
+                         // than it lasted: a 0 ms P/U pair buys nothing)
+    START_MS: 1000,      // Start click -> its round (the same handler)
+  };
+
+  // ── person checks (review only; far outside real play, see hammer-new.md) ──
+  // "Hovering" = a round's toggles after its fill first entered the zone.
+  var H = {
+    SEG_MIN: 40,         // hold / let-go durations while hovering (wall ms), pooled within each round
+    SEG_SD_MS: 2,        //   and kind: spread under this = a timer toggling, not a hand
+    SEG_GROUPS: 10,      //   ... or the median of 10+ single rounds' SDs (4+ durations of a kind) under it
+    FAST_MS: 30,         // hold / let-go durations under this ...
+    FAST_SHARE: 0.5,     //   ... for this share of SEG_MIN+ of them = faster than a hand taps
+    TURN_MIN: 40,        // where the fill turned (ms of travel from the zone centre), pooled within
+    TURN_SD_MS: 3,       //   each round and kind: spread under this = set thresholds, not eyes
+    LATTICE_MAX: 0.33,   //   ... or under this many frames (a script acting on the frame that crossed
+    LATTICE_FRAME_MS: 18,//   its threshold spreads 1/sqrt(12) = 0.29 of one), on frames of 18 ms or less
+    KS_MIN: 20,          // zone centres (every round) for the KS test
+    KS_ALPHA: 1e-5,      //   tested on every submitted prefix of a run, so kept small
+    SLOW_MIN_S: 60,      // active wall time before the slow-motion check
+    SLOW_RATIO: 0.6,     // game clock / active wall clock under this = frames held back (a slowed game)
+    COARSE_MIN_N: 20,    // a log whose times are (nearly) all multiples of 100 ms came from a 100 ms
+    COARSE_SHARE: 0.9,   //   privacy clock: no FAST and no SLOW check (it makes both honestly)
+  };
+
+  function num(x) { return typeof x === 'number' && isFinite(x); }
+  function isInt(x) { return num(x) && Math.floor(x) === x; }
+
+  function check(log, env) {
+    var r = Q.result();
+    var ev = log.ev, comp = !!env.comp, S = Q.stats;
+    var DT_MS = R.DT_MAX * 1000, GAP = R.GAP_MS;
+    var phase = 'none', was = null;        // none | play | won | paused | over; was: what a pause left
+    var k = 0, score = 0, stopped = null, rounds = 0;
+    var a = 0, b = 0, cen = 0, gR = 0, Tms = 0, gS = 0;
+    var dir = -1;                          // +1 while held
+    var g = 0, f = 0, p = 0, inz = false;  // the fill and progress at game ms g (in a round)
+    var lastG = 0, fr0 = -1, fr1 = -1;     // the latest logged g; the last frame integrated
+    var pausedMs = 0, pAt = 0, pauses = 0, slack = 0;
+    var entered = false, lastTog = null;   // this round: the fill has been in the zone; the last toggle
+    var segs = [[], []], turns = [[], []]; // this round: hold / let-go durations; release / press fills
+    var segSS = 0, segDf = 0, segAll = [], turnSS = 0, turnDf = 0, segGroupSd = [];
+    var frames = [], centres = [], holds = 0, crossings = 0, inMs = 0, outMs = 0;
+
+    function bad(why, i) { r.invalid(why + ' (event ' + i + ')'); return r; }
+    function stop(why, i) { if (!stopped) { stopped = why + ' (event ' + i + ')'; r.stat('stoppedAt', score); r.stat('stopReason', stopped); } }
+    // g vs the active wall clock: the game clock is frozen while paused and
+    // otherwise only loses time to the wall (dt >= 0, clamped), so it can never
+    // be ahead of it by more than skew. Measured over the whole run.
+    function ahead(gv, t, i) {
+      var lead = gv - (t - pausedMs);
+      if (lead > T.AHEAD_BAD_MS + slack) return 'game clock ahead of the wall clock by ' + Math.floor(lead) + ' ms';
+      if (lead > T.AHEAD_MS + slack) stop('game clock ahead of the wall clock', i);
+      return null;
+    }
+    function mono(gv) {
+      if (gv < lastG - T.G_EPS) return 'game clock went back (' + gv + ' after ' + lastG + ')';
+      if (gv > lastG) lastG = gv;
+      return null;
+    }
+    // The fill and progress from g on to gTo: one direction, one in-zone
+    // state, which must hold on the whole stretch.
+    function stretch(gTo) {
+      var d = gTo - g;
+      if (d < -T.G_EPS) return 'game clock went back';
+      if (d <= 0) return null;
+      var f2 = R.move(f, dir, d / 1000), lo = Math.min(f, f2), hi = Math.max(f, f2);
+      if (inz ? (lo < a - T.EPS || hi > b + T.EPS) : (hi > a + T.EPS && lo < b - T.EPS)) {
+        return 'the fill ' + (inz ? 'left' : 'entered') + ' the zone between game ms ' + g + ' and ' + gTo + ' with no Z';
+      }
+      p = R.progress(p, inz, d / 1000);
+      if (inz) inMs += d; else outMs += d;
+      f = f2; g = gTo;
+      return null;
+    }
+    // Every frame end inside a round: it did not clear the round or time it out.
+    function live() {
+      if (p >= 1 + T.EPS) return 'the progress was full at game ms ' + g + ' but the round went on';
+      if (g - gR >= Tms + T.G_EPS) return 'the round timer ran out at game ms ' + (gR + Tms) + ' but the round went on to ' + g;
+      return null;
+    }
+    // The frame (g0, g1], ending in the in-zone state st.
+    function frame(g0, g1, st) {
+      if (g0 === fr0 && g1 === fr1) return st === inz ? null : 'two zone changes in one frame';
+      if (!(g1 - g0 > 0) || g1 - g0 > DT_MS + T.G_EPS) return 'a frame of ' + (g1 - g0) + ' ms (dt is clamped to ' + DT_MS + ')';
+      var why = mono(g0) || stretch(g0) || live();
+      if (why) return why;
+      var f2 = R.move(f, dir, (g1 - g0) / 1000);
+      if (st ? (f2 < a - T.EPS || f2 > b + T.EPS) : (f2 > a + T.EPS && f2 < b - T.EPS)) {
+        return 'the fill ends the frame at ' + f2.toFixed(5) + ', ' + (st ? 'outside' : 'inside') + ' the zone';
+      }
+      p = R.progress(p, st, (g1 - g0) / 1000);
+      if (st) inMs += g1 - g0; else outMs += g1 - g0;
+      frames.push(g1 - g0);
+      f = f2; g = g1; inz = st; fr0 = g0; fr1 = g1;
+      return mono(g1);
+    }
+    // A hand's toggle while hovering: its duration since the last one, and
+    // where the fill turned (ms of travel from the zone centre).
+    function toggle(t, isD) {
+      if (!entered) return;
+      if (lastTog) { var d = t - lastTog.t; segs[lastTog.isD ? 0 : 1].push(d); segAll.push(d); }
+      turns[isD ? 1 : 0].push((f - cen) / R.RATE * 1000);
+      lastTog = { t: t, isD: isD };
+    }
+    function pool(arr, acc) {
+      if (arr.length < 2) return;
+      var m = S.mean(arr);
+      for (var j = 0; j < arr.length; j++) acc.ss += (arr[j] - m) * (arr[j] - m);
+      acc.df += arr.length - 1;
+    }
+    // Each round's own spread of each kind (4+ of it): their median cannot be
+    // pulled up by a few odd rounds (a script's leftover toggles), as the pooled SD can.
+    function groupSd(arr) { if (arr.length >= 4) segGroupSd.push(S.sd(arr)); }
+    function closeRound() {
+      var sa = { ss: 0, df: 0 }, ta = { ss: 0, df: 0 };
+      pool(segs[0], sa); pool(segs[1], sa); pool(turns[0], ta); pool(turns[1], ta);
+      groupSd(segs[0]); groupSd(segs[1]);
+      segSS += sa.ss; segDf += sa.df; turnSS += ta.ss; turnDf += ta.df;
+      segs = [[], []]; turns = [[], []]; lastTog = null; entered = false;
+    }
+
+    for (var i = 0; i < ev.length; i++) {
+      var e = ev[i], c = e[0], t = e[1], why = null, gv;
+      if (phase === 'over') return bad('event after the end', i);
+      if (i === 0 && c !== 'R') return bad('the run does not start with its round', i);
+
+      if (c === 'R') {
+        var kk = e[2], za = e[3], zb = e[4]; gv = e[5];
+        if (e.length !== 6 || !isInt(kk) || !num(za) || !num(zb) || !num(gv)) return bad('bad R', i);
+        if (i === 0) {
+          if (gv !== 0 || kk !== 0 || t > T.START_MS) return bad('the run must start with round 0 at game time 0', i);
+        } else {
+          if (phase !== 'won') return bad('a round with no clear before it', i);
+          if (gv - gS < GAP - T.G_EPS) return bad('next round ' + (gv - gS).toFixed(1) + ' game ms after the clear (the wait is ' + GAP + ')', i);
+          if (gv - gS >= GAP + DT_MS + T.G_EPS) return bad('next round more than a frame after its wait', i);
+          why = mono(gv); if (why) return bad(why, i);
+        }
+        if (kk !== k) return bad('round says streak ' + kk + ', the log proves ' + k, i);
+        var w = R.width(kk, comp), zc = (za + zb) / 2;
+        if (Math.abs((zb - za) - w) > T.SIZE_EPS) return bad('zone width ' + (zb - za).toFixed(4) + ' is not ' + w.toFixed(4) + ' for streak ' + kk, i);
+        if (za < R.EDGE_LO - T.SIZE_EPS || zb > R.EDGE_HI + T.SIZE_EPS) return bad('zone off the track', i);
+        if (zc < R.C_MIN - T.SIZE_EPS || zc > R.C_MAX + T.SIZE_EPS) return bad('zone centre ' + zc.toFixed(4) + ' outside the draw range', i);
+        why = ahead(gv, t, i); if (why) return bad(why, i);
+        a = za; b = zb; cen = zc; gR = gv; Tms = R.timer(kk, comp) * 1000;
+        g = gv; f = 0; p = 0; inz = false; fr0 = fr1 = -1; inMs = outMs = 0;
+        rounds++; centres.push((zc - R.C_MIN) / (R.C_MAX - R.C_MIN));
+        phase = 'play';
+        continue;
+      }
+
+      if (c === 'D' || c === 'X') {
+        gv = e[2]; var src = e[3];
+        if (e.length !== 4 || !num(gv) || !(src === 'k' || src === 't' || src === 'b' || (c === 'X' && src === 'w'))) return bad('bad ' + c, i);
+        if (phase !== 'play' && phase !== 'won') return bad((c === 'D' ? 'a hold' : 'a release') + ' while not running', i);
+        if ((c === 'D') !== (dir < 0)) return bad(c === 'D' ? 'a hold while holding' : 'a release with no hold', i);
+        why = mono(gv) || ahead(gv, t, i); if (why) return bad(why, i);
+        if (phase === 'play') {
+          why = stretch(gv) || live(); if (why) return bad(why, i);
+          if (src === 'w') lastTog = null; else toggle(t, c === 'D');
+          if (c === 'D') holds++;
+        } else if (gv - gS >= GAP + T.G_EPS) return bad('an input at game ms ' + gv + ', after the next round was due', i);
+        dir = c === 'D' ? 1 : -1;
+        continue;
+      }
+
+      if (c === 'Z') {
+        var z0 = e[2], z1 = e[3], zin = e[4];
+        if (e.length !== 5 || !num(z0) || !num(z1) || (zin !== 0 && zin !== 1)) return bad('bad Z', i);
+        if (phase !== 'play') return bad('a zone change outside a round', i);
+        if ((zin === 1) === inz) return bad('a zone change to the state it was in', i);
+        why = frame(z0, z1, zin === 1) || ahead(z1, t, i); if (why) return bad(why, i);
+        crossings++;
+        if (zin === 1) entered = true;
+        continue;
+      }
+
+      if (c === 'S') {
+        var s0 = e[2], s1 = e[3];
+        if (e.length !== 4 || !num(s0) || !num(s1)) return bad('bad S', i);
+        if (phase !== 'play') return bad('a clear outside a round', i);
+        why = frame(s0, s1, inz) || ahead(s1, t, i); if (why) return bad(why, i);
+        if (p < 1 - T.EPS) return bad('a clear with the progress at ' + p.toFixed(4) + ' (the logged holds keep the fill in the zone ' + (inMs / 1000).toFixed(2) + ' s of the round so far)', i);
+        if (!stopped) score++;
+        k++; gS = s1; phase = 'won'; closeRound();
+        continue;
+      }
+
+      if (c === 'E') {
+        var e0 = e[3], e1 = e[4];
+        if (e.length !== 5 || e[2] !== 'time' || !num(e0) || !num(e1)) return bad('bad E', i);
+        if (phase !== 'play') return bad('a time-out outside a round', i);
+        why = frame(e0, e1, inz) || ahead(e1, t, i); if (why) return bad(why, i);
+        if (p >= 1 + T.EPS) return bad('a time-out in the frame that filled the progress', i);
+        if (e1 - gR < Tms - T.G_EPS) return bad('a time-out with ' + (Tms - (e1 - gR)).toFixed(1) + ' game ms left', i);
+        phase = 'over'; closeRound();
+        continue;
+      }
+
+      if (c === 'P') {
+        gv = e[2];
+        if (e.length !== 3 || !num(gv)) return bad('bad P', i);
+        if (phase !== 'play' && phase !== 'won') return bad('a pause while not running', i);
+        why = mono(gv) || ahead(gv, t, i); if (why) return bad(why, i);
+        if (phase === 'play') { why = stretch(gv) || live(); if (why) return bad(why, i); }
+        else if (gv - gS >= GAP + T.G_EPS) return bad('a pause after the next round was due', i);
+        dir = -1; lastTog = null;
+        was = phase; phase = 'paused'; pAt = t; pauses++;
+        continue;
+      }
+
+      if (c === 'U') {
+        if (e.length !== 2) return bad('bad U', i);
+        if (phase !== 'paused') return bad('a resume while not paused', i);
+        pausedMs += t - pAt; slack += Math.min(t - pAt, T.PAUSE_SLACK_MS);
+        phase = was;
+        continue;
+      }
+
+      return bad('unknown event ' + c, i);
+    }
+
+    r.score = score;
+    var claimed = env.claimed | 0;
+    if (claimed > score && ev.length < Q.LIMITS.MAX_EVENTS && !stopped) r.invalid('claim ' + claimed + ' above the ' + score + ' clears the log proves');
+    if (ev.length >= Q.LIMITS.MAX_EVENTS) r.stat('truncated', 1);
+
+    // ── stats ──
+    r.stat('clears', score).stat('rounds', rounds).stat('pauses', pauses).stat('holds', holds).stat('crossings', crossings);
+    if (log.env && num(log.env.ping)) r.stat('ping', log.env.ping);
+    var frameMed = frames.length ? S.median(frames) : 0;
+    if (frameMed) r.stat('frameMs', frameMed);
+    var lastT = ev.length ? ev[ev.length - 1][1] : 0, active = lastT - pausedMs - (phase === 'paused' ? lastT - pAt : 0);
+    if (active > 0) r.stat('gamePerWall', lastG / active);
+    // A 100 ms privacy clock (Tor / resistFingerprinting): every t a multiple
+    // of 100, toggles in one step 0 ms apart, and every frame a clamped 50 ms
+    // (the game runs at half speed). The checks on those two are skipped.
+    var round100 = 0;
+    for (var q0 = 0; q0 < ev.length; q0++) if (Math.floor(ev[q0][1] / 100) * 100 === ev[q0][1]) round100++;
+    var coarse = ev.length >= H.COARSE_MIN_N && round100 >= H.COARSE_SHARE * ev.length;
+    if (coarse) r.stat('coarseClock', 1);
+
+    // ── person checks ──
+    if (segDf) {
+      var segSd = Math.sqrt(segSS / segDf);
+      r.stat('segSdMs', segSd).stat('segDf', segDf);
+      if (segDf >= H.SEG_MIN && segSd < H.SEG_SD_MS) r.review('hold / let-go timing too even (SD ' + segSd.toFixed(2) + ' ms over ' + segDf + ')');
+    }
+    if (segGroupSd.length) {
+      var gMed = S.median(segGroupSd);
+      r.stat('segSdMedMs', gMed);
+      if (segGroupSd.length >= H.SEG_GROUPS && gMed < H.SEG_SD_MS) r.review('hold / let-go timing too even (median SD ' + gMed.toFixed(2) + ' ms over ' + segGroupSd.length + ' round groups)');
+    }
+    if (segAll.length) {
+      var fast = 0;
+      for (var q = 0; q < segAll.length; q++) if (segAll[q] < H.FAST_MS) fast++;
+      r.stat('segMedMs', S.median(segAll)).stat('fastShare', fast / segAll.length);
+      if (!coarse && segAll.length >= H.SEG_MIN && fast / segAll.length >= H.FAST_SHARE) r.review('toggling faster than a hand (' + fast + ' of ' + segAll.length + ' holds / let-gos under ' + H.FAST_MS + ' ms)');
+    }
+    if (turnDf) {
+      var turnSd = Math.sqrt(turnSS / turnDf);
+      r.stat('turnSdMs', turnSd).stat('turnDf', turnDf);
+      if (turnDf >= H.TURN_MIN && turnSd < H.TURN_SD_MS) r.review('turnarounds too exact (SD ' + turnSd.toFixed(2) + ' ms of travel over ' + turnDf + ')');
+      else if (turnDf >= H.TURN_MIN && frameMed > 0 && frameMed <= H.LATTICE_FRAME_MS && turnSd / frameMed < H.LATTICE_MAX) {
+        r.review('turnarounds within one frame (SD ' + (turnSd / frameMed).toFixed(2) + ' frames over ' + turnDf + ')');
+      }
+      if (frameMed > 0) r.stat('turnFrames', turnSd / frameMed);
+    }
+    if (centres.length >= H.KS_MIN) {
+      var ks = S.ksUniform(centres);
+      r.stat('zonesP', ks.p.toExponential(1));   // a string: stat() would round a small p to 0
+      var why4 = Q.tooLucky(ks.p, H.KS_ALPHA, 'zone centres of ' + centres.length + ' rounds');
+      if (why4) r.review(why4);
+    }
+    if (!coarse && active >= H.SLOW_MIN_S * 1000 && lastG / active < H.SLOW_RATIO) {
+      r.review('the game ran slow (' + (lastG / active).toFixed(2) + ' s of game per s of play over ' + (active / 1000).toFixed(0) + ' s)');
+    }
+    return r;
+  }
+
+  R.check = check;
+  R.T = T;
+  R.H = H;
+  Q.register('hammer-new', R);
+})(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
+// <<< end of qte-rules part: hammer-new (keep this line)

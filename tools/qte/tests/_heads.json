@@ -10,5 +10,9 @@
  "thorian": "// === THORIAN QTE ===",
  "thorian-new": "// === THORIAN NEW QTE ===",
  "dagger-new": "// === DAGGER NEW QTE (multiple spinning bars, fixed marker at 12 o'clock) ===",
- "yarthul-new": "// === YARTHUL NEW QTE ==="
+ "yarthul-new": "// === YARTHUL NEW QTE ===",
+ "sword-new": "// === SWORD NEW QTE (Pommel Strike: markers into a fixed zone, round timer) ===",
+ "spear-new": "// === SPEAR NEW QTE (Bloody Burst: click circles and follow sliders) ===",
+ "axe-new": "// === AXE NEW QTE (Grudge: tap to pump the bar, freeze it in the zone) ===",
+ "hammer-new": "// === HAMMER NEW QTE (Prepare: hold to keep the bar in the zone) ==="
 }
