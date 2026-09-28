@@ -5142,8 +5142,8 @@ if (flashMiss  > 0) flashMiss  -= dt;
 // The game's new Warrior QTE, "Pommel Strike". A round slides n light-grey
 // markers in from the left end of a dark track; Space (or a tap) stops the
 // LEADING moving marker where it is, and every marker has to stop overlapping
-// the teal zone, fixed at 0.535 of the track. Stopped markers stay where they
-// stopped. A red timer bar drains under the track. All markers in the zone:
+// the zone, fixed at 0.535 of the track. Stopped markers stay where they
+// stopped. The round timer runs down over the track. All markers in the zone:
 // +1 and the next round 800 ms later. A marker stopped outside the zone, a
 // lead marker sliding past the zone, or the timer running out ends the run.
 // Positions are fractions of the track, so every canvas size plays the same.
@@ -5189,29 +5189,22 @@ if (flashMiss  > 0) flashMiss  -= dt;
   let run          = null;   // QteRules.Run of the current Start
   let runComp      = false;  // mode at Start: the tables and the log's type must agree all run
 
-  // The game's look (the owner's clip): a dark translucent track with
-  // bracketed ends, a pale teal zone, light-grey ticks, the red timer bar under
-  // it, the "Pommel Strike" banner and a Space key hint. The suite's player
-  // reads the track, the zone and the moving markers by these colours.
+  // The old sword trainer's look: a dark track, the zone outlined, the leading
+  // marker white and the ones behind it faint, stopped markers green (red: the
+  // one the run ended on), the round timer a thin line over the track. The
+  // suite's player reads the track, the zone and the moving markers by these
+  // colours.
   const COL = {
-    bgTop:   '#0b1020',
-    bgBot:   '#0c1614',
-    track:   'rgba(58,58,62,0.92)',
-    trackHi: 'rgba(255,255,255,0.07)',
-    trackLo: 'rgba(0,0,0,0.35)',
-    cap:     'rgba(150,150,156,0.9)',
-    zone:    'rgba(138,196,190,0.95)',
-    zoneHi:  'rgba(210,255,246,0.85)',
-    moving:  'rgba(226,226,226,0.97)',
-    stopped: 'rgba(236,252,249,0.9)',
-    missed:  '#e0485a',
-    timer:   'rgb(192,70,86)',
-    trough:  'rgba(52,52,56,0.92)',
-    strip:   'rgba(18,18,22,0.55)',
-    text:    '#f2f2f2',
-    keyBox:  'rgba(36,36,40,0.95)',
-    keyEdge: 'rgba(120,120,128,0.9)',
-    keyText: '#cfcfcf',
+    bg:       '#12121e',
+    track:    '#252535',
+    zone:     'rgba(150,150,175,0.28)',
+    zoneEdge: 'rgba(190,190,220,0.65)',
+    lead:     '#ffffff',
+    moving:   'rgba(200,200,255,0.4)',
+    stopped:  '#66ee88',
+    missed:   '#ee5555',
+    timer:    '#aaaaff',
+    timerLow: '#ee8855',
   };
 
   function hint() { return IS_MOBILE ? 'Tap to stop each marker in the zone!' : 'Press SPACE to stop each marker in the zone!'; }
@@ -5263,139 +5256,56 @@ if (flashMiss  > 0) flashMiss  -= dt;
     roundGT = 0;
     failedAt = -1;
     if (run) run.ev('R', streak, n, ...gaps);
-    setStatus(hint(), '#8fd6cf');
+    setStatus(hint(), '#aaaaff');
   }
 
   // ---- drawing ----
   function geo() {
     const W = canvas.width, H = canvas.height;
     const tx = Math.max(24, Math.round(W * 0.07));
-    const th = Math.max(12, Math.min(20, Math.round(H * 0.075)));
-    return { W: W, H: H, tx: tx, tw: W - 2 * tx, th: th, ty: Math.round(H * 0.2) };
+    const th = Math.max(24, Math.min(40, Math.round(H * 0.14)));
+    return { W: W, H: H, tx: tx, tw: W - 2 * tx, th: th, ty: Math.round(H / 2 - th / 2) };
   }
 
-  // The ornamental ends of a bar: a post and a small outward point.
-  function caps(x, y, w, h) {
-    ctx.fillStyle = COL.cap;
-    for (const side of [-1, 1]) {
-      const ex = side < 0 ? x - 4 : x + w + 2;
-      ctx.fillRect(ex, y - 3, 2, h + 6);
-      ctx.beginPath();
-      ctx.moveTo(ex + (side < 0 ? 0 : 2), y + h / 2 - 4);
-      ctx.lineTo(ex + side * 6 + (side < 0 ? 0 : 2), y + h / 2);
-      ctx.lineTo(ex + (side < 0 ? 0 : 2), y + h / 2 + 4);
-      ctx.fill();
-    }
-  }
-
-  // A marker tick, clipped to the track (it enters from the left end).
+  // A marker, clipped to the track (it enters from the left end).
   function tick(px, mw, g) {
     const x1 = Math.max(px, g.tx), x2 = Math.min(px + mw, g.tx + g.tw);
-    if (x2 > x1) ctx.fillRect(x1, g.ty - 2, x2 - x1, g.th + 4);
-  }
-
-  // The banner's fist icon.
-  function fist(cx, cy, s) {
-    ctx.fillStyle = COL.text;
-    for (let k = 0; k < 4; k++) {
-      ctx.beginPath();
-      ctx.arc(cx - 0.45 * s + k * 0.3 * s, cy - 0.22 * s, 0.17 * s, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.fillRect(cx - 0.62 * s, cy - 0.22 * s, 1.24 * s, 0.62 * s);
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = Math.max(1, s * 0.08);
-    ctx.beginPath();
-    ctx.moveTo(cx - 0.55 * s, cy + 0.1 * s);
-    ctx.lineTo(cx + 0.2 * s, cy + 0.1 * s);
-    ctx.stroke();
+    if (x2 > x1) ctx.fillRect(x1, g.ty, x2 - x1, g.th);
   }
 
   function drawFrame() {
     const g = geo(), W = g.W, H = g.H, tx = g.tx, tw = g.tw, th = g.th, ty = g.ty;
     ctx.clearRect(0, 0, W, H);
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, COL.bgTop);
-    bg.addColorStop(1, COL.bgBot);
-    ctx.fillStyle = bg;
+    ctx.fillStyle = COL.bg;
     ctx.fillRect(0, 0, W, H);
 
     // Track
-    caps(tx, ty, tw, th);
     ctx.fillStyle = COL.track;
     ctx.fillRect(tx, ty, tw, th);
-    const edge = Math.max(1, Math.round(th * 0.2));
-    ctx.fillStyle = COL.trackHi;
-    ctx.fillRect(tx, ty, tw, edge);
-    ctx.fillStyle = COL.trackLo;
-    ctx.fillRect(tx, ty + th - edge, tw, edge);
 
     // Zone (before the first Start: the zone a first round would have)
     const zw = markers.length ? zoneW : R.zoneW(0, !!window._qteCompMode);
     const zx = tx + R.ZONE_START * tw;
     ctx.fillStyle = COL.zone;
     ctx.fillRect(zx, ty, zw * tw, th);
-    if (roundPending) {
-      ctx.strokeStyle = COL.zoneHi;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(zx - 1, ty - 1, zw * tw + 2, th + 2);
-    }
+    ctx.strokeStyle = COL.zoneEdge;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(zx, ty, zw * tw, th);
 
     // Markers: stopped ones stay where they stopped
     const mw = Math.max(3, R.MARKER_W * tw);
     for (let i = 0; i < markers.length; i++) {
       const m = markers[i];
-      ctx.fillStyle = i === failedAt ? COL.missed : (m.stopped ? COL.stopped : COL.moving);
+      ctx.fillStyle = i === failedAt ? COL.missed : m.stopped ? COL.stopped : i === lead ? COL.lead : COL.moving;
       tick(tx + m.x * tw, mw, g);
     }
 
-    // Banner: full for the first 0.7 s of a round, gone by 1.2 s
-    let ba = 0.35;
-    if (gameStarted) ba = roundPending ? 0 : Math.max(0, Math.min(1, 1 - (roundGT - 700) / 500));
-    const fs = Math.max(14, Math.round(H * 0.1));
-    const byc = ty + th + Math.round(H * 0.17);
-    if (ba > 0) {
-      ctx.save();
-      ctx.globalAlpha = ba;
-      ctx.fillStyle = COL.strip;
-      ctx.fillRect(0, byc - fs * 0.85, W, fs * 1.35);
-      ctx.font = '600 ' + fs + 'px "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = COL.text;
-      ctx.fillText('Pommel Strike', W / 2 + fs * 0.6, byc - fs * 0.1);
-      fist(W / 2 - fs * 4.3, byc - fs * 0.15, fs * 0.9);
-      ctx.restore();
+    // Round timer: a thin line over the track, shrinking toward its left end
+    if (gameStarted && markers.length) {
+      const left = Math.max(0, R.TIMER_MS - roundGT);
+      ctx.fillStyle = left <= R.TIMER_MS / 3 ? COL.timerLow : COL.timer;
+      ctx.fillRect(tx, ty - 6, tw * left / R.TIMER_MS, 3);
     }
-
-    // Round timer: the red bar drains from the right
-    const bw = Math.round(tw * 0.6), bx = Math.round((W - bw) / 2);
-    const bh = Math.max(6, Math.round(th * 0.6)), by = Math.round(H * 0.56);
-    caps(bx, by, bw, bh);
-    ctx.fillStyle = COL.trough;
-    ctx.fillRect(bx, by, bw, bh);
-    const frac = gameStarted || markers.length ? Math.max(0, 1 - roundGT / R.TIMER_MS) : 1;
-    if (frac > 0) {
-      ctx.fillStyle = COL.timer;
-      ctx.fillRect(bx, by, bw * frac, bh);
-    }
-
-    // Key hint
-    const kfs = Math.max(11, Math.round(H * 0.055));
-    const kw = Math.round(kfs * 5.4), kh = Math.round(kfs * 2);
-    const kx = Math.round((W - kw) / 2), ky = Math.round(H * 0.76 - kh / 2);
-    ctx.fillStyle = COL.keyBox;
-    ctx.fillRect(kx, ky, kw, kh);
-    ctx.strokeStyle = COL.keyEdge;
-    ctx.lineWidth = 1;
-    ctx.strokeRect(kx + 0.5, ky + 0.5, kw - 1, kh - 1);
-    ctx.font = '600 ' + kfs + 'px Rajdhani, Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = COL.keyText;
-    ctx.fillText(IS_MOBILE ? 'Tap' : 'Space', W / 2, ky + kh / 2 + 1);
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
   }
 
   // ---- the game ----
@@ -5546,7 +5456,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     lastTime = performance.now();
     if (run) run.ev('U');
     if (resumeBtn) { resumeBtn.style.display = 'none'; if (resumeBtn.blur) resumeBtn.blur(); }
-    setStatus(hint(), '#8fd6cf');
+    setStatus(hint(), '#aaaaff');
     if (roundDue) { roundDue = false; startRound(); }
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -5605,10 +5515,10 @@ if (flashMiss  > 0) flashMiss  -= dt;
 // <<< NEW-QTE sword-new block (keep this line)
 // >>> NEW-QTE spear-new block (keep this line)
 // === SPEAR NEW QTE (Bloody Burst: click circles and follow sliders) ===
-// Targets appear one at a time around the character; the next one shows as a
+// Targets appear one at a time around the centre; the next one shows as a
 // ghost. A circle is clicked. A slider is pressed on its start and held while
 // its ball runs the curved path: the pointer must stay within 2 r of the ball
-// to the end. All of a round's targets before the red timer runs out = one
+// to the end. All of a round's targets before the round timer runs out = one
 // point; a broken slider or the timer ends the run (Start again).
 // Rules, curves, the target draw and the path table live in js/qte-rules.js
 // (QteRules.trainers['spear-new']) so the server's check judges with the same
@@ -5644,7 +5554,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
   // ---- state ----
   let W = 0, H = 0, rad = R.R_MIN;     // canvas px; target radius
   let running = false, gameStarted = false, paused = false, over = false;
-  let phase = 'idle';                  // 'gap' (banner before a round) | 'play' | 'idle'
+  let phase = 'idle';                  // 'gap' (the pause before a round) | 'play' | 'idle'
   let score = 0;                       // rounds cleared this run
   let targets = [], paths = [], active = 0;
   let held = false, heldId = null;     // a slider is held (by this pointer)
@@ -5704,72 +5614,20 @@ if (flashMiss  > 0) flashMiss  -= dt;
     return true;
   }
 
-  // ---- drawing ----
+  // ---- drawing (the old spear trainer's look) ----
   function drawBg() {
-    const gr = ctx.createLinearGradient(0, 0, 0, H);
-    gr.addColorStop(0, '#1c2c90');
-    gr.addColorStop(0.42, '#111d63');
-    gr.addColorStop(1, '#0a1236');
-    ctx.fillStyle = gr;
+    ctx.fillStyle = '#12121e';
     ctx.fillRect(0, 0, W, H);
-    // the ground: a fixed speckle below the horizon
-    ctx.fillStyle = 'rgba(120, 140, 255, 0.08)';
-    for (let i = 0; i < 110; i++) {
-      const x = (i * 0.6180339 % 1) * W, y = H * 0.45 + (i * 0.4142136 % 1) * H * 0.55;
-      ctx.fillRect(x, y, 2, 2);
-    }
   }
 
-  // The character at the centre: a blocky hooded figure with a glowing spear
-  // and the blue marker above its head.
-  function drawHero() {
-    const cx = W / 2, cy = H / 2, u = Math.min(W, H) / 78;
-    ctx.save();
-    const glow = ctx.createRadialGradient(cx, cy, 2 * u, cx, cy, 18 * u);
-    glow.addColorStop(0, 'rgba(120, 140, 255, 0.22)');
-    glow.addColorStop(1, 'rgba(120, 140, 255, 0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(cx, cy, 18 * u, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#5064d8';
-    ctx.fillRect(cx - 3.4 * u, cy - 3 * u, 6.8 * u, 7.5 * u);      // torso
-    ctx.fillRect(cx - 3.2 * u, cy + 4.5 * u, 2.8 * u, 6.5 * u);    // legs
-    ctx.fillRect(cx + 0.4 * u, cy + 4.5 * u, 2.8 * u, 6.5 * u);
-    ctx.fillRect(cx - 5.4 * u, cy - 2.6 * u, 2 * u, 6.4 * u);      // arms
-    ctx.fillRect(cx + 3.4 * u, cy - 2.6 * u, 2 * u, 6.4 * u);
-    ctx.fillStyle = '#26307e';
-    ctx.beginPath(); ctx.arc(cx, cy - 5.6 * u, 2.9 * u, 0, TAU); ctx.fill();   // hood
-    ctx.strokeStyle = '#10122c'; ctx.lineWidth = Math.max(1.5, 0.6 * u); ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(cx - 13 * u, cy + 0.6 * u); ctx.lineTo(cx + 11 * u, cy - 0.8 * u); ctx.stroke();   // spear
-    const tip = ctx.createRadialGradient(cx - 14 * u, cy + 0.6 * u, 0, cx - 14 * u, cy + 0.6 * u, 5 * u);
-    tip.addColorStop(0, 'rgba(190, 190, 255, 0.9)');
-    tip.addColorStop(1, 'rgba(140, 140, 255, 0)');
-    ctx.fillStyle = tip;
-    ctx.beginPath(); ctx.arc(cx - 14 * u, cy + 0.6 * u, 5 * u, 0, TAU); ctx.fill();
-    ctx.strokeStyle = '#3aa2ff'; ctx.lineWidth = Math.max(2, 1.2 * u); ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(cx - 2.8 * u, cy - 12.5 * u); ctx.lineTo(cx, cy - 9.8 * u); ctx.lineTo(cx + 2.8 * u, cy - 12.5 * u); ctx.stroke();
-    ctx.restore();
-  }
-
-  // A small mouse icon (the game's "click" hint) inside a target.
-  function drawMouse(x, y, s) {
-    const w = s * 0.5, h = s * 0.74;
-    ctx.fillStyle = '#2a2d36';
-    ctx.beginPath(); ctx.ellipse(x, y, w / 2, h / 2, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#e6eaf2';
-    ctx.beginPath(); ctx.ellipse(x, y, w / 2, h / 2, 0, Math.PI, TAU); ctx.fill();
-    ctx.strokeStyle = '#2a2d36'; ctx.lineWidth = Math.max(1, s * 0.05);
-    ctx.beginPath(); ctx.moveTo(x, y - h / 2); ctx.lineTo(x, y); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - w / 2, y); ctx.lineTo(x + w / 2, y); ctx.stroke();
-  }
   function drawCircle(x, y, alpha) {
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.beginPath(); ctx.arc(x, y, rad * R.HIT_K, 0, TAU);
-    ctx.strokeStyle = 'rgba(110, 190, 255, 0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(170, 170, 255, 0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.beginPath(); ctx.arc(x, y, rad, 0, TAU);
-    ctx.fillStyle = 'rgba(12, 20, 52, 0.92)'; ctx.fill();
-    ctx.strokeStyle = '#7cc8ff'; ctx.lineWidth = 3; ctx.stroke();
-    if (alpha > 0.5) drawMouse(x, y, rad * 1.5);
+    ctx.fillStyle = 'rgba(160, 160, 255, 0.12)'; ctx.fill();
+    ctx.strokeStyle = '#aaaaff'; ctx.lineWidth = 3; ctx.stroke();
     ctx.restore();
   }
   // The slider's tube: the path table itself, stroked hollow.
@@ -5780,11 +5638,11 @@ if (flashMiss  > 0) flashMiss  -= dt;
     ctx.beginPath();
     ctx.moveTo(p.xs[0], p.ys[0]);
     for (let i = 1; i < p.xs.length; i++) ctx.lineTo(p.xs[i], p.ys[i]);
-    ctx.strokeStyle = 'rgba(95, 175, 255, 0.95)'; ctx.lineWidth = Math.max(8, rad * 0.55); ctx.stroke();
-    ctx.strokeStyle = 'rgba(11, 18, 52, 0.96)'; ctx.lineWidth = Math.max(4, rad * 0.55 - 4); ctx.stroke();
+    ctx.strokeStyle = 'rgba(170, 170, 255, 0.9)'; ctx.lineWidth = Math.max(8, rad * 0.55); ctx.stroke();
+    ctx.strokeStyle = '#1a1a2c'; ctx.lineWidth = Math.max(4, rad * 0.55 - 4); ctx.stroke();
     const n = p.xs.length - 1;
     ctx.beginPath(); ctx.arc(p.xs[n], p.ys[n], rad * 0.45, 0, TAU);
-    ctx.strokeStyle = 'rgba(95, 175, 255, 0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(170, 170, 255, 0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.restore();
   }
   function drawTargets() {
@@ -5800,52 +5658,36 @@ if (flashMiss  > 0) flashMiss  -= dt;
     if (!held) { drawCircle(tg.x, tg.y, 1); return; }
     const b = R.ballAt(paths[active], R.frac(g10, gPress, trav10));
     ctx.beginPath(); ctx.arc(b.x, b.y, rad * R.FOLLOW_K, 0, TAU);   // how far the pointer may stray
-    ctx.fillStyle = 'rgba(110, 190, 255, 0.10)'; ctx.fill();
+    ctx.fillStyle = 'rgba(160, 160, 255, 0.10)'; ctx.fill();
     drawCircle(b.x, b.y, 1);
   }
+  // A done target: a green ring that fades out.
   function drawFx() {
     for (let i = fx.length - 1; i >= 0; i--) {
       const a = 1 - (g10 - fx[i].g) / 3000;
       if (a <= 0) { fx.splice(i, 1); continue; }
       ctx.beginPath(); ctx.arc(fx[i].x, fx[i].y, rad * (1.1 + (1 - a) * 0.8), 0, TAU);
-      ctx.strokeStyle = 'rgba(140, 210, 255, ' + (a * 0.8).toFixed(3) + ')'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.strokeStyle = 'rgba(102, 238, 136, ' + (a * 0.8).toFixed(3) + ')'; ctx.lineWidth = 2.5; ctx.stroke();
     }
   }
-  // The red round timer along the bottom.
+  // The round timer: a thin line along the bottom, shrinking toward its left end.
   function drawTimer() {
-    const bx = 16, bw = W - 32, bh = 7, by = H - 15;
     const left = phase === 'play' ? Math.max(0, 1 - (g10 - R0) / timer10) : (phase === 'gap' ? 1 : 0);
-    ctx.fillStyle = 'rgba(38, 38, 46, 0.88)'; ctx.fillRect(bx, by, bw, bh);
-    ctx.fillStyle = '#c4454b'; ctx.fillRect(bx, by, bw * left, bh);
-  }
-  // "Bloody Burst" on a dark band while the next round comes up.
-  function drawBanner() {
-    const y = H * 0.66, bh = Math.max(36, H * 0.11);
-    ctx.save();
-    ctx.fillStyle = 'rgba(12, 12, 16, 0.72)';
-    ctx.beginPath(); ctx.moveTo(0, y - bh / 2 + 6); ctx.lineTo(W, y - bh / 2 - 6); ctx.lineTo(W, y + bh / 2 - 6); ctx.lineTo(0, y + bh / 2 + 6); ctx.closePath(); ctx.fill();
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#e8e6f0'; ctx.font = Math.round(bh * 0.5) + 'px Georgia, "Times New Roman", serif';
-    ctx.fillText('Bloody Burst', W / 2, y - bh * 0.06);
-    ctx.fillStyle = '#8fb8ff'; ctx.font = Math.round(bh * 0.26) + 'px Rajdhani, Arial, sans-serif';
-    ctx.fillText('Round ' + (score + 1), W / 2, y + bh * 0.36);
-    ctx.restore();
+    ctx.fillStyle = left <= 1 / 3 ? '#ee8855' : '#aaaaff';
+    ctx.fillRect(16, H - 8, (W - 32) * left, 3);
   }
   function drawFrame() {
     if (!W || !H) return;
     drawBg();
-    drawHero();
     if (phase === 'play') drawTargets();
     drawFx();
-    if (phase === 'gap' && !over) drawBanner();
     if (gameStarted || over) drawTimer();
     if (over) { ctx.fillStyle = 'rgba(200, 30, 40, 0.18)'; ctx.fillRect(0, 0, W, H); }
   }
   function drawIdle() {
     if (!W || !H) return;
     drawBg();
-    drawHero();
-    ctx.fillStyle = '#8fa4e8'; ctx.font = '15px Rajdhani, Arial, sans-serif';
+    ctx.fillStyle = '#6a6a88'; ctx.font = '14px Rajdhani, Arial, sans-serif';
     ctx.textAlign = 'center'; ctx.fillText('Press Start', W / 2, H * 0.82); ctx.textAlign = 'left';
   }
 
@@ -5868,7 +5710,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
       else ev('T', 0, tg.x, tg.y);
     }
     phase = 'play';
-    setStatus('Round ' + (score + 1) + ' - ' + n + ' targets', '#8fc8ff');
+    setStatus('Round ' + (score + 1) + ' - ' + n + ' targets', '#aaaaff');
   }
 
   function completeTarget() {
@@ -5881,7 +5723,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     phase = 'gap'; gC = g10;
     if (typeof window._playQteSfx === 'function') window._playQteSfx('spear');
     if (streakEl) streakEl.textContent = 'Streak: ' + score;
-    setStatus('Round cleared!', '#88ee99');
+    setStatus('Round cleared!', '#88ee88');
     updateHs(score);
   }
 
@@ -5928,7 +5770,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
     updateHs(score);
     if (run) run.close();
-    setStatus((why === 'time' ? "Time's up!" : 'Slider broken!') + '  Rounds: ' + score, '#ee5566');
+    setStatus((why === 'time' ? "Time's up!" : 'Slider broken!') + '  Rounds: ' + score, '#ee5555');
     if (streakEl) streakEl.textContent = '';
     drawFrame();
     if (startBtn)  startBtn.style.display  = '';
@@ -5951,7 +5793,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     if (startBtn)  startBtn.style.display  = 'none';
     if (resumeBtn) resumeBtn.style.display = 'none';
     if (streakEl)  streakEl.textContent    = '';
-    setStatus(HINT, '#8fc8ff');
+    setStatus(HINT, '#aaaaff');
     lastTime = performance.now();
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -5974,7 +5816,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     paused = false; running = true;
     ev('U', G());
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus(HINT, '#8fc8ff');
+    setStatus(HINT, '#aaaaff');
     lastTime = performance.now();
     animFrame = requestAnimationFrame(gameLoop);
   }
@@ -6066,7 +5908,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
 // >>> NEW-QTE axe-new block (keep this line)
 // === AXE NEW QTE (Grudge: tap to pump the bar, freeze it in the zone) ===
 // Marauder's "Grudge": every Space tap (not a hold) pumps the bar, it drains
-// between taps, and when the red timer bar runs out the fill freezes and is
+// between taps, and when the round timer runs out the fill freezes and is
 // judged - its end inside the zone (the bar shows green) is a hit.
 // Curves, tap/drain amounts, the zone draw and the 700 ms gap live in
 // js/qte-rules.js (QteRules.trainers['axe-new']) so the server's check and this
@@ -6099,7 +5941,6 @@ if (flashMiss  > 0) flashMiss  -= dt;
   let result = null;      // 'hit' / 'miss' once judged: the frozen bar keeps its colour
   let roundEndTime = 0, roundDur = 0, pauseTimeRemaining = 0;
   let zoneMin = 0, zoneMax = 0;
-  let tapAt = -1e9;       // performance.now() of the last tap (the key hint flashes)
   let run = null;         // this Start's QteRules run (log + ticket)
   let live = false;       // a round is on and not yet judged
   let gapTimer = null;    // the 700 ms timer between a hit and the next round
@@ -6108,10 +5949,9 @@ if (flashMiss  > 0) flashMiss  -= dt;
   let gapLeft = 0;        // ...with this much of it still to run
   let failTimer = null;   // the 900 ms "Too low!" display before the Start button returns
 
-  const TRACK_H = 26, TIMER_H = 16, PAD = 44, TIP = 10;
-  const RED = '#c9444f', GREEN = '#63e063', ZONE = '#4c8a55';
-  const HINT = IS_MOBILE ? 'Tap to pump the bar — be in the green when time runs out!'
-                         : 'Tap SPACE to pump the bar — be in the green when time runs out!';
+  const BAR_H = 40, PAD = 44;
+  const HINT = IS_MOBILE ? 'Tap to pump the bar — land in the zone when time runs out!'
+                         : 'Tap SPACE to pump the bar — land in the zone when time runs out!';
 
   function modeComp() { return gameStarted ? runComp : !!window._qteCompMode; }
 
@@ -6134,19 +5974,10 @@ if (flashMiss  > 0) flashMiss  -= dt;
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     canvas.width  = Math.min((wrap ? wrap.clientWidth - 40 : 800) || 800, 900);
-    canvas.height = 132;
+    canvas.height = BAR_H + 60;
   }
 
-  // A bar with pointed ends, like the game's: x..x+w, y..y+h, tips `tip` px out.
-  function barPath(x, y, w, h, tip) {
-    ctx.beginPath();
-    ctx.moveTo(x - tip, y + h / 2);
-    ctx.lineTo(x, y); ctx.lineTo(x + w, y);
-    ctx.lineTo(x + w + tip, y + h / 2);
-    ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h);
-    ctx.closePath();
-  }
-
+  // The old axe trainer's look.
   function drawFrame(now) {
     now = now || performance.now();
     const W = canvas.width, H = canvas.height;
@@ -6154,63 +5985,51 @@ if (flashMiss  > 0) flashMiss  -= dt;
     ctx.fillStyle = '#12121e';
     ctx.fillRect(0, 0, W, H);
 
-    const bw = W - PAD * 2, bx = PAD, by = 22, cy = by + TRACK_H / 2;
-    const tw = Math.round(bw * 0.6), tx = Math.round((W - tw) / 2), ty = by + TRACK_H + 50;
+    const barW = W - PAD * 2, bx = PAD, by = (H - BAR_H) / 2;
 
-    // Banner, faint, behind the bars
-    ctx.fillStyle = 'rgba(215,215,225,0.2)';
-    ctx.font = 'italic 700 34px Georgia, "Times New Roman", serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('Grudge', W / 2, by + TRACK_H + 28);
+    // Bar background
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(bx, by, barW, BAR_H);
 
-    // Track: dark translucent, pointed ends
-    barPath(bx, by, bw, TRACK_H, TIP);
-    ctx.fillStyle = 'rgba(72,72,78,0.92)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(16,16,20,0.95)'; ctx.lineWidth = 2; ctx.stroke();
+    const zoneX1 = bx + barW * zoneMin, zoneW = barW * (zoneMax - zoneMin);
 
-    // Zone: dark green
-    const zx1 = bx + bw * zoneMin, zx2 = bx + bw * zoneMax;
-    ctx.fillStyle = ZONE;
-    ctx.fillRect(zx1, by + 2, zx2 - zx1, TRACK_H - 4);
-
-    // Fill: red, bright green while its end is in the zone; after the
-    // judgement it stays frozen in the judged colour
+    // Fill: green while its end is in the zone, blue otherwise; after the
+    // judgement it stays frozen, green (hit) or red (miss)
     if (fillPct > 0) {
       const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
-      const xe = bx + bw * fillPct;
-      ctx.beginPath();
-      ctx.moveTo(bx - TIP + 3, cy); ctx.lineTo(bx, by + 2); ctx.lineTo(xe, by + 2);
-      ctx.lineTo(xe, by + TRACK_H - 2); ctx.lineTo(bx, by + TRACK_H - 2); ctx.closePath();
-      ctx.fillStyle = (result ? result === 'hit' : inZone) ? GREEN : RED;
-      ctx.fill();
+      ctx.fillStyle = result ? (result === 'hit' ? '#44ee88' : '#ee4444') : (inZone ? '#44ee88' : '#4488ff');
+      ctx.fillRect(bx, by, barW * fillPct, BAR_H);
     }
 
-    // White tick at the zone's left edge, over the fill as in the game
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(Math.round(zx1) - 1, by + 1, 2, TRACK_H - 2);
+    // Zone drawn on top so it's always visible (none before the first Start)
+    if (zoneW > 0) {
+      ctx.fillStyle   = 'rgba(150,150,175,0.18)';
+      ctx.fillRect(zoneX1, by, zoneW, BAR_H);
+      ctx.strokeStyle = 'rgba(190,190,220,0.85)';
+      ctx.lineWidth   = 2;
+      ctx.strokeRect(zoneX1, by, zoneW, BAR_H);
+    }
 
-    // Round timer: a red bar under the track that drains toward its left end
-    barPath(tx, ty, tw, TIMER_H, 7);
-    ctx.fillStyle = 'rgba(62,62,68,0.92)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(16,16,20,0.95)'; ctx.lineWidth = 1.5; ctx.stroke();
+    // Bar border
+    ctx.strokeStyle = '#44446a';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(bx, by, barW, BAR_H);
+
+    // Round timer along the top edge
     if (live && roundDur > 0) {
       const left = paused ? pauseTimeRemaining : Math.max(0, roundEndTime - now);
-      const frac = Math.min(1, left / roundDur);
-      if (frac > 0) { ctx.fillStyle = RED; ctx.fillRect(tx, ty + 2, tw * frac, TIMER_H - 4); }
+      ctx.fillStyle = left <= roundDur / 3 ? '#ee8855' : '#aaaaff';
+      ctx.fillRect(bx, by - 6, barW * Math.min(1, left / roundDur), 3);
     }
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '700 11px Rajdhani, Arial, sans-serif';
-    ctx.fillText(IS_MOBILE ? '[TAP]' : '[SPACE]', W / 2, ty + TIMER_H / 2 + 1);
 
-    // Key hint left of the timer: flashes white on a tap
-    const kx = tx - 44, ky = ty - 8, kw = 30, kh = 30;
-    const flash = now - tapAt < 90;
-    ctx.fillStyle = flash ? '#f2f2f2' : 'rgba(150,150,160,0.55)';
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(kx, ky, kw, kh, 6); else ctx.rect(kx, ky, kw, kh);
-    ctx.fill();
-    ctx.fillStyle = flash ? '#12121e' : 'rgba(18,18,30,0.8)';
-    ctx.fillRect(kx + 7, ky + kh - 10, kw - 14, 3);
+    // Zone label
+    if (zoneW > 0) {
+      ctx.fillStyle = 'rgba(200,200,255,0.7)';
+      ctx.font      = '12px Rajdhani, Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ZONE', zoneX1 + zoneW / 2, by - 10);
+      ctx.textAlign = 'left';
+    }
 
     if (paused) {
       ctx.fillStyle = 'rgba(18,18,30,0.55)';
@@ -6230,7 +6049,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     roundDur     = RULES.timer(streak, runComp) * 1000;
     roundEndTime = performance.now() + roundDur;
     live = true;
-    setStatus(HINT, '#e8a0a0');
+    setStatus(HINT, '#aaaaff');
     drawFrame();
   }
 
@@ -6290,7 +6109,6 @@ if (flashMiss  > 0) flashMiss  -= dt;
   // src: 'k' Space, 't' canvas touch, 'b' TAP button
   function onTap(src) {
     if (!running || paused) return;
-    tapAt = performance.now();
     // Between rounds a tap does nothing: the judged bar stays frozen.
     if (!live) { if (run) run.ev('G'); return; }
     fillPct = Math.min(1, fillPct + RULES.PRESS);
@@ -6366,7 +6184,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     // Restore the exact time remaining from before the pause
     roundEndTime = performance.now() + pauseTimeRemaining;
     if (resumeBtn) resumeBtn.style.display = 'none';
-    setStatus(HINT, '#e8a0a0');
+    setStatus(HINT, '#aaaaff');
     // Paused between rounds: the rest of the wait runs, then the next round.
     if (gapPaused) { gapPaused = false; armGap(gapLeft); drawFrame(); }
     else animFrame = requestAnimationFrame(gameLoop);
@@ -6432,10 +6250,10 @@ if (flashMiss  > 0) flashMiss  -= dt;
 // >>> NEW-QTE hammer-new block (keep this line)
 // === HAMMER NEW QTE (Prepare: hold to keep the bar in the zone) ===
 // Sentry "Prepare". Hold Space (a touch on the canvas / the HOLD button on
-// mobile) and the blue fill rises; let go and it falls. Keep its end in the
-// green zone: the yellow bar above fills while it is inside (and drains at half
-// speed while it is not); full = the round is cleared. The red bar below is the
-// round's timer; running out ends the run. Rates, curves, the zone draw and the
+// mobile) and the fill rises; let go and it falls. Keep its end in the
+// zone: the progress bar under it fills while it is inside (and drains at half
+// speed while it is not); full = the round is cleared. The line over the bar is
+// the round's timer; running out ends the run. Rates, curves, the zone draw and the
 // dt clamp live in js/qte-rules.js (QteRules.trainers['hammer-new']), shared
 // with the server's check. The run's log (QteRules.Run): 'R' each round, 'D'/'X'
 // each hold start / end, 'Z' each frame the fill's end crossed a zone edge, 'S'
@@ -6478,7 +6296,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
   function logEv() { if (run) run.ev.apply(null, arguments); }
 
   function setStatus(text, color) { if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; } }
-  function hint() { return IS_MOBILE ? 'Hold the button - keep blue in the green zone' : 'Hold SPACE - keep blue in the green zone'; }
+  function hint() { return IS_MOBILE ? 'Hold the button to raise the bar - keep its end in the zone!' : 'Hold SPACE to raise the bar - keep its end in the zone!'; }
 
   function updateHs(val) {
     if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
@@ -6494,91 +6312,69 @@ if (flashMiss  > 0) flashMiss  -= dt;
   window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHs(0); });
   window.addEventListener('alb-mode-changed', () => updateHs(0));
 
+  const BAR_H = 40, PAD = 40;             // the bar's height and side margins, px
   function resizeCanvas() {
     const wrap = canvas.parentElement;
     const w = Math.min((wrap ? wrap.clientWidth - 40 : 800) || 800, 900);
     canvas.width = Math.max(280, w);
-    canvas.height = 190;
+    canvas.height = BAR_H + 80;
   }
 
-  // ── drawing (the game's look: dark translucent bars, blue fill, green zone
-  //    between white lines, yellow progress above, red timer below) ──
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
-  // A thin bar that grows from its centre (progress: yellow; timer: red).
-  function centreBar(cx, y, w, h, frac, color) {
-    roundRect(cx - w / 2 - 4, y - 3, w + 8, h + 6, 4);
-    ctx.fillStyle = 'rgba(52,52,56,0.92)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(120,120,128,0.55)'; ctx.lineWidth = 1; ctx.stroke();
-    const fw = w * Math.max(0, Math.min(1, frac));
-    if (fw > 0) { ctx.fillStyle = color; ctx.fillRect(cx - fw / 2, y, fw, h); }
-  }
-
+  // ── drawing (the old hammer trainer's look; the round timer is a line over
+  //    the bar, the hold progress a thin bar under it) ──
   function draw() {
-    const W = canvas.width, Hh = canvas.height;
-    ctx.clearRect(0, 0, W, Hh);
-    ctx.fillStyle = '#12121e'; ctx.fillRect(0, 0, W, Hh);
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#12121e'; ctx.fillRect(0, 0, W, H);
 
-    const padX = Math.max(26, W * 0.06);
-    const x0 = padX, tw = W - padX * 2;          // the track
-    const th = Math.max(22, Math.min(38, W * 0.045));
-    const ty = 50, cx = W / 2, cy = ty + th / 2;
-    const smallW = tw * 0.42, smallH = 9;
+    const barW = W - PAD * 2, bx = PAD, by = (H - BAR_H) / 2;
     const won = phase === 'won', lost = phase === 'lost';
 
-    // progress (above): grows from its centre, green once full
-    centreBar(cx, ty - 28, smallW, smallH, won ? 1 : progress, won ? '#62c462' : '#d2d23c');
+    // Bar background
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(bx, by, barW, BAR_H);
 
-    // the track: a dark frame with pointed ends
-    ctx.beginPath();
-    ctx.moveTo(x0 - 18, cy); ctx.lineTo(x0 - 4, ty - 7); ctx.lineTo(x0 + tw + 4, ty - 7);
-    ctx.lineTo(x0 + tw + 18, cy); ctx.lineTo(x0 + tw + 4, ty + th + 7); ctx.lineTo(x0 - 4, ty + th + 7);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(40,40,44,0.95)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(150,150,158,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
-    ctx.fillStyle = '#4a4a4e'; ctx.fillRect(x0, ty, tw, th);
-
-    const zx1 = x0 + tw * zoneMin, zx2 = x0 + tw * zoneMax, fx = x0 + tw * fill;
-    ctx.fillStyle = '#58805a'; ctx.fillRect(zx1, ty, zx2 - zx1, th);             // the zone
+    // Fill: green while its end is in the zone (and once the round is
+    // cleared), blue otherwise, red when the run is lost
     if (fill > 0) {
-      const blue = won ? '#62c462' : lost ? '#c4545a' : '#6a95c8';
-      const teal = won ? '#7ad67a' : lost ? '#c4545a' : '#6eb0a4';
-      ctx.fillStyle = blue; ctx.fillRect(x0, ty, fx - x0, th);
-      const o1 = Math.max(zx1, x0), o2 = Math.min(zx2, fx);                       // blue over green = teal
-      if (o2 > o1) { ctx.fillStyle = teal; ctx.fillRect(o1, ty, o2 - o1, th); }
-      if (!won && !lost) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(fx - 2, ty, 2, th); }
+      ctx.fillStyle = lost ? '#ee4444' : (won || inZone) ? '#44ee88' : '#4488ff';
+      ctx.fillRect(bx, by, barW * fill, BAR_H);
     }
-    ctx.fillStyle = '#ececec';                                                    // the zone's white lines
-    ctx.fillRect(zx1 - 1.5, ty - 1, 3, th + 2); ctx.fillRect(zx2 - 1.5, ty - 1, 3, th + 2);
 
-    // timer (below): shrinks toward its centre; frozen where it was at a clear
-    const left = phase === 'play' ? Math.max(0, 1 - (gameT - roundT) / roundLen) : won ? Math.max(0, 1 - (wonT - roundT) / roundLen) : phase === 'idle' ? 1 : 0;
-    centreBar(cx, ty + th + 20, smallW, smallH, left, '#b8454f');
+    // Zone drawn on top so it's always visible
+    const zoneX1 = bx + barW * zoneMin, zoneW = barW * (zoneMax - zoneMin);
+    ctx.fillStyle   = 'rgba(150,150,175,0.18)';
+    ctx.fillRect(zoneX1, by, zoneW, BAR_H);
+    ctx.strokeStyle = 'rgba(190,190,220,0.85)';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(zoneX1, by, zoneW, BAR_H);
 
+    // Bar border
+    ctx.strokeStyle = '#44446a';
+    ctx.lineWidth   = 2;
+    ctx.strokeRect(bx, by, barW, BAR_H);
+
+    // Round timer along the top edge; frozen where it was at a clear
+    if (phase === 'play' || won) {
+      const left = Math.max(0, 1 - ((won ? wonT : gameT) - roundT) / roundLen);
+      ctx.fillStyle = left <= 1 / 3 ? '#ee8855' : '#aaaaff';
+      ctx.fillRect(bx, by - 6, barW * left, 3);
+    }
+
+    // Hold progress under the bar: fills while the end is in the zone
+    ctx.fillStyle = '#252535';
+    ctx.fillRect(bx, by + BAR_H + 8, barW, 5);
+    const pr = won ? 1 : Math.max(0, Math.min(1, progress));
+    if (pr > 0) {
+      ctx.fillStyle = won ? '#44ee88' : '#eecc44';
+      ctx.fillRect(bx, by + BAR_H + 8, barW * pr, 5);
+    }
+
+    // Zone label
+    ctx.fillStyle = 'rgba(200,200,255,0.7)';
+    ctx.font      = '12px Rajdhani, Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.font = '600 12px Rajdhani, Arial, sans-serif';
-    ctx.fillStyle = 'rgba(235,235,240,0.85)';
-    ctx.fillText(IS_MOBILE ? 'Hold [HOLD] - Keep blue in the green zone' : 'Hold [SPACE] - Keep blue in the green zone', cx, ty + th + 52);
-
-    // "Prepare" banner at a round's start (fades over its first 0.8 s)
-    const since = phase === 'play' ? gameT - roundT : 99;
-    if (since < 0.8) {
-      ctx.save();
-      ctx.globalAlpha = 1 - since / 0.8;
-      ctx.font = 'bold 30px Georgia, "Times New Roman", serif';
-      ctx.fillStyle = '#f2f2f2';
-      ctx.fillText('Prepare', cx, ty + th + 90);
-      ctx.restore();
-    } else if (phase === 'idle') {
-      ctx.font = '14px Rajdhani, Arial, sans-serif'; ctx.fillStyle = '#6a6a88';
-      ctx.fillText('Press Start', cx, ty + th + 84);
-    }
+    ctx.fillText('ZONE', zoneX1 + zoneW / 2, by - 10);
     ctx.textAlign = 'left';
   }
 
@@ -6590,7 +6386,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     fill = 0; progress = 0; inZone = false; roundT = gameT;
     phase = 'play';
     logEv('R', streak, zoneMin, zoneMax, gMs(gameT));
-    setStatus(hint(), '#8fb4e8');
+    setStatus(hint(), '#aaaaff');
   }
 
   // A hold starts / ends. It takes effect from the last frame's game time:
@@ -6633,7 +6429,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     logEv('S', gMs(g0), gMs(gameT));     // before updateHs: the submit carries it
     if (streakEl) streakEl.textContent = 'Streak: ' + streak;
     updateHs(streak);
-    setStatus('Prepared!', '#88ee88');
+    setStatus('Held it!', '#88ee88');
     try { window._playQteSfx('hammer'); } catch (e) {}
   }
 
@@ -6692,7 +6488,7 @@ if (flashMiss  > 0) flashMiss  -= dt;
     if (!paused) return;
     paused = false; running = true; holding = false;
     logEv('U');
-    setStatus(phase === 'won' ? 'Prepared!' : hint(), phase === 'won' ? '#88ee88' : '#8fb4e8');
+    setStatus(phase === 'won' ? 'Held it!' : hint(), phase === 'won' ? '#88ee88' : '#aaaaff');
     showButtons(); blurButton();
     lastTime = performance.now();
     animFrame = requestAnimationFrame(loop);

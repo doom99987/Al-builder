@@ -737,7 +737,7 @@ const SRC = {
 // every canvas call the trainer makes; anything else throws (a typo, a missing stub)
 function ctxStub() {
   const c = {};
-  for (const m of ['clearRect', 'fillRect', 'beginPath', 'moveTo', 'lineTo', 'closePath', 'fill', 'stroke', 'fillText', 'rect', 'roundRect', 'save', 'restore']) c[m] = () => {};
+  for (const m of ['clearRect', 'fillRect', 'strokeRect', 'fillText']) c[m] = () => {};
   return c;
 }
 function realIife(o) {

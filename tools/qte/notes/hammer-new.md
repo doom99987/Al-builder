@@ -24,7 +24,11 @@ the 700 ms wait: the next fill then rises from its first frame.
 Measured from the clip: track 615 px, zone 0.514-0.759 (drawn before the first
 Start), rise/fall ~0.47/s, progress full after ~2.3 s, timer ~6.2 s, colours
 (blue #6a95c8, teal overlap #6eb0a4, zone #58805a between white lines, yellow
-#d2d23c, red #b8454f, green on a clear). Not in the clip, our choices (spec):
+#d2d23c, red #b8454f, green on a clear). The trainer does not copy that look
+(owner, 2026-09-28: no move name, nothing but the QTE): it draws the old
+hammer's bar and outlined zone, the fill blue (green while its end is in the
+zone), the round timer as a line over the bar and the progress as a thin yellow
+bar under it; no "Prepare" banner. Not in the clip, our choices (spec):
 the half-rate drain outside the zone (the clip never left it); the 50-100 ms
 input lag the game showed is not modelled (the ping slider covers lag).
 
