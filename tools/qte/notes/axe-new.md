@@ -6,17 +6,17 @@ Every Space **tap** (not a hold: auto-repeat is ignored) adds 0.125 of the track
 ## Measured (from the clip) and the design built on it
 | | clip | built |
 |---|---|---|
-| track | 844 px, dark translucent, pointed ends | canvas bar, same look |
+| track | 844 px, dark translucent, pointed ends | canvas bar in the old axe's look (flat, outlined) |
 | tap | ~0.126 of the track | `PRESS` 0.125, cap 1 |
 | drain | ~0.10 of the track/s | `DRAIN` 0.10/s, per frame, dt in [0, `DT_MAX` 0.05 s] |
 | zone | dark green, 0.653–0.834 (width 0.181), white tick at its left edge | width casual `max(0.18 − 0.007s, 0.06)`, comp `max(0.14 − 0.006s, 0.045)`; centre uniform in [0.50, 0.85], then `zone()` moves it inside [0.05, 0.98] |
-| fill colour | red outside the zone, bright green inside | the same; the judged bar keeps its colour |
-| timer | red bar with "[SPACE]", ~2.35 s | casual `max(2.6 − 0.04s, 1.8)` s, comp `max(2.35 − 0.04s, 1.6)` s; drains toward its left end |
+| fill colour | red outside the zone, bright green inside | the old axe's: blue outside, green inside; the judged bar freezes green (hit) or red (miss) |
+| timer | red bar with "[SPACE]", ~2.35 s | casual `max(2.6 − 0.04s, 1.8)` s, comp `max(2.35 − 0.04s, 1.6)` s; a thin line over the bar, as in the old axe, shrinking toward its left end |
 | gap | – | 700 ms (`GAP_MS`) |
 
 Here s is the number of rounds cleared this run. The zone clamp is exact but never binds with these numbers: the widest zone at the extreme centres spans 0.41–0.94. Everything above lives in `QteRules.trainers['axe-new']` (`js/qte-rules.js`), and the IIFE reads it from there.
 
-Look: the faint "Grudge" banner sits behind the bars. A small key cap left of the timer flashes white for 90 ms on each tap; it stands in for the game's fist icon, which flashes for one frame.
+Look: the old axe's (owner, 2026-09-28: no move name, nothing but the QTE): the bar, the outlined zone with its "ZONE" label, the timer line. No banner, no key cap: the status line says what to press.
 
 ## What is logged (`run.ev`, t = ms since Start, numbers to 4 dp)
 | code | fields | where (axe-new.iife.js) |

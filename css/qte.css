@@ -980,7 +980,7 @@
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 17px;
   font-weight: 600;
-  color: #8fd6cf;
+  color: #aaaaff;
   min-width: 260px;
   text-align: center;
 }
@@ -1052,7 +1052,7 @@
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 17px;
   font-weight: 600;
-  color: #8fc8ff;
+  color: #aaaaff;
   min-width: 260px;
   text-align: center;
 }
@@ -1060,7 +1060,7 @@
 .spear-new-qte-streak {
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 14px;
-  color: #7cc8ff;
+  color: #ffcc66;
   min-width: 80px;
 }
 
@@ -1078,7 +1078,7 @@
   display: block;
   max-width: 100%;
   height: auto;
-  border-radius: 10px;
+  border-radius: 8px;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -1110,7 +1110,7 @@
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 17px;
   font-weight: 600;
-  color: #e8a0a0;
+  color: #aaaaff;
   min-width: 260px;
   text-align: center;
 }
@@ -1144,18 +1144,7 @@
   transform: translate(-50%, -50%);
 }
 
-/* The TAP button takes the shared .qte-mobile-action-btn shape (css/mobile.css,
-   which loads after this file - hence the doubled class), in the trainer's red */
-.qte-mobile-action-btn.axe-new-tap-btn {
-  background: #2a1216;
-  border-color: #8a3a44;
-  color: #ee9aa2;
-}
-.qte-mobile-action-btn.axe-new-tap-btn:active {
-  background: #5a1f28;
-  border-color: #d0606c;
-  color: #ffffff;
-}
+/* The TAP button is the shared .qte-mobile-action-btn (css/mobile.css). */
 
 @media (pointer: coarse) {
   .axe-new-qte-canvas { touch-action: none; cursor: pointer; }
@@ -1223,7 +1212,7 @@
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 17px;
   font-weight: 600;
-  color: #8fb4e8;
+  color: #aaaaff;
   min-width: 260px;
   text-align: center;
 }
@@ -1231,7 +1220,7 @@
 .hammer-new-qte-streak {
   font-family: 'Rajdhani', Arial, sans-serif;
   font-size: 14px;
-  color: #d2d23c;
+  color: #ffcc66;
   min-width: 80px;
 }
 
@@ -1245,7 +1234,7 @@
 .hammer-new-qte-canvas {
   display: block;
   max-width: 100%;
-  border-radius: 10px;
+  border-radius: 8px;
   touch-action: none;          /* a touch-hold on the canvas must not scroll the page */
 }
 

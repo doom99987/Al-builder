@@ -41,7 +41,7 @@ The last marker slides past the zone at most 2.6 s into a round. The 3.4 s timer
 - **Held Space is one press.** Auto-repeat keydowns (`e.repeat`) are ignored, as in the game.
 - **dt is clamped to [0, 50 ms].** A frame stamped before Start or Resume (one left pending behind a long task) moves nothing. The old sword let game time step back there; here game time never goes back, and the check requires that.
 - **Pause sources.** The panel hidden (another QTE tab), the QTE page left (caught at the next frame: switchPage runs no hide hook), and the browser tab hidden (visibilitychange). Each logs `P` and shows Resume. The 800 ms between-rounds timer firing while paused starts the round on Resume, as in the old sword.
-- **Look.** Dark navy backdrop, a dark translucent track with bracketed ends, a pale teal zone (outlined while a round is cleared), light-grey ticks (stopped ones paler, a missed one red), and the red timer bar in a trough under the track, draining from the right. The "Pommel Strike" banner with a fist is full for 0.7 s of a round and gone by 1.2 s. A "Space" (mobile: "Tap") key box sits under the timer bar.
+- **Look.** The old sword's (owner, 2026-09-28: no move name, nothing but the QTE): the dark track centred in the canvas, the zone outlined, the leading marker white and the ones behind it faint, stopped markers green (the one the run ended on red), and the round timer as a thin line over the track, orange in its last third. No banner, no key box: the status line says what to press.
 
 ## The log (QteRules.Run; t = ms since Start; numbers 4 dp)
 | code | fields | where |

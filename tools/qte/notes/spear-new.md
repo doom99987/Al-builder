@@ -13,19 +13,20 @@ the styles in css/qte.css (between their markers).
 ## Measured (from the clip, 1920x1048) and what was made of it
 | Clip | Trainer |
 |---|---|
-| blue circle ~38 px radius, thin outer ring, mouse icon | r = max(18, 0.045 x min(W, H)); mobile 0.06. Dark circle, light-blue rim, a ring at 1.25 r, a mouse icon |
+| blue circle ~38 px radius, thin outer ring, mouse icon | r = max(18, 0.045 x min(W, H)); mobile 0.06. Drawn in the old spear's colours (lavender rim, faint fill), a ring at 1.25 r, no mouse icon |
 | the next target as a faint ghost | the next target (and its path) drawn at ~20% alpha |
 | circles: no approach ring, no per-target limit | none: only the round timer |
 | sliders: hook / S tube, 500-700 px, ~0.4-0.5 s, press, hold, follow | cubic Bezier, end 0.30-0.45 x min(W, H) from the start, control points 0.20-0.35 x min(W, H) off the chord (same side); traversal casual max(550 - 10 s, 350) ms, comp max(450 - 10 s, 300) ms |
 | targets 80-350 px from the character | 0.12-0.40 x min(W, H) from the centre, random angle, on the canvas, 3 r from the previous target |
 | ~7.5 s, red bar at the bottom; 8 targets, the first a slider, 3 sliders | timer casual max(7500 - 100 s, 6000) ms, comp max(7000 - 100 s, 5500) ms (floors raised from 5000 / 4500 by the coordinator: 14 targets in 4.5 s asked ~0.32 s a target, sliders included, more than hands do); targets casual min(6 + floor(s/2), 12), comp min(8 + floor(s/2), 14); a slider with p 0.4, the first of a round always |
-| banner "Bloody Burst" | a dark band with "Bloody Burst" / "Round n" in the 800 ms before each round |
+| banner "Bloody Burst" | not drawn (owner, 2026-09-28: no move name): the 800 ms before each round is a plain pause; the status line says "Round n - k targets" |
 
 s = rounds cleared this run. The canvas is the panel's width less 24 px, clamped to 240-900; its
 height is `round(0.6 W)` clamped to 240-540, or on phones / under 480 px `round(0.95 W)` clamped to
 240-480. It is measured at Start and at each round start only: a round keeps its pixels (CSS scales
 the canvas meanwhile, pointer positions go through its client rect), so targets never move under a
-hand. The character sits at the centre; targets and paths may cross it, as in the clip.
+hand. No character is drawn (owner, 2026-09-28: the old spear's plain look); targets still keep to
+the ring around the centre where the game's character stands, and paths may cross the centre.
 
 ## Design choices the clip could not show (keep them in mind)
 - **Hit area 1.25 r**: the circle and its thin outer ring. A press off the active target does
@@ -42,7 +43,7 @@ hand. The character sits at the centre; targets and paths may cross it, as in th
 - **Pause mid-slider** (panel or tab hidden): the slider is let go and starts over on a new press
   after Resume; the target stays active and the timer is frozen. Not a fail. Pausing to save sliders
   is held (see below).
-- **Round 1** also comes 800 ms after Start (the banner), so every round starts the same way.
+- **Round 1** also comes 800 ms after Start (the pause before a round), so every round starts the same way.
 - **Ping slider**: pointer events (down, move, up) are handled `window._albPing` ms late, positions
   read at the event. The check never sees the ping: it sees what the game judged.
 - **Pointer events** for mouse, touch and pen; `setPointerCapture` keeps moves and the release

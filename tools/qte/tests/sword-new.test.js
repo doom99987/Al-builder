@@ -764,9 +764,10 @@ try { new Function(IIFE_SRC); console.log('iife: parses'); } catch (err) { fail(
   const lines = IIFE_SRC.replace(/\n$/, '').split('\n');
   if (lines[lines.length - 1] !== '})();' || lines.slice(0, -1).includes('})();')) fail('iife: the block must end with its only "})();" line');
 }
-// The colours the IIFE draws the track, the zone and the moving markers with.
-const COL_TRACK = 'rgba(58,58,62,0.92)', COL_ZONE = 'rgba(138,196,190,0.95)', COL_MOVING = 'rgba(226,226,226,0.97)';
-for (const c of [COL_TRACK, COL_ZONE, COL_MOVING]) if (IIFE_SRC.indexOf("'" + c + "'") < 0) fail('iife: the colour ' + c + ' the suite reads is not in the IIFE');
+// The colours the IIFE draws the track, the zone and the moving markers with
+// (the leading one white, the ones behind it faint).
+const COL_TRACK = '#252535', COL_ZONE = 'rgba(150,150,175,0.28)', COL_LEAD = '#ffffff', COL_MOVING = 'rgba(200,200,255,0.4)';
+for (const c of [COL_TRACK, COL_ZONE, COL_LEAD, COL_MOVING]) if (IIFE_SRC.indexOf("'" + c + "'") < 0) fail('iife: the colour ' + c + ' the suite reads is not in the IIFE');
 
 const iifeLogs = [];                                 // every run's log, with what the page showed
 let runSerial = 0, iifeTicks = 0, iifeWall = 0;
@@ -862,7 +863,7 @@ function swordWorld(seed, o) {
       const st = this.fillStyle;
       if (st === COL_TRACK) f.track = { x, w };
       else if (st === COL_ZONE) f.zone = { x, w };
-      else if (st === COL_MOVING) f.moving.push(x + w);   // right edge (a marker is clipped at the left end)
+      else if (st === COL_LEAD || st === COL_MOVING) f.moving.push(x + w);   // right edge (a marker is clipped at the left end)
     },
     createLinearGradient() { return { addColorStop() {} }; },
     measureText(t) { return { width: String(t).length * 7 }; },
