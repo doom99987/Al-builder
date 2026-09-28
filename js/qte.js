@@ -5136,3 +5136,1617 @@ if (flashMiss  > 0) flashMiss  -= dt;
 
   setStatus('Press Start', '#888');
 })();
+
+// >>> NEW-QTE sword-new block (keep this line)
+// === SWORD NEW QTE (Pommel Strike: markers into a fixed zone, round timer) ===
+// The game's new Warrior QTE, "Pommel Strike". A round slides n light-grey
+// markers in from the left end of a dark track; Space (or a tap) stops the
+// LEADING moving marker where it is, and every marker has to stop overlapping
+// the teal zone, fixed at 0.535 of the track. Stopped markers stay where they
+// stopped. A red timer bar drains under the track. All markers in the zone:
+// +1 and the next round 800 ms later. A marker stopped outside the zone, a
+// lead marker sliding past the zone, or the timer running out ends the run.
+// Positions are fractions of the track, so every canvas size plays the same.
+// The rules (curves, gap draws, the hit test, timings) live in js/qte-rules.js
+// (QteRules.trainers['sword-new']) so the server's check judges with the same
+// numbers. The run's log: 'R' at each round start (streak, marker count, the
+// gaps), 'K' at each judged press (marker, x, round game time, hit), 'E' when
+// the run ends, 'P'/'U' on pause (panel, page or browser tab hidden) / Resume.
+(function () {
+  const canvas    = document.getElementById('sword-new-qte-canvas');
+  if (!canvas) return;
+  // js/qte-rules.js must load first. Stop HERE rather than throw: a throw at
+  // load would also kill every trainer after this one in qte.js.
+  const R = window.QteRules && window.QteRules.trainers && window.QteRules.trainers['sword-new'];
+  if (!R) { try { console.error('[sword-new] js/qte-rules.js with the sword-new rules must load before js/qte.js'); } catch (e) {} return; }
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('sword-new-qte-status');
+  const streakEl  = document.getElementById('sword-new-qte-streak');
+  const hsEl      = document.getElementById('sword-new-qte-highscore');
+  const startBtn  = document.getElementById('sword-new-qte-start-btn');
+  const resumeBtn = document.getElementById('sword-new-qte-resume-btn');
+  const tapBtn    = document.getElementById('sword-new-tap-btn');
+
+  const HS_KEY      = 'alb:sword-new-hs';
+  const HS_KEY_COMP = 'alb:sword-new-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  let running      = false;
+  let gameStarted  = false;
+  let paused       = false;
+  let streak       = 0;
+  let animFrame    = null;
+  let lastTime     = 0;
+  let markers      = [];     // { x0, x, stopped } - x in track units (0..1 = the track)
+  let lead         = 0;      // the leading moving marker
+  let roundPending = false;  // round cleared, waiting for the next one
+  let roundDue     = false;  // the between-rounds timer fired while paused: the round starts on Resume
+  let roundGT      = 0;      // this round's game time, ms (sum of clamped dt, frozen while paused)
+  let speed        = 0;      // this round's marker speed, track per second
+  let zoneW        = 0;      // this round's zone width (the zone starts at R.ZONE_START)
+  let failedAt     = -1;     // the marker the run ended on, drawn red
+  let run          = null;   // QteRules.Run of the current Start
+  let runComp      = false;  // mode at Start: the tables and the log's type must agree all run
+
+  // The game's look (the owner's clip): a dark translucent track with
+  // bracketed ends, a pale teal zone, light-grey ticks, the red timer bar under
+  // it, the "Pommel Strike" banner and a Space key hint. The suite's player
+  // reads the track, the zone and the moving markers by these colours.
+  const COL = {
+    bgTop:   '#0b1020',
+    bgBot:   '#0c1614',
+    track:   'rgba(58,58,62,0.92)',
+    trackHi: 'rgba(255,255,255,0.07)',
+    trackLo: 'rgba(0,0,0,0.35)',
+    cap:     'rgba(150,150,156,0.9)',
+    zone:    'rgba(138,196,190,0.95)',
+    zoneHi:  'rgba(210,255,246,0.85)',
+    moving:  'rgba(226,226,226,0.97)',
+    stopped: 'rgba(236,252,249,0.9)',
+    missed:  '#e0485a',
+    timer:   'rgb(192,70,86)',
+    trough:  'rgba(52,52,56,0.92)',
+    strip:   'rgba(18,18,22,0.55)',
+    text:    '#f2f2f2',
+    keyBox:  'rgba(36,36,40,0.95)',
+    keyEdge: 'rgba(120,120,128,0.9)',
+    keyText: '#cfcfcf',
+  };
+
+  function hint() { return IS_MOBILE ? 'Tap to stop each marker in the zone!' : 'Press SPACE to stop each marker in the zone!'; }
+
+  function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
+    if (window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run) run.submit(v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run) run.submit(v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
+  }
+  updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => { updateHighscore(0); if (!gameStarted) drawFrame(); });
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+  }
+
+  function pageActive() {
+    const pg = document.getElementById('page-qte');
+    return !!(pg && pg.classList.contains('active')) || !!(window._qteMatch && window._qteMatch.active);
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    const avail = wrap.clientWidth > 64 ? wrap.clientWidth - 24 : 800;   // hidden panel: 0
+    canvas.width  = Math.max(200, Math.min(avail, 900));
+    const tall = IS_MOBILE || canvas.width < 480;
+    canvas.height = tall
+      ? Math.min(Math.round(canvas.width * 0.62), 320)
+      : Math.min(Math.round(canvas.width * 0.36), 320);
+  }
+
+  function startRound() {
+    roundPending = false;
+    const n = R.markers(streak, runComp);
+    speed = R.speed(streak, runComp);
+    zoneW = R.zoneW(streak, runComp);
+    // Gaps between the markers, drawn at 4 dp (the log holds the exact values)
+    const gaps = [];
+    for (let i = 0; i < n - 1; i++) gaps.push(R.drawGap(Math.random()));
+    markers = R.starts(gaps, n).map(x0 => ({ x0: x0, x: x0, stopped: false }));
+    lead = 0;
+    roundGT = 0;
+    failedAt = -1;
+    if (run) run.ev('R', streak, n, ...gaps);
+    setStatus(hint(), '#8fd6cf');
+  }
+
+  // ---- drawing ----
+  function geo() {
+    const W = canvas.width, H = canvas.height;
+    const tx = Math.max(24, Math.round(W * 0.07));
+    const th = Math.max(12, Math.min(20, Math.round(H * 0.075)));
+    return { W: W, H: H, tx: tx, tw: W - 2 * tx, th: th, ty: Math.round(H * 0.2) };
+  }
+
+  // The ornamental ends of a bar: a post and a small outward point.
+  function caps(x, y, w, h) {
+    ctx.fillStyle = COL.cap;
+    for (const side of [-1, 1]) {
+      const ex = side < 0 ? x - 4 : x + w + 2;
+      ctx.fillRect(ex, y - 3, 2, h + 6);
+      ctx.beginPath();
+      ctx.moveTo(ex + (side < 0 ? 0 : 2), y + h / 2 - 4);
+      ctx.lineTo(ex + side * 6 + (side < 0 ? 0 : 2), y + h / 2);
+      ctx.lineTo(ex + (side < 0 ? 0 : 2), y + h / 2 + 4);
+      ctx.fill();
+    }
+  }
+
+  // A marker tick, clipped to the track (it enters from the left end).
+  function tick(px, mw, g) {
+    const x1 = Math.max(px, g.tx), x2 = Math.min(px + mw, g.tx + g.tw);
+    if (x2 > x1) ctx.fillRect(x1, g.ty - 2, x2 - x1, g.th + 4);
+  }
+
+  // The banner's fist icon.
+  function fist(cx, cy, s) {
+    ctx.fillStyle = COL.text;
+    for (let k = 0; k < 4; k++) {
+      ctx.beginPath();
+      ctx.arc(cx - 0.45 * s + k * 0.3 * s, cy - 0.22 * s, 0.17 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillRect(cx - 0.62 * s, cy - 0.22 * s, 1.24 * s, 0.62 * s);
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = Math.max(1, s * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(cx - 0.55 * s, cy + 0.1 * s);
+    ctx.lineTo(cx + 0.2 * s, cy + 0.1 * s);
+    ctx.stroke();
+  }
+
+  function drawFrame() {
+    const g = geo(), W = g.W, H = g.H, tx = g.tx, tw = g.tw, th = g.th, ty = g.ty;
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, COL.bgTop);
+    bg.addColorStop(1, COL.bgBot);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Track
+    caps(tx, ty, tw, th);
+    ctx.fillStyle = COL.track;
+    ctx.fillRect(tx, ty, tw, th);
+    const edge = Math.max(1, Math.round(th * 0.2));
+    ctx.fillStyle = COL.trackHi;
+    ctx.fillRect(tx, ty, tw, edge);
+    ctx.fillStyle = COL.trackLo;
+    ctx.fillRect(tx, ty + th - edge, tw, edge);
+
+    // Zone (before the first Start: the zone a first round would have)
+    const zw = markers.length ? zoneW : R.zoneW(0, !!window._qteCompMode);
+    const zx = tx + R.ZONE_START * tw;
+    ctx.fillStyle = COL.zone;
+    ctx.fillRect(zx, ty, zw * tw, th);
+    if (roundPending) {
+      ctx.strokeStyle = COL.zoneHi;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(zx - 1, ty - 1, zw * tw + 2, th + 2);
+    }
+
+    // Markers: stopped ones stay where they stopped
+    const mw = Math.max(3, R.MARKER_W * tw);
+    for (let i = 0; i < markers.length; i++) {
+      const m = markers[i];
+      ctx.fillStyle = i === failedAt ? COL.missed : (m.stopped ? COL.stopped : COL.moving);
+      tick(tx + m.x * tw, mw, g);
+    }
+
+    // Banner: full for the first 0.7 s of a round, gone by 1.2 s
+    let ba = 0.35;
+    if (gameStarted) ba = roundPending ? 0 : Math.max(0, Math.min(1, 1 - (roundGT - 700) / 500));
+    const fs = Math.max(14, Math.round(H * 0.1));
+    const byc = ty + th + Math.round(H * 0.17);
+    if (ba > 0) {
+      ctx.save();
+      ctx.globalAlpha = ba;
+      ctx.fillStyle = COL.strip;
+      ctx.fillRect(0, byc - fs * 0.85, W, fs * 1.35);
+      ctx.font = '600 ' + fs + 'px "Cinzel", "Palatino Linotype", "Book Antiqua", Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = COL.text;
+      ctx.fillText('Pommel Strike', W / 2 + fs * 0.6, byc - fs * 0.1);
+      fist(W / 2 - fs * 4.3, byc - fs * 0.15, fs * 0.9);
+      ctx.restore();
+    }
+
+    // Round timer: the red bar drains from the right
+    const bw = Math.round(tw * 0.6), bx = Math.round((W - bw) / 2);
+    const bh = Math.max(6, Math.round(th * 0.6)), by = Math.round(H * 0.56);
+    caps(bx, by, bw, bh);
+    ctx.fillStyle = COL.trough;
+    ctx.fillRect(bx, by, bw, bh);
+    const frac = gameStarted || markers.length ? Math.max(0, 1 - roundGT / R.TIMER_MS) : 1;
+    if (frac > 0) {
+      ctx.fillStyle = COL.timer;
+      ctx.fillRect(bx, by, bw * frac, bh);
+    }
+
+    // Key hint
+    const kfs = Math.max(11, Math.round(H * 0.055));
+    const kw = Math.round(kfs * 5.4), kh = Math.round(kfs * 2);
+    const kx = Math.round((W - kw) / 2), ky = Math.round(H * 0.76 - kh / 2);
+    ctx.fillStyle = COL.keyBox;
+    ctx.fillRect(kx, ky, kw, kh);
+    ctx.strokeStyle = COL.keyEdge;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(kx + 0.5, ky + 0.5, kw - 1, kh - 1);
+    ctx.font = '600 ' + kfs + 'px Rajdhani, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = COL.keyText;
+    ctx.fillText(IS_MOBILE ? 'Tap' : 'Space', W / 2, ky + kh / 2 + 1);
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // ---- the game ----
+  function gameLoop(now) {
+    if (!running) return;
+    // Left the QTE page mid-run (no hide hook runs for that): pause, as for a
+    // hidden panel; the Resume button is waiting on return.
+    if (!pageActive()) { pauseRun(); return; }
+    // Never negative: a frame stamped before the performance.now() taken at
+    // Start / Resume (one left pending behind a long task) moves nothing.
+    const dt = Math.min(Math.max(0, now - lastTime) / 1000, R.DT_MAX);
+    if (now > lastTime) lastTime = now;
+
+    if (!roundPending) {
+      roundGT += dt * 1000;
+      for (let i = lead; i < markers.length; i++) markers[i].x = R.pos(markers[i].x0, speed, roundGT);
+      const m = markers[lead];
+      if (m && R.pastZone(m.x, R.ZONE_START, zoneW)) {
+        if (run) run.ev('E', 'slow', lead, m.x, roundGT);
+        failedAt = lead;
+        triggerFail('Too slow!');
+        return;
+      }
+      if (roundGT >= R.TIMER_MS) {
+        if (run) run.ev('E', 'time', roundGT);
+        triggerFail('Time\'s up!');
+        return;
+      }
+    }
+
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function onPress() {
+    if (!running || paused || roundPending) return;
+    const m = markers[lead];
+    if (!m) return;                        // no moving marker: nothing to stop
+    // Judged where the marker was last drawn
+    m.stopped = true;
+    const hit = R.inZone(m.x, R.ZONE_START, zoneW);
+    if (run) run.ev('K', lead, m.x, roundGT, hit ? 1 : 0);
+    if (!hit) {
+      if (run) run.ev('E', 'zone');
+      failedAt = lead;
+      triggerFail('Outside the zone!');
+      return;
+    }
+    if (typeof window._playQteSfx === 'function') window._playQteSfx('sword');
+    lead++;
+    if (lead >= markers.length) onRoundSuccess();
+  }
+
+  function onRoundSuccess() {
+    streak++;
+    if (streakEl) streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    setStatus(`✓ All in the zone! Next: ${R.markers(streak, runComp)} markers`, '#88ee88');
+    roundPending = true;
+    // Only this run's next round: a timer left over from a run that was
+    // restarted inside these 800 ms must not start a round in the new one.
+    // Paused when it fires (panel, page or tab left in these 800 ms): the
+    // round starts on Resume.
+    const myRun = run;
+    setTimeout(() => {
+      if (run !== myRun) return;
+      if (running) startRound();
+      else if (paused && roundPending) roundDue = true;
+    }, R.ROUND_DELAY);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    cancelAnimationFrame(animFrame);
+    running      = false;
+    paused       = false;
+    roundPending = false;
+    roundDue     = false;
+    updateHighscore(streak);
+    if (run) run.close();
+    drawFrame();
+    setStatus(msg + (streak ? ` Cleared ${streak}.` : ''), '#ee5555');
+    if (streakEl) streakEl.textContent = '';
+    if (tapBtn)   tapBtn.style.display = 'none';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
+    // Only this run: a Start inside these 900 ms must not be stopped by the
+    // old run's reset.
+    const myRun = run;
+    setTimeout(() => { if (run === myRun) resetToStart(); }, R.FAIL_RESET);
+  }
+
+  function resetToStart() {
+    cancelAnimationFrame(animFrame);
+    running      = false;
+    gameStarted  = false;
+    paused       = false;
+    roundPending = false;
+    roundDue     = false;
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = 'none';
+    setStatus('', '#888');
+    drawFrame();                           // the last round stays on the track until Start
+  }
+
+  function startGame() {
+    // One loop per run: a Start while a loop is live (matchmaking clicks Start
+    // itself) would add every frame's dt to the game clock twice.
+    cancelAnimationFrame(animFrame);
+    if (run) run.close();
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('sword-new' + (runComp ? '-comp' : ''));
+    streak       = 0;
+    running      = true;
+    gameStarted  = true;
+    paused       = false;
+    roundPending = false;
+    roundDue     = false;
+    resizeCanvas();
+    if (streakEl)  streakEl.textContent = '';
+    if (startBtn)  { startBtn.style.display = 'none'; if (startBtn.blur) startBtn.blur(); }
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = IS_MOBILE ? '' : 'none';
+    lastTime = performance.now();
+    startRound();
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // Panel hidden, QTE page left or browser tab hidden: the game clock stops
+  // (no frames run) and Resume carries on.
+  function pauseRun() {
+    if (!gameStarted || !running || paused) return;
+    cancelAnimationFrame(animFrame);
+    running = false;
+    paused  = true;
+    if (run) run.ev('P');
+    if (resumeBtn) resumeBtn.style.display = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    setStatus('Paused', '#888');
+    drawFrame();
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused   = false;
+    running  = true;
+    lastTime = performance.now();
+    if (run) run.ev('U');
+    if (resumeBtn) { resumeBtn.style.display = 'none'; if (resumeBtn.blur) resumeBtn.blur(); }
+    setStatus(hint(), '#8fd6cf');
+    if (roundDue) { roundDue = false; startRound(); }
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.repeat) return;   // a held key is one press
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
+    const panel = document.getElementById('qte-panel-sword-new');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    onPress();
+  });
+  if (IS_MOBILE) canvas.addEventListener('touchstart', e => { e.preventDefault(); onPress(); }, { passive: false });
+  if (tapBtn) tapBtn.addEventListener('touchstart', e => { e.preventDefault(); onPress(); }, { passive: false });
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  // A hidden browser tab gets no frames: pause, so the run waits for Resume.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pauseRun(); });
+
+  window.addEventListener('resize', () => {
+    const panel = document.getElementById('qte-panel-sword-new');
+    if (!panel || panel.style.display === 'none') return;
+    resizeCanvas();
+    drawFrame();
+  });
+
+  window._onSwordNewQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) { pauseRun(); return; }
+    resetToStart();
+    streak  = 0;
+    markers = [];
+  };
+
+  window._onSwordNewQteShow = function () {
+    // Positions are track fractions: a new width changes nothing in the game.
+    resizeCanvas();
+    if (paused) {
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+    } else if (!gameStarted) {
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+    }
+    drawFrame();                           // a live run (the tab clicked again) plays on
+  };
+
+  resizeCanvas();
+  drawFrame();
+})();
+// <<< NEW-QTE sword-new block (keep this line)
+// >>> NEW-QTE spear-new block (keep this line)
+// === SPEAR NEW QTE (Bloody Burst: click circles and follow sliders) ===
+// Targets appear one at a time around the character; the next one shows as a
+// ghost. A circle is clicked. A slider is pressed on its start and held while
+// its ball runs the curved path: the pointer must stay within 2 r of the ball
+// to the end. All of a round's targets before the red timer runs out = one
+// point; a broken slider or the timer ends the run (Start again).
+// Rules, curves, the target draw and the path table live in js/qte-rules.js
+// (QteRules.trainers['spear-new']) so the server's check judges with the same
+// numbers. The run's log: 'Z' canvas size, 'R' each round start and a 'T' per
+// target, 'K' each press on the active target, 'M' follow samples (one per
+// 25 ms of game time at most, only while a slider is held), 'F' a slider's
+// end, 'C' round cleared, 'P'/'U' pause/resume, 'E' the end. Game times are
+// the run's own clock (sum of clamped frame steps) in tenths of a ms.
+(function () {
+  const canvas = document.getElementById('spear-new-qte-canvas');
+  if (!canvas) return;
+  // qte-rules.js must load before this file; if it did not, stop HERE rather
+  // than throw (a throw at load would also kill every trainer after this one).
+  const Q = window.QteRules;
+  const R = Q && Q.trainers && Q.trainers['spear-new'];
+  if (!R) { try { console.error('[spear-new] js/qte-rules.js with the spear-new rules must load before js/qte.js'); } catch (e) {} return; }
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('spear-new-qte-status');
+  const streakEl  = document.getElementById('spear-new-qte-streak');
+  const hsEl      = document.getElementById('spear-new-qte-highscore');
+  const startBtn  = document.getElementById('spear-new-qte-start-btn');
+  const resumeBtn = document.getElementById('spear-new-qte-resume-btn');
+
+  const HS_KEY      = 'alb:spear-new-hs';
+  const HS_KEY_COMP = 'alb:spear-new-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  const MOB = typeof IS_MOBILE !== 'undefined' && !!IS_MOBILE;
+  const TAU = Math.PI * 2;
+  const HINT = MOB ? 'Tap the circles, drag along the sliders' : 'Click the circles, hold and follow the sliders';
+
+  // ---- state ----
+  let W = 0, H = 0, rad = R.R_MIN;     // canvas px; target radius
+  let running = false, gameStarted = false, paused = false, over = false;
+  let phase = 'idle';                  // 'gap' (banner before a round) | 'play' | 'idle'
+  let score = 0;                       // rounds cleared this run
+  let targets = [], paths = [], active = 0;
+  let held = false, heldId = null;     // a slider is held (by this pointer)
+  let gPress = 0, lastS = 0;           // its press and last follow sample (g, tenths)
+  let ptrX = 0, ptrY = 0;              // the held pointer, canvas px (0.1 px)
+  let gameT = 0, g10 = 0, d10 = 0;     // game clock: float ms, and in tenths; last step
+  let R0 = 0, gC = 0, timer10 = 0, trav10 = 0;
+  let animFrame = null, lastTime = 0;
+  let fx = [];                         // fading rings where targets were done (visual only)
+
+  // ---- run log (QteRules.Run) ----
+  let run = null, runComp = false, logBytes = 0;
+  function ev() {
+    if (!run || run.closed || logBytes > R.LOG_BUDGET) return;
+    // A log may not run past QteRules.LIMITS.MAX_T: close the run first (no
+    // more events or submits; the rounds already submitted stay proven).
+    if (run.now() > Q.LIMITS.MAX_T - R.LOG_T_MARGIN) { run.close(); return; }
+    const L = run.log.ev, n = L.length;
+    run.ev.apply(run, arguments);
+    if (L.length > n) logBytes += JSON.stringify(L[n]).length + 1;
+  }
+  function G() { return g10 / 10; }
+  function D() { return d10 / 10; }
+  // Submit only from an open run (after the end its log proves nothing more).
+  function submit(val) { if (run && !run.closed && run.now() <= Q.LIMITS.MAX_T) run.submit(val); }
+
+  function setStatus(text, color) { if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; } }
+
+  // A score counts for the mode its run started in; the Best label follows
+  // the selected mode.
+  function updateHs(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
+    const comp = (run && !run.closed) ? runComp : !!window._qteCompMode;
+    if (comp) {
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {} submit(val); }
+    } else {
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch (e) {} submit(val); }
+    }
+    const best = window._qteCompMode ? highscoreComp : highscore;
+    if (hsEl) hsEl.textContent = best > 0 ? 'Best: ' + best : '';
+  }
+  updateHs(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHs(0); });
+  window.addEventListener('alb-mode-changed', () => updateHs(0));
+
+  // ---- canvas size ----
+  // Measured at Start and at each round start only: a round keeps its pixels
+  // (the CSS scales the canvas meanwhile), so targets never move under a hand.
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return false;
+    const w = R.canvasW(wrap.clientWidth), h = R.canvasH(w, MOB || w < 480);
+    if (w === W && h === H) return false;
+    W = w; H = h;
+    canvas.width = W; canvas.height = H;
+    rad = R.radius(W, H, MOB);
+    return true;
+  }
+
+  // ---- drawing ----
+  function drawBg() {
+    const gr = ctx.createLinearGradient(0, 0, 0, H);
+    gr.addColorStop(0, '#1c2c90');
+    gr.addColorStop(0.42, '#111d63');
+    gr.addColorStop(1, '#0a1236');
+    ctx.fillStyle = gr;
+    ctx.fillRect(0, 0, W, H);
+    // the ground: a fixed speckle below the horizon
+    ctx.fillStyle = 'rgba(120, 140, 255, 0.08)';
+    for (let i = 0; i < 110; i++) {
+      const x = (i * 0.6180339 % 1) * W, y = H * 0.45 + (i * 0.4142136 % 1) * H * 0.55;
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  // The character at the centre: a blocky hooded figure with a glowing spear
+  // and the blue marker above its head.
+  function drawHero() {
+    const cx = W / 2, cy = H / 2, u = Math.min(W, H) / 78;
+    ctx.save();
+    const glow = ctx.createRadialGradient(cx, cy, 2 * u, cx, cy, 18 * u);
+    glow.addColorStop(0, 'rgba(120, 140, 255, 0.22)');
+    glow.addColorStop(1, 'rgba(120, 140, 255, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(cx, cy, 18 * u, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#5064d8';
+    ctx.fillRect(cx - 3.4 * u, cy - 3 * u, 6.8 * u, 7.5 * u);      // torso
+    ctx.fillRect(cx - 3.2 * u, cy + 4.5 * u, 2.8 * u, 6.5 * u);    // legs
+    ctx.fillRect(cx + 0.4 * u, cy + 4.5 * u, 2.8 * u, 6.5 * u);
+    ctx.fillRect(cx - 5.4 * u, cy - 2.6 * u, 2 * u, 6.4 * u);      // arms
+    ctx.fillRect(cx + 3.4 * u, cy - 2.6 * u, 2 * u, 6.4 * u);
+    ctx.fillStyle = '#26307e';
+    ctx.beginPath(); ctx.arc(cx, cy - 5.6 * u, 2.9 * u, 0, TAU); ctx.fill();   // hood
+    ctx.strokeStyle = '#10122c'; ctx.lineWidth = Math.max(1.5, 0.6 * u); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx - 13 * u, cy + 0.6 * u); ctx.lineTo(cx + 11 * u, cy - 0.8 * u); ctx.stroke();   // spear
+    const tip = ctx.createRadialGradient(cx - 14 * u, cy + 0.6 * u, 0, cx - 14 * u, cy + 0.6 * u, 5 * u);
+    tip.addColorStop(0, 'rgba(190, 190, 255, 0.9)');
+    tip.addColorStop(1, 'rgba(140, 140, 255, 0)');
+    ctx.fillStyle = tip;
+    ctx.beginPath(); ctx.arc(cx - 14 * u, cy + 0.6 * u, 5 * u, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#3aa2ff'; ctx.lineWidth = Math.max(2, 1.2 * u); ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(cx - 2.8 * u, cy - 12.5 * u); ctx.lineTo(cx, cy - 9.8 * u); ctx.lineTo(cx + 2.8 * u, cy - 12.5 * u); ctx.stroke();
+    ctx.restore();
+  }
+
+  // A small mouse icon (the game's "click" hint) inside a target.
+  function drawMouse(x, y, s) {
+    const w = s * 0.5, h = s * 0.74;
+    ctx.fillStyle = '#2a2d36';
+    ctx.beginPath(); ctx.ellipse(x, y, w / 2, h / 2, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#e6eaf2';
+    ctx.beginPath(); ctx.ellipse(x, y, w / 2, h / 2, 0, Math.PI, TAU); ctx.fill();
+    ctx.strokeStyle = '#2a2d36'; ctx.lineWidth = Math.max(1, s * 0.05);
+    ctx.beginPath(); ctx.moveTo(x, y - h / 2); ctx.lineTo(x, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - w / 2, y); ctx.lineTo(x + w / 2, y); ctx.stroke();
+  }
+  function drawCircle(x, y, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.arc(x, y, rad * R.HIT_K, 0, TAU);
+    ctx.strokeStyle = 'rgba(110, 190, 255, 0.85)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, TAU);
+    ctx.fillStyle = 'rgba(12, 20, 52, 0.92)'; ctx.fill();
+    ctx.strokeStyle = '#7cc8ff'; ctx.lineWidth = 3; ctx.stroke();
+    if (alpha > 0.5) drawMouse(x, y, rad * 1.5);
+    ctx.restore();
+  }
+  // The slider's tube: the path table itself, stroked hollow.
+  function drawPath(p, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.xs[0], p.ys[0]);
+    for (let i = 1; i < p.xs.length; i++) ctx.lineTo(p.xs[i], p.ys[i]);
+    ctx.strokeStyle = 'rgba(95, 175, 255, 0.95)'; ctx.lineWidth = Math.max(8, rad * 0.55); ctx.stroke();
+    ctx.strokeStyle = 'rgba(11, 18, 52, 0.96)'; ctx.lineWidth = Math.max(4, rad * 0.55 - 4); ctx.stroke();
+    const n = p.xs.length - 1;
+    ctx.beginPath(); ctx.arc(p.xs[n], p.ys[n], rad * 0.45, 0, TAU);
+    ctx.strokeStyle = 'rgba(95, 175, 255, 0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+  }
+  function drawTargets() {
+    const next = targets[active + 1];
+    if (next) {                                       // the ghost of the next one
+      if (next.kind === 1) drawPath(paths[active + 1], 0.16);
+      drawCircle(next.x, next.y, 0.22);
+    }
+    const tg = targets[active];
+    if (!tg) return;
+    if (tg.kind === 0) { drawCircle(tg.x, tg.y, 1); return; }
+    drawPath(paths[active], 1);
+    if (!held) { drawCircle(tg.x, tg.y, 1); return; }
+    const b = R.ballAt(paths[active], R.frac(g10, gPress, trav10));
+    ctx.beginPath(); ctx.arc(b.x, b.y, rad * R.FOLLOW_K, 0, TAU);   // how far the pointer may stray
+    ctx.fillStyle = 'rgba(110, 190, 255, 0.10)'; ctx.fill();
+    drawCircle(b.x, b.y, 1);
+  }
+  function drawFx() {
+    for (let i = fx.length - 1; i >= 0; i--) {
+      const a = 1 - (g10 - fx[i].g) / 3000;
+      if (a <= 0) { fx.splice(i, 1); continue; }
+      ctx.beginPath(); ctx.arc(fx[i].x, fx[i].y, rad * (1.1 + (1 - a) * 0.8), 0, TAU);
+      ctx.strokeStyle = 'rgba(140, 210, 255, ' + (a * 0.8).toFixed(3) + ')'; ctx.lineWidth = 2.5; ctx.stroke();
+    }
+  }
+  // The red round timer along the bottom.
+  function drawTimer() {
+    const bx = 16, bw = W - 32, bh = 7, by = H - 15;
+    const left = phase === 'play' ? Math.max(0, 1 - (g10 - R0) / timer10) : (phase === 'gap' ? 1 : 0);
+    ctx.fillStyle = 'rgba(38, 38, 46, 0.88)'; ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#c4454b'; ctx.fillRect(bx, by, bw * left, bh);
+  }
+  // "Bloody Burst" on a dark band while the next round comes up.
+  function drawBanner() {
+    const y = H * 0.66, bh = Math.max(36, H * 0.11);
+    ctx.save();
+    ctx.fillStyle = 'rgba(12, 12, 16, 0.72)';
+    ctx.beginPath(); ctx.moveTo(0, y - bh / 2 + 6); ctx.lineTo(W, y - bh / 2 - 6); ctx.lineTo(W, y + bh / 2 - 6); ctx.lineTo(0, y + bh / 2 + 6); ctx.closePath(); ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#e8e6f0'; ctx.font = Math.round(bh * 0.5) + 'px Georgia, "Times New Roman", serif';
+    ctx.fillText('Bloody Burst', W / 2, y - bh * 0.06);
+    ctx.fillStyle = '#8fb8ff'; ctx.font = Math.round(bh * 0.26) + 'px Rajdhani, Arial, sans-serif';
+    ctx.fillText('Round ' + (score + 1), W / 2, y + bh * 0.36);
+    ctx.restore();
+  }
+  function drawFrame() {
+    if (!W || !H) return;
+    drawBg();
+    drawHero();
+    if (phase === 'play') drawTargets();
+    drawFx();
+    if (phase === 'gap' && !over) drawBanner();
+    if (gameStarted || over) drawTimer();
+    if (over) { ctx.fillStyle = 'rgba(200, 30, 40, 0.18)'; ctx.fillRect(0, 0, W, H); }
+  }
+  function drawIdle() {
+    if (!W || !H) return;
+    drawBg();
+    drawHero();
+    ctx.fillStyle = '#8fa4e8'; ctx.font = '15px Rajdhani, Arial, sans-serif';
+    ctx.textAlign = 'center'; ctx.fillText('Press Start', W / 2, H * 0.82); ctx.textAlign = 'left';
+  }
+
+  // ---- rounds ----
+  function startRound() {
+    if (resizeCanvas()) ev('Z', W, H);
+    timer10 = R.timerMs(score, runComp) * 10;
+    trav10  = R.travMs(score, runComp) * 10;
+    R0 = g10; active = 0; held = false; heldId = null;
+    targets = []; paths = [];
+    const n = R.targets(score, runComp);
+    let prev = null;
+    for (let k = 0; k < n; k++) {
+      const tg = R.drawTarget(Math.random, k === 0, prev, W, H, rad);
+      targets.push(tg); paths.push(tg.kind === 1 ? R.path(tg) : null); prev = tg;
+    }
+    ev('R', G(), D(), score);
+    for (const tg of targets) {
+      if (tg.kind === 1) ev('T', 1, tg.x, tg.y, tg.ex, tg.ey, tg.o1, tg.o2);
+      else ev('T', 0, tg.x, tg.y);
+    }
+    phase = 'play';
+    setStatus('Round ' + (score + 1) + ' - ' + n + ' targets', '#8fc8ff');
+  }
+
+  function completeTarget() {
+    const tg = targets[active];
+    fx.push({ x: tg.kind === 1 ? tg.ex : tg.x, y: tg.kind === 1 ? tg.ey : tg.y, g: g10 });
+    active++;
+    if (active < targets.length) return;
+    score++;
+    ev('C', G(), score);                  // before updateHs: the submit carries it
+    phase = 'gap'; gC = g10;
+    if (typeof window._playQteSfx === 'function') window._playQteSfx('spear');
+    if (streakEl) streakEl.textContent = 'Streak: ' + score;
+    setStatus('Round cleared!', '#88ee99');
+    updateHs(score);
+  }
+
+  // One frame of a round: the held slider first (follow test, its end, a
+  // follow sample), then the round timer. The check replays this order.
+  function stepRound() {
+    if (held) {
+      const b = R.ballAt(paths[active], R.frac(g10, gPress, trav10));
+      if (R.dist(ptrX, ptrY, b.x, b.y) > R.FOLLOW_K * rad) { ev('E', 'far', G(), D(), ptrX, ptrY); endRun('far'); return; }
+      if (g10 - gPress >= trav10) {
+        ev('F', G(), D(), ptrX, ptrY);
+        held = false; heldId = null;
+        completeTarget();
+        if (phase !== 'play') return;
+      } else if (g10 - lastS >= R.SAMPLE_MS * 10) {
+        ev('M', G(), D(), ptrX, ptrY);
+        lastS = g10;
+      }
+    }
+    if (g10 - R0 >= timer10) { ev('E', 'time', G(), D()); endRun('time'); }
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    // Never negative: the first frame's stamp can be a little before the
+    // performance.now() taken at Start/Resume.
+    const dt = Math.min(Math.max(0, now - lastTime), R.DT_MAX);
+    if (now > lastTime) lastTime = now;
+    gameT += dt;
+    const g = Math.round(gameT * 10);    // whole tenths of the float sum: no drift
+    d10 = g - g10; g10 = g;
+    if (phase === 'gap') { if (g10 - gC >= R.ROUND_GAP * 10) startRound(); }
+    else if (phase === 'play') stepRound();
+    if (!running) return;
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // why: 'far' the pointer left the ball, 'up' let go early, 'time' the timer
+  function endRun(why) {
+    cancelAnimationFrame(animFrame);
+    running = false; gameStarted = false; over = true;
+    held = false; heldId = null;
+    if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
+    updateHs(score);
+    if (run) run.close();
+    setStatus((why === 'time' ? "Time's up!" : 'Slider broken!') + '  Rounds: ' + score, '#ee5566');
+    if (streakEl) streakEl.textContent = '';
+    drawFrame();
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+  }
+
+  function startGame() {
+    // One loop per run: a Start while a loop is live (matchmaking clicks
+    // Start itself) would otherwise step the game clock twice a frame.
+    cancelAnimationFrame(animFrame);
+    if (run) run.close();
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('spear-new' + (runComp ? '-comp' : ''));
+    logBytes = 0; gameT = 0; g10 = 0; d10 = 0; gC = 0;
+    score = 0; phase = 'gap'; targets = []; paths = []; active = 0; fx = [];
+    held = false; heldId = null; over = false;
+    resizeCanvas();
+    ev('Z', W, H);
+    running = true; gameStarted = true; paused = false;
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (streakEl)  streakEl.textContent    = '';
+    setStatus(HINT, '#8fc8ff');
+    lastTime = performance.now();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // Panel or tab hidden: the game clock stops. A held slider is let go (its
+  // ball starts over, on a new press, after Resume).
+  function pauseRun() {
+    if (!running) return;
+    cancelAnimationFrame(animFrame);
+    running = false; paused = true;
+    held = false; heldId = null;
+    ev('P', G());
+    if (resumeBtn) resumeBtn.style.display = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    setStatus('Paused', '#888');
+    drawFrame();
+  }
+  function resumeRun() {
+    if (!paused) return;
+    paused = false; running = true;
+    ev('U', G());
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus(HINT, '#8fc8ff');
+    lastTime = performance.now();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // ---- pointer (mouse, touch and pen alike) ----
+  // Positions are read at the event, in canvas px; the ping slider delays
+  // their handling like it delays the other trainers' keys.
+  // null when there is no usable position (a 0 x 0 canvas): a NaN would be
+  // logged as null and void the run's log.
+  function canvasPos(e) {
+    const rc = canvas.getBoundingClientRect();
+    if (!(rc.width > 0 && rc.height > 0)) return null;
+    const x = (e.clientX - rc.left) * canvas.width / rc.width, y = (e.clientY - rc.top) * canvas.height / rc.height;
+    return isFinite(x) && isFinite(y) ? { x, y } : null;
+  }
+  function later(fn) { const ping = window._albPing || 0; if (ping > 0) setTimeout(fn, ping); else fn(); }
+
+  // Judged on the last rendered frame (g10). A press off the active target
+  // does nothing and is not logged.
+  function onDown(x, y, id) {
+    if (!running || phase !== 'play' || held) return;
+    const tg = targets[active];
+    if (!tg) return;
+    const px = R.px(x), py = R.px(y);
+    if (R.dist(px, py, tg.x, tg.y) > R.HIT_K * rad) return;
+    ev('K', G(), active, px, py);
+    if (tg.kind === 0) { completeTarget(); return; }
+    held = true; heldId = id; gPress = g10; lastS = g10; ptrX = px; ptrY = py;
+  }
+  function onMove(x, y, id) {
+    if (!held || id !== heldId) return;
+    ptrX = R.px(x); ptrY = R.px(y);
+  }
+  function onUp(id) {
+    if (!running || !held || id !== heldId) return;
+    ev('E', 'up', G());
+    endRun('up');
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button > 0 || !running) return;
+    if (e.cancelable) e.preventDefault();
+    // keep the moves and the release coming while the pointer is off the canvas
+    try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+    const p = canvasPos(e), id = e.pointerId;
+    if (p) later(() => onDown(p.x, p.y, id));
+  });
+  canvas.addEventListener('pointermove', e => {
+    // not "if (!held)": with a ping the press is still on its way
+    if (!running) return;
+    const p = canvasPos(e), id = e.pointerId;
+    if (p) later(() => onMove(p.x, p.y, id));
+  });
+  canvas.addEventListener('pointerup',     e => { const id = e.pointerId; later(() => onUp(id)); });
+  canvas.addEventListener('pointercancel', e => { const id = e.pointerId; later(() => onUp(id)); });
+  canvas.addEventListener('contextmenu',   e => { if (running) e.preventDefault(); });   // a long press on a phone
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeRun);
+
+  // ---- tab hooks, resize, a hidden tab ----
+  function panelShown() {
+    const panel = document.getElementById('qte-panel-spear-new');
+    return !!(panel && panel.style.display !== 'none');
+  }
+  window._onSpearNewQteShow = function () {
+    if (paused) {
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      setStatus('Paused', '#888');
+      drawFrame();
+    } else if (!gameStarted) {
+      resizeCanvas();
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      if (over) drawFrame(); else { setStatus('', '#888'); drawIdle(); }
+    }
+  };
+  window._onSpearNewQteHide = function () { if (running) pauseRun(); };
+  window.addEventListener('resize', () => {
+    if (gameStarted || paused || !panelShown()) return;
+    if (resizeCanvas()) { if (over) drawFrame(); else drawIdle(); }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && running) pauseRun(); });
+
+  resizeCanvas();
+  drawIdle();
+})();
+// <<< NEW-QTE spear-new block (keep this line)
+// >>> NEW-QTE axe-new block (keep this line)
+// === AXE NEW QTE (Grudge: tap to pump the bar, freeze it in the zone) ===
+// Marauder's "Grudge": every Space tap (not a hold) pumps the bar, it drains
+// between taps, and when the red timer bar runs out the fill freezes and is
+// judged - its end inside the zone (the bar shows green) is a hit.
+// Curves, tap/drain amounts, the zone draw and the 700 ms gap live in
+// js/qte-rules.js (QteRules.trainers['axe-new']) so the server's check and this
+// game share them. The run log (QteRules.Run) records: 'R' each round/zone, 'K'
+// each tap in a round (the fill after it), 'G' a tap between rounds, 'J' each
+// judgement, 'E' the end, 'P'/'U' pause (panel or browser tab hidden) / Resume.
+(function () {
+  const canvas    = document.getElementById('axe-new-qte-canvas');
+  if (!canvas) return;
+  const QR        = window.QteRules;
+  const RULES     = QR && QR.trainers && QR.trainers['axe-new'];
+  if (!RULES || !QR.Run) { try { console.error('[axe-new] js/qte-rules.js must load before js/qte.js'); } catch (e) {} return; }
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('axe-new-qte-status');
+  const streakEl  = document.getElementById('axe-new-qte-streak');
+  const hsEl      = document.getElementById('axe-new-qte-highscore');
+  const startBtn  = document.getElementById('axe-new-qte-start-btn');
+  const resumeBtn = document.getElementById('axe-new-qte-resume-btn');
+  const tapBtn    = document.getElementById('axe-new-tap-btn');
+
+  const HS_KEY      = 'alb:axe-new-hs';
+  const HS_KEY_COMP = 'alb:axe-new-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  let running = false, gameStarted = false, paused = false;
+  let runComp = false;    // the mode, fixed for the run at Start
+  let streak = 0, animFrame = null, lastTime = 0;
+  let fillPct = 0;
+  let result = null;      // 'hit' / 'miss' once judged: the frozen bar keeps its colour
+  let roundEndTime = 0, roundDur = 0, pauseTimeRemaining = 0;
+  let zoneMin = 0, zoneMax = 0;
+  let tapAt = -1e9;       // performance.now() of the last tap (the key hint flashes)
+  let run = null;         // this Start's QteRules run (log + ticket)
+  let live = false;       // a round is on and not yet judged
+  let gapTimer = null;    // the 700 ms timer between a hit and the next round
+  let gapEndAt = 0;       // when that timer is due (performance.now())
+  let gapPaused = false;  // paused during that gap
+  let gapLeft = 0;        // ...with this much of it still to run
+  let failTimer = null;   // the 900 ms "Too low!" display before the Start button returns
+
+  const TRACK_H = 26, TIMER_H = 16, PAD = 44, TIP = 10;
+  const RED = '#c9444f', GREEN = '#63e063', ZONE = '#4c8a55';
+  const HINT = IS_MOBILE ? 'Tap to pump the bar — be in the green when time runs out!'
+                         : 'Tap SPACE to pump the bar — be in the green when time runs out!';
+
+  function modeComp() { return gameStarted ? runComp : !!window._qteCompMode; }
+
+  function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
+    if (modeComp()) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch(e) {} if (run) run.submit(v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch(e) {} if (run) run.submit(v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
+  }
+  updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => updateHighscore(0));
+
+  function setStatus(t, c) { if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; } }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    canvas.width  = Math.min((wrap ? wrap.clientWidth - 40 : 800) || 800, 900);
+    canvas.height = 132;
+  }
+
+  // A bar with pointed ends, like the game's: x..x+w, y..y+h, tips `tip` px out.
+  function barPath(x, y, w, h, tip) {
+    ctx.beginPath();
+    ctx.moveTo(x - tip, y + h / 2);
+    ctx.lineTo(x, y); ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w + tip, y + h / 2);
+    ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h);
+    ctx.closePath();
+  }
+
+  function drawFrame(now) {
+    now = now || performance.now();
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#12121e';
+    ctx.fillRect(0, 0, W, H);
+
+    const bw = W - PAD * 2, bx = PAD, by = 22, cy = by + TRACK_H / 2;
+    const tw = Math.round(bw * 0.6), tx = Math.round((W - tw) / 2), ty = by + TRACK_H + 50;
+
+    // Banner, faint, behind the bars
+    ctx.fillStyle = 'rgba(215,215,225,0.2)';
+    ctx.font = 'italic 700 34px Georgia, "Times New Roman", serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('Grudge', W / 2, by + TRACK_H + 28);
+
+    // Track: dark translucent, pointed ends
+    barPath(bx, by, bw, TRACK_H, TIP);
+    ctx.fillStyle = 'rgba(72,72,78,0.92)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(16,16,20,0.95)'; ctx.lineWidth = 2; ctx.stroke();
+
+    // Zone: dark green
+    const zx1 = bx + bw * zoneMin, zx2 = bx + bw * zoneMax;
+    ctx.fillStyle = ZONE;
+    ctx.fillRect(zx1, by + 2, zx2 - zx1, TRACK_H - 4);
+
+    // Fill: red, bright green while its end is in the zone; after the
+    // judgement it stays frozen in the judged colour
+    if (fillPct > 0) {
+      const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
+      const xe = bx + bw * fillPct;
+      ctx.beginPath();
+      ctx.moveTo(bx - TIP + 3, cy); ctx.lineTo(bx, by + 2); ctx.lineTo(xe, by + 2);
+      ctx.lineTo(xe, by + TRACK_H - 2); ctx.lineTo(bx, by + TRACK_H - 2); ctx.closePath();
+      ctx.fillStyle = (result ? result === 'hit' : inZone) ? GREEN : RED;
+      ctx.fill();
+    }
+
+    // White tick at the zone's left edge, over the fill as in the game
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(Math.round(zx1) - 1, by + 1, 2, TRACK_H - 2);
+
+    // Round timer: a red bar under the track that drains toward its left end
+    barPath(tx, ty, tw, TIMER_H, 7);
+    ctx.fillStyle = 'rgba(62,62,68,0.92)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(16,16,20,0.95)'; ctx.lineWidth = 1.5; ctx.stroke();
+    if (live && roundDur > 0) {
+      const left = paused ? pauseTimeRemaining : Math.max(0, roundEndTime - now);
+      const frac = Math.min(1, left / roundDur);
+      if (frac > 0) { ctx.fillStyle = RED; ctx.fillRect(tx, ty + 2, tw * frac, TIMER_H - 4); }
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 11px Rajdhani, Arial, sans-serif';
+    ctx.fillText(IS_MOBILE ? '[TAP]' : '[SPACE]', W / 2, ty + TIMER_H / 2 + 1);
+
+    // Key hint left of the timer: flashes white on a tap
+    const kx = tx - 44, ky = ty - 8, kw = 30, kh = 30;
+    const flash = now - tapAt < 90;
+    ctx.fillStyle = flash ? '#f2f2f2' : 'rgba(150,150,160,0.55)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(kx, ky, kw, kh, 6); else ctx.rect(kx, ky, kw, kh);
+    ctx.fill();
+    ctx.fillStyle = flash ? '#12121e' : 'rgba(18,18,30,0.8)';
+    ctx.fillRect(kx + 7, ky + kh - 10, kw - 14, 3);
+
+    if (paused) {
+      ctx.fillStyle = 'rgba(18,18,30,0.55)';
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // why: 's' Start, 'n' the gap timer after a hit
+  function startRound(why) {
+    fillPct = 0;
+    result  = null;
+    const z = RULES.zone(RULES.C_MIN + Math.random() * RULES.C_SPAN, RULES.size(streak, runComp));
+    zoneMin = z[0]; zoneMax = z[1];
+    // Logged before the round clock is read, so the logged round can only
+    // look longer than the real one, never shorter.
+    if (run) run.ev('R', streak, zoneMin, zoneMax, why);
+    roundDur     = RULES.timer(streak, runComp) * 1000;
+    roundEndTime = performance.now() + roundDur;
+    live = true;
+    setStatus(HINT, '#e8a0a0');
+    drawFrame();
+  }
+
+  function evaluateRound() {
+    const inZone = fillPct >= zoneMin && fillPct <= zoneMax;
+    live = false;
+    if (run) run.ev('J', fillPct, inZone ? 1 : 0);
+    result = inZone ? 'hit' : 'miss';
+    drawFrame();
+    if (!inZone) {
+      const low = fillPct < zoneMin;
+      if (run) run.ev('E', low ? 'low' : 'high');
+      triggerFail(low ? 'Too low!' : 'Too high!');
+      return;
+    }
+    streak++;
+    if (streakEl) streakEl.textContent = `Streak: ${streak}`;
+    updateHighscore(streak);
+    setStatus('Landed it!', '#88ee88');
+    armGap(RULES.GAP_MS);
+  }
+
+  // The wait before the next round. A pause holds it and Resume runs only what
+  // was left of it, the same way a pause holds the round timer.
+  function armGap(ms) {
+    gapEndAt = performance.now() + ms;
+    gapTimer = setTimeout(() => {
+      gapTimer = null;
+      if (running) {
+        startRound('n');
+        lastTime = performance.now();
+        animFrame = requestAnimationFrame(gameLoop);
+      }
+    }, ms);
+  }
+
+  function gameLoop(now) {
+    if (!running) return;
+    // dt is never negative (a first frame can be stamped before Start/Resume
+    // read the clock) and never over DT_MAX, and the bar drains up to the
+    // timer's end and no further: the judged fill is the fill when time ran out.
+    const upTo = Math.min(now, roundEndTime);
+    const dt = Math.min(Math.max(0, upTo - lastTime) / 1000, RULES.DT_MAX);
+    if (upTo > lastTime) lastTime = upTo;
+    fillPct = Math.max(0, fillPct - RULES.DRAIN * dt);
+
+    // Timer ran out: the bar freezes and is judged
+    if (now >= roundEndTime) {
+      evaluateRound();
+      return;
+    }
+
+    drawFrame(now);
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // src: 'k' Space, 't' canvas touch, 'b' TAP button
+  function onTap(src) {
+    if (!running || paused) return;
+    tapAt = performance.now();
+    // Between rounds a tap does nothing: the judged bar stays frozen.
+    if (!live) { if (run) run.ev('G'); return; }
+    fillPct = Math.min(1, fillPct + RULES.PRESS);
+    if (run) run.ev('K', fillPct, src);
+  }
+
+  function triggerFail(msg) {
+    if (!running && !gameStarted) return;
+    running = paused = false;
+    updateHighscore(streak);
+    if (run) run.close();
+    setStatus(msg, '#ee5555');
+    if (streakEl) streakEl.textContent = '';
+    if (tapBtn) tapBtn.style.display = 'none';
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
+    failTimer = setTimeout(resetToStart, 900);
+  }
+
+  function resetToStart() {
+    if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+    cancelAnimationFrame(animFrame);
+    if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+    if (run && gameStarted && (running || paused)) { run.ev('E', 'x'); run.close(); }
+    running = gameStarted = paused = false; fillPct = 0; live = false; gapPaused = false; result = null;
+    canvas.style.display = 'none';
+    if (startBtn)  startBtn.style.display  = '';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = 'none';
+    setStatus('', '#888');
+  }
+
+  function startGame() {
+    // A Start over a run still going (matchmaking clicks Start itself) ends
+    // that run and its frame loop first, so two loops never drain one bar.
+    if (run && gameStarted && (running || paused)) { run.ev('E', 'x'); run.close(); }
+    cancelAnimationFrame(animFrame);
+    if (gapTimer)  { clearTimeout(gapTimer);  gapTimer = null; }
+    if (failTimer) { clearTimeout(failTimer); failTimer = null; }
+    runComp = !!window._qteCompMode;
+    run = QR.Run.start('axe-new' + (runComp ? '-comp' : ''));
+    streak = 0; running = gameStarted = true; paused = false; fillPct = 0; gapPaused = false; result = null;
+    resizeCanvas(); canvas.style.display = ''; lastTime = performance.now();
+    if (streakEl)  streakEl.textContent    = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    if (tapBtn)    tapBtn.style.display    = IS_MOBILE ? '' : 'none';
+    startRound('s');
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // The panel or the browser tab was hidden: hold the round timer (or the
+  // wait between rounds) until Resume.
+  function pauseGame() {
+    cancelAnimationFrame(animFrame); running = false; paused = true;
+    pauseTimeRemaining = Math.max(0, roundEndTime - performance.now());
+    // Between rounds: hold the rest of the wait until Resume (the gap timer
+    // would otherwise start a second frame loop if Resume came within 700 ms).
+    if (!live) {
+      gapPaused = true; gapLeft = Math.max(0, gapEndAt - performance.now());
+      if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
+    }
+    if (run) run.ev('P');   // after the clock is read (see startRound)
+    if (resumeBtn) resumeBtn.style.display = '';
+    if (startBtn)  startBtn.style.display  = 'none';
+    setStatus('Paused', '#888');
+    drawFrame();
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    if (run) run.ev('U');   // before the clock is read (see startRound)
+    paused = false; running = true; lastTime = performance.now();
+    // Restore the exact time remaining from before the pause
+    roundEndTime = performance.now() + pauseTimeRemaining;
+    if (resumeBtn) resumeBtn.style.display = 'none';
+    setStatus(HINT, '#e8a0a0');
+    // Paused between rounds: the rest of the wait runs, then the next round.
+    if (gapPaused) { gapPaused = false; armGap(gapLeft); drawFrame(); }
+    else animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || e.repeat) return;   // a tap, not a hold
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
+    const panel = document.getElementById('qte-panel-axe-new');
+    if (!panel || panel.style.display === 'none') return;
+    e.preventDefault();
+    onTap('k');
+  });
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); onTap('t'); }, { passive: false });
+    if (tapBtn) tapBtn.addEventListener('touchstart', e => { e.preventDefault(); onTap('b'); }, { passive: false });
+  }
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  // A hidden browser tab runs no frames: pause, as a hidden panel does.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && gameStarted && running && !paused) pauseGame();
+  });
+
+  window._onAxeNewQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) pauseGame();
+    else { resetToStart(); streak = 0; }
+  };
+
+  window._onAxeNewQteShow = function () {
+    resizeCanvas();
+    if (paused) {
+      canvas.style.display = '';
+      if (resumeBtn) resumeBtn.style.display = '';
+      if (startBtn)  startBtn.style.display  = 'none';
+      if (tapBtn)    tapBtn.style.display    = IS_MOBILE ? '' : 'none';
+      setStatus('Paused', '#888'); drawFrame();
+    } else if (gameStarted) {
+      drawFrame();          // the tab clicked again while its run is on: keep it
+    } else {
+      canvas.style.display = 'none';
+      if (startBtn)  startBtn.style.display  = '';
+      if (resumeBtn) resumeBtn.style.display = 'none';
+      if (tapBtn)    tapBtn.style.display    = 'none';
+      setStatus('', '#888'); if (streakEl) streakEl.textContent = '';
+    }
+  };
+
+  window.addEventListener('resize', () => {
+    const panel = document.getElementById('qte-panel-axe-new');
+    if (!panel || panel.style.display === 'none' || canvas.style.display === 'none') return;
+    resizeCanvas(); drawFrame();
+  });
+
+  canvas.style.display = 'none';
+})();
+// <<< NEW-QTE axe-new block (keep this line)
+// >>> NEW-QTE hammer-new block (keep this line)
+// === HAMMER NEW QTE (Prepare: hold to keep the bar in the zone) ===
+// Sentry "Prepare". Hold Space (a touch on the canvas / the HOLD button on
+// mobile) and the blue fill rises; let go and it falls. Keep its end in the
+// green zone: the yellow bar above fills while it is inside (and drains at half
+// speed while it is not); full = the round is cleared. The red bar below is the
+// round's timer; running out ends the run. Rates, curves, the zone draw and the
+// dt clamp live in js/qte-rules.js (QteRules.trainers['hammer-new']), shared
+// with the server's check. The run's log (QteRules.Run): 'R' each round, 'D'/'X'
+// each hold start / end, 'Z' each frame the fill's end crossed a zone edge, 'S'
+// the frame the round was cleared, 'E' the frame the timer ran out, 'P'/'U'
+// pause / Resume - each with the game clock (sum of clamped frame dts) it
+// took effect at, so the check recomputes the fill and the progress.
+(function () {
+  const canvas = document.getElementById('hammer-new-qte-canvas');
+  if (!canvas) return;
+  // The rules must load first (js/qte-rules.js); if they did not, stop HERE
+  // rather than throw - a throw would also kill every trainer after this one.
+  const R = window.QteRules && window.QteRules.trainers && window.QteRules.trainers['hammer-new'];
+  if (!R || !window.QteRules.Run) { try { console.error('[hammer-new] js/qte-rules.js with the hammer-new rules must load before js/qte.js'); } catch (e) {} return; }
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('hammer-new-qte-status');
+  const streakEl  = document.getElementById('hammer-new-qte-streak');
+  const hsEl      = document.getElementById('hammer-new-qte-highscore');
+  const startBtn  = document.getElementById('hammer-new-qte-start-btn');
+  const resumeBtn = document.getElementById('hammer-new-qte-resume-btn');
+  const holdBtn   = document.getElementById('hammer-new-hold-btn');
+
+  const HS_KEY      = 'alb:hammer-new-hs';
+  const HS_KEY_COMP = 'alb:hammer-new-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  let running = false, gameStarted = false, paused = false;
+  let run = null, runComp = false;       // this Start's QteRules run; its mode, fixed for the run
+  let streak = 0;
+  let phase = 'idle';                    // 'play' a round is live | 'won' the wait after a clear | 'lost' | 'idle'
+  let holding = false;
+  let fill = 0, progress = 0, inZone = false;
+  let zoneMin = 0.514, zoneMax = 0.759;  // the clip's zone, drawn before the first Start
+  let roundLen = 0;                      // s
+  // The game clock: gameT = the sum of the frames' dt (clamped, frozen while
+  // paused). Every logged time comes from it, in ms.
+  let gameT = 0, roundT = 0, wonT = 0;
+  let animFrame = null, lastTime = 0;
+  function gMs(s) { return s * 1000; }
+  function logEv() { if (run) run.ev.apply(null, arguments); }
+
+  function setStatus(text, color) { if (statusEl) { statusEl.textContent = text; statusEl.style.color = color || '#888'; } }
+  function hint() { return IS_MOBILE ? 'Hold the button - keep blue in the green zone' : 'Hold SPACE - keep blue in the green zone'; }
+
+  function updateHs(val) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(val); return; }
+    if (gameStarted ? runComp : window._qteCompMode) {
+      if (val > highscoreComp) { highscoreComp = val; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {} if (run) run.submit(val); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? 'Best: ' + highscoreComp : '';
+    } else {
+      if (val > highscore) { highscore = val; try { localStorage.setItem(HS_KEY, highscore); } catch (e) {} if (run) run.submit(val); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? 'Best: ' + highscore : '';
+    }
+  }
+  updateHs(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHs(0); });
+  window.addEventListener('alb-mode-changed', () => updateHs(0));
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    const w = Math.min((wrap ? wrap.clientWidth - 40 : 800) || 800, 900);
+    canvas.width = Math.max(280, w);
+    canvas.height = 190;
+  }
+
+  // ── drawing (the game's look: dark translucent bars, blue fill, green zone
+  //    between white lines, yellow progress above, red timer below) ──
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+  // A thin bar that grows from its centre (progress: yellow; timer: red).
+  function centreBar(cx, y, w, h, frac, color) {
+    roundRect(cx - w / 2 - 4, y - 3, w + 8, h + 6, 4);
+    ctx.fillStyle = 'rgba(52,52,56,0.92)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(120,120,128,0.55)'; ctx.lineWidth = 1; ctx.stroke();
+    const fw = w * Math.max(0, Math.min(1, frac));
+    if (fw > 0) { ctx.fillStyle = color; ctx.fillRect(cx - fw / 2, y, fw, h); }
+  }
+
+  function draw() {
+    const W = canvas.width, Hh = canvas.height;
+    ctx.clearRect(0, 0, W, Hh);
+    ctx.fillStyle = '#12121e'; ctx.fillRect(0, 0, W, Hh);
+
+    const padX = Math.max(26, W * 0.06);
+    const x0 = padX, tw = W - padX * 2;          // the track
+    const th = Math.max(22, Math.min(38, W * 0.045));
+    const ty = 50, cx = W / 2, cy = ty + th / 2;
+    const smallW = tw * 0.42, smallH = 9;
+    const won = phase === 'won', lost = phase === 'lost';
+
+    // progress (above): grows from its centre, green once full
+    centreBar(cx, ty - 28, smallW, smallH, won ? 1 : progress, won ? '#62c462' : '#d2d23c');
+
+    // the track: a dark frame with pointed ends
+    ctx.beginPath();
+    ctx.moveTo(x0 - 18, cy); ctx.lineTo(x0 - 4, ty - 7); ctx.lineTo(x0 + tw + 4, ty - 7);
+    ctx.lineTo(x0 + tw + 18, cy); ctx.lineTo(x0 + tw + 4, ty + th + 7); ctx.lineTo(x0 - 4, ty + th + 7);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(40,40,44,0.95)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(150,150,158,0.45)'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#4a4a4e'; ctx.fillRect(x0, ty, tw, th);
+
+    const zx1 = x0 + tw * zoneMin, zx2 = x0 + tw * zoneMax, fx = x0 + tw * fill;
+    ctx.fillStyle = '#58805a'; ctx.fillRect(zx1, ty, zx2 - zx1, th);             // the zone
+    if (fill > 0) {
+      const blue = won ? '#62c462' : lost ? '#c4545a' : '#6a95c8';
+      const teal = won ? '#7ad67a' : lost ? '#c4545a' : '#6eb0a4';
+      ctx.fillStyle = blue; ctx.fillRect(x0, ty, fx - x0, th);
+      const o1 = Math.max(zx1, x0), o2 = Math.min(zx2, fx);                       // blue over green = teal
+      if (o2 > o1) { ctx.fillStyle = teal; ctx.fillRect(o1, ty, o2 - o1, th); }
+      if (!won && !lost) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(fx - 2, ty, 2, th); }
+    }
+    ctx.fillStyle = '#ececec';                                                    // the zone's white lines
+    ctx.fillRect(zx1 - 1.5, ty - 1, 3, th + 2); ctx.fillRect(zx2 - 1.5, ty - 1, 3, th + 2);
+
+    // timer (below): shrinks toward its centre; frozen where it was at a clear
+    const left = phase === 'play' ? Math.max(0, 1 - (gameT - roundT) / roundLen) : won ? Math.max(0, 1 - (wonT - roundT) / roundLen) : phase === 'idle' ? 1 : 0;
+    centreBar(cx, ty + th + 20, smallW, smallH, left, '#b8454f');
+
+    ctx.textAlign = 'center';
+    ctx.font = '600 12px Rajdhani, Arial, sans-serif';
+    ctx.fillStyle = 'rgba(235,235,240,0.85)';
+    ctx.fillText(IS_MOBILE ? 'Hold [HOLD] - Keep blue in the green zone' : 'Hold [SPACE] - Keep blue in the green zone', cx, ty + th + 52);
+
+    // "Prepare" banner at a round's start (fades over its first 0.8 s)
+    const since = phase === 'play' ? gameT - roundT : 99;
+    if (since < 0.8) {
+      ctx.save();
+      ctx.globalAlpha = 1 - since / 0.8;
+      ctx.font = 'bold 30px Georgia, "Times New Roman", serif';
+      ctx.fillStyle = '#f2f2f2';
+      ctx.fillText('Prepare', cx, ty + th + 90);
+      ctx.restore();
+    } else if (phase === 'idle') {
+      ctx.font = '14px Rajdhani, Arial, sans-serif'; ctx.fillStyle = '#6a6a88';
+      ctx.fillText('Press Start', cx, ty + th + 84);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  // ── the game ──
+  function startRound() {
+    const z = R.drawZone(streak, runComp, Math.random());
+    zoneMin = z[0]; zoneMax = z[1];
+    roundLen = R.timer(streak, runComp);
+    fill = 0; progress = 0; inZone = false; roundT = gameT;
+    phase = 'play';
+    logEv('R', streak, zoneMin, zoneMax, gMs(gameT));
+    setStatus(hint(), '#8fb4e8');
+  }
+
+  // A hold starts / ends. It takes effect from the last frame's game time:
+  // the next frame integrates its whole dt the new way.
+  function setHold(on, src) {
+    if (!running || paused || (phase !== 'play' && phase !== 'won')) return;
+    if (holding === on) return;
+    holding = on;
+    logEv(on ? 'D' : 'X', gMs(gameT), src);
+  }
+
+  function loop(now) {
+    if (!running) return;
+    // Left the QTE page (the panel-hide hook only covers the QTE tabs): pause.
+    const page = document.getElementById('page-qte');
+    if (page && !page.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) { pauseRun(); return; }
+    // Never negative: the first frame's stamp can be a little before the
+    // performance.now() taken at Start / Resume.
+    const dt = Math.min(Math.max(0, now - lastTime) / 1000, R.DT_MAX);
+    if (now > lastTime) lastTime = now;
+    const g0 = gameT;
+    gameT += dt;
+    if (phase === 'play' && dt > 0) {
+      fill = R.move(fill, holding ? 1 : -1, dt);
+      const inz = R.inZone(fill, zoneMin, zoneMax);
+      if (inz !== inZone) { inZone = inz; logEv('Z', gMs(g0), gMs(gameT), inz ? 1 : 0); }
+      progress = R.progress(progress, inz, dt);
+      if (progress >= 1) { progress = 1; onCleared(g0); }
+      else if (gameT - roundT >= roundLen) { onTimeUp(g0); return; }
+    } else if (phase === 'won' && gameT - wonT >= R.GAP_MS / 1000) {
+      startRound();
+    }
+    draw();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  function onCleared(g0) {
+    phase = 'won'; wonT = gameT;
+    streak++;
+    logEv('S', gMs(g0), gMs(gameT));     // before updateHs: the submit carries it
+    if (streakEl) streakEl.textContent = 'Streak: ' + streak;
+    updateHs(streak);
+    setStatus('Prepared!', '#88ee88');
+    try { window._playQteSfx('hammer'); } catch (e) {}
+  }
+
+  function onTimeUp(g0) {
+    phase = 'lost'; holding = false;
+    logEv('E', 'time', gMs(g0), gMs(gameT));
+    cancelAnimationFrame(animFrame); animFrame = null;
+    running = false;
+    if (window._qteMatch && window._qteMatch.active) window._qteMatch.fail();
+    updateHs(streak);
+    if (run) run.close();
+    gameStarted = false;
+    setStatus('Time’s up! Cleared ' + streak + (streak === 1 ? ' round' : ' rounds'), '#ee5555');
+    draw();
+    showButtons();
+  }
+
+  function showButtons() {
+    if (startBtn)  startBtn.style.display  = gameStarted ? 'none' : '';
+    if (resumeBtn) resumeBtn.style.display = gameStarted && paused ? '' : 'none';
+    if (holdBtn) { holdBtn.style.display = IS_MOBILE && gameStarted && !paused ? '' : 'none'; if (holdBtn.classList) holdBtn.classList.remove('active'); }
+  }
+  // Space is ignored while a <button> has focus: the Start / Resume click leaves it there.
+  function blurButton() { try { const a = document.activeElement; if (a && a.tagName === 'BUTTON' && a.blur) a.blur(); } catch (e) {} }
+
+  function startGame() {
+    // One loop per run: a Start while a loop is live (matchmaking clicks Start
+    // itself) would add every frame's dt to the game clock twice.
+    cancelAnimationFrame(animFrame); animFrame = null;
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('hammer-new' + (runComp ? '-comp' : ''));
+    resizeCanvas();
+    streak = 0; gameT = 0; holding = false;
+    running = true; gameStarted = true; paused = false;
+    startRound();
+    if (streakEl) streakEl.textContent = 'Streak: 0';
+    showButtons(); blurButton();
+    lastTime = performance.now();
+    draw();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  // The panel or the tab was hidden (or the QTE page left): freeze the game.
+  // The hold is dropped - its keyup may never arrive - and the log's P says so.
+  function pauseRun() {
+    if (!gameStarted || !running || paused) return;
+    cancelAnimationFrame(animFrame); animFrame = null;
+    running = false; paused = true; holding = false;
+    logEv('P', gMs(gameT));
+    setStatus('Paused', '#888');
+    showButtons();
+    draw();
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused = false; running = true; holding = false;
+    logEv('U');
+    setStatus(phase === 'won' ? 'Prepared!' : hint(), phase === 'won' ? '#88ee88' : '#8fb4e8');
+    showButtons(); blurButton();
+    lastTime = performance.now();
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  // ── input ──
+  function panelShown() {
+    const panel = document.getElementById('qte-panel-hammer-new');
+    return !!(panel && panel.style.display !== 'none');
+  }
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space') return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SUMMARY' || tag === 'BUTTON' || document.activeElement?.isContentEditable) return;
+    if (!panelShown()) return;
+    e.preventDefault();
+    if (e.repeat) return;            // a held key's auto-repeat (the ping simulator keeps the flag)
+    setHold(true, 'k');
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code !== 'Space' || !panelShown()) return;
+    setHold(false, 'k');
+  });
+  // A key released while the window has no focus sends its keyup elsewhere.
+  window.addEventListener('blur', () => { if (holding) setHold(false, 'w'); });
+
+  if (IS_MOBILE) {
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); setHold(true, 't'); }, { passive: false });
+    canvas.addEventListener('touchend', e => { e.preventDefault(); setHold(false, 't'); }, { passive: false });
+    canvas.addEventListener('touchcancel', () => setHold(false, 't'));
+    if (holdBtn) {
+      holdBtn.addEventListener('touchstart', e => { e.preventDefault(); if (holdBtn.classList) holdBtn.classList.add('active'); setHold(true, 'b'); }, { passive: false });
+      holdBtn.addEventListener('touchend', e => { e.preventDefault(); if (holdBtn.classList) holdBtn.classList.remove('active'); setHold(false, 'b'); }, { passive: false });
+      holdBtn.addEventListener('touchcancel', () => { if (holdBtn.classList) holdBtn.classList.remove('active'); setHold(false, 'b'); });
+    }
+  }
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  window._onHammerNewQteShow = function () {
+    resizeCanvas();
+    if (paused) setStatus('Paused', '#888');
+    else if (!gameStarted && phase !== 'lost') setStatus('', '#888');
+    showButtons();
+    draw();
+  };
+  window._onHammerNewQteHide = function () { if (gameStarted && running) pauseRun(); };
+  // A hidden tab gets no frames: freeze the game and wait for Resume.
+  document.addEventListener('visibilitychange', () => { if (document.hidden && gameStarted && running) pauseRun(); });
+  window.addEventListener('resize', () => { if (!panelShown()) return; resizeCanvas(); draw(); });
+
+  resizeCanvas();
+  draw();
+})();
+// <<< NEW-QTE hammer-new block (keep this line)

@@ -63,6 +63,10 @@ select set_config('alb.qte_legacy_closed',
 --   thorian-new     11.25  11.25  15.00 / 15.00    15s round timer
 --   dagger-new       0.26   0.18   see note        rotating bars, spawn luck
 --   yarthul-new      3.75   3.75   5.00 / 5.00     5s stage timer
+--   sword-new        1.00   0.89   1.33 / 1.19     marker travel to the zone
+--   spear-new        1.00   1.00   1.33 / 1.33     6-14 targets per round
+--   axe-new          1.85   1.70   2.50 / 2.30     round timer 2.6s->1.8s / 2.35s->1.6s
+--   hammer-new       2.15   2.20   2.89 / 2.94     reach the zone + 2.3s in it
 --
 -- dagger-new: its bars spawn at a random angle, so a lucky first spawn can be
 -- cleared in ~0.10s (casual) / ~0.07s (comp). Pricing for that would gut the
@@ -101,6 +105,14 @@ as $function$
     when 'dagger-new-comp'  then 0.18
     when 'yarthul-new'      then 3.75
     when 'yarthul-new-comp' then 3.75
+    when 'sword-new'        then 1.00
+    when 'sword-new-comp'   then 0.89
+    when 'spear-new'        then 1.00
+    when 'spear-new-comp'   then 1.00
+    when 'axe-new'          then 1.85
+    when 'axe-new-comp'     then 1.70
+    when 'hammer-new'       then 2.15
+    when 'hammer-new-comp'  then 2.20
     else 0.16
   end;
 $function$;

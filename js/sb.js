@@ -1902,8 +1902,8 @@
   }
 
   // ---- all leaderboards view ----
-  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new'];
-  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)', 'yarthul-new': "Yar'Thul (New)" };
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new', 'sword-new', 'spear-new', 'axe-new', 'hammer-new'];
+  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)', 'yarthul-new': "Yar'Thul (New)", 'sword-new': 'Sword (New)', 'spear-new': 'Spear (New)', 'axe-new': 'Axe (New)', 'hammer-new': 'Hammer (New)' };
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
   // switchPage calls this on every visit to the Leaderboards tab, and it is the
@@ -2595,7 +2595,7 @@
     adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
   }
 
-  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-new','yarthul-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','dagger-new-comp','yarthul-new-comp'];
+  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-new','yarthul-new','sword-new','spear-new','axe-new','hammer-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','dagger-new-comp','yarthul-new-comp','sword-new-comp','spear-new-comp','axe-new-comp','hammer-new-comp'];
 
   function adminClearOneScore() {
     if (!isAdmin() || !_adminCurrentUser) return;

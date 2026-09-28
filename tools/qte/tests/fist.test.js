@@ -8,6 +8,8 @@
 //      writes must check out (no invalid) - a structured player, then a chaos
 //      player that hides / shows / resumes / clicks Start at random moments,
 //      with the ping sim, touch, a small log budget and a short run renewal
+//   d) a wrong key as the last event the log budget holds (its E did not fit):
+//      the points stand; with room left for the E it stays invalid
 'use strict';
 require('./_paths.js');
 const fs = require('fs');
@@ -809,9 +811,149 @@ function suiteBudget() {
   if (!ok) failures++;
 }
 
+// d) a wrong key as the last event the log budget holds: the trainer logs the
+// key, its E does not fit, and the log stops there. The points before it
+// stand; a log that had room for the E and still ends on a wrong key does not.
+// The trainer's own count of a log (js/qte.js ev()): each event's JSON
+// without its time, + 10.
+const evBytes = e => JSON.stringify([e[0]].concat(e.slice(2))).length + 10;
+const logBytes = ev => ev.reduce((n, e) => n + evBytes(e), 0);
+const E_FAIL = evBytes(['E', 0, 'fail']);
+
+// d1) made up, at the real budget: cleared rounds with human timings, then a
+// round that ends on a wrong key with bytes to spare for no E; ping-sim flags
+// (2 bytes each, they steer no verdict) on the first keys fill the last bytes.
+function budgetMissLog(budget, seed) {
+  const rng = mulberry32(seed);
+  const ev = [];
+  let t = 0, len = F.LEN_START, pts = 0, bytes = 0;
+  const push = e => { ev.push(e); bytes += evBytes(e); };
+  const arrows = () => Array.from({ length: len }, () => Math.floor(rng() * 4)).join('');
+  while (bytes < budget - 400) {
+    const s = arrows();
+    push(['R', t, s]);
+    t += Math.round(human.react(rng));
+    for (let k = 0; k < len; k++) { if (k) t += Math.round(human.iv(rng)); push(['K', t, +s[k], 1]); }
+    t += F.FLASH_MS + 2; push(['S', t, ++pts]);
+    t += F.NEXT_MS + 2; len = F.nextLength(len);
+  }
+  const s = arrows();
+  push(['R', t, s]);
+  t += Math.round(human.react(rng));
+  let k = 0;
+  while (k < len - 1 && bytes + 2 * evBytes(['K', 0, 0, 1]) <= budget) {
+    push(['K', t, +s[k], 1]); k++;
+    t += Math.round(human.iv(rng));
+  }
+  push(['K', t, (+s[k] + 1) % 4, 0]);
+  for (const e of ev) { if (budget - bytes < 2) break; if (e[0] === 'K' && e.length === 4) { e.push(4); bytes += 2; } }
+  return { log: { v: 1, rv: Q.RULES_VER, type: 'fist', a: 0, env: { w: 1280, h: 720, mob: false, ping: 150 }, ev }, pts };
+}
+
+// d2) the real IIFE: Start, clear a few rounds, two hits and a wrong key, on
+// every budget from "stops before the key" to "the E fits". The arrows are
+// read off the bar, so a log that stopped early does not stop the player.
+function barArrows(W) { return W.ids['fist-qte-bar'].children.map(b => '↑↓←→'.indexOf(b.textContent)); }
+function iifeToWrongKey(W, rounds) {
+  allLogs.length = 0;
+  W.start();
+  for (let n = 0; n <= rounds; n++) {
+    vt.advanceTo(vt.now() + 260);
+    const a = barArrows(W);
+    if (n === rounds) {
+      for (let k = 0; k < 2; k++) { W.key(a[k]); vt.advanceTo(vt.now() + 120); }
+      W.key((a[2] + 1) % 4);
+      break;
+    }
+    for (const d of a) { W.key(d); vt.advanceTo(vt.now() + 120); }
+    vt.advanceTo(vt.now() + F.FLASH_MS + F.NEXT_MS + 50);
+  }
+  const log = copyLog(run().log);   // before the restart makes a new attempt
+  W.leave(); W.back(); vt.advanceTo(vt.now() + 1500);
+  checkSubmits();
+  allLogs.length = 0;
+  return log;
+}
+
+function suiteBudgetMiss() {
+  let bad = 0;
+  const pts = log => log.ev.filter(e => e[0] === 'S').length;
+  const chk = (log, claimed) => Q.check(log.type, log, { platform: 'C', claimed });
+
+  // d1
+  const A = budgetMissLog(F.LOG_BUDGET, 2468);
+  const size = logBytes(A.log.ev), last = A.log.ev[A.log.ev.length - 1];
+  const rA = chk(A.log, A.pts);
+  if (!(size <= F.LOG_BUDGET && size + E_FAIL > F.LOG_BUDGET) || last[0] !== 'K' || last[3] !== 0) { bad++; fail('d1 log does not end on a wrong key at the budget: ' + size + ' B, last ' + JSON.stringify(last)); }
+  if (rA.verdict !== 'valid' || rA.score !== A.pts) { bad++; fail('wrong key at the budget (' + size + ' of ' + F.LOG_BUDGET + ' B, ' + A.pts + ' pts) -> ' + JSON.stringify(rA)); }
+  // the same log with flags taken off: accepted while the E would still not
+  // have fit, refused from the first byte it would have
+  const flagged = A.log.ev.filter(e => e[0] === 'K' && e.length === 5);
+  let lastOk = -1, firstBad = -1;
+  for (let m = 1; m <= 16 && firstBad < 0; m++) {
+    const l = copyLog(A.log);
+    const drop = new Set(flagged.slice(-m));
+    l.ev = l.ev.map(e => drop.has(e) ? e.slice(0, 4) : e);
+    const spare = F.LOG_BUDGET - logBytes(l.ev), r = chk(l, A.pts);
+    if (spare < E_FAIL) {
+      if (r.verdict === 'invalid') { bad++; fail('wrong key with ' + spare + ' B spare (no room for the E) -> ' + JSON.stringify(r.reasons)); }
+      lastOk = spare;
+    } else {
+      if (r.verdict !== 'invalid' || !/wrong key without its end/.test(r.reasons[0])) { bad++; fail('wrong key with ' + spare + ' B spare (room for the E) not refused -> ' + JSON.stringify(r)); }
+      firstBad = spare;
+    }
+  }
+  if (lastOk < 0 || firstBad < 0) { bad++; fail('flag sweep did not cross the E\'s size: ' + lastOk + ' / ' + firstBad); }
+  // well under the budget: a short honest attempt with its E cut off
+  let failed = null;
+  simSession(mulberry32(77), { skill: SKILLS.casual, comp: true, mobile: false, ping: 0, pauseP: 0, hideP: 0, holdP: 0, clock: 0, maxAttempts: 6, maxPoints: 60 }, snap => {
+    if (!failed && snap.kind === 'ended' && snap.log.ev.length && snap.log.ev[snap.log.ev.length - 1][2] === 'fail' && snap.claimed >= 3) failed = snap;
+  });
+  if (!failed) { bad++; fail('no short failed attempt to cut'); }
+  const cut = failed ? copyLog(failed.log, failed.log.ev.length - 1) : null;
+  const rCut = cut ? chk(cut, failed.claimed) : { verdict: 'none' };
+  if (cut && (rCut.verdict !== 'invalid' || !/wrong key without its end/.test(rCut.reasons[0]))) { bad++; fail('short log (' + logBytes(cut.ev) + ' B) ending on a wrong key not refused -> ' + JSON.stringify(rCut)); }
+
+  // d2
+  const W = makeWorld(false);
+  const budget = F.LOG_BUDGET;
+  globalThis._qteCompMode = false;
+  W.setPing(0);
+  const full = iifeToWrongKey(W, 5);
+  const fe = full.ev[full.ev.length - 1];
+  if (fe[0] !== 'E' || fe[2] !== 'fail') { bad++; fail('d2 full log does not end on E fail: ' + JSON.stringify(full.ev.slice(-3))); }
+  // from a budget the log's own JSON (times and all) already outgrows, up
+  // to the first budget that holds the E
+  const lo = full.ev.reduce((n, e) => n + JSON.stringify(e).length, 0), hi = 2 * lo + 1000;
+  let atMiss = 0, withE = 0, early = 0, badB = 0;
+  for (let b = lo; b <= hi; b++) {
+    F.LOG_BUDGET = b;
+    const l = iifeToWrongKey(W, 5), e = l.ev[l.ev.length - 1], n = pts(l);
+    const r = chk(l, n);
+    const kind = e[0] === 'E' ? 'E' : (e[0] === 'K' && e[3] === 0) ? 'miss' : 'early';
+    if (kind === 'miss') {
+      atMiss++;
+      if (n !== 5) { bad++; fail('d2 budget ' + b + ': ' + n + ' points before the wrong key'); }
+      // with room for the E the same log is refused
+      F.LOG_BUDGET = b + E_FAIL;
+      const r2 = chk(l, n);
+      if (r2.verdict !== 'invalid') { bad++; fail('d2 budget ' + b + ' + E: a wrong key without its end accepted -> ' + JSON.stringify(r2)); }
+    } else if (kind === 'E') withE++; else early++;
+    if (r.verdict === 'invalid' || r.score !== n) { bad++; if (++badB < 6) fail('d2 budget ' + b + ' (' + kind + ') -> ' + JSON.stringify(r.reasons) + ' ' + JSON.stringify(l.ev.slice(-3))); }
+    if (kind === 'E') break;
+  }
+  F.LOG_BUDGET = budget;
+  if (!atMiss || !withE || !early) { bad++; fail('d2 did not sweep across the wrong key: early ' + early + ', miss ' + atMiss + ', E ' + withE); }
+
+  console.log((bad ? 'FAIL' : 'PASS') + ' wrong key at the budget: made-up ' + A.pts + ' pts at ' + size + ' of ' + F.LOG_BUDGET + ' B -> ' + rA.verdict +
+    '; spare ' + lastOk + ' B ok, ' + firstBad + ' B refused; short cut log -> ' + rCut.verdict +
+    '; real IIFE budgets ' + lo + '-' + (lo + early + atMiss + withE - 1) + ': ' + early + ' stop earlier, ' + atMiss + ' stop on the wrong key, then the E fits');
+}
+
 suiteHonest();
 suiteForgeries();
 suiteIife();
 suiteBudget();
+suiteBudgetMiss();
 console.log(failures ? 'FAILED (' + failures + ')' : 'ALL PASS');
 process.exit(failures ? 1 : 0);

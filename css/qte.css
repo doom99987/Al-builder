@@ -955,3 +955,301 @@
 @media (prefers-reduced-motion: reduce) {
   .qte-guard-toast { transition: none; }
 }
+
+/* >>> sword-new styles (keep this line) */
+/* --- Sword (New) QTE: Warrior "Pommel Strike" --- */
+.sword-new-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.sword-new-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.sword-new-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #8fd6cf;
+  min-width: 260px;
+  text-align: center;
+}
+
+.sword-new-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.sword-new-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.sword-new-qte-canvas {
+  border-radius: 8px;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  display: block;
+  touch-action: manipulation;
+}
+
+#sword-new-qte-start-btn,
+#sword-new-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* the mobile TAP button (shown by js/qte.js on touch devices during a run);
+   its look comes from .qte-mobile-action-btn in css/mobile.css */
+.sword-new-tap-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .sword-new-qte-wrap { padding: 10px 8px; }
+  .sword-new-qte-header { gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .sword-new-qte-status { min-width: 0; font-size: 15px; }
+}
+/* <<< sword-new styles (keep this line) */
+/* >>> spear-new styles (keep this line) */
+/* ----- Spear (New) QTE: Bloody Burst ----- */
+.spear-new-qte-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 12px;
+}
+
+.spear-new-qte-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.spear-new-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #8fc8ff;
+  min-width: 260px;
+  text-align: center;
+}
+
+.spear-new-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #7cc8ff;
+  min-width: 80px;
+}
+
+.spear-new-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+/* The canvas keeps its pixels for a whole round; CSS scales it to the panel
+   (the trainer maps pointer positions through its client rect). touch-action
+   none: a finger dragging a slider must not scroll the page. */
+.spear-new-qte-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: crosshair;
+}
+/* <<< spear-new styles (keep this line) */
+/* >>> axe-new styles (keep this line) */
+/* ----- Axe (New) QTE: Marauder "Grudge" ----- */
+.axe-new-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.axe-new-qte-header {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.axe-new-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #e8a0a0;
+  min-width: 260px;
+  text-align: center;
+}
+
+.axe-new-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.axe-new-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.axe-new-qte-canvas {
+  border-radius: 8px;
+  display: block;
+  width: 100%;
+  max-width: 900px;
+}
+
+#axe-new-qte-start-btn,
+#axe-new-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* The TAP button takes the shared .qte-mobile-action-btn shape (css/mobile.css,
+   which loads after this file - hence the doubled class), in the trainer's red */
+.qte-mobile-action-btn.axe-new-tap-btn {
+  background: #2a1216;
+  border-color: #8a3a44;
+  color: #ee9aa2;
+}
+.qte-mobile-action-btn.axe-new-tap-btn:active {
+  background: #5a1f28;
+  border-color: #d0606c;
+  color: #ffffff;
+}
+
+@media (pointer: coarse) {
+  .axe-new-qte-canvas { touch-action: none; cursor: pointer; }
+}
+
+@media (max-width: 768px) {
+  .axe-new-qte-wrap {
+    width: 100%;
+    max-width: 100%;
+    padding: 8px 12px 10px;
+    box-sizing: border-box;
+    min-height: 0;
+  }
+  .axe-new-qte-header {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    justify-content: center;
+    min-height: auto;
+  }
+  .axe-new-qte-status, .axe-new-qte-streak, .axe-new-qte-highscore {
+    min-width: 0 !important;
+    font-size: 13px;
+    text-align: center;
+  }
+  .axe-new-qte-canvas {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    border-radius: 6px;
+    flex-shrink: 0;
+  }
+  #axe-new-qte-start-btn, #axe-new-qte-resume-btn {
+    position: static !important;
+    transform: none !important;
+    margin: 12px auto 0;
+    width: 70%;
+    max-width: 240px;
+    padding: 12px 0;
+    font-size: 16px;
+    display: block;
+  }
+}
+/* <<< axe-new styles (keep this line) */
+/* >>> hammer-new styles (keep this line) */
+/* ----- Hammer (New) QTE: Sentry "Prepare" ----- */
+.hammer-new-qte-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+}
+
+.hammer-new-qte-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.hammer-new-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #8fb4e8;
+  min-width: 260px;
+  text-align: center;
+}
+
+.hammer-new-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #d2d23c;
+  min-width: 80px;
+}
+
+.hammer-new-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+.hammer-new-qte-canvas {
+  display: block;
+  max-width: 100%;
+  border-radius: 10px;
+  touch-action: none;          /* a touch-hold on the canvas must not scroll the page */
+}
+
+.hammer-new-hold-btn {
+  max-width: 320px;
+}
+/* <<< hammer-new styles (keep this line) */

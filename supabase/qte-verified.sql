@@ -211,16 +211,14 @@ begin
                   on u.raw_user_meta_data->>'username' = b.username where u.id = p_user)
   then return 'banned'; end if;
 
-  -- Too high: well past the all-time record (half again and at least 5 more),
-  -- or over 50 on a trainer with no record yet. A verified run that merely
+  -- Too high: well past the all-time record (half again and at least 5 more).
+  -- A trainer with no record yet holds nothing (owner, 2026-09-28): its first
+  -- verified score posts and becomes the record. A verified run that merely
   -- beats the record posts by itself.
   select r.score into v_record from leaderboard_records r where r.qte_type = p_qte_type;
-  if v_reason is null then
-    if v_record is null and p_score > 50 then
-      v_reason := 'no record yet on this trainer, and above 50';
-    elsif v_record is not null and p_score > greatest(ceil(v_record * 1.5)::integer, v_record + 5) then
-      v_reason := 'far above the all-time record (' || v_record || ')';
-    end if;
+  if v_reason is null and v_record is not null
+     and p_score > greatest(ceil(v_record * 1.5)::integer, v_record + 5) then
+    v_reason := 'far above the all-time record (' || v_record || ')';
   end if;
 
   if v_reason is not null then

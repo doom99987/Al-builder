@@ -9301,7 +9301,7 @@ describe('QTE score SQL', () => {
   it('every trainer the site can submit has its own timing floor', () => {
     const types = (/const QTE_TYPES = \[([^\]]*)\]/.exec(sb) || [])[1]
       .split(',').map(s => s.trim().replace(/'/g, '')).filter(Boolean);
-    eq(types.length, 12, 'the trainer list changed - the SQL needs the same change');
+    eq(types.length, 16, 'the trainer list changed - the SQL needs the same change');
     const missing = [];
     for (const t of types) for (const suffix of ['', '-comp']) {
       if (floor(t + suffix) === null) missing.push(t + suffix);
@@ -10162,7 +10162,7 @@ describe('admins are decided by the server', () => {
 describe('verified QTE runs', () => {
   const root = path.join(__dirname, '..', '..');
   const read = p => fs.readFileSync(path.join(root, p), 'utf8');
-  const TRAINERS = ['fist', 'spear', 'sword', 'dodge', 'dagger', 'hammer', 'axe', 'staff', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new'];
+  const TRAINERS = ['fist', 'spear', 'sword', 'dodge', 'dagger', 'hammer', 'axe', 'staff', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new', 'sword-new', 'spear-new', 'axe-new', 'hammer-new'];
 
   it('the edge function checks runs with the same rules file the site loads', () => {
     ok(fs.readFileSync(path.join(root, 'js', 'qte-rules.js')).equals(fs.readFileSync(path.join(root, 'supabase', 'functions', '_shared', 'qte-rules.js'))),

@@ -92,7 +92,7 @@ RPCs: `start_qte_session`, `submit_score`, `start_qte_run` (a verified run: `{ r
 
 ## QTE trainers
 
-Twelve trainers, all in `js/qte.js`, one IIFE each. `thorian-new`, `dagger-new`, and `yarthul-new` are the "New" tab group; the rest are "Old".
+Sixteen trainers, all in `js/qte.js`, one IIFE each. `thorian-new`, `dagger-new`, `yarthul-new`, `sword-new`, `spear-new`, `axe-new` and `hammer-new` are the "New" tab group; the rest are "Old". The last four (2026-09-28) copy the game's new Warrior / Slayer / Marauder / Sentry QTEs, named by weapon; the numbers were measured from the owner's clips and are in each trainer's `tools/qte/notes/<id>.md`.
 
 **Submission is a queue, not a fire-and-forget call.** Trainers call `run.submit(v)` (which calls `_sbSubmitScore(type, v, packet)`) on *every* new high of a run (streak 1, 2, 3 …). `submitScore` ([sb.js](js/sb.js)) keeps one send in flight per `qteType` carrying the highest score so far, treats a score as sent only once the server accepts it, and retries (`SCORE_RETRY_MS`) anything that fails or that arrives before a session is armed. Never restore the old shape — one unordered RPC per new high, with a score marked as sent before the server saw it, is how a run that reached 31 left the board holding 2.
 
@@ -101,7 +101,7 @@ Twelve trainers, all in `js/qte.js`, one IIFE each. `thorian-new`, `dagger-new`,
 - Play: the trainer logs every target as it is created and every input as it is judged (`run.ev(code, ...)`), plus `P`/`U`/`E`. The browser still picks its own targets, so the checks are about how the run was played.
 - Submit: `sb.js` sends ticket + log to the `bright-service` edge function, which runs `QteRules.check` and hands the verdict to `qte_accept_run` (service_role only): invalid → rejected; too accurate / too fast / too lucky, or far above the record → held (`score_reviews`); otherwise posted by itself. Re-sends of a growing log are spaced by `VERIFIED_GAP_MS`.
 - One rules file, two places: `js/qte-rules.js` = the core, then one `// ==== qte-rules part: <id> ====` section per trainer; `supabase/functions/_shared/qte-rules.js` must be byte-identical (a test checks) and the function redeployed after any change (`supabase functions deploy bright-service`). Bump `RULES_VER` when a check changes what it accepts.
-- Each trainer has its own suite: `node tools/qte/tests/<id>.test.js` (honest-player simulation, forgeries, the real IIFE in a fake DOM); `tools/ai/test.js` runs all twelve. `tools/qte/harness.html?t=<id>&comp=0&target=5` plays the real page with `tools/qte/bots/<id>.bot.js` and checks every submit — it needs real animation frames (a visible tab, or headless Chrome), and `tools/qte/notes/<id>.md` records each check's thresholds and known limits.
+- Each trainer has its own suite: `node tools/qte/tests/<id>.test.js` (honest-player simulation, forgeries, the real IIFE in a fake DOM); `tools/ai/test.js` runs all sixteen. `tools/qte/harness.html?t=<id>&comp=0&target=5` plays the real page with `tools/qte/bots/<id>.bot.js` and checks every submit — it needs real animation frames (a visible tab, or headless Chrome), and `tools/qte/notes/<id>.md` records each check's thresholds and known limits.
 - Changing a trainer's gameplay means changing its check in the same commit; a log the check rejects is a lost score. Runbook and SQL: `supabase/qte-verified.sql`, then deploy `bright-service`, push, then `qte-verified-step2.sql` (closes the old `submit_score`).
 
 ### Adding a trainer — every touchpoint
