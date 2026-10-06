@@ -338,7 +338,8 @@ Essence Shards were cut from the update.
 
 `Max_Lvl` 50, `POINTS_PER_LEVEL` 3 — `getEffectiveTotal()` is `lvl * 3`, counting
 from level 1, because the changelog states a level-50 character has exactly 150
-allocatable points. Dullahan's extra `floor(lvl/10)*3` still layers on top.
+allocatable points. Dullahan's extra `floor(lvl/10) * DULLAHAN_POINTS_PER_10_LEVELS`
+(4: +20 at level 50, owner 2026-10-06) still layers on top.
 
 `LEVEL_STAT_BONUS_EVERY` is **10**, via the `levelStatBonus()` helper. This file
 previously hardcoded `Math.floor(lvl / 5)` in six places. The changelog puts the

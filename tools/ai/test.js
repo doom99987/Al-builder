@@ -2987,12 +2987,11 @@ describe("Dullahan's bonus points", () => {
   const M = engine.model;
 
   it('the site, the engine and the passive note all agree on the rate', () => {
-    // Three copies of one number, and it just changed from 3 to 1. At the old
-    // rate this was 45 points at level 50 - a third of the whole budget again -
-    // so a stale copy would have the AI allocating points the page cannot fit,
-    // silently, with every stat total off by a different amount.
-    eq(data.DULLAHAN_POINTS_PER_10_LEVELS, 1, 'the engine has the wrong rate');
-    ok(read('js/builder.js').indexOf('const DULLAHAN_POINTS_PER_10_LEVELS = 1;') !== -1,
+    // Three copies of one number (owner, 2026-10-06: +20 in all, 4 per 10
+    // levels). A stale copy would have the AI allocating points the page cannot
+    // fit, silently, with every stat total off by a different amount.
+    eq(data.DULLAHAN_POINTS_PER_10_LEVELS, 4, 'the engine has the wrong rate');
+    ok(read('js/builder.js').indexOf('const DULLAHAN_POINTS_PER_10_LEVELS = 4;') !== -1,
        'the site has the wrong rate');
     const p = (K.PASSIVES['Dullahan (1%)'] || []).find(x => x.kind === 'points');
     ok(p, 'Dullahan no longer declares its bonus points');
@@ -3000,7 +2999,7 @@ describe("Dullahan's bonus points", () => {
        'the passive note disagrees with the rate the budget actually uses');
   });
 
-  it('is five points at max level, not fifteen', () => {
+  it('is twenty points at max level', () => {
     const b = M.emptyBuild();
     b.level = data.Max_Lvl;
     b.race = 'Dullahan (1%)';
@@ -3008,30 +3007,30 @@ describe("Dullahan's bonus points", () => {
     b.race = 'Estella (24%)';
     const other = M.pointBudget(b);
     eq(other, data.Max_Lvl * data.POINTS_PER_LEVEL, 'the base budget moved');
-    eq(dulla - other, 5, 'Dullahan is not on five bonus points at max level');
+    eq(dulla - other, 20, 'Dullahan is not on twenty bonus points at max level');
     // And it accrues per bracket, not all at once.
     b.race = 'Dullahan (1%)'; b.level = 25;
-    eq(M.pointBudget(b) - 25 * data.POINTS_PER_LEVEL, 2,
+    eq(M.pointBudget(b) - 25 * data.POINTS_PER_LEVEL, 8,
        'the bonus does not accrue every ' + data.LEVEL_STAT_BONUS_EVERY + ' levels');
     b.level = 9;
     eq(M.pointBudget(b) - 9 * data.POINTS_PER_LEVEL, 0,
        'the bonus arrives before the first bracket is complete');
   });
 
-  it('every text the site and the AI show says one point per 10 levels', () => {
-    // The maths moved from 3 to 1 and the words did not: the Build AI kept printing
-    // the race-role note "+3 stat points every 10 levels", and the race card kept
-    // the game text "3 more stat points ... 12 more at level 40".
+  it('every text the site and the AI show says four points per 10 levels', () => {
+    // The maths has moved before (3, then 1, now 4) and the words did not follow:
+    // the race-role note, the race card and the encyclopedia all printed old rates.
     const rr = ((K.RACE_ROLES || {})['Dullahan (1%)'] || {}).note || '';
-    ok(/\+1 stat point every 10 levels/.test(rr) && !/\b3 stat points\b/.test(rr),
+    ok(/\+4 stat points every 10 levels/.test(rr) && !/\+[13] stat points? every/.test(rr),
        'the race-role note the AI shows still gives the old rate: ' + rr);
     const passive = (((data.raceMoves || {})['Dullahan (1%)'] || {}).innatePassives || [])
       .find(p => p.name === 'Bonus Stat Points');
     ok(passive, 'no Bonus Stat Points passive on Dullahan in the data snapshot');
     const text = passive.description || passive.effect || '';
-    ok(/1 more stat point/.test(text) && !/3 more stat points|12 more/.test(text),
+    ok(/4 more stat points/.test(text) && /20 more at level 50/.test(text) && !/\b[13] more stat points?\b|12 more/.test(text),
        'the race card still gives the old rate: ' + text);
-    ok(!/\+3 stat points every 10 levels/.test(read('tools/ai/README.md')), 'the README still gives the old rate');
+    ok(!/\+[13] stat points? every 10 levels/.test(read('tools/ai/README.md')), 'the README still gives the old rate');
+    ok(/4 additional stat points per 10 levels/.test(read('js/encyclopedia.js')), 'the encyclopedia still gives the old rate');
   });
 
   it('the engine reads the rate rather than repeating it', () => {

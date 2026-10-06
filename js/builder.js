@@ -79,11 +79,11 @@ const Min_Lvl = 1;
 const POINTS_PER_LEVEL = 3;
 
 // Dullahan's racial bonus, granted every LEVEL_STAT_BONUS_EVERY levels. Named
-// and extracted rather than inlined because the engine has to mirror it: it was
-// 3 (45 extra points at level 50, a third of the whole budget again) and is now
-// 1, and a number that big drifting between the page and the build AI would
-// have the AI recommending allocations the page cannot fit.
-const DULLAHAN_POINTS_PER_10_LEVELS = 1;
+// and extracted rather than inlined because the engine has to mirror it, and a
+// number drifting between the page and the build AI would have the AI
+// recommending allocations the page cannot fit. Owner, 2026-10-06: Dullahan
+// gets +20 points in all, so 4 every 10 levels (it was 1 here, 5 at level 50).
+const DULLAHAN_POINTS_PER_10_LEVELS = 4;
 
 // Every N levels, all five stats gain +1.
 //
@@ -104,7 +104,7 @@ let spent = 0; // total stat points currently allocated across all stat rows
 const lvlInput = document.getElementById("Lvl");
 
 // Returns the total number of stat points the player can allocate at the current level.
-// Dullahan gets an extra point every 10 levels on top of the base formula — five
+// Dullahan gets 4 extra points every 10 levels on top of the base formula - 20
 // at level 50, on top of the 150 everyone gets.
 function getEffectiveTotal() {
   const lvl = Math.min(Max_Lvl, Math.max(Min_Lvl, +lvlInput.value || Min_Lvl));

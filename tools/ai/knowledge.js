@@ -958,10 +958,9 @@
         note: 'below 50% health only' },
     ],
     'Dullahan (1%)': [
-      { name: 'Bonus Stat Points', kind: 'points', value: 1,
-        note: '+1 stat point every 10 levels, five at max level — already in the ' +
-              'point budget. Was +3 (45 points at level 50); the change is most of ' +
-              'the reason Dullahan was the default answer to almost everything.' },
+      { name: 'Bonus Stat Points', kind: 'points', value: 4,
+        note: '+4 stat points every 10 levels, 20 at max level (owner, 2026-10-06) - ' +
+              'already in the point budget.' },
     ],
 
     // Sheea's innate passive has NO effect text in the game data - only the
@@ -1315,7 +1314,7 @@
     'Vastayan (9%)':  { roles: ['summon', 'magic'],
                         note: 'summons get +20% HP, Skeletons +50% — the summoner race' },
     'Dullahan (1%)':  { roles: ['allround', 'dps', 'tank'],
-                        note: '+1 stat point every 10 levels (5 at max level), which helps any build' },
+                        note: '+4 stat points every 10 levels (20 at max level), which helps any build' },
     'Amorus (Ob)':    { roles: ['allround', 'dps', 'tank'],
                         note: 'the best raw stat block in the game, 4 in everything' },
     'Boreas (1%)':    { roles: ['status', 'tank'],
