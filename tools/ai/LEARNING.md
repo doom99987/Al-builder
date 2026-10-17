@@ -682,6 +682,23 @@ included - and not on Self Destruct (no Flat either) or the side procs (Frosted
 AOE, DeathBeak, Vastic bombs). Whether Blooming Eye reaches a summon's hits is
 unstated; it follows Flat there.
 
+## Crystalline Spike nerf: +1 a hit, +8 on the spend (2026-10-16)
+
+Owner: the Spike's nerf cut its base flat damage from +5 to +1 a hit, and - not
+in the patch notes - its Corrupt Power spend (60 CP, once a turn in a form) from
++40 to +8, a fifth. The owner measured the 8 through Immolation. The site and
+the engine both had +5 / +40. Both numbers are now `CRYSTALLINE_SPIKE_FLAT` /
+`CRYSTALLINE_SPIKE_SPEND_FLAT` in builder.js, read by model.js through the
+snapshot; `K.FORM_GEAR['Crystalline Spike']` keeps a copy that a test holds equal.
+
+What moved: the Spike no longer makes full Luck pay on many-hit moves (the
+2026-09-13 note above). A crit Blade Dancer on Amorus now parks at 71% crit
+instead of crossing tier 1; the tier-crossing test moved to a Darkwraith. The
+owner's Berserker reference (full Luck + Spike) is older than the nerf.
+
+**Lesson:** a nerf can reach a gear's conditional value too, not only the
+number in its text. When an item changes, re-measure every mode it has.
+
 ## When the game updates
 
 `node tools/ai/extract-data.js` → `node tools/check-data.js` → full suite →

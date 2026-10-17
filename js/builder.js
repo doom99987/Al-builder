@@ -2184,12 +2184,14 @@ const corruptionForms = {
     ],
   },
   "Blasphemy": {
-    subtitle: "Builds and spends a resource called Notch.",
+    subtitle: "Builds stacks, turns them into Notches, and spends them with N-Consume.",
     variants: ["Base", "Flower", "Lightbane", "Sun and Moon"],
     mechanics: [
-      { name: "Notch",      text: "Any move costing 0-2 NRG generates 1 Notch up to your cap. Any move costing 3+ NRG consumes the entire stack instead." },
-      { name: "On damage",  text: "Consuming Notches on a damaging move deals bonus damage — 10% at 1 Notch, scaling to 30% at your cap — and converts part of it into a temporary Shield (5% to 25%, same scaling)." },
-      { name: "On utility", text: "Consuming Notches on a non-damaging move grants lifesteal on your next hit (2% to 8%, same scaling), expiring after 3 turns if unused." },
+      { name: "Stacks",     text: "Every move stores stacks: a move costing 0-2 NRG gives 1 stack, a move costing 3+ NRG gives 2." },
+      { name: "Notches",    text: "Stored stacks are transferred into usable Notches, up to your cap." },
+      { name: "N-Consume",  text: "Spends your Notches so that your next attack or support skill procs the Notch effect below, whatever its NRG cost." },
+      { name: "On damage",  text: "Consuming Notches on an attack deals bonus damage — 10% at 1 Notch, scaling to 30% at your cap — and converts part of it into a temporary Shield (5% to 25%, same scaling)." },
+      { name: "On support", text: "Consuming Notches on a support skill grants lifesteal on your next hit (2% to 8%, same scaling), expiring after 3 turns if unused." },
       { name: "Refunds",    text: "Consuming Notches also cuts Recoil by 10-30%, refunds 1 NRG per Notch, and grants 15 Corrupt Power per Notch." },
       { name: "Holding cost", text: "Holding Notches costs Recoil every turn, scaling with how full the stack is relative to your cap and ramping up to +50% over 3 turns. You also gain 15 Corrupt Power per Notch held, each turn." },
     ],
@@ -3144,7 +3146,7 @@ const gearMoves = {
     mkPassive("Blooming Eye", "Always grants +5 True Flat Damage. Once per turn while in a Corruption Form, spending 100 Corrupt Power raises this to +35 True Flat Damage for that attack."),
   ]},
   "Crystalline Spike": { learns: [
-    mkPassive("Crystalline Spike", "Always grants +5 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +40 Flat Damage for that attack."),
+    mkPassive("Crystalline Spike", "Always grants +1 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +8 Flat Damage for that attack."),
   ]},
   "Shadow Gauntlets": { learns: [
     mkPassive("Shadow Gauntlets", "Always grants +3% Lifesteal. Once per turn while in a Corruption Form, spending 45 Corrupt Power raises this to +25% Lifesteal for that attack."),
@@ -4198,7 +4200,7 @@ let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, cursedSundered: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
-let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> +40 flat instead of +5
+let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> CRYSTALLINE_SPIKE_SPEND_FLAT instead of CRYSTALLINE_SPIKE_FLAT
 let bloomingEyeSpend = false;  // Blooming Eye: 100 Corrupt Power -> +35 True Flat instead of +5
 // Stealth Strike: "Increases damage dealt by 100% if invisible while attacking".
 // On, that one move gets +100 in its Multi sum. Invisibility's own +20% (and
@@ -4211,9 +4213,15 @@ let stealthStrikeInvisible = false;
 // Returns damage added to the SCALED base - the formula's Flat (§12) - so it
 // rides the Multi sum, statuses, boss modifiers and crits rather than being
 // tacked on at the end where it would be worth almost nothing.
+// Crystalline Spike's flat damage per hit, and what spending 60 Corrupt Power in a
+// form raises it to for that attack. Owner, 2026-10-16: the nerf took both down,
+// +5 -> +1 and +40 -> +8 (the 8 measured through Immolation). Named so the build
+// AI reads the same numbers (tools/ai/extract-data.js).
+const CRYSTALLINE_SPIKE_FLAT = 1;
+const CRYSTALLINE_SPIKE_SPEND_FLAT = 8;
 function getFlatDmgBonus() {
   if (!hasGearEquipped("Crystalline Spike")) return 0;
-  return crystallineSpikeSpend ? 40 : 5;
+  return crystallineSpikeSpend ? CRYSTALLINE_SPIKE_SPEND_FLAT : CRYSTALLINE_SPIKE_FLAT;
 }
 // Blooming Eye is the formula's TrueFlat (§12): "a separate channel that skips
 // DR and Affinity entirely". It is added to each hit AFTER everything - not
@@ -4813,7 +4821,7 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
   // Frosted enchant AOE (on a crit vs a Cold enemy): 10 + Flat, through the DMG
   // BONUS toggles, team buffs and the Blasphemy Notch (not the move's own terms,
   // the enchant or the milestone - its inclusion before §12, kept; the Notch
-  // only when the move spends it), the statuses that used to ride those buffs
+  // only when N-Consume reaches the move), the statuses that used to ride those buffs
   // (Condemned, the Sinister Gaze reflections) and the resistance.
   const frostedAoeLine = (effType, resMult) => {
     const terms = getActiveDmgTerms(effType, dcEnergyAfter(m));
@@ -5825,7 +5833,8 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
 // the DMG BONUS rows, your own Overheat and the team buffs. Element gates read
 // `moveType`, the EFFECTIVE type. A row that MASTERY_ADDS_TO_BASE merged
 // (Shadow Form + Shadow Master) lists its parts. The Blasphemy Notch is NOT
-// here: only a 3+ energy move spends it, so it is per move (notchPctFor).
+// here: N-Consume reaches your own attack, not a summon's, so it is per move
+// (notchPctFor).
 function getActiveDmgTerms(moveType = null, energyAfter = null) {
   const terms = [];
   dmgBonusPassives.filter(p => dmgBonusActive[p.key]).forEach(p => {
@@ -5855,13 +5864,14 @@ function stacksLabel(n) {
   return `${n} stack${n === 1 ? "" : "s"}`;
 }
 
-// The Blasphemy Notch term of move `m`'s sum: "Any move costing 0-2 NRG
-// generates 1 Notch up to your cap. Any move costing 3+ NRG consumes the
-// entire stack instead." A 0-2 energy move banks Notch and gets none of it
-// (Self Destruct, cost 2, included); "3+X" reads as 3.
+// The Blasphemy Notch term of move `m`'s sum. Since the rework (owner,
+// 2026-10-17) N-Consume spends the Notches on "the next attack or support
+// skill", whatever its NRG cost - the old rule gave it to 3+ energy moves only.
+// Stacks (1 per 0-2 NRG move, 2 per 3+) only decide how fast Notches fill, so
+// they are not part of a hit. A summon's attack (Self Destruct) is not yours.
 function notchPctFor(m) {
-  const cost = m && m.cost !== undefined ? (parseInt(m.cost, 10) || 0) : 0;
-  return cost >= 3 ? getCorruptionDmgPct() : 0;
+  if (!m || isSummonAttack(m)) return 0;
+  return getCorruptionDmgPct();
 }
 
 function sumDmgTerms(terms) {
@@ -5890,16 +5900,16 @@ function getEnchantMult() {
   return 1 + getEnchantPct().pct / 100;
 }
 
-// Blasphemy: "Any move costing 3+ NRG consumes the entire stack", worth
-// "10% at 1 Notch, scaling to 30% at your cap".
+// Blasphemy: Notches spent through N-Consume are worth "10% at 1 Notch,
+// scaling to 30% at your cap".
 function notchDmgPct() {
   const cap = Math.max(1, notchCap);
   const n   = Math.min(Math.max(1, notchSpent), cap);
   return cap <= 1 ? 30 : 10 + 20 * (n - 1) / (cap - 1);
 }
 
-// What being in form adds to the Multi sum: the Blasphemy Notch spend, on a
-// move that spends the stack (notchPctFor: 3+ energy only). 0 when no form is
+// What being in form adds to the Multi sum: the Blasphemy Notch spend, on the
+// attack N-Consume reaches (notchPctFor: any cost, not a summon). 0 when no form is
 // picked, which is every build that has not asked for this.
 // Tyranny's Condemned is on the TARGET ("takes more damage from everyone"), so
 // it is a status multiplier in getStatusMultiplier, not a term here.
@@ -6414,7 +6424,7 @@ function getDmgMulti(m, effType, energyAfter, isCrit = false, opts = null) {
     // Labelled apart from the DMG BONUS row's +15 (its stat half), which a
     // summon's attack can carry beside it.
     if (summonBuffsActive.spiritAwakening && isSummonAttack(m)) add("Spirit Awakening (summon buff)", 50);
-    // Blasphemy's Notch: only a move costing 3+ energy spends the stack.
+    // Blasphemy's Notch: N-Consume puts it on your next attack, any NRG cost.
     add("Blasphemy Notch", notchPctFor(m));
     add(milestoneDmgLabel(m, effType), getMilestoneDmgPct(m, effType));
     getMoveInnateTerms(m, opts).forEach(t => add(t.label, t.pct));
@@ -6650,7 +6660,7 @@ function renderDmgBonusSection() {
 
   if (hasGearEquipped("Crystalline Spike")) {
     html += `<div class="dc-energy-section">
-      <span class="dc-energy-label">Crystalline Spike <span style="color:#aaa;font-size:11px">(spend 60 Corrupt Power: +5 &rarr; +40 flat dmg)</span></span>
+      <span class="dc-energy-label">Crystalline Spike <span style="color:#aaa;font-size:11px">(spend 60 Corrupt Power: +${CRYSTALLINE_SPIKE_FLAT} &rarr; +${CRYSTALLINE_SPIKE_SPEND_FLAT} flat dmg)</span></span>
       <div class="dc-bonus-check dc-toggle-btn${crystallineSpikeSpend ? " dc-bonus-on" : ""}" onclick="toggleCrystallineSpikeSpend()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${crystallineSpikeSpend ? "✓" : ""}</div>
     </div>`;
   } else if (crystallineSpikeSpend) {
@@ -7437,9 +7447,9 @@ function renderDmgBonusSection() {
     if (_corrForm === "Blasphemy") {
       const _on = corruptionBuffsActive.notch;
       const _pct = notchDmgPct();
-      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="notch" title="Only a move costing 3+ energy spends the Notch stack, for bonus damage on that move — 10% at 1 Notch, scaling to 30% at your cap. Moves costing 0-2 bank Notch and get none of it.">
+      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="notch" title="N-Consume spends your Notches on your next attack, whatever its NRG cost, for bonus damage on that attack — 10% at 1 Notch, scaling to 30% at your cap. Every move stores stacks for them: 1 for a 0-2 NRG move, 2 for a 3+ NRG move.">
         <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
-        <span class="dc-bonus-name">Notch spend (3+ energy moves)</span>
+        <span class="dc-bonus-name">N-Consume (next attack)</span>
         <span class="dc-bonus-pct">+${fmtDmgPct(_pct)}%</span>
       </div>`;
       if (_on) {
@@ -7460,7 +7470,7 @@ function renderDmgBonusSection() {
           </div>
         </div>
         <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">
-          ${notchSpent} of ${notchCap} Notch → +${_pct.toFixed(1)}% damage on a 3+ energy move. A full stack takes ${notchCap} cheap turns to bank.
+          ${notchSpent} of ${notchCap} Notch → +${_pct.toFixed(1)}% damage on your next attack, any NRG cost. Stacks for them come from every move: 1 for 0-2 NRG, 2 for 3+ NRG.
         </div>`;
       }
     }

@@ -1642,8 +1642,8 @@
                                    'because Corrupt Power is bugged there. That part is not counted. (The item text reads one spend as +5 -> +35 crit ' +
                                    'for that attack; the 2026-09 patch cut it from +45.)' },
     'Crystalline Spike':   { kind: 'onSite',
-                             note: '+5 flat damage on every hit, counted inside move damage exactly as the site adds it. ' +
-                                   'The +40 for spending 60 Corrupt Power is priced on the form nuke (Blasphemy, Tyranny; ' +
+                             note: '+1 flat damage on every hit, counted inside move damage exactly as the site adds it. ' +
+                                   'The +8 for spending 60 Corrupt Power is priced on the form nuke (Blasphemy, Tyranny; ' +
                                    'not Heresy, where Corrupt Power is bugged)' },
     // True Flat (Withered Grove §12): added to every hit after the damage bonus
     // sum and the crit. `onSite`: evaluate adds it (model.js trueFlatDmg), as
@@ -3132,15 +3132,17 @@
       why: 'spending Corrupt Power raises its crit once a turn, capped at 2 stacks by a bug. In ' +
            'Heresy, Corrupt Power is itself bugged, so it never fires there (owner, 2026-09-11)',
     },
-    // Flat damage, not crit: +5 on every hit normally, +40 on the attack that
-    // spends 60 Corrupt Power (once a turn, in a form). Priced on the form nuke
-    // as the ratio (per hit + 40) / (per hit + 5), since flat damage rides every
+    // Flat damage, not crit: +1 on every hit normally, +8 on the attack that
+    // spends 60 Corrupt Power (once a turn, in a form; owner 2026-10-16, was
+    // +5 / +40). Must equal builder.js CRYSTALLINE_SPIKE_FLAT / _SPEND_FLAT (a
+    // test holds them together). Priced on the form nuke
+    // as the ratio (per hit + 8) / (per hit + 1), since flat damage rides every
     // multiplier the hit has. Heresy is excluded for the same reason as Ages
     // Pages: Corrupt Power is bugged there.
     'Crystalline Spike': {
-      flat: 40, base: 5,
+      flat: 8, base: 1,
       forms: { Blasphemy: true, Tyranny: true, Heresy: false },
-      why: 'spending 60 Corrupt Power raises its flat damage from +5 to +40 per hit on that attack, ' +
+      why: 'spending 60 Corrupt Power raises its flat damage from +1 to +8 per hit on that attack, ' +
            'once a turn. In Heresy, Corrupt Power is bugged, so it never fires there',
     },
     // TRUE Flat, the Spike's twin (Withered Grove §12): +5 on every hit

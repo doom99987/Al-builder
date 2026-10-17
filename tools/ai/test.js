@@ -2668,8 +2668,15 @@ describe('Luck buys crit chance at half rate', () => {
   });
 
   it('a crit build can still be pushed over a tier threshold', () => {
-    // A Blade Dancer built for crit reaches tier 1 on its own Luck: past 100%
+    // A Darkwraith built for crit reaches tier 1 on its own Luck: past 100%
     // every hit crits, and that is worth the Luck it takes.
+    //
+    // This pinned a Blade Dancer until 2026-10-16. The Crystalline Spike nerf
+    // (+5 -> +1 flat a hit, owner) is the right reason it stopped: on Flowing
+    // Dance's 12 hits the +5 was most of what made full Luck pay, so the Blade
+    // Dancer now parks at 71%. Many classes still cross (Darkwraith, Lancer,
+    // Paladin, Citadel, Ranger on Amorus all land just past 100, where the snap
+    // stops by design).
     //
     // This pinned an Amorus Assassin until 2026-09-21. It stopped tiering for
     // one reason, which is right: Devastating now ADDS to the crit multiplier
@@ -2691,7 +2698,7 @@ describe('Luck buys crit chance at half rate', () => {
     // the snap CAN cross a tier, not about which race wins the argument. (With
     // race actives in the scored kit - parked, see kitFor - the search prefers
     // Boreas and Inner Frost, a line that wants Strength and Arcane instead.)
-    const r = ask('', { klass: 'Blade Dancer (N)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
+    const r = ask('', { klass: 'Darkwraith (Ch)', race: 'Amorus (Ob)', goal: 'crit', level: data.Max_Lvl });
     ok(r.ctx.critChance >= 100,
        'a crit build tops out at ' + Math.round(r.ctx.critChance) + '% and never tiers up');
     eq(M.critTier(r.ctx.critChance) >= 1, true, 'crit tier never reached 1');
@@ -6525,11 +6532,17 @@ describe('flat damage and gear actives', () => {
 
   it('adds Crystalline Spike flat damage to every hit, as the site does', () => {
     // The site: dmgPerHit = base * (1 + contrib) + getFlatDmgBonus(), and the
-    // Spike gives 5 unless its Corrupt Power toggle is on. verify.js caught the
-    // model leaving it out: 5 short per hit on every move.
+    // Spike gives CRYSTALLINE_SPIKE_FLAT unless its Corrupt Power toggle is on.
+    // verify.js once caught the model leaving it out on every move.
     ok(/dmgPerHit = baseDmgNum \* \(1 \+ totalContrib\) \+ _flatDmg/.test(src),
        'the site no longer adds flat damage per hit; re-read builder.js');
-    ok(/return crystallineSpikeSpend \? 40 : 5;/.test(src), 'the site Spike values changed; re-read getFlatDmgBonus');
+    ok(/return crystallineSpikeSpend \? CRYSTALLINE_SPIKE_SPEND_FLAT : CRYSTALLINE_SPIKE_FLAT;/.test(src), 'the site Spike values changed; re-read getFlatDmgBonus');
+    // Owner, 2026-10-16: the nerf is +1 a hit and +8 on the spend (was +5 / +40).
+    eq(data.CRYSTALLINE_SPIKE_FLAT, 1, 'the Spike is not +1 a hit');
+    eq(data.CRYSTALLINE_SPIKE_SPEND_FLAT, 8, 'the Spike spend is not +8');
+    eq(K.FORM_GEAR['Crystalline Spike'].base, data.CRYSTALLINE_SPIKE_FLAT, 'knowledge.js prices the Spike on another base');
+    eq(K.FORM_GEAR['Crystalline Spike'].flat, data.CRYSTALLINE_SPIKE_SPEND_FLAT, 'knowledge.js prices another Spike spend');
+    const F = data.CRYSTALLINE_SPIKE_FLAT;
     const b = fresh('Berserker (Ch)');
     b.invested.str = 60;
     const carnage = O.movesFor('Berserker (Ch)').find(m => m.name === 'Carnage');
@@ -6537,8 +6550,8 @@ describe('flat damage and gear actives', () => {
     const s = M.allStats(b);
     const without = M.moveDamage(b, carnage, { stats: s });
     const withSpike = M.moveDamage(wearing(b, 'Crystalline Spike'), carnage, { stats: s });
-    ok(Math.abs(withSpike - without - 5 * 20) < 1e-6,
-       'Carnage (20 hits) gained ' + (withSpike - without).toFixed(2) + ' from the Spike, not 100');
+    ok(Math.abs(withSpike - without - F * 20) < 1e-6,
+       'Carnage (20 hits) gained ' + (withSpike - without).toFixed(2) + ' from the Spike, not ' + F * 20);
   });
 
   it('adds flat damage to a move with no stat scaling, on the site and in the model', () => {
@@ -6549,7 +6562,7 @@ describe('flat damage and gear actives', () => {
     const s = M.allStats(b);
     const without = M.moveDamage(b, cleave, { stats: s });
     const withSpike = M.moveDamage(wearing(b, 'Crystalline Spike'), cleave, { stats: s });
-    ok(Math.abs(withSpike - without - 5) < 1e-9, 'Cleave gained ' + (withSpike - without) + ', not 5');
+    ok(Math.abs(withSpike - without - data.CRYSTALLINE_SPIKE_FLAT) < 1e-9, 'Cleave gained ' + (withSpike - without) + ', not ' + data.CRYSTALLINE_SPIKE_FLAT);
   });
 
   it('adds no flat damage to a two-part attack, which the site computes directly', () => {
@@ -6563,12 +6576,12 @@ describe('flat damage and gear actives', () => {
     ok(Math.abs(withSpike - without) < 1e-9, 'Stinger picked up ' + (withSpike - without).toFixed(2) + ' flat damage');
   });
 
-  it('prices the Spike +40 on a form nuke, and never in Heresy', () => {
+  it('prices the Spike spend on a form nuke, and never in Heresy', () => {
     const c = { worn: ['Crystalline Spike'], burstPerHit: 20, critChance: 50, critDmg: 2 };
     const bl = K.formGearCrit(c, 'Blasphemy', M);
-    ok(Math.abs(bl.mult - 60 / 25) < 1e-9, 'Blasphemy multiplier ' + bl.mult + ', expected ' + (60 / 25));
+    ok(Math.abs(bl.mult - 28 / 21) < 1e-9, 'Blasphemy multiplier ' + bl.mult + ', expected ' + (28 / 21));
     ok(bl.lines.some(l => /Crystalline Spike/.test(l)), 'no write-up line for the Spike');
-    ok(Math.abs(K.formGearCrit(c, 'Tyranny', M).mult - 60 / 25) < 1e-9, 'Tyranny does not see the Spike');
+    ok(Math.abs(K.formGearCrit(c, 'Tyranny', M).mult - 28 / 21) < 1e-9, 'Tyranny does not see the Spike');
     eq(K.formGearCrit(c, 'Heresy', M).mult, 1, 'Heresy priced a Corrupt Power spend that is bugged there');
     eq(K.formGearCrit(Object.assign({}, c, { burstPerHit: null }), 'Tyranny', M).mult, 1,
        'a two-part nuke took flat damage');
@@ -6580,15 +6593,15 @@ describe('flat damage and gear actives', () => {
     const bare = M.moveDamage(b, ctx.burstMove, { stats: ctx.stats, flat: 0 }) / hits;
     ok(Math.abs(ctx.burstPerHit - bare) < 1e-6,
        'burstPerHit is not the burst move per hit without flat damage: ' + ctx.burstPerHit + ' vs ' + bare);
-    ok(Math.abs(M.moveDamage(b, ctx.burstMove, { stats: ctx.stats }) / hits - bare - 5) < 1e-6,
-       'the Spike is not +5 a hit on the burst move');
-    // The form pass puts the +40 on the nuke and never on the per-turn figure.
+    ok(Math.abs(M.moveDamage(b, ctx.burstMove, { stats: ctx.stats }) / hits - bare - data.CRYSTALLINE_SPIKE_FLAT) < 1e-6,
+       'the Spike is not +' + data.CRYSTALLINE_SPIKE_FLAT + ' a hit on the burst move');
+    // The form pass puts the spend on the nuke and never on the per-turn figure.
     const ty = O.corruptionDamage('Tyranny', ctx);
     const fg = K.formGearCrit(ctx, 'Tyranny', M);
     ok(fg.flatMult > 1, 'Tyranny sees no Spike flat bonus');
     ok(Math.abs(ty.burstHit / (ctx.bestBurst * ty.formBurst) - fg.mult) < 1e-6, 'the Spike did not reach the form burst');
     ok(Math.abs(ty.sustainedHit / (ctx.sustainedHit * ty.formSustained) - fg.critMult) < 1e-6,
-       'the one-attack +40 was spread over every turn');
+       'the one-attack spend was spread over every turn');
     const he = O.corruptionDamage('Heresy', ctx);
     ok(!he || Math.abs(he.burstHit / (ctx.bestBurst * he.formBurst) - 1) < 1e-6, 'Heresy priced the Spike spend');
   });
@@ -6605,16 +6618,16 @@ describe('flat damage and gear actives', () => {
   });
 
   it('prices the Spike on the move a form actually nukes with', () => {
-    // Blasphemy spends its Notch on the 3+ energy dump, so the +40 lands on the
-    // dump, not on the best hit. A dump at 10 a hit gains (10+40)/(10+5); the
-    // best hit at 20 would have given only (20+40)/(20+5).
+    // Blasphemy spends its Notch on the 3+ energy dump, so the +8 lands on the
+    // dump, not on the best hit. A dump at 10 a hit gains (10+8)/(10+1); the
+    // best hit at 20 would have given only (20+8)/(20+1).
     const c = { worn: ['Crystalline Spike'], critChance: 0, critDmg: 2, energyCap: 5,
                 moves: [{ name: 'Dump', cost: 3 }], dumpMove: { name: 'Dump', cost: 3 },
                 bestBurst: 100, bestHit: 100, bestDump: 100, sustainedHit: 100,
                 burstPerHit: 20, dumpPerHit: 10 };
     const d = O.corruptionDamage('Blasphemy', c);
     ok(d && d.formBurst > 1, 'the probe ctx did not make Blasphemy fire');
-    ok(Math.abs(d.burstHit / (c.bestBurst * d.formBurst) - 50 / 15) < 1e-9,
+    ok(Math.abs(d.burstHit / (c.bestBurst * d.formBurst) - 18 / 11) < 1e-9,
        'Blasphemy priced the Spike on the wrong move: x' + (d.burstHit / (c.bestBurst * d.formBurst)).toFixed(3));
   });
 
@@ -7674,21 +7687,24 @@ describe('additive damage (Withered Grove §12)', () => {
     eq(multiOf(site, probe()).pct, 0, 'the cores reached your own move');
   });
 
-  it("Blasphemy's Notch reaches a 3+ energy move only", () => {
-    // "Any move costing 0-2 NRG generates 1 Notch up to your cap. Any move
-    // costing 3+ NRG consumes the entire stack instead." (owner-stated rule;
-    // the engine's Blasphemy pricing uses the same one).
+  it("Blasphemy's Notch reaches the next attack, whatever its energy cost", () => {
+    // Owner, 2026-10-17: the rework stores stacks (1 per 0-2 NRG move, 2 per
+    // 3+), turns them into Notches, and N-Consume spends them on the next
+    // attack or support skill regardless of NRG cost. Before it, only a 3+
+    // energy move spent the stack. (The Build AI still prices the old rule;
+    // the owner asked for it to be left alone.)
     const site = additiveSite({ form: 'Blasphemy' });
     site('corruptionBuffsActive.notch = true; notchSpent = 5; notchCap = 5');
-    eq(pctOf(multiOf(site, probe({ cost: 3 })).terms, 'Blasphemy Notch'), 30, 'a 3-energy move does not spend the stack');
-    eq(pctOf(multiOf(site, probe({ cost: '3+X' })).terms, 'Blasphemy Notch'), 30, 'a "3+X" move does not spend the stack');
-    for (const cost of [0, 1, 2, undefined]) {
-      eq(multiOf(site, probe({ cost })).pct, 0, 'a ' + cost + '-energy move got the Notch');
+    for (const cost of [0, 1, 2, 3, '3+X', undefined]) {
+      eq(pctOf(multiOf(site, probe({ cost })).terms, 'Blasphemy Notch'), 30, 'a ' + cost + '-energy attack did not get the Notch');
     }
     eq(site('getOutsideDmgMult')({ name: 'Self Destruct', moveType: 'Physical', cost: 2, slot: 'Skeleton' }).pct, 0,
-       'Self Destruct (cost 2) got the Notch');
+       'a summon\'s attack (Self Destruct) got your Notch');
+    site('corruptionBuffsActive.notch = false');
+    eq(multiOf(site, probe({ cost: 3 })).pct, 0, 'the Notch applies with N-Consume off');
+    site('corruptionBuffsActive.notch = true');
     eq(site('sumDmgTerms(getActiveDmgTerms(null, null))'), 0, 'the Notch is still a switch on every move');
-    ok(/Blasphemy Notch \+30/.test(site('__work')(probe({ cost: 3 }))), 'the working does not name the Notch on a 3-energy move');
+    ok(/Blasphemy Notch \+30/.test(site('__work')(probe({ cost: 1 }))), 'the working does not name the Notch on a 1-energy attack');
   });
 
   it('target statuses still multiply, with each other and with the sum', () => {

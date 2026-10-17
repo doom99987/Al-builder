@@ -503,10 +503,11 @@
     }
 
     // builder.js getFlatDmgBonus. Crystalline Spike is the only flat damage in
-    // the game: +5 on every hit. Its +40 (spend 60 Corrupt Power in a form) is
-    // a toggle the site leaves off, so it is priced by K.FORM_GEAR, not here.
+    // the game: CRYSTALLINE_SPIKE_FLAT on every hit. Its spend value (60 Corrupt
+    // Power in a form) is a toggle the site leaves off, so it is priced by
+    // K.FORM_GEAR, not here.
     function flatDmgBonus(build) {
-      return (build.gear || []).some(g => g && (g.name || g) === 'Crystalline Spike') ? 5 : 0;
+      return (build.gear || []).some(g => g && (g.name || g) === 'Crystalline Spike') ? (D.CRYSTALLINE_SPIKE_FLAT ?? 0) : 0;
     }
 
     // ── §12 composition (Withered Grove, "Part2 New Damage Formula") ────────

@@ -113,7 +113,7 @@
        much larger one. Dropped by the Withered Grove enemies. */
     ['Ages Pages',            'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Crit Chance. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +35 Crit Chance for that attack.'],
     ['Blooming Eye',          'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 True Flat Damage. Once per turn while in a Corruption Form, spending 100 Corrupt Power raises this to +35 True Flat Damage for that attack.'],
-    ['Crystalline Spike',     'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +40 Flat Damage for that attack.'],
+    ['Crystalline Spike',     'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +1 Flat Damage. Once per turn while in a Corruption Form, spending 60 Corrupt Power raises this to +8 Flat Damage for that attack.'],
     ['Shadow Gauntlets',      'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +3% Lifesteal. Once per turn while in a Corruption Form, spending 45 Corrupt Power raises this to +25% Lifesteal for that attack.'],
     ['Infected Skin',         'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +10 DR. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +165 DR for that attack.'],
     ['Lucky Horns',           'Gear',            'Drops from Withered Grove enemies.\n\nAlways grants +5% Damage. Once per turn while in a Corruption Form, spending 50 Corrupt Power raises this to +45% Damage for that attack.'],
