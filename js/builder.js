@@ -29,7 +29,9 @@ const races = {
   // changelog documents both races' passives and actives in full but never
   // published these, so they sat at zero until then.
   "Arborivia (3%)": {str: 1, arc: 3, end: 2, lck: 3, spd: 1},
-  "Calvariae (3%)": {str: 2, arc: 1, end: 4, lck: 2, spd: 1}
+  "Calvariae (3%)": {str: 2, arc: 1, end: 4, lck: 2, spd: 1},
+  // Owner, 2026-10-18 (Halloween update): obtainable; base stats from the owner.
+  "Pumpulp (Ob)": {str: 1, arc: 4, end: 4, lck: 1, spd: 2}
 };
 
 let raceBase = { str: 0, arc: 0, end: 0, lck: 0, spd: 0 };
@@ -1162,23 +1164,14 @@ function updatePecents() {
   if (coagNailActive) totalLck += coagNailBonus;
   // Looter (Rogue (N) rm1): +15.75% Luck a kill stack, gated as getTotalStat
   // gates it. Read inside a try: its state is declared far below this load-time
-  // pass. Same order as getTotalStat: coag, Looter, Overload, Permuth, Ivory, Midas.
+  // pass. Same order as getTotalStat: coag, Looter, Permuth, Ivory, Midas.
   let _looterLckMult = 1;
   try {
     if (dmgBonusActive["passive:Looter"] && masteryState["rm1"]
         && getActiveMasteryData()?.nodes?.rm1?.name === "Looter") _looterLckMult = 1 + looterStacks * 0.1575;
   } catch (e) { _looterLckMult = 1; }
   if (_looterLckMult > 1) totalLck = Math.round(totalLck * _looterLckMult);
-  // Overload (Lancer cm1): +10% Luck, so crit chance moves with it. Read inside a
-  // try: this pass runs at load, before statBuffsActive leaves its dead zone.
-  // The class and node are checked too, because un-picking Overload clears the
-  // toggle only when the DMG section re-renders, which is after this pass.
-  let _overloadLck = false;
-  try {
-    _overloadLck = !!statBuffsActive.overloadStrLck && !!masteryState["cm1"]
-                && document.getElementById("super-picker")?.value === "Lancer (N)";
-  } catch (e) { _overloadLck = false; }
-  if (_overloadLck) totalLck = Math.round(totalLck * 1.10);
+  // (Overload no longer touches Luck: since 2026-10-18 it is +5% Strength.)
   if (permuthStat === 'lck' && markPicker?.value === 'Venia') totalLck = Math.round(totalLck * 1.4);
   // Ivory (every stat +4% a stack), after Permuth as in getTotalStat.
   { const _ivoryLckMult = ivoryStatMult(); if (_ivoryLckMult > 1) totalLck = Math.round(totalLck * _ivoryLckMult); }
@@ -1305,6 +1298,17 @@ function updatePecents() {
     // the standing +5 is already in the total via gearPctBonuses.
     if (stat === "crit-chance" && agesPagesSpend && hasGearEquipped("Ages Pages")) {
       display = (parseFloat(display) + 30).toFixed(1);
+    }
+    // Rallying Shout (team buff): "+20% Crit Chance" for 3T. Poised Slayer: +5%
+    // crit chance a stack. Read inside a try: this pass also runs during page
+    // load, before those states leave their dead zone.
+    if (stat === "crit-chance") {
+      let _buffCrit = 0;
+      try {
+        if (teamBuffsActive.rallying) _buffCrit += 20;
+        if (dmgBonusPassives.some(p => p.name === "Poised Slayer" && dmgBonusActive[p.key])) _buffCrit += 5 * poisedSlayerStacks;
+      } catch (e) { _buffCrit = 0; }
+      if (_buffCrit) display = (parseFloat(display) + _buffCrit).toFixed(1);
     }
     if (stat === "crit-chance") {
       const tb = _traitBonusFor(traitTot, "crit-chance");
@@ -1681,7 +1685,7 @@ const enchantItems = {
   },
   "Spectral": {
     level: null,
-    effect: "Gives all your attacks a ?% chance to negate all enemy defence."
+    effect: "25% chance to extend a field effect for 1 more turn (a single field effect cannot be extended for more than 3 turns). On proc, gain a +10% proc coefficient buff for 5 turns (+50% cap)."
   },
   "Hiemal": {
     level: null,
@@ -3225,7 +3229,7 @@ const gearMoves = {
     mkPassive("Dust Storm", "Gives a 10% chance to phase through an attack, negating all damage taken (debuffs will still apply).\n\nThis will trigger passives that proc on dodge effects, such as Swift Fighter (Slayer base class) or Verdant Archer (Ranger super class)."),
   ]},
   "Golem Rune Core": { learns: [
-    { slot: "", level: 1, type: "Active", name: "Call Sand Golem", quote: "", cost: 2, cooldown: 999, moveType: "Physical", scaling: "ARC/6", effect: "Summon a Sand Golem when used. The Sand Golem has 75 base HP.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed647ed829742fa6f1894/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092721.png" },
+    { slot: "", level: 1, type: "Active", name: "Call Sand Golem", quote: "", cost: 2, cooldown: 14, moveType: "Physical", scaling: "ARC/6", effect: "Summon a Sand Golem when used. The Sand Golem has 75 base HP, and its damage now scales with ARC (the rate is not stated).", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed647ed829742fa6f1894/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092721.png" },
     { slot: "Sand Golem", level: 1, type: "Active", name: "Smash", quote: "", cost: 0, cooldown: 0, moveType: "Physical", damage: 10, effect: "Basic attack.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed6415e251a5b21d26b41/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091747.png" },
     { slot: "Sand Golem", level: 1, type: "Active", name: "Core Rage", quote: "", cost: 2, cooldown: 8, moveType: "Physical", effect: "Go into a resting state, applying 1 Heavy Stun to yourself. On your next turn, exit this state and gain a permanent 40% damage buff, 15% defense buff, and 2 extra regen.\n\nIf enough damage is dealt before you exit this state, it can be cancelled.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed6430a18bfc46654e708/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201091904.png" },
     { slot: "Sand Golem", level: 1, type: "Active", name: "Dust Burst", quote: "", cost: 2, cooldown: 5, moveType: "Physical", damage: "6x3", effect: "Stuns the opponent if they have the Blinded status.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed644e458694137159bb3/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092257.png" },
@@ -3238,7 +3242,7 @@ const gearMoves = {
     { slot: "", level: 1, type: "Active", name: "Stone Skin", quote: "", cost: 2, cooldown: 999, moveType: "Physical", category: "Buff", effect: "Your summons gain the move \"Stone Skin\". When used, grants a permanent 60% defence reduction against most attacks. Its 999-turn cooldown means it can be used once per fight.", image: "https://trello.com/1/cards/67c456b08594a7ec9963c03c/attachments/697ecad5a010aa0619d29d75/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203749.png" },
   ]},
   "Ramizcan Idol": { learns: [
-    mkPassive("Ramizcan Idol", "Gives a 15% damage buff for 1 turn after blocking or parrying."),
+    mkPassive("Ramizcan Idol", "Gives a 15% damage buff for 1 turn after blocking or parrying. Stacks up to 2 times."),
   ]},
   "Band of Crushing Force": { learns: [
     mkPassive("Band of Crushing Force", "Deal 25% more damage against blocking enemies.\n\nGives a 10% damage buff whenever an enemy blocks a hit of your attack, until the end of your next turn.\n\nNote: The 15% damage reduction while in desert described in-game does not actually apply."),
@@ -3885,6 +3889,9 @@ const lostScrollClassRestrictions = {
 };
 
 function isScrollHidden(name) {
+  // Pumpulp's Harvest Wind (innate): "You can use the scroll move Wind Reflect
+  // on any class."
+  if (name === "Wind Reflect" && racePicker.value === "Pumpulp (Ob)") return false;
   const allowed = scrollClassRestrictions[name];
   if (!allowed) return false;
   const cls = classPicker.value;
@@ -4151,7 +4158,7 @@ const ABS_RAD_BONUSES = [7.5, 10, 12.5, 15, 22.5];
 let bulkUpStacks = 1; // 1-10: number of Bulk Up uses (additive 20% per stack)
 let verdantArcherStacks = 1; // 1-10: number of Verdant Archer procs (additive 15%/30% per stack, capped at 150%)
 const VERDANT_ARCHER_CAP = 150; // Verdant Archer's damage buff can not exceed 150%
-let poisedSlayerStacks = 1;  // 1-5: Poised Slayer dodge stacks (additive 10% per stack)
+let poisedSlayerStacks = 1;  // 1-5: Poised Slayer block/dodge stacks (+5% damage and +5% crit chance each)
 const POISED_SLAYER_CAP = 50;  // Poised Slayer's damage buff can not exceed 50%
 let swiftFighterStacks = 1;  // 1-2: Swift Fighter dodges (20% SPD, capped at 30%)
 let runicShieldStacks = 1;   // 1+: number of Runic Shield block procs (additive 10% per stack, Holy only)
@@ -4160,17 +4167,17 @@ let bloodlustRage = false;   // Berserker: in Rage (toggled by Rage Empower), so
 let enhancedBloodlustStacks = 1; // 1-10: Drauga Enhanced Bloodlust kills (+15% damage and +15% Speed each, added together)
 let looterStacks = 1;        // 1+: Looter kill stacks (15.75% LCK + 20% SPD per stack)
 let hourglassStacks = 1; // 1-5: Sands Of Time stacks (20% per stack, capped at 5)
-let boreasStacks = 1; // 1-5: Boreas Frost Stacks (10% dmg + 4% DR per stack, max 5 = +50% dmg / 20% DR)
+let boreasStacks = 1; // 1-5: Boreas Frost Stacks (7% dmg + 4% DR per stack, max 5 = +35% dmg / 20% DR)
 let vydeerCritStacks = 0; // 0-10: Vydeer Crit Buildup turns (1.5% crit per turn, max 15%)
 let vydeerSenseConsumed = 1; // 1-10: Sense consumed by Vydeer's Soul Reversal (+10% dmg per Sense, party-wide until your next turn)
 let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (+20% each, added together)
 const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false, surprisePkg: false };
 const summonBuffsActive = { spiritAwakening: false };
-const statBuffsActive = { rallyingSpd: false, empPierceSpd: false, flourishSpd: false, focusStepSpd: false, fireSutraStr: false, swiftFighterSpd: false, lightspeedSpd: false, overloadStrLck: false };
+const statBuffsActive = { empPierceSpd: false, flourishSpd: false, focusStepSpd: false, fireSutraStr: false, swiftFighterSpd: false, lightspeedSpd: false, overloadStr: false };
 let exposeActive = false;
 let _flourishSpdAmt = 25; // 25 normally, 48 with Flourish Proficiency mastery
-let ramiIdolStacks = 1;    // 1-5: Ramizcan Idol block/parry stacks (×15% each)
+let ramiIdolStacks = 1;    // 1-2: Ramizcan Idol block/parry stacks (+15% each; it stacks twice since 2026-10-18)
 let vaingLocketTurn = 1;   // 1-3: Vainglorious Locket current turn (10%→5%→0%)
 let sinisterGazeReflect = false;      // Sinister Gaze: enemy has your Bulk Up defense debuff
 let sinisterGazeBloodProf = false;    // Sinister Gaze: enemy has your Blood Eruption Prof damage debuff
@@ -4184,7 +4191,7 @@ let goldRushGold = 0; // 0-50000: gold amount for Veneri Gold Rush (0.2% per 500
 // over time only, so it is listed but never added to a direct hit.
 const TEAM_BUFFS = [
   { key: 'mg',          label: "MG",            pct: 40, dotOnly: true, desc: "Metrom's Grasp: +40% damage for DoT effects. Damage over time only - not added to a direct hit." },
-  { key: 'rallying',    label: "Rallying Shout", pct: 15, desc: "Give all allies a 15% damage buff for 4 turns." },
+  { key: 'rallying',    label: "Rallying Shout", pct: 10, desc: "Rallying Shout: all allies get a 10% damage buff, 10% DR and +20% crit chance for 3 turns." },
   { key: 'lesserEmp',  label: "Lesser Empower", pct: 15, desc: "+15% damage buff for 2 turns." },
   { key: 'castAmplify',label: "Cast Amplify",   pct: 20, desc: "+20% damage buff to magic/holy/fire/nature/ice/dark moves for 3 turns. Stacks add: +20% each." },
   { key: 'blizzard',   label: "Blizzard",       pct: 20, desc: "+20% ice damage for the team for 4 turns." },
@@ -4319,8 +4326,8 @@ const BOSS_DATA = {
     res: { Hex: 0.75, Dark: 0.75, Holy: 1.20, Fire: 1.20, Nature: 1.20 },
   },
   "Handaconda": {
-    hp: 6000,
-    hpVariants: { "Corrupted": 18000 },
+    hp: 7500,
+    hpVariants: { "Corrupted": 10000 },
     res: { Physical: 0.50, Holy: 0.50, Arcane: 0.50, Fire: 1.25 },
   },
   "Shadeblade": {
@@ -4437,13 +4444,14 @@ function getTotalStat(statKey) {
     if (statKey === "spd") total = Math.round(total * (1 + looterStacks * 0.20));
   }
   if (statKey === "str" && statBuffsActive.fireSutraStr) total = Math.round(total * 1.25);
-  if ((statKey === "str" || statKey === "lck") && statBuffsActive.overloadStrLck) total = Math.round(total * 1.10);
+  // Overload (Lancer cm1): "Poised Slayer also grants you a 5% Strength Buff."
+  if (statKey === "str" && statBuffsActive.overloadStr) total = Math.round(total * 1.05);
   if (permuthStat === statKey && markPicker.value === 'Venia') total = Math.round(total * 1.4);
   const _ivoryMult = ivoryStatMult();
   if (_ivoryMult > 1) total = Math.round(total * _ivoryMult);
   if (statKey === "lck") { const _midasMult = midasLckMult(); if (_midasMult > 1) total = Math.round(total * _midasMult); }
   if (statKey === "spd") {
-    const spdPct = ((statBuffsActive.rallyingSpd || teamBuffsActive.rallying) ? 25 : 0) + (statBuffsActive.empPierceSpd ? 25 : 0)
+    const spdPct = (statBuffsActive.empPierceSpd ? 25 : 0)
                  + (statBuffsActive.swiftFighterSpd ? Math.min(30, 20 * swiftFighterStacks) : 0)
                  + ((racePicker.value === "Drauga (6%)" && dmgBonusActive["passive:Enhanced Bloodlust"]) ? 15 * enhancedBloodlustStacks : 0);
     const spdFlat = (statBuffsActive.flourishSpd ? _flourishSpdAmt : 0)
@@ -5506,7 +5514,7 @@ function collectDmgBonusPassives() {
     const fsKey = "passive:Frost Stacks";
     if (!seen.has(fsKey)) {
       seen.add(fsKey);
-      rawEntries.push({ key: fsKey, name: "Frost Stacks", bonus: 10, kind: "passive", desc: "Each Ice move grants 1 stack (+10% dmg, +4% DR); Boreas turns your Physical and Magic moves into Ice. Max 5 stacks = +50% dmg (×1.5), 20% DR." });
+      rawEntries.push({ key: fsKey, name: "Frost Stacks", bonus: 7, kind: "passive", desc: "Each Ice move grants 1 stack (+7% dmg, +4% DR); Boreas turns your Physical and Magic moves into Ice. Max 5 stacks = +35% dmg, 20% DR." });
     }
   }
 
@@ -5821,7 +5829,7 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
   if (p.name === "Corealloy")             return COREALLOY_PCT_PER_ENERGY * (energyAfter != null ? energyAfter : energyCount);
   if (p.name === "Bloodlust")             return bloodlustPct();
   if (p.name === "Enhanced Bloodlust")    return 15 * enhancedBloodlustStacks;
-  if (p.name === "Frost Stacks")          return 10 * boreasStacks;
+  if (p.name === "Frost Stacks")          return 7 * boreasStacks;
   if (p.name === "Soul Reversal")         return 10 * vydeerSenseConsumed;
   if (p.name === "Unending Flow")         return 5 * unendingFlowStacks;
   if (p.name === "Rending Barrage")       return 2.5 * rendingBarrageStacks;
@@ -5978,7 +5986,7 @@ function toggleStatBuff(key) {
 }
 
 function changeRamiIdolStacks(delta) {
-  ramiIdolStacks = Math.min(5, Math.max(1, ramiIdolStacks + delta));
+  ramiIdolStacks = Math.min(2, Math.max(1, ramiIdolStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6110,7 +6118,8 @@ function changeVerdantArcherStacks(delta) {
 
 function changePoisedSlayerStacks(delta) {
   poisedSlayerStacks = Math.min(5, Math.max(1, poisedSlayerStacks + delta));
-  renderDmgBonusSection(); recalcOpenDetails();
+  // updatePecents too: each stack is +5% crit chance as well as +5% damage.
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function changeSwiftFighterStacks(delta) {
@@ -6587,7 +6596,8 @@ function getStatusMultiplier(moveType, opts) {
   }
   // Sinister Gaze: the enemy received your Bulk Up defence debuff(s).
   if (sinisterGazeReflect && dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key])) {
-    const g = Math.pow(1.20, bulkUpStacks); mult *= g; labels.push(`Gaze: Bulk Up ×${g.toFixed(2)}`);
+    // At most 2 shared stacks on one target (2026-10-18).
+    const g = Math.pow(1.20, Math.min(2, bulkUpStacks)); mult *= g; labels.push(`Gaze: Bulk Up ×${g.toFixed(2)}`);
   }
   // Sinister Gaze: the enemy received your Blood Eruption Prof damage debuff.
   if (sinisterGazeBloodProf) { mult *= 1.20; labels.push("Gaze: Blood Eruption ×1.20"); }
@@ -6903,7 +6913,7 @@ function renderDmgBonusSection() {
     }
     if (isPoisedSlayer) {
       html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
-        <span class="dc-energy-label">Dodge stacks <span style="color:#aaa;font-size:11px">(max 5 = +50%)</span></span>
+        <span class="dc-energy-label">Block/dodge stacks <span style="color:#aaa;font-size:11px">(+5% damage and +5% crit each)</span></span>
         <div class="dc-energy-counter">
           <button class="dc-energy-btn" onclick="changePoisedSlayerStacks(-1)">−</button>
           <span class="dc-energy-val">${poisedSlayerStacks}</span>
@@ -7034,7 +7044,7 @@ function renderDmgBonusSection() {
     }
     if (isRamiIdol) {
       html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
-        <span class="dc-energy-label">Blocks/Parries (max 5)</span>
+        <span class="dc-energy-label">Blocks/Parries (max 2)</span>
         <div class="dc-energy-counter">
           <button class="dc-energy-btn" onclick="changeRamiIdolStacks(-1)">−</button>
           <span class="dc-energy-val">${ramiIdolStacks}</span>
@@ -7365,7 +7375,6 @@ function renderDmgBonusSection() {
   // --- Stat Buffs (shown only when relevant moves/masteries are in the build) ---
   {
     const _superClass = document.getElementById("super-picker")?.value || "";
-    const _hasRallyingShout = dmgCalcMoveList.some(m => m.name === "Rallying Shout");
     const _hasEmpPierce = dmgCalcMoveList.some(m => m.name === "Empowered Pierce");
     const _hasEmpPierceProf = _hasEmpPierce && masteryState["rm2"] && _superClass === "Lancer (N)";
     const _hasFlourish = dmgCalcMoveList.some(m => m.name === "Flourish");
@@ -7378,23 +7387,21 @@ function renderDmgBonusSection() {
     const _hasLightspeed = _superClass === "Ranger (Or)" && !!masteryState["cm1"];
     const _hasOverload = _superClass === "Lancer (N)" && !!masteryState["cm1"];
     // Auto-reset if no longer available
-    if (!_hasRallyingShout && statBuffsActive.rallyingSpd) statBuffsActive.rallyingSpd = false;
     if (!_hasEmpPierceProf && statBuffsActive.empPierceSpd) statBuffsActive.empPierceSpd = false;
     if (!_hasFlourish && statBuffsActive.flourishSpd) statBuffsActive.flourishSpd = false;
     if (!_hasFocusStep && statBuffsActive.focusStepSpd) statBuffsActive.focusStepSpd = false;
     if (!_hasFireSutra && statBuffsActive.fireSutraStr) statBuffsActive.fireSutraStr = false;
     if (!_hasSwiftFighter && statBuffsActive.swiftFighterSpd) statBuffsActive.swiftFighterSpd = false;
     if (!_hasLightspeed && statBuffsActive.lightspeedSpd) statBuffsActive.lightspeedSpd = false;
-    if (!_hasOverload && statBuffsActive.overloadStrLck) statBuffsActive.overloadStrLck = false;
+    if (!_hasOverload && statBuffsActive.overloadStr) statBuffsActive.overloadStr = false;
     const _statBuffDefs = [
-      _hasRallyingShout && { key: 'rallyingSpd', label: "Rallying Shout SPD",   val: "+25% SPD", desc: "+25% SPD buff for 4 turns" },
       _hasEmpPierceProf && { key: 'empPierceSpd', label: "Emp. Pierce Prof. SPD", val: "+25% SPD", desc: "+25% SPD buff for 2 turns (Empowering Pierce Proficiency)" },
       _hasFlourish      && { key: 'flourishSpd',  label: `Flourish SPD${_hasFlourishProf ? " (Prof.)" : ""}`, val: `+${_flourishSpdAmt} flat SPD`, desc: `+${_flourishSpdAmt} flat SPD while in Flourish stance` },
       _hasFocusStep     && { key: 'focusStepSpd', label: "Focus Step SPD", val: `+${_focusStepAmt} flat SPD`, desc: `+LVL×2 flat SPD (${_focusStepAmt} at current level) for 4 turns` },
       _hasFireSutra     && { key: 'fireSutraStr', label: "Fire Sutra STR",  val: "+25% STR", desc: "Fire Sutra: grants a 25% Strength buff for 4 turns." },
       _hasSwiftFighter  && { key: 'swiftFighterSpd', label: `Swift Fighter SPD (${swiftFighterStacks} dodge${swiftFighterStacks > 1 ? "s" : ""})`, val: `+${Math.min(30, 20 * swiftFighterStacks)}% SPD`, desc: "Swift Fighter: each successful dodge grants a 20% Speed buff for 2 turns, capped at 30%." },
       _hasLightspeed    && { key: 'lightspeedSpd', label: "Lightspeed SPD", val: `+${Math.round(getTotalStat("arc") * 0.10)} flat SPD`, desc: "Lightspeed: every Verdant Archer proc also grants Speed equal to 10% of your Arcane for 3 turns." },
-      _hasOverload      && { key: 'overloadStrLck', label: "Overload STR/LCK", val: "+10% STR · +10% LCK", desc: "Overload: using a move that costs 2+ energy grants a 10% Strength and Luck buff for 3 turns." },
+      _hasOverload      && { key: 'overloadStr', label: "Overload STR", val: "+5% STR", desc: "Overload: Poised Slayer also grants you a 5% Strength buff." },
     ].filter(Boolean);
     const _hasPermuth = markPicker.value === 'Venia';
     if (_statBuffDefs.length || _hasPermuth) {
@@ -7607,8 +7614,8 @@ function renderDmgBonusSection() {
     if (_isAmorus && (_bulkUpOn || _bloodProfOn)) {
       html += `<h3 class="dc-bonus-title" style="margin-top:12px">Sinister Gaze</h3><div class="dc-bonus-list">`;
       if (_bulkUpOn) {
-        const _sgMult = Math.pow(1.20, bulkUpStacks).toFixed(2);
-        html += `<div class="dc-bonus-row${sinisterGazeReflect ? " dc-bonus-on" : ""}" data-sinister-gaze title="You shared your Bulk Up defense debuff(s) to the enemy via Sinister Gaze — enemy takes more damage.">
+        const _sgMult = Math.pow(1.20, Math.min(2, bulkUpStacks)).toFixed(2);
+        html += `<div class="dc-bonus-row${sinisterGazeReflect ? " dc-bonus-on" : ""}" data-sinister-gaze title="You shared your Bulk Up defense debuff(s) to the enemy via Sinister Gaze — enemy takes more damage. At most 2 shared stacks on one target.">
           <div class="dc-bonus-check">${sinisterGazeReflect ? "✓" : ""}</div>
           <span class="dc-bonus-name">Defense debuff reflected</span>
           <span class="dc-bonus-pct">×${_sgMult}</span>
@@ -8008,6 +8015,8 @@ function renderDmgCalc() {
 racePicker.addEventListener("change", renderMoves);
 classPicker.addEventListener("change", renderMoves);
 classPicker.addEventListener("change", clearRestrictedScrolls);
+// Race too: leaving Pumpulp takes Wind Reflect back from a class that cannot use it.
+racePicker.addEventListener("change", clearRestrictedScrolls);
 classPicker.addEventListener("change", () => { resetMastery(); renderMastery(); renderMasteryInfoSection(); });
 superPicker.addEventListener("change", () => {
   const selected = superPicker.value;
@@ -8324,7 +8333,7 @@ const masteryClassData = {
       l5:  { name: "Arcane Node" }, l6:  { name: "Arcane Node" },
       l7:  { name: "Arcane Node" }, l8:  { name: "Arcane Node" },
       l9:  { name: "Arcane Node" },
-      lm1: { name: "Nature's Wrath",              desc: "Verdant Archer's damage buff is increased.\nDoubles the damage buffs from Verdant Archer from 15% to 30% per stack. The 150% cap still applies." },
+      lm1: { name: "Nature's Wrath",              desc: "Verdant Archer's damage buff is increased.\nDoubles the damage buffs from Verdant Archer from 15% to 30% per stack. The 150% cap still applies.\nThe buff now lasts 1 more turn." },
       lm2: { name: "Flourish Proficiency",        desc: "Increase aggro buff to 100% and increases speed buff.\nAggro buff is currently bugged. Speed is increased by a flat 48 while using Flourish instead of the previous 25." },
       c1:  { name: "Speed Node" }, c2a: { name: "Speed Node" },
       c2b: { name: "Speed Node" }, c3a: { name: "Speed Node" },
@@ -8394,7 +8403,7 @@ const masteryClassData = {
       r7:  { name: "Strength Node" }, r8:  { name: "Strength Node" },
       r9:  { name: "Strength Node" },
       rm1: { name: "Risk Taker",                  desc: "Increases the chance to auto dodge with shadow while below 40% max health." },
-      rm2: { name: "Stealth Strike Proficiency",  desc: "Be able to trigger the first 40 poison stacks of an enemy from using Stealth Strike, and remove the last 40 stacks of poison." },
+      rm2: { name: "Stealth Strike Proficiency",  desc: "Be able to trigger the first 30 poison stacks of an enemy from using Stealth Strike, and remove the last 30 stacks of poison." },
     }
   },
   "Monk (Or)": {
@@ -8523,12 +8532,12 @@ const masteryClassData = {
       l7:  { name: "Speed Node" }, l8:  { name: "Speed Node" },
       l9:  { name: "Speed Node" },
       lm1: { name: "Jolting Dodges",              desc: "Now fires a shockwave when dodging ranged attacks." },
-      lm2: { name: "Rallying Shout Proficiency",  desc: "Increased aggro chance (currently bugged). Gives all allies 10% HP Regen for 3 turns." },
+      lm2: { name: "Rallying Shout Proficiency",  desc: "Apply 4T Taunt to all enemies and give all allies Shield HP equal to 5% of your max HP." },
       c1:  { name: "Endurance Node" }, c2a: { name: "Endurance Node" },
       c2b: { name: "Endurance Node" }, c3a: { name: "Endurance Node" },
       c4:  { name: "Endurance Node" }, c5a: { name: "Endurance Node" },
       c5b: { name: "Endurance Node" },
-      cm1: { name: "Overload",                    desc: "When using a move that costs 2 or more Energy, gain a 10% Strength and 10% Luck buff for 3 turns." },
+      cm1: { name: "Overload",                    desc: "Poised Slayer also grants you a 5% Strength Buff." },
       cm2: { name: "Discharge Proficiency",       desc: "Fires 4 smaller lightning projectiles that can hit the same target. First hit at full damage, second at 38%, subsequent hits at 1/3 damage.\nAlso applies 2 Weakened per hit." },
       r1:  { name: "Strength Node" }, r2:  { name: "Strength Node" },
       r3:  { name: "Strength Node" }, r4:  { name: "Strength Node" },

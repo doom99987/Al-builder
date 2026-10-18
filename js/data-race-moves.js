@@ -588,7 +588,7 @@ const raceMoves = {
       {
         level: 1,
         name: "Frost Stacks",
-        description: "Your Physical and Magic affinity moves become Ice affinity moves. When using an Ice affinity move, gain 1 stack. Each stack grants 10% Damage and 4% Damage Reduction, up to 50% Damage and 20% Damage Reduction. Using a non-Ice affinity move removes 1 stack. Buff moves do not change stacks."
+        description: "Your Physical and Magic affinity moves become Ice affinity moves. When using an Ice affinity move, gain 1 stack. Each stack grants 7% Damage and 4% Damage Reduction, up to 35% Damage and 20% Damage Reduction. Using a non-Ice affinity move removes 1 stack. Buff moves do not change stacks."
       },
       {
         level: 1,
@@ -716,7 +716,7 @@ const raceMoves = {
         duration: "2 turns",
         damage: 7,
         scaling: "STR/80 + ARC/80",
-        effect: "Deal damage to a target, copying their stat buffs (damage up, defense up) and sharing your negative status effects.",
+        effect: "Deal damage to a target, copying their stat buffs (damage up, defense up) and sharing your negative status effects. Stat debuff sharing stacks at most 2 times on the same target.",
         image: "https://trello.com/1/cards/67c264d744c6e0a59cc1cf57/attachments/697610a1b88b078367369dc0/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260125174518.png"
       },
       {
@@ -733,7 +733,7 @@ const raceMoves = {
         type: "Active",
         name: "Undulating Hex",
         quote: "Unleash a large burst of hex from your cursed side that forms into a large blade of hex that drops onto a foe.",
-        cost: 4,
+        cost: 3,
         cooldown: 9,
         moveType: "Hex",
         category: "Attack",
@@ -932,7 +932,7 @@ const raceMoves = {
         moveType: "Nature",
         category: "Damage",
         duration: 3,
-        scaling: "STR/80 + ARC/80",
+        scaling: "STR/80 + ARC/90",
         damage: "2",
         effect: "Enemy-wide and party-wide, ranged, unblockable and undodgeable. Cannot stack.\n\nGrants +1 FlatRGN and 10% DR. Every 1 BaseDMG you deal raises the strength of both by 5%, stacking additively — dealing 20 BaseDMG over the duration means +2 FlatRGN and 20% DR to you and your allies. The FlatRGN granted can scale with Outgoing healing.\n\nLike Ranger's Perennial Canopy this damages all opponents at the start of your turn while active, but unlike it this also deals damage on the turn it is cast. The most recently cast Maple Vindication takes precedence.\n\nThe tree colour follows your race variant's colour and the leaves your soul colour."
       }
@@ -984,6 +984,68 @@ const raceMoves = {
         category: "Buff",
         duration: 4,
         effect: "Self-target utility.\n\nDeals 2 x 10% of your current HP as True SelfDMG and grants a 25% DR buff. Taking damage while active gives 1 NRG, once per turn.\n\nThe buff is granted before the self damage is dealt."
+      }
+    ]
+  },
+  // ── OBTAINABLE: PUMPULP ───────────────────────────────────────────────────
+  // Halloween update (owner, 2026-10-18). Both actives switch between Nature
+  // and Fire each time you meditate; they are listed as Nature. Neither move's
+  // scaling is stated.
+  "Pumpulp (Ob)": {
+    innatePassives: [
+      {
+        level: 1,
+        name: "Harvest Wind",
+        description: "You can use the scroll move Wind Reflect on any class."
+      },
+      {
+        level: 1,
+        name: "Flaming Touch",
+        description: "Your hits have a 15% chance to apply 2 stacks of Burning to the target."
+      }
+    ],
+    learns: [
+      {
+        slot: "1st Learn",
+        level: 15,
+        type: "Active",
+        name: "Gourd Roll",
+        quote: "Turn into a huge pumpkin and roll into an enemy. Its element switches between Nature and Fire each time you meditate. Nature burns lightly and heals your weakest ally with every hit. Fire burns heavily with every hit.",
+        cost: 2,
+        cooldown: 7,
+        moveType: "Nature",
+        category: "Attack",
+        damage: "3x4",
+        effect: "Single-Target | Utility | Nature or Fire (switches each time you meditate).\n\nNature: burns lightly and heals your weakest ally with every hit. Fire: burns heavily with every hit. Scaling is not stated."
+      },
+      {
+        slot: "2nd Learn",
+        level: 25,
+        type: "Passive",
+        name: "Burning Care",
+        quote: "Your heals become stronger depending on how much your enemies are burning.",
+        effect: "Gain outgoing healing based on how many stacks of Burning are on enemies (caps at 25%)."
+      },
+      {
+        slot: "3rd Learn",
+        level: 30,
+        type: "Passive",
+        name: "Nature's Grace",
+        quote: "Using Nature moves regenerates your party.",
+        effect: "Using Nature moves heals your party for 3% HP. This heal scales off STR/75 and ARC/75."
+      },
+      {
+        slot: "4th Learn",
+        level: 35,
+        type: "Active",
+        name: "Root Lantern",
+        quote: "Emit radiance from your face. Its element switches between Nature and Fire each time you meditate. Nature grants an ally regeneration and damage reduction for 2 turns. Fire sets an enemy ablaze and empowers your team for 2 turns based on how badly it burns.",
+        cost: 3,
+        cooldown: 9,
+        moveType: "Nature",
+        category: "Buff",
+        duration: 2,
+        effect: "Utility | Team-Wide | Nature or Fire (switches each time you meditate).\n\nNature: an ally gains regeneration and damage reduction for 2 turns. Fire: sets an enemy ablaze and empowers your team for 2 turns, based on how badly it burns."
       }
     ]
   }

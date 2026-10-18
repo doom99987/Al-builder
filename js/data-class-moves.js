@@ -161,7 +161,7 @@ const classMoves = {
         type: "Active",
         name: "Dagger Spread",
         quote: "",
-        cost: 2,
+        cost: 1,
         cooldown: 5,
         moveType: "Physical",
         category: "Attack",
@@ -196,8 +196,8 @@ const classMoves = {
         cooldown: 5,
         moveType: "Physical",
         category: "Attack",
-        damage: 16,
-        scaling: "STR/85",
+        damage: 17,
+        scaling: "STR/75",
         effect: "Deals 30% more damage if the enemy is bleeding.",
         image: "https://trello.com/1/cards/67b32950fc6607f34e915105/attachments/69803cead7b17c27b5bb2103/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202105745.png"
       }
@@ -234,7 +234,7 @@ const classMoves = {
         type: "Passive",
         name: "Poisoner",
         quote: "",
-        effect: "Critical attacks apply 5 Poison on hit."
+        effect: "Your attacks apply 2T Poison, which is increased to 5T when doing a Critical Hit."
       },
       {
         slot: "4th Learn",
@@ -263,7 +263,7 @@ const classMoves = {
         category: "Attack",
         damage: 10,
         scaling: "STR/75",
-        effect: "Increases damage dealt by 100% if invisible while attacking. Applies 2 Cursed if the target is poisoned.",
+        effect: "Increases damage dealt by 100% if invisible while attacking. Applies 2 Cursed if the target is poisoned. Always procs the target's Poison once (currently bugged and does not work).",
         image: "https://trello.com/1/cards/67b32956205bcc638e52a56b/attachments/69800f95a11c466dc31c150c/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202074318.png"
       }
     ]
@@ -408,9 +408,9 @@ const classMoves = {
         cooldown: 6,
         moveType: "Physical",
         category: "Buff",
-        damage: "min(X,25)*1.6",
+        damage: 20,
         scaling: "STR/60",
-        effect: "Applies 2 turns of Taunt to all enemies. Denies an attack if it is targeted at you and instead attacks back. X is equal to the BaseDMG of whatever move you countered, capped at 25.\n\nSelf-Target | Unblockable and Undodgeable"
+        effect: "Applies 2 turns of Taunt to all enemies. Denies an attack if it is targeted at you and instead attacks back for 20 base damage, whatever the countered move's power.\n\nSelf-Target | Unblockable and Undodgeable"
       },
       {
         slot: "2nd Learn",
@@ -1050,7 +1050,7 @@ const classMoves = {
         cost: 0,
         cooldown: 0,
         moveType: "Physical",
-        damage: 6,
+        damage: 10,
         scaling: "ARC/105",
         effect: "Single-Target | Melee | Blockable and Dodgeable\n\nInnate: Meditating grants the Darkbeast 2 energy instead of 1."
       },
@@ -1063,7 +1063,7 @@ const classMoves = {
         cost: 2,
         cooldown: 3,
         moveType: "Hex",
-        damage: 11,
+        damage: 15,
         scaling: "ARC/105",
         effect: "Single-Target | Melee | Blockable and Dodgeable\n\nHas 20% lifesteal."
       },
@@ -1076,7 +1076,7 @@ const classMoves = {
         cost: 3,
         cooldown: 7,
         moveType: "Dark",
-        damage: 9,
+        damage: 12,
         scaling: "ARC/109",
         effect: "Enemy-wide | Ranged | Dodgeable\n\nApplies 2 Vulnerable, 2 Weakened, and 1 Stunned to all enemies.\n\nOnly available when Call Darkbeast is used with 4+ Darkcores."
       },
@@ -1090,7 +1090,7 @@ const classMoves = {
         cooldown: 4,
         moveType: "Dark",
         category: "Attack",
-        damage: "3x(Darkcores)",
+        damage: "3.5x(Darkcores)",
         scaling: "ARC/55",
         effect: "Fails with 0 Darkcores.\n\n1 Core: 1 Blinded + Weakened\n2 Cores: 2 Blinded + Weakened\n3 Cores: 3 Blinded + Weakened\n4 Cores: 4 Blinded + Weakened + 3 Vulnerable\n5 Cores: 5 Blinded + Weakened + 3 Vulnerable\n6 Cores: 6 Blinded + Weakened + 3 Vulnerable + 2 Sundered\n\nAOE | Ranged | Unblockable and Undodgeable"
       }
@@ -1234,7 +1234,7 @@ const classMoves = {
         type: "Passive",
         name: "Poised Slayer",
         quote: "",
-        effect: "Heal 1.5–7% from dodges depending on speed stat. Lower speed = more healing; higher speed = less healing. Successful dodges also grant a stacking 10% Damage buff, which can not exceed 50%."
+        effect: "Blocking and dodging grants you a 5% Damage increase and a 5% Crit Chance increase for 3T."
       },
       {
         slot: "3rd Learn",
@@ -1247,7 +1247,7 @@ const classMoves = {
         moveType: "Physical",
         category: "Attack",
         damage: 15,
-        scaling: "STR/80 + SPD/80",
+        scaling: "STR/75 + SPD/100 + END/120",
         critDmgBonus: 50,
         effect: "Chance to apply Stun on hit. Deals 50% more damage when this attack lands a Critical Hit.",
         image: "https://trello.com/1/cards/67b32967bc63ebd05c7741a0/attachments/6980583f9e86cca46d02a0db/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123616.png"
@@ -1262,7 +1262,7 @@ const classMoves = {
         cooldown: 7,
         moveType: "Physical",
         category: "Buff",
-        effect: "Give all allies a 15% damage buff, 10% defense buff, and 25% speed buff. Aggravates enemies into attacking the user for 4 turns (aggro effects are currently bugged).",
+        effect: "Gain 50% Aggro and Regen equal to 3% of your Max HP for 3T. Grant all allies 10% DR, a 10% Damage buff and a 20% Crit Chance increase for 3T.",
         image: "https://trello.com/1/cards/67b32967bc63ebd05c7741a0/attachments/6980583dfc21fd315aefd846/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123601.png"
       },
       {
@@ -1275,8 +1275,8 @@ const classMoves = {
         cooldown: 4,
         moveType: "Magic",
         category: "Attack",
-        damage: 10,
-        scaling: "STR/80 + SPD/80",
+        damage: 12,
+        scaling: "STR/75 + SPD/100 + END/120",
         effect: "Applies Stun when this attack lands a Critical Hit.",
         image: "https://trello.com/1/cards/67b32967bc63ebd05c7741a0/attachments/6980583bf4db5643df52821d/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260202123541.png"
       }
@@ -1774,7 +1774,7 @@ const classMoves = {
         requireItem: "10 Ferrus and 15 Aestic ore",
         cost: 3, cooldown: 6, moveType: "Physical", category: "Utility",
         damage: "12", scaling: "STR/70 + END/140",
-        effect: "Take your pickaxe out and strike the ground, creating a seismic eruption that hits all targets. Applies Crippled (4T) to all targets hit.",
+        effect: "Take your pickaxe out and strike the ground, creating a seismic eruption that hits all enemies (full AoE). Applies Crippled (4T) to all targets hit.",
         image: "https://trello.com/1/cards/696aa9dbc45d0880564497ff/attachments/697cd1f9cadd4faa217714a4/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260130204448.png"
       }
     ]

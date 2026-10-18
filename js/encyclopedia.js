@@ -53,7 +53,7 @@
     ['Dragon Memior',         'Gear',            ''],
     ['Dust Devil\'s Eye',     'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.'],
     ['Dust Storm',            'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.'],
-    ['Ramizcan Idol',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nGrants a 15% damage buff for 1 turn after blocking or parrying.'],
+    ['Ramizcan Idol',         'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nGrants a 15% damage buff for 1 turn after blocking or parrying. Stacks up to 2 times.'],
     ['Grain Of Balance',      'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Stray Sandstorm">Stray Sandstorm</button>.\n\nTakes 25% off your highest stat and grants half of the stat points lost to your other stats (it used to grant a quarter).'],
     ['Egg Shelmet',           'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Gigapascha">Gigapascha</button>. Can also be obtained from an <button class="enc-desc-link" data-enc-nav="Egg Basket">Egg Basket</button>.\n\nA helmet fashioned from a giant egg shell. Provides modest protection.'],
     ['Elemental Infuser',     'Gear',            'Drops from <button class="enc-desc-link" data-enc-nav="Pterathanaian">Pterathanaian</button>.'],
@@ -333,6 +333,7 @@
     ['Gynx (Obtainable)',        'Race', 'How to obtain:\n\n1. Defeat Handaconda on the character slot where you want the race. (Normal or Corrupted both work)\n2. Have a Forgotten Relic in your inventory while having 3 gear drops from Handaconda equipped. These include: Open Hand, Dust Devil\'s Eye, Eroded Blade, and The Smallest Boulder.\n3. Talk to the Handaconda fight NPC Thuriaz to obtain Gynx.'],
     ['Arborivia (3%)',   'Race', 'Rare race (3% chance). A tree race built around sustain: landing attacks stacks Vine Guard for DR and flat regen, which also feeds a growing chance at bonus energy each turn.\n\nVisuals: different horns based on your soul colour. Variants give different wood types.\n\nAdded in the last week of the update and untested beyond appearance and actives — expect changes to its stats and design.'],
     ['Calvariae (3%)',   'Race', 'Rare race (3% chance). A bone race that trades health for value: Broken Bones returns HP after taking a heavy hit, Frail Body splits big hits across two turns, and both of its actives cost you your own health.\n\nVisuals: different skulls based on your soul colour, which is also your eye colour. Variants give different skin tones.\n\nAdded in the last week of the update and untested beyond appearance and actives — expect changes to its stats and design.'],
+    ['Pumpulp (Obtainable)',     'Race', 'Halloween race - a support-DPS hybrid of flames and roots. Obtained by drinking a Hallow\'s Brew from the event shop. Base stats: STR 1, ARC 4, END 4, LCK 1, SPD 2.\n\nInnate: Harvest Wind (Wind Reflect on any class) and Flaming Touch (15% chance to apply 2 Burning on hit). Gourd Roll (Lv15) and Root Lantern (Lv35) switch between Nature and Fire each time you meditate; Burning Care (Lv25) turns the Burning on enemies into outgoing healing (cap 25%); Nature\'s Grace (Lv30) heals your party 3% HP whenever you use a Nature move.'],
 
     /* ── BOSSES (ordered by progression) ─────────────────────────────── */
     ["Yar'Thul, The Blazing Dragon", 'Boss', 'The boss of <button class="enc-desc-link" data-enc-nav="Mount Thul">Mount Thul</button>. This enemy can block attacks.'],
@@ -2570,7 +2571,7 @@
     'Spectral': {
       obtainableFrom: [],
       passives: [
-        { name: '', effect: 'Gives all your attacks a ?% chance to negate all enemy defence.' },
+        { name: '', effect: '25% chance to extend a field effect for 1 more turn (a single field effect cannot be extended for more than 3 turns). On proc, gain a +10% proc coefficient buff for 5 turns (+50% cap).' },
       ],
       moves: [],
     },

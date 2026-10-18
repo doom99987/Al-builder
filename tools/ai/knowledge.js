@@ -1344,6 +1344,11 @@
                         note: 'Broken Bones heals after every heavy hit, Frail Body splits any hit ' +
                               'of 15%+ max HP across two turns, and Brittle Cure buys 25% DR - ' +
                               'the race for fights you win by not dying' },
+    // Halloween update (owner, 2026-10-18).
+    'Pumpulp (Ob)':   { roles: ['support', 'status', 'dps'],
+                        note: 'Flaming Touch burns on hit, Burning Care turns enemy Burning into ' +
+                              'outgoing healing and Nature\'s Grace heals the party on Nature moves - ' +
+                              'a support-damage hybrid' },
   };
 
   // ── SETUP MOVES ───────────────────────────────────────────────────────────

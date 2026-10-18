@@ -6786,7 +6786,7 @@ describe('builder state after a load or a mastery change', () => {
   it("crit chance reads the same Luck multipliers as getTotalStat, in its order", () => {
     const up = fnBody('updatePecents');
     const at = re => { const m = re.exec(up); return m ? m.index : -1; };
-    const order = [/_looterLckMult = 1 \+ looterStacks \* 0\.1575/, /totalLck = Math\.round\(totalLck \* 1\.10\)/,
+    const order = [/_looterLckMult = 1 \+ looterStacks \* 0\.1575/,
                    /permuthStat === 'lck'[^\n]*totalLck \* 1\.4/, /_ivoryLckMult = ivoryStatMult\(\)/, /midasLckMult\(\)/];
     const idx = order.map(at);
     ok(idx.every(i => i !== -1), 'crit chance is missing a Luck multiplier: ' + JSON.stringify(idx));
@@ -7078,7 +7078,7 @@ describe('Lancer and Ranger rework', () => {
        'Verdant Archer is not +15% damage in the Build AI');
   });
 
-  it('Overload is +10% Strength and Luck, on the site and in the Build AI', () => {
+  it('Overload: +5% Strength on the site; the Build AI still prices +10% STR and LCK', () => {
     const o = K.MASTERY_ABILITIES.Overload;
     ok(o && o.kind !== 'dmgPct', 'Overload is still priced as a damage bonus');
     eq(JSON.stringify(o.effects), JSON.stringify([{ kind: 'statPct', stat: 'str', value: 10 },
@@ -7087,13 +7087,12 @@ describe('Lancer and Ranger rework', () => {
     eq(K.MASTERY_ABILITIES.Lightspeed.kind, 'statFromStat', 'Lightspeed is not a stat-from-stat ability');
     eq(((data.masteryAbilities['Lancer (N)'] || {}).cm1 || {}).bonus, null,
        "Overload's text still parses as a damage bonus");
-    // Site: both stats, and the Luck half reaches crit chance before Permuth.
-    ok(/if \(\(statKey === "str" \|\| statKey === "lck"\) && statBuffsActive\.overloadStrLck\) total = Math\.round\(total \* 1\.10\);/.test(src),
-       'getTotalStat does not apply Overload to STR and LCK');
-    const coag = src.indexOf('if (coagNailActive) totalLck += coagNailBonus;');
-    const over = src.indexOf('if (_overloadLck) totalLck = Math.round(totalLck * 1.10);');
-    const perm = src.indexOf("if (permuthStat === 'lck' && markPicker?.value === 'Venia') totalLck");
-    ok(coag !== -1 && over > coag && perm > over, 'the crit Luck total does not apply Overload between the nail and Permuth');
+    // Site (2026-10-18 patch): "Poised Slayer also grants you a 5% Strength Buff" -
+    // Strength only, so it no longer reaches the crit Luck total. The Build AI
+    // below still prices the old +10% STR / LCK (owner: the AI is updated later).
+    ok(/if \(statKey === "str" && statBuffsActive\.overloadStr\) total = Math\.round\(total \* 1\.05\);/.test(src),
+       'getTotalStat does not apply Overload as +5% Strength');
+    ok(src.indexOf('_overloadLck') === -1, 'Overload still raises the crit Luck total');
     // Build AI: the percentage lands on the in-fight totals only, at its uptime.
     const spec = Intent.applyOverrides(Intent.parse('', data, K), { goal: 'damage' }, data);
     const tree = ['s1', 's2', 's3', 's4', 'c1', 'c2a', 'c3a', 'cb1'];
@@ -7258,16 +7257,17 @@ describe('Boreas and Vydeer rework', () => {
     ok(ratio('Amorus (Ob)') < 0.99, 'fixture: an Amorus Impaler is not resisted by Handaconda at all');
   });
 
-  it('Frost Stacks: +10% damage a stack, five at most', () => {
-    ok(/p\.name === "Frost Stacks"\)\s*return 10 \* boreasStacks;/.test(siteFn('dmgRowPct')),
-       'Frost Stacks is not +10% a stack');
-    near(activeMult(['Frost Stacks'], { boreasStacks: 5 }), 1.5, 'five Frost Stacks');
-    near(activeMult(['Frost Stacks'], { boreasStacks: 1 }), 1.1, 'one Frost Stack');
+  it('Frost Stacks: +7% damage a stack, five at most', () => {
+    // 2026-10-18 patch: 10% -> 7% a stack, cap 50% -> 35%.
+    ok(/p\.name === "Frost Stacks"\)\s*return 7 \* boreasStacks;/.test(siteFn('dmgRowPct')),
+       'Frost Stacks is not +7% a stack');
+    near(activeMult(['Frost Stacks'], { boreasStacks: 5 }), 1.35, 'five Frost Stacks');
+    near(activeMult(['Frost Stacks'], { boreasStacks: 1 }), 1.07, 'one Frost Stack');
     const step = counter('changeBoreasStacks', 'boreasStacks', 1);
     eq(step(100), 5, 'the Frost Stacks counter does not stop at 5');
     eq(step(-100), 1, 'the Frost Stacks counter goes under 1');
-    ok(/const fsKey = "passive:Frost Stacks";[\s\S]{0,120}key: fsKey, name: "Frost Stacks", bonus: 10,/.test(src),
-       'no Frost Stacks entry at +10% a stack');
+    ok(/const fsKey = "passive:Frost Stacks";[\s\S]{0,120}key: fsKey, name: "Frost Stacks", bonus: 7,/.test(src),
+       'no Frost Stacks entry at +7% a stack');
     const fs_ = [...(data.raceMoves['Boreas (1%)'].innatePassives || []), ...(data.raceMoves['Boreas (1%)'].learns || [])]
       .find(m => m.name === 'Frost Stacks');
     ok(fs_, 'no Frost Stacks in the Boreas data');
