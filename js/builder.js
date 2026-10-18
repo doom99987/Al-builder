@@ -1720,6 +1720,20 @@ const enchantItems = {
   "Skyblaze": {
     level: null,
     effect: "Of Other Planes — Both.\n\nCorrupt Energy Burn: -20%\nRecoil Self Damage: -30%\nCorrupt Power Gain: +15%\nCorrupt Energy Gain: +30%\n\nPassive health drain: 2% max health damage at the end of your turn, ramping by 0.5% per turn to a cap of 6%. It stops while your health is above 75% max, never takes you below 10 HP, and resets and switches off while you are in a Corrupt Form.\n\nObtained by turning in both the Starpoint and Moonlit Charms at the same time."
+  },
+  // Owner, 2026-10-17, from a screenshot. Part of Ghoststeel's first line was
+  // hidden behind the art in it; the (?) marks the missing words.
+  "Ghoststeel": {
+    level: null,
+    effect: "15% chance to steal (?). Successful steals grant a +5% damage buff and +12% resistance bypass, up to 5 stacks."
+  },
+  "Wraith": {
+    level: null,
+    effect: "Hits apply 1 stack of Haunted (2 if the attack is above 15 base damage). Haunted makes the target deal 1% less damage and take 3% more damage per stack, up to 5 stacks, and decays normally."
+  },
+  "Spooked": {
+    level: null,
+    effect: "At the start of your turn, either gain 1 energy and heal 5% of max HP, or lose 1 energy and lose 5% of max HP. The chance of the good outcome increases by 5% per energy you hold."
   }
 };
 
@@ -2019,6 +2033,8 @@ buildSimpleDropdown(enchantPicker, Object.keys(enchantItems), () => {
   ivoryNrgStacks = 0;
   midasLckStacks = 0;
   lifesongStacks = 0;
+  ghoststeelStacks = 0;
+  hauntedStacks = 0;
   // updatePecents too: the enchants' stacks change the stat rows, crit chance and healing.
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 });
@@ -4199,6 +4215,8 @@ let lightForceCrit = 0;   // 0..100  flat Crit Rate bought 1:1 with Light Force
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, cursedSundered: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
+let ghoststeelStacks = 0;  // Ghoststeel: successful steals, 0-5, +5% damage each
+let hauntedStacks = 0;     // Wraith: Haunted on the target, 0-5, +3% damage taken each
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
 let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> CRYSTALLINE_SPIKE_SPEND_FLAT instead of CRYSTALLINE_SPIKE_FLAT
 let bloomingEyeSpend = false;  // Blooming Eye: 100 Corrupt Power -> +35 True Flat instead of +5
@@ -5892,6 +5910,9 @@ function getEnchantPct() {
   if (ench === 'Inferno' && enchantCondActive.inferno)        return { label: 'Inferno', pct: 20 };
   if (ench === 'Midas'   && enchantCondActive.midasProc)      return { label: 'Midas proc', pct: 15 };
   if (ench === 'Reaper'  && enchantCondActive.reaperProc)     return { label: 'Reaper proc', pct: 25 * enchantReaperEnemyHp / 100 };
+  // Ghoststeel: "+5% damage buff ... (cap of 5 stacks)". Its +12% resistance
+  // bypass a stack is not counted: how it meets a boss's resistance is not stated.
+  if (ench === 'Ghoststeel' && ghoststeelStacks > 0)          return { label: `Ghoststeel (${stacksLabel(ghoststeelStacks)})`, pct: 5 * ghoststeelStacks };
   return { label: '', pct: 0 };
 }
 // As a multiplier: DeathBeak's proc takes the enchant alone ("your enchant",
@@ -6277,6 +6298,14 @@ function setIvoryStacks(val) {
   ivoryNrgStacks = Math.max(0, +val);
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
+function setGhoststeelStacks(val) {
+  ghoststeelStacks = Math.max(0, Math.min(5, +val || 0));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+function setHauntedStacks(val) {
+  hauntedStacks = Math.max(0, Math.min(5, +val || 0));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
 function setMidasLckStacks(val) {
   midasLckStacks = Math.max(0, Math.min(4, +val || 0));
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
@@ -6551,6 +6580,11 @@ function getStatusMultiplier(moveType, opts) {
   // Tyranny: Condemned makes the target "take more damage from everyone".
   if (corruptionPicker?.value === "Tyranny" && corruptionBuffsActive.condemned) {
     const c = 1 + condemnedPct / 100; mult *= c; labels.push(`Condemned ×${c.toFixed(2)}`);
+  }
+  // Wraith: Haunted makes the target "take 3% more damage" a stack (cap 5). A
+  // status on the target, so it multiplies like Condemned.
+  if (enchantPicker?.value === 'Wraith' && hauntedStacks > 0) {
+    const h = 1 + 0.03 * Math.min(5, hauntedStacks); mult *= h; labels.push(`Haunted ×${h.toFixed(2)}`);
   }
   // Sinister Gaze: the enemy received your Bulk Up defence debuff(s).
   if (sinisterGazeReflect && dmgBonusPassives.some(p => p.name === "Bulk Up" && dmgBonusActive[p.key])) {
@@ -7204,6 +7238,22 @@ function renderDmgBonusSection() {
       </div>`;
     }
     html += `</div>`;
+  }
+
+  // --- Ghoststeel steal stacks / Wraith's Haunted on the target ---
+  if (_enchantName === 'Ghoststeel' || _enchantName === 'Wraith') {
+    const _gs = _enchantName === 'Ghoststeel';
+    const _n = _gs ? ghoststeelStacks : hauntedStacks;
+    const _title = _gs
+      ? 'Each successful steal: +5% damage (up to 5 stacks). Its +12% resistance bypass a stack is not counted.'
+      : 'Haunted: the target takes 3% more damage a stack (up to 5) and deals 1% less. 1 stack a hit, 2 if the attack is above 15 base damage.';
+    html += `<h3 class="dc-bonus-title" style="margin-top:12px">Enchant</h3><div class="dc-bonus-list">
+      <div class="dc-energy-section" style="margin:4px 0 6px 0" title="${_title}">
+        <span class="dc-energy-label">${_gs ? 'Steal stacks' : 'Haunted stacks on target'}: <span>${_n}</span></span>
+        <input type="range" class="dc-rage-slider" min="0" max="5" value="${_n}" oninput="${_gs ? 'setGhoststeelStacks' : 'setHauntedStacks'}(this.value)">
+        <span class="dc-rage-slider-hint">${_gs ? `+${5 * _n}% damage` : `target takes ×${(1 + 0.03 * _n).toFixed(2)} damage`}</span>
+      </div>
+    </div>`;
   }
 
   // --- Ivory Enchant NRG Stacks ---
@@ -9959,6 +10009,8 @@ function loadBuildState(state) {
   ivoryNrgStacks = 0;
   midasLckStacks = 0;
   lifesongStacks = 0;
+  ghoststeelStacks = 0;
+  hauntedStacks = 0;
   coagNailStacks = 1;
   ssbProcChance = 35;
   Object.keys(dmgBonusActive).forEach(k => { dmgBonusActive[k] = false; });
