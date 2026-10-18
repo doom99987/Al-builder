@@ -1721,11 +1721,10 @@ const enchantItems = {
     level: null,
     effect: "Of Other Planes — Both.\n\nCorrupt Energy Burn: -20%\nRecoil Self Damage: -30%\nCorrupt Power Gain: +15%\nCorrupt Energy Gain: +30%\n\nPassive health drain: 2% max health damage at the end of your turn, ramping by 0.5% per turn to a cap of 6%. It stops while your health is above 75% max, never takes you below 10 HP, and resets and switches off while you are in a Corrupt Form.\n\nObtained by turning in both the Starpoint and Moonlit Charms at the same time."
   },
-  // Owner, 2026-10-17, from a screenshot. Part of Ghoststeel's first line was
-  // hidden behind the art in it; the (?) marks the missing words.
+  // Owner, 2026-10-17 (a screenshot, then the full text).
   "Ghoststeel": {
     level: null,
-    effect: "15% chance to steal (?). Successful steals grant a +5% damage buff and +12% resistance bypass, up to 5 stacks."
+    effect: "15% chance to steal energy on proc. Successful steals grant a +5% damage buff and +12% resistance bypass, up to 5 stacks."
   },
   "Wraith": {
     level: null,
