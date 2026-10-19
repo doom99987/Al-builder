@@ -17,8 +17,9 @@ const ROOT = path.join(__dirname, '..', '..', '..');
 const HERE = path.resolve(__dirname).replace(/\\/g, '/').toLowerCase();
 const PART = '\n// ==== qte-rules part: ';
 const HEADS = JSON.parse(fs.readFileSync(path.join(__dirname, '_heads.json'), 'utf8'));
-// The last commit whose js/qte.js is the pre-verified-runs original.
-const ORIGINAL_AT = '489ce6d';
+// The last commit whose js/qte.js is the pre-verified-runs original
+// (bc217c8 since the 2026-10-19 history rewrite; it was 489ce6d before).
+const ORIGINAL_AT = 'bc217c8';
 
 const realRead = fs.readFileSync;
 const text = p => realRead.call(fs, path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
