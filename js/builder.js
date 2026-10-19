@@ -2509,8 +2509,7 @@ const gearItems = {
   "Shadow Gauntlets":      { str: 0, arc: 0, end: 4, spd: 0, lck: 0 },
   "Infected Skin":         { str: 2, arc: 0, end: 2, spd: 0, lck: 0 },
   "Lucky Horns":           { str: 0, arc: 0, end: 0, spd: 4, lck: 0 },
-  // Halloween Gears (2026 event). Base stats from the owner (2026-10-19); Tooth
-  // and Nail's are not known yet, so it stays 0 until the owner gives them.
+  // Halloween Gears (2026 event). Base stats from the owner (2026-10-19).
   "Witch Broom":           { str: 0, arc: 1, end: 0, spd: 3, lck: 0 },
   "Witch Cap":             { str: 0, arc: 3, end: 0, spd: 1, lck: 0 },
   "Stained Mask":          { str: 2, arc: 0, end: 2, spd: 0, lck: 0 },
@@ -2518,7 +2517,7 @@ const gearItems = {
   "Spider Hairclip":       { str: 0, arc: 2, end: 0, spd: 2, lck: 0 },
   "Pumpkin Guts":          { str: 0, arc: 0, end: 2, spd: 0, lck: 0 },
   "Ectoplasmic Gel":       { str: 0, arc: 2, end: 2, spd: 0, lck: 0 },
-  "Tooth and Nail":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Tooth and Nail":        { str: 1, arc: 0, end: 3, spd: 0, lck: 0 },
   "Coiled Cobwebs":        { str: 0, arc: 0, end: 3, spd: 0, lck: 3 },
 };
 
