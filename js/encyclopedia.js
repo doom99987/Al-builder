@@ -124,6 +124,18 @@
     ['Faded Heirloom',        'Gear',            'Drops from Withered Grove enemies.'],
     ['Ring of Heroism',       'Gear',            'Drops from Withered Grove enemies.'],
 
+    /* Halloween Gears (2026 event): effects from the patch notes; the base
+       stats are not known yet. */
+    ['Witch Broom',           'Gear',            'Halloween event gear.\n\nAfter gaining a speed boost for 3 consecutive turns, rise up into the sky and gain one stack of Invisible, and give your next attack +33% Crit Chance (expires after 1 turn).'],
+    ['Witch Cap',             'Gear',            'Halloween event gear.\n\nAt the start of your turn, gain a 30% chance to throw a nerfed Dangerous Mixture at the enemy with the most health. The first time this happens, and every third time after that, it applies 3 stacks of Sundered.'],
+    ['Stained Mask',          'Gear',            'Halloween event gear.\n\nFor every 5 stacks of Bleed you apply to an enemy, apply 3 additional stacks of Bleed to both yourself and the enemy. (Bleed applied this way cannot trigger the effect again.)'],
+    ['Haunted Cloth',         'Gear',            'Halloween event gear.\n\nAt the start of a fight, gain 5 stacks of Blinded (bypasses resist). If you have any stacks of Blinded on you, Meditating applies 2 stacks of Blinded to both you and all enemies on the field, whilst Guarding applies 4 stacks of Blinded to all enemies.\n\nAdditionally, if you have any stacks of Blinded on you, gain Crit Chance equal to the amount of stacks of Blinded on enemies divided by 2 (cap of 25%).\n\nAlso, QTE difficulty from shadow bosses is halved.'],
+    ['Spider Hairclip',       'Gear',            'Halloween event gear.\n\nWhenever you lose 7.5% HP, summon a Spider (cap of 2 a turn, 2T CD between turns where spiders can be summoned).\n\nSpiders are a new summon that don\'t have a turn and don\'t count towards the summon cap, however 1 player can only have 2 at a time, with a party having a max of 5 at a time. They attack at the start of your turn, applying 2 stacks of Weakened, and dealing 7.5 Base Damage, which scales off of ARC/75. They have 10 Base HP which doesn\'t scale, and they absorb 20% of the damage you take. Cap of 5 Spiders at a time.'],
+    ['Pumpkin Guts',          'Gear',            'Halloween event gear.\n\nTaking more than 7.5% of your Max HP in one turn applies 2 stacks of 3 random status effects onto the enemy that dealt the damage. Taking more than 30% of your Max HP in one turn applies 10% HP regen for 2 turns.'],
+    ['Ectoplasmic Gel',       'Gear',            'Halloween event gear.\n\nUpon receiving DR, gain extra energy chance equal to the DR received for as long as the DR lasts. The extra energy chance is increased by 1.5x if the DR was given by an ally (extra energy chance cap is +75%).'],
+    ['Tooth and Nail',        'Gear',            'Halloween event gear.\n\nUsing your highest energy cost super class move grants you DR equal to half your damage buffs on that turn.'],
+    ['Coiled Cobwebs',        'Gear',            'Halloween event gear.\n\nUsing moves below 3 energy applies 1 or 2 stacks of Crippled onto yourself based off of the energy cost. Reaching 5 stacks of Crippled this way locks all your moves for 1 turn, then sets all your moves that cost 3+ energy to 3 energy cost until they are used for the first time.'],
+
     /* ── WEAPONS ──────────────────────────────────────────────────────── */
     ['Blacksteel Axe',        'Weapon',          ''],
     ['Blacksteel Cestus',     'Weapon',          ''],
@@ -766,6 +778,7 @@
     { label: 'Volcano Gears',         names: new Set(['Imperial Headband', 'Magma Charm', 'Vulcan Knuckle', 'Dragon Memior', 'Blazing Brand', 'Molten Carapace']) },
     { label: 'Bosses/Minibosses Gears', names: new Set(['Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'Deathbeak Dagger', 'Blazing Perforator', "Yarthul's Wrath", 'Frostburned Rune', 'Vow of Ruin', 'Frozen Diadem', 'Imbuement Reliquary', 'Divine Promise', 'Focused Mind', 'Aspect of Maladaptation', 'Tainted Quiver', 'Vainglorious Locket', 'The Smallest Boulder', 'Eroded Blade', "Dust Devil's Eye", 'Open Hand']) },
     { label: 'Withered Grove', desc: 'Drops from Withered Grove enemies.', names: new Set(['Ages Pages', 'Blooming Eye', 'Crystalline Spike', 'Dread Fang', 'Empty Blade', 'Faded Heirloom', 'Infected Skin', 'Lucky Horns', 'Ring of Heroism', 'Shadow Gauntlets']) },
+    { label: 'Halloween Gears',       desc: 'Can only be obtained during Halloween Events.', names: new Set(['Witch Broom', 'Witch Cap', 'Stained Mask', 'Haunted Cloth', 'Spider Hairclip', 'Pumpkin Guts', 'Ectoplasmic Gel', 'Tooth and Nail', 'Coiled Cobwebs']) },
     { label: 'N/A',                   names: new Set(['Lethal Blackajck', 'Everbeating Drum']) },
   ];
 

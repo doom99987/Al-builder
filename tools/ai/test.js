@@ -455,6 +455,53 @@ describe('model', () => {
     ok(M.weaponIsTiered('Dragonbone Spear'), 'Dragon not counted as tiered');
   });
 
+  it('tiers Candy and Ghostgrave weapons up to T6, the rest to T4 (owner, 2026-10-19)', () => {
+    for (const n of ['Jolly Dagger', 'Caramel Fists', 'Ghostgrave Scythe', 'Ghostgrave Shield']) {
+      ok(M.weaponIsTiered(n), n + ' not counted as tiered');
+      eq(M.weaponMaxTier(n), 6, n + ' max tier');
+    }
+    eq(M.weaponMaxTier('Dragonbone Spear'), 4, 'a Dragon weapon stays at T4');
+    eq(M.weaponMaxTier('Primordial Dagger'), 4, 'Primordial stays at the site cap');
+    eq(JSON.stringify(M.shapesFor(6, true, 'Jolly Dagger')), JSON.stringify(data.GEAR_TIER_SHAPES[6]), 'Jolly Dagger offers the T6 rolls');
+    eq(JSON.stringify(M.shapesFor(6, true, 'Dragonbone Spear')), JSON.stringify(data.GEAR_TIER_SHAPES[4]), 'a Dragon weapon is cut to T4');
+    // A T6 Mono on a Candy weapon is 9 real points in the stat total.
+    const b = M.emptyBuild(); b.level = 50; b.race = 'Estella (24%)';
+    const base = M.derived(b).stats.str;
+    b.weapon = { name: 'Jolly Dagger', tier: 6, alloc: { str: 9 } };
+    const withTier = M.derived(b).stats.str;
+    ok(withTier > base, 'a T6 Jolly Dagger added no Strength (' + base + ' -> ' + withTier + ')');
+  });
+
+  it('the site tiers Candy and Ghostgrave to T6 the same way (builder.js § WEAPON TIERS)', () => {
+    // Runs the page's own code - GEAR_TIER_SHAPES through clampGearInstance -
+    // with the extracted weapon tables, so the site and the model cannot drift.
+    const vm = require('vm');
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'js', 'builder.js'), 'utf8');
+    const a = src.indexOf('const GEAR_TIER_SHAPES = [');
+    const z = src.indexOf('function resetGearInstance(');
+    ok(a > 0 && z > a, 'builder.js tier section not found');
+    const ctx = vm.createContext({ mainWeaponSeries: data.mainWeaponSeries, offhandSeries: data.offhandSeries,
+                                   _gearSlotIds: ['gear-1', 'gear-2', 'gear-3', 'gear-4'],
+                                   document: { getElementById: () => null } });
+    vm.runInContext(src.slice(a, z) + '\nthis.__t = { weaponHasTiers, weaponMaxTier, specForWeaponName, specMaxTier, clampGearInstance, gearInstanceAlloc };', ctx);
+    const T = ctx.__t;
+    for (const n of ['Jolly Dagger', 'Candy Corn Sword', 'Ghostgrave War Scythe', 'Ghostgrave Shield']) {
+      ok(T.weaponHasTiers(n), n + ' has no tier box on the site');
+      eq(T.weaponMaxTier(n), 6, n + ' site max tier');
+      eq(T.weaponMaxTier(n), M.weaponMaxTier(n), n + ': the site and the model disagree');
+    }
+    eq(T.weaponMaxTier('Dragonbone Spear'), 4, 'Dragon weapons stay at T4 on the site');
+    // A share link / saved build at T6 keeps T6 on a Candy weapon, and the
+    // Quad roll grants all four stats; on a Dragon weapon it is clamped to T4.
+    const raw = { tier: 6, shape: 2, stats: ['str', 'arc', 'end', 'spd'] };
+    const jolly = T.clampGearInstance(raw, T.specForWeaponName('Jolly Dagger'));
+    eq(jolly.tier, 6, 'T6 Jolly Dagger clamped');
+    const given = Object.fromEntries(Object.entries(T.gearInstanceAlloc(jolly)).filter(([, v]) => v));
+    eq(JSON.stringify(given), JSON.stringify({ str: 2, arc: 2, end: 2, spd: 2 }), 'T6 Quad allocation');
+    eq(T.clampGearInstance(raw, T.specForWeaponName('Dragonbone Spear')).tier, 4, 'T6 on a Dragon weapon was not clamped to T4');
+    eq(T.specMaxTier(T.specForWeaponName('Ghostgrave Shield')), 6, 'the Ghostgrave Shield editor stops below T6');
+  });
+
   it('treats armour endFlat as HP, never as END', () => {
     const b = M.emptyBuild();
     b.level = 50; b.race = 'Estella (24%)';
@@ -537,6 +584,20 @@ describe('analyse', () => {
     const b = Share.fromState(data, mkState());
     eq(b.gear[0].traits.length, 1);
     eq(b.gear[0].traits[0].id, 'heavyHand');
+  });
+
+  it('keeps a T6 Candy / Ghostgrave weapon at T6 in and out of a link', () => {
+    const b = Share.fromState(data, mkState({
+      wm: 'Jolly Dagger', wo: 'Ghostgrave Shield',
+      wti: [{ tier: 6, shape: 0, stats: ['str', '', '', ''] }, { tier: 6, shape: 1, stats: ['end', 'spd', '', ''] }],
+    }));
+    eq(b.weapon.tier, 6, 'Jolly Dagger tier read from the builder');
+    eq(b.weapon.alloc.str, 9, 'T6 Mono is 9 Strength');
+    const sh = Share.allocToShape(data, { str: 5, arc: 3 }, 6, true, 'Ghostgrave Sword');
+    eq(JSON.stringify(sh), JSON.stringify({ tier: 6, shape: 1, stats: ['str', 'arc'] }), 'T6 Duo written for a link');
+    eq(Share.allocToShape(data, { str: 5, arc: 3 }, 6, true, 'Dragonbone Spear').tier, 4, 'a Dragon weapon is written at T4 at most');
+    eq(Share.allocFromInstance(data, { tier: 6, shape: 0, stats: ['lck'] }, true, 'Dragonbone Spear').tier, 4,
+       'a Dragon weapon read from a T6 instance is not cut to T4');
   });
 
   it('copes with a blank builder', () => {
@@ -2480,7 +2541,13 @@ describe('the healer build the numbers used to miss', () => {
     // so a healer's shards can all measure. Whatever the count, the row has to
     // tell the truth about it: the fill is admitted, and a full set of measured
     // picks is not called fill.
-    const r = heal();
+    //
+    // Weapon held to the Primordial Spear, the healer's pick when this was
+    // written. Since Candy weapons tier to T6 (2026-10-19) the open search takes
+    // a T6 Smarties Spear (+9 END, regen x1.5 and a damage boost from regen),
+    // and with that much damage feeding All For One's lifesteal its best
+    // sustain shards are damage shards, not Regenerative.
+    const r = ask('', { klass: 'Saint (Or)', goal: 'heal', level: data.Max_Lvl, weaponName: 'Primordial Spear' });
     const lifesteal = r.build.shards.filter(n => ((data.shardItems[n] || {}).bonusType) === 'lifesteal');
     ok(lifesteal.length > 0, 'a healer with lifesteal counted took no lifesteal shard');
     ok(r.build.shardsInert >= 0 && r.build.shardsInert <= r.build.shards.length, 'inert count out of range');

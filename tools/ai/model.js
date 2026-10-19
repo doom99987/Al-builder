@@ -95,15 +95,21 @@
     // Only weapons from the tiered SERIES roll tier points; a Ferrus Spear is
     // just a Ferrus Spear. Mirrors tieredWeaponNames() (builder.js:655). Getting
     // this wrong silently hands every weapon up to 5 free stat points.
+    // Each tiered name's ceiling comes from the same pass, as weaponMaxTier()
+    // does on the site: MAX_WEAPON_TIER, or WEAPON_SERIES_MAX_TIER /
+    // OFFHAND_MAX_TIER where those raise it (Candy and Ghostgrave reach T6).
+    const _weaponCaps = {};
     const _tieredWeapons = (() => {
       const s = new Set();
       const tieredSeries = new Set(D.TIERED_WEAPON_SERIES || []);
+      const seriesCap = D.WEAPON_SERIES_MAX_TIER || {}, offCap = D.OFFHAND_MAX_TIER || {};
       for (const [series, items] of Object.entries(D.mainWeaponSeries || {}))
-        if (tieredSeries.has(series)) for (const n of Object.keys(items || {})) s.add(n);
-      for (const n of (D.TIERED_OFFHAND_NAMES || [])) s.add(n);
+        if (tieredSeries.has(series)) for (const n of Object.keys(items || {})) { s.add(n); _weaponCaps[n] = seriesCap[series] ?? D.MAX_WEAPON_TIER; }
+      for (const n of (D.TIERED_OFFHAND_NAMES || [])) { s.add(n); _weaponCaps[n] = offCap[n] ?? D.MAX_WEAPON_TIER; }
       return s;
     })();
     const weaponHasTiers = name => !!name && _tieredWeapons.has(name);
+    const weaponMaxTier  = name => (weaponHasTiers(name) ? _weaponCaps[name] : D.MAX_WEAPON_TIER);
 
     // Every tiered slot contributes base stats + the points its tier granted.
     // Weapons and artifacts have no base stat block, so for them it is tier only.
@@ -807,8 +813,10 @@
     // ── tier helpers ──────────────────────────────────────────────────────────
     // A tier grants one of a fixed set of SHAPES, not loose points. Stats in a
     // shape must all differ, so no stat takes two values from one shape.
-    function shapesFor(tier, isWeapon) {
-      const cap = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
+    // A weapon is capped at its own ceiling when it is named (T6 for Candy and
+    // Ghostgrave), at MAX_WEAPON_TIER when it is not.
+    function shapesFor(tier, isWeapon, name) {
+      const cap = isWeapon ? (name ? weaponMaxTier(name) : D.MAX_WEAPON_TIER) : D.MAX_GEAR_TIER;
       return D.GEAR_TIER_SHAPES[Math.min(cap, Math.max(0, tier | 0))] || [[]];
     }
     // Best single-stat allocation available at a tier: the largest shape value,
@@ -827,7 +835,7 @@
       critTier, critMultiplier, expectedMultiplier,
       pointBudget, levelStatBonus, gearContributions, gearFlat, pctSources,
       shapesFor, allocForShape, traitTotals, shardTotals, energyCap, parseDamage, parseCost,
-      weaponIsTiered: weaponHasTiers,
+      weaponIsTiered: weaponHasTiers, weaponMaxTier,
       statContext, masteryData, masteryFlat,
       rawStat, rawLuck,
     };

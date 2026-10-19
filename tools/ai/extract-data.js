@@ -45,6 +45,8 @@ const WANTED = [
     'weaponBonuses', 'covenantBonuses', 'statMilestones',
     'GEAR_TIER_SHAPES', 'GEAR_ALLOC_STATS', 'STAT_MILESTONE_TIERS',
     'TIERED_OFFHAND_NAMES', 'mainWeaponSeries', 'offhandSeries',
+    // Weapon ceilings above MAX_WEAPON_TIER (Candy, Ghostgrave: T6).
+    'WEAPON_SERIES_MAX_TIER', 'OFFHAND_MAX_TIER',
     'corruptionForms', 'CORRUPTION_GENERAL', 'classes', 'subClasses',
     // Needed to rebuild the share-link lists (_buildLists) and the mastery /
     // soul-tree bit fields. ORDER IS LOAD-BEARING for every one of these:

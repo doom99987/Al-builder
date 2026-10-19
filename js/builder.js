@@ -539,9 +539,14 @@ const GEAR_TIER_SHAPES = [
   [[9], [5, 3], [2, 2, 2, 2]], // T6
 ];
 const MAX_GEAR_TIER    = GEAR_TIER_SHAPES.length - 1;
-// Weapons share the shape table but only reach T4 — so no weapon ever offers
-// the T5 {6}/{3,2} or T6 {9}/{5,3}/{2,2,2,2} rolls.
+// Weapons share the shape table but most only reach T4 — so they never offer
+// the T5 {6}/{3,2} or T6 {9}/{5,3}/{2,2,2,2} rolls. The Halloween Candy (Jolly)
+// and Ghostgrave sets go all the way to T6 (owner, 2026-10-19). Ceilings above
+// T4 are listed per series, and per name for shields (offhandSeries files every
+// shield under one "Shields" key); see weaponMaxTier().
 const MAX_WEAPON_TIER  = 4;
+const WEAPON_SERIES_MAX_TIER = { "Candy": 6, "Ghostgrave": 6 };
+const OFFHAND_MAX_TIER       = { "Ghostgrave Shield": 6 };
 const GEAR_ALLOC_STATS = ["str", "arc", "end", "spd", "lck"];
 // Widest shape anywhere, which sets how many stat picks an instance carries.
 const MAX_SHAPE_LEN    = Math.max(...GEAR_TIER_SHAPES.flat().map(s => s.length));
@@ -627,8 +632,9 @@ function traitValue(id, tier) {
 // one artifact. So ten copies is the absolute ceiling" is 4x2 + 1x2 = 10.
 // `gearOnly` traits cannot roll onto an artifact.
 //
-// Weapons use the same tier/shape model but stop at T4 and roll no traits at
-// all, so SPEC_WEAPON carries zero slots and its own tier ceiling.
+// Weapons use the same tier/shape model but stop at T4 (T6 for the series in
+// WEAPON_SERIES_MAX_TIER) and roll no traits at all, so SPEC_WEAPON carries zero
+// slots and its own tier ceiling; specForWeaponName() raises it where needed.
 const SPEC_GEAR     = { slots: TRAIT_SLOTS, unlocked: TRAIT_SLOTS_UNLOCKED, allowGearOnly: true };
 const SPEC_ARTIFACT = { slots: 2,           unlocked: 2,                    allowGearOnly: false };
 const SPEC_WEAPON   = { slots: 0,           unlocked: 0,                    allowGearOnly: false,
@@ -670,10 +676,10 @@ let artifactInstance = makeGearInstance(SPEC_ARTIFACT);
 // Only some weapon families roll tiers. The rest are fixed items and show no
 // tier box at all.
 const _weaponSlotIds       = ["weapon-main", "weapon-offhand"];
-const TIERED_WEAPON_SERIES = new Set(["Dragon", "Blight", "Sun", "Sandstone", "Primordial"]);
+const TIERED_WEAPON_SERIES = new Set(["Dragon", "Blight", "Sun", "Sandstone", "Primordial", "Candy", "Ghostgrave"]);
 // offhandSeries groups everything under a flat "Shields" key, so the shields
 // belonging to the tiered families have to be named individually.
-const TIERED_OFFHAND_NAMES = ["Dragonflame Shield", "Sandstone Shield", "Primordial Shield"];
+const TIERED_OFFHAND_NAMES = ["Dragonflame Shield", "Sandstone Shield", "Primordial Shield", "Ghostgrave Shield"];
 
 const weaponInstances = _weaponSlotIds.map(() => makeGearInstance(SPEC_WEAPON));
 
@@ -681,25 +687,44 @@ const weaponInstances = _weaponSlotIds.map(() => makeGearInstance(SPEC_WEAPON));
 // much further down the file and is still in its temporal dead zone when
 // updatePecents() makes its first pass at load. Nothing is equipped that early,
 // so returning an empty set until the data exists is correct — and the result
-// is only cached once it is real.
+// is only cached once it is real. Each tiered name's ceiling is worked out in
+// the same pass (weaponMaxTier).
 let _tieredWeaponNames = null;
+let _weaponTierCaps    = {};
 function tieredWeaponNames() {
   if (_tieredWeaponNames) return _tieredWeaponNames;
-  const s = new Set();
+  const s = new Set(), caps = {};
   try {
     Object.entries(mainWeaponSeries).forEach(([series, items]) => {
-      if (TIERED_WEAPON_SERIES.has(series)) Object.keys(items).forEach(n => s.add(n));
+      if (!TIERED_WEAPON_SERIES.has(series)) return;
+      Object.keys(items).forEach(n => { s.add(n); caps[n] = WEAPON_SERIES_MAX_TIER[series] ?? MAX_WEAPON_TIER; });
     });
   } catch (e) {
     return s;   // still in TDZ — don't cache
   }
-  TIERED_OFFHAND_NAMES.forEach(n => s.add(n));
+  TIERED_OFFHAND_NAMES.forEach(n => { s.add(n); caps[n] = OFFHAND_MAX_TIER[n] ?? MAX_WEAPON_TIER; });
+  _weaponTierCaps    = caps;
   _tieredWeaponNames = s;
   return s;
 }
 
 function weaponHasTiers(name) {
   return !!name && tieredWeaponNames().has(name);
+}
+
+// The highest tier a weapon can roll: T4, or T6 for Candy and Ghostgrave.
+// An untiered weapon shows no tier box, so its answer never matters.
+function weaponMaxTier(name) {
+  return weaponHasTiers(name) ? _weaponTierCaps[name] : MAX_WEAPON_TIER;
+}
+
+// The editor config for a named weapon: SPEC_WEAPON with that weapon's own
+// ceiling. One shared object per ceiling, so callers can compare by identity.
+const _weaponSpecs = {};
+function specForWeaponName(name) {
+  const t = weaponMaxTier(name);
+  if (t === MAX_WEAPON_TIER) return SPEC_WEAPON;
+  return _weaponSpecs[t] || (_weaponSpecs[t] = Object.assign({}, SPEC_WEAPON, { maxTier: t }));
 }
 
 function resetWeaponInstance(i) {
@@ -1328,6 +1353,18 @@ function updatePecents() {
     }
     if (stat === "crit-chance" && racePicker.value === "Vydeer (1%)" && dmgBonusActive["passive:Crit Buildup"] && vydeerCritStacks > 0) {
       display = (parseFloat(display) + vydeerCritStacks * 1.5).toFixed(1);
+    }
+    // Halloween gears: Witch Broom gives the attack after 3 turns of Speed
+    // boosts +33 Crit Chance; Haunted Cloth gives half the Blinded stacks on
+    // enemies (cap 25) while you are Blinded. Both are combat states, so they
+    // count only while their DMG calc row is on.
+    if (stat === "crit-chance") {
+      let _hwCrit = 0;
+      try {
+        if (hasGearEquipped("Witch Broom") && dmgBonusActive["passive:Witch Broom"]) _hwCrit += 33;
+        if (hasGearEquipped("Haunted Cloth") && dmgBonusActive["passive:Haunted Cloth"]) _hwCrit += Math.min(25, hauntedClothBlind / 2);
+      } catch (e) { _hwCrit = 0; }
+      if (_hwCrit) display = (parseFloat(display) + _hwCrit).toFixed(1);
     }
     const suffix = stat === "end" ? "" : stat === "crit-dmg" ? "x" : stat === "energy" && display === "—" ? "" : "%";
     valEl.textContent = display + suffix;
@@ -2472,6 +2509,17 @@ const gearItems = {
   "Shadow Gauntlets":      { str: 0, arc: 0, end: 4, spd: 0, lck: 0 },
   "Infected Skin":         { str: 2, arc: 0, end: 2, spd: 0, lck: 0 },
   "Lucky Horns":           { str: 0, arc: 0, end: 0, spd: 4, lck: 0 },
+  // Halloween Gears (2026 event). Base stats from the owner (2026-10-19); Tooth
+  // and Nail's are not known yet, so it stays 0 until the owner gives them.
+  "Witch Broom":           { str: 0, arc: 1, end: 0, spd: 3, lck: 0 },
+  "Witch Cap":             { str: 0, arc: 3, end: 0, spd: 1, lck: 0 },
+  "Stained Mask":          { str: 2, arc: 0, end: 2, spd: 0, lck: 0 },
+  "Haunted Cloth":         { str: 0, arc: 0, end: 0, spd: 3, lck: 2 },
+  "Spider Hairclip":       { str: 0, arc: 2, end: 0, spd: 2, lck: 0 },
+  "Pumpkin Guts":          { str: 0, arc: 0, end: 2, spd: 0, lck: 0 },
+  "Ectoplasmic Gel":       { str: 0, arc: 2, end: 2, spd: 0, lck: 0 },
+  "Tooth and Nail":        { str: 0, arc: 0, end: 0, spd: 0, lck: 0 },
+  "Coiled Cobwebs":        { str: 0, arc: 0, end: 3, spd: 0, lck: 3 },
 };
 
 const gearSeries = {
@@ -2488,6 +2536,7 @@ const gearSeries = {
   // New gears go at the end of the last series, or in a new series appended here.
   "Other":                ["Lethal Blackjack", "Everbeating Drums"],
   "Withered Grove":       ["Ages Pages", "Blooming Eye", "Crystalline Spike", "Dread Fang", "Empty Blade", "Faded Heirloom", "Infected Skin", "Lucky Horns", "Ring of Heroism", "Shadow Gauntlets"],
+  "Halloween Gears":      ["Witch Broom", "Witch Cap", "Stained Mask", "Haunted Cloth", "Spider Hairclip", "Pumpkin Guts", "Ectoplasmic Gel", "Tooth and Nail", "Coiled Cobwebs"],
 };
 
 const gearPickers = document.querySelectorAll(".gear-picker");
@@ -2785,8 +2834,9 @@ function renderAllGearTierBoxes() {
 }
 
 // --- the two weapon slots ---
-// Same editor as gear, minus traits and capped at T4. Untiered weapon families
-// get no box at all, so the slot looks exactly as it did before this existed.
+// Same editor as gear, minus traits and capped at the weapon's own ceiling (T4,
+// T6 for Candy and Ghostgrave). Untiered weapon families get no box at all, so
+// the slot looks exactly as it did before this existed.
 const _weaponTierBoxIds = ["weapon-tier-main", "weapon-tier-off"];
 
 function renderWeaponTierBox(slot) {
@@ -2800,7 +2850,7 @@ function renderWeaponTierBox(slot) {
   renderGearSpec(box, weaponInstances[slot], () => {
     updatePecents();
     if (typeof autoSave === "function") autoSave();
-  }, SPEC_WEAPON);
+  }, specForWeaponName(picker.value));
 }
 
 // A different weapon is a different physical copy, so its tier and allocation
@@ -2819,10 +2869,12 @@ function onWeaponSwapped(picker) {
 }
 
 // Adopt weapon instances from a loaded build (share link, saved build, autosave).
+// The pickers are set first, so each slot is clamped to its own weapon's ceiling.
 function setWeaponInstances(list) {
   weaponInstances.forEach((_, i) => {
-    weaponInstances[i] = clampGearInstance(Array.isArray(list) ? list[i] : null, SPEC_WEAPON);
-    _weaponLastNames[i] = document.getElementById(_weaponSlotIds[i])?.value || "";
+    const name = document.getElementById(_weaponSlotIds[i])?.value || "";
+    weaponInstances[i] = clampGearInstance(Array.isArray(list) ? list[i] : null, specForWeaponName(name));
+    _weaponLastNames[i] = name;
     renderWeaponTierBox(i);
   });
 }
@@ -3423,6 +3475,36 @@ const gearMoves = {
   ]},
   "Open Hand": { learns: [
     mkPassive("Open Hand", "Poison, Bleed, Burn, Cold, Ghostflame, and Weakened applied to you decay by 2 instead of 1."),
+  ]},
+
+  // Halloween Gears. Witch Broom and Haunted Cloth also get DMG calc rows
+  // (crit chance, added in updatePecents); the rest is utility, shown as text.
+  "Witch Broom": { learns: [
+    mkPassive("Witch Broom", "After gaining a speed boost for 3 consecutive turns, rise up into the sky and gain one stack of Invisible, and give your next attack +33% Crit Chance (expires after 1 turn)."),
+  ]},
+  "Witch Cap": { learns: [
+    mkPassive("Witch Cap", "At the start of your turn, gain a 30% chance to throw a nerfed Dangerous Mixture at the enemy with the most health. The first time this happens, and every third time after that, it applies 3 stacks of Sundered."),
+  ]},
+  "Stained Mask": { learns: [
+    mkPassive("Stained Mask", "For every 5 stacks of Bleed you apply to an enemy, apply 3 additional stacks of Bleed to both yourself and the enemy. (Bleed applied this way cannot trigger the effect again.)"),
+  ]},
+  "Haunted Cloth": { learns: [
+    mkPassive("Haunted Cloth", "At the start of a fight, gain 5 stacks of Blinded (bypasses resist). If you have any stacks of Blinded on you, Meditating applies 2 stacks of Blinded to both you and all enemies on the field, whilst Guarding applies 4 stacks of Blinded to all enemies.\n\nAdditionally, if you have any stacks of Blinded on you, gain Crit Chance equal to the amount of stacks of Blinded on enemies divided by 2 (cap of 25%).\n\nAlso, QTE difficulty from shadow bosses is halved."),
+  ]},
+  "Spider Hairclip": { learns: [
+    mkPassive("Spider Hairclip", "Whenever you lose 7.5% HP, summon a Spider (cap of 2 a turn, 2T CD between turns where spiders can be summoned).\n\nSpiders are a new summon that don't have a turn and don't count towards the summon cap, however 1 player can only have 2 at a time, with a party having a max of 5 at a time. They attack at the start of your turn, applying 2 stacks of Weakened, and dealing 7.5 Base Damage, which scales off of ARC/75. They have 10 Base HP which doesn't scale, and they absorb 20% of the damage you take. Cap of 5 Spiders at a time."),
+  ]},
+  "Pumpkin Guts": { learns: [
+    mkPassive("Pumpkin Guts", "Taking more than 7.5% of your Max HP in one turn applies 2 stacks of 3 random status effects onto the enemy that dealt the damage. Taking more than 30% of your Max HP in one turn applies 10% HP regen for 2 turns."),
+  ]},
+  "Ectoplasmic Gel": { learns: [
+    mkPassive("Ectoplasmic Gel", "Upon receiving DR, gain extra energy chance equal to the DR received for as long as the DR lasts. The extra energy chance is increased by 1.5x if the DR was given by an ally (extra energy chance cap is +75%)."),
+  ]},
+  "Tooth and Nail": { learns: [
+    mkPassive("Tooth and Nail", "Using your highest energy cost super class move grants you DR equal to half your damage buffs on that turn."),
+  ]},
+  "Coiled Cobwebs": { learns: [
+    mkPassive("Coiled Cobwebs", "Using moves below 3 energy applies 1 or 2 stacks of Crippled onto yourself based off of the energy cost. Reaching 5 stacks of Crippled this way locks all your moves for 1 turn, then sets all your moves that cost 3+ energy to 3 energy cost until they are used for the first time."),
   ]},
 
   // Other
@@ -4269,6 +4351,7 @@ const enchantCondActive = { cursed: false, cursedSundered: false, inferno: false
 let enchantReaperEnemyHp = 100; // 0-100: enemy HP% for Reaper proc damage calc
 let ghoststeelStacks = 0;  // Ghoststeel: successful steals, 0-5, +5% damage each
 let hauntedStacks = 0;     // Wraith: Haunted on the target, 0-5, +3% damage taken each
+let hauntedClothBlind = 0;  // Haunted Cloth: Blinded stacks on enemies, 0-50 -> +stacks/2 Crit Chance (cap 25)
 let luckyHornsSpend = false;  // Lucky Horns: 50 Corrupt Power spent -> +45% instead of +5%
 let crystallineSpikeSpend = false;  // Crystalline Spike: 60 Corrupt Power -> CRYSTALLINE_SPIKE_SPEND_FLAT instead of CRYSTALLINE_SPIKE_FLAT
 let bloomingEyeSpend = false;  // Blooming Eye: 100 Corrupt Power -> +35 True Flat instead of +5
@@ -5573,6 +5656,23 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Witch Broom / Haunted Cloth — manually added. Their bonus is Crit Chance, not
+  // damage, so the rows add 0 to the Multi sum; updatePecents adds the crit.
+  if (hasGearEquipped("Witch Broom")) {
+    const wbKey = "passive:Witch Broom";
+    if (!seen.has(wbKey)) {
+      seen.add(wbKey);
+      rawEntries.push({ key: wbKey, name: "Witch Broom", bonus: 0, kind: "passive", desc: "After 3 consecutive turns of a Speed boost: Invisible, and your next attack gets +33% Crit Chance (expires after 1 turn)." });
+    }
+  }
+  if (hasGearEquipped("Haunted Cloth")) {
+    const hcKey = "passive:Haunted Cloth";
+    if (!seen.has(hcKey)) {
+      seen.add(hcKey);
+      rawEntries.push({ key: hcKey, name: "Haunted Cloth", bonus: 0, kind: "passive", desc: "While you have Blinded on you: Crit Chance equal to the Blinded stacks on enemies divided by 2 (cap 25%)." });
+    }
+  }
+
   // Candy weapon passive — manually added (its bonus is 2x your HP regen %, cap 25%; the
   // text has no flat figure parseDmgBonus can read). One row for a Candy weapon and Thoreo.
   if ([weaponMain, weaponOff].some(n => n && (weaponMoves[n]?.learns || []).includes(candyWepPassive))) {
@@ -6084,6 +6184,11 @@ function changeDemonicPresenceStacks(delta) {
 function setGoldRushGold(val) {
   goldRushGold = Math.min(50000, Math.max(0, Math.round(+val / 500) * 500));
   renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function setHauntedClothBlind(val) {
+  hauntedClothBlind = Math.min(50, Math.max(0, Math.round(+val)));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
 function setCandyRegenPct(val) {
@@ -6879,6 +6984,8 @@ function renderDmgBonusSection() {
     const isKarmaStacks       = p.name === "Karma Stacks";
     const isGoldRush          = p.name === "Gold Rush";
     const isCandy             = p.name === "Candy";
+    const isWitchBroom        = p.name === "Witch Broom";
+    const isHauntedCloth      = p.name === "Haunted Cloth";
     // What the row adds to a hit's Multi sum, read from the same dmgRowPct the
     // damage paths use, so the panel and the workings cannot disagree. Every
     // one of these is a percentage added to the sum (§12), so it prints as
@@ -6891,6 +6998,8 @@ function renderDmgBonusSection() {
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
                          : isKarmaStacks      ? `${karmaStacks} stacks`
                          : isVydeerCritBuildup ? `+${(vydeerCritStacks * 1.5).toFixed(1)}% Crit`
+                         : isWitchBroom       ? `+33% Crit`
+                         : isHauntedCloth     ? `+${+Math.min(25, hauntedClothBlind / 2).toFixed(1)}% Crit`
                          : isMetrom           ? `+40%${_note('DoT only')}`
                          : isBloodlust        ? `${_pctStr(_rowPct)}${bloodlustRage ? ' <span style="color:#e08060;font-size:11px">[Rage]</span>' : ''}`
                          : isEnhancedBloodlust ? `${_pctStr(_rowPct)} · +${15 * enhancedBloodlustStacks}% SPD`
@@ -7162,6 +7271,14 @@ function renderDmgBonusSection() {
       html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
         <span class="dc-rage-slider-label">Gold: <b>${goldRushGold.toLocaleString()}</b> → <span style="color:${_grCapped ? '#e0c97a' : '#ccc'}">${_grBonus.toFixed(2)}% dmg${_grCapped ? ' (cap)' : ''}</span></span>
         <input type="range" class="dc-rage-slider" min="0" max="50000" step="500" value="${goldRushGold}" oninput="setGoldRushGold(this.value)">
+      </div>`;
+    }
+    if (isHauntedCloth) {
+      const _hcCrit = Math.min(25, hauntedClothBlind / 2);
+      const _hcCapped = _hcCrit >= 25;
+      html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
+        <span class="dc-rage-slider-label">Blinded on enemies: <b>${hauntedClothBlind}</b> → <span style="color:${_hcCapped ? '#e0c97a' : '#ccc'}">+${+_hcCrit.toFixed(1)}% crit${_hcCapped ? ' (cap)' : ''}</span></span>
+        <input type="range" class="dc-rage-slider" min="0" max="50" step="1" value="${hauntedClothBlind}" oninput="setHauntedClothBlind(this.value)">
       </div>`;
     }
     if (isCandy) {
@@ -9703,8 +9820,10 @@ function _packState(state) {
   // Weapon instances last — 17 bits each, no trait fields. Appended rather than
   // slotted in beside wm/wo so every link written before weapons had tiers still
   // decodes: the reader yields zeros past the end, i.e. T0 with nothing picked.
-  (state.wti || []).slice(0, _weaponSlotIds.length).forEach(inst => {
-    bw.write(Math.min(MAX_WEAPON_TIER, Math.max(0, inst?.tier | 0)), GEAR_TIER_BITS);
+  // Each tier is clamped to its own weapon's ceiling (T6 fits the 3 tier bits).
+  (state.wti || []).slice(0, _weaponSlotIds.length).forEach((inst, slot) => {
+    const cap = weaponMaxTier(slot === 0 ? state.wm : state.wo);
+    bw.write(Math.min(cap, Math.max(0, inst?.tier | 0)), GEAR_TIER_BITS);
     bw.write(Math.min(3, Math.max(0, inst?.shape | 0)), GEAR_SHAPE_BITS);
     for (let i = 0; i < MAX_SHAPE_LEN; i++) {
       const idx = GEAR_ALLOC_STATS.indexOf(inst?.stats?.[i]);

@@ -2029,9 +2029,10 @@
       // Crystal Sphere tops out at T3, which is 4 points, not 9 - and forcing
       // every item to the global cap handed stat points to gear that can never
       // carry them, which biased every search toward low-tier items.
-      const cap = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
-      const tier = K.maxTierFor ? K.maxTierFor(slotRef && slotRef.name, cap) : cap;
-      const shapes = M.shapesFor(tier, isWeapon);
+      const name = slotRef && slotRef.name;
+      const cap = isWeapon ? M.weaponMaxTier(name) : D.MAX_GEAR_TIER;
+      const tier = K.maxTierFor ? K.maxTierFor(name, cap) : cap;
+      const shapes = M.shapesFor(tier, isWeapon, name);
       const order = tierOrder(build, spec);
       const swapped = order.slice(); [swapped[0], swapped[1]] = [swapped[1], swapped[0]];
       let best = null, bestScore = -Infinity;
@@ -2264,7 +2265,7 @@
       const wepOpts = weaponsFor(spec, klass);
       bestOfSlot(b, spec, wepOpts, (bb, v) => {
         if (!v) { bb.weapon = null; return; }
-        bb.weapon = { name: v, tier: D.MAX_WEAPON_TIER, alloc: {} };
+        bb.weapon = { name: v, tier: M.weaponMaxTier(v), alloc: {} };
         if (M.weaponIsTiered(v)) bestTierAlloc(bb, spec, bb.weapon, true);
       // Weapons tie constantly, because a class whose moves carry no stat scaling
       // (Berserker is the clearest case) gets nothing measurable from the 5 tier

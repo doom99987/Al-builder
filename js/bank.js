@@ -305,6 +305,16 @@
     ['Shadow Gauntlets', 'Gear', 1],
     ['Infected Skin', 'Gear', 1],
     ['Lucky Horns', 'Gear', 1],
+    // Halloween Gears
+    ['Witch Broom', 'Gear', 1],
+    ['Witch Cap', 'Gear', 1],
+    ['Stained Mask', 'Gear', 1],
+    ['Haunted Cloth', 'Gear', 1],
+    ['Spider Hairclip', 'Gear', 1],
+    ['Pumpkin Guts', 'Gear', 1],
+    ['Ectoplasmic Gel', 'Gear', 1],
+    ['Tooth and Nail', 'Gear', 1],
+    ['Coiled Cobwebs', 'Gear', 1],
     // ── Armour ──
     ['Paladin Cuirass', 'Armour', 0],
     ['Adept Warrior', 'Armour', 0],

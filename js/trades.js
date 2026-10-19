@@ -401,6 +401,10 @@
       'Ages Pages', 'Blooming Eye', 'Crystalline Spike', 'Dread Fang', 'Empty Blade',
       'Faded Heirloom', 'Infected Skin', 'Lucky Horns', 'Ring of Heroism', 'Shadow Gauntlets',
     ]},
+    { group: 'Gear — Halloween', items: [
+      'Witch Broom', 'Witch Cap', 'Stained Mask', 'Haunted Cloth', 'Spider Hairclip',
+      'Pumpkin Guts', 'Ectoplasmic Gel', 'Tooth and Nail', 'Coiled Cobwebs',
+    ]},
     { group: 'Gear — Other', items: [
       'Lethal Blackjack', 'Everbeating Drums',
     ]},

@@ -86,11 +86,24 @@
     };
   }
 
+  // A weapon's tier ceiling: MAX_WEAPON_TIER unless its series
+  // (WEAPON_SERIES_MAX_TIER) or, for a shield, its name (OFFHAND_MAX_TIER)
+  // raises it - Candy and Ghostgrave reach T6. Mirrors weaponMaxTier() in
+  // builder.js.
+  function weaponCap(D, name) {
+    const off = (D.OFFHAND_MAX_TIER || {})[name];
+    if (off != null) return off;
+    for (const [series, items] of Object.entries(D.mainWeaponSeries || {}))
+      if (items && name && Object.prototype.hasOwnProperty.call(items, name))
+        return (D.WEAPON_SERIES_MAX_TIER || {})[series] ?? D.MAX_WEAPON_TIER;
+    return D.MAX_WEAPON_TIER;
+  }
+
   // An engine build carries a resolved {str:n,…} allocation; the wire format
   // wants a shape index plus ordered stat picks. Recover the shape whose values
   // match the allocation, largest value first — the same order the UI writes.
-  function allocToShape(D, alloc, tier, isWeapon) {
-    const cap = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
+  function allocToShape(D, alloc, tier, isWeapon, name) {
+    const cap = isWeapon ? weaponCap(D, name) : D.MAX_GEAR_TIER;
     const t = Math.min(cap, Math.max(0, tier | 0));
     const shapes = (D.GEAR_TIER_SHAPES || [])[t] || [[]];
     const entries = Object.entries(alloc || {}).filter(([, v]) => v > 0)
@@ -108,9 +121,9 @@
   // A gear/weapon instance as the builder stores it — {tier, shape, stats[]} —
   // resolved into the {str:n,…} allocation the engine works with. Mirrors
   // gearInstanceAlloc (builder.js:697).
-  function allocFromInstance(D, inst, isWeapon) {
+  function allocFromInstance(D, inst, isWeapon, name) {
     if (!inst) return { tier: 0, alloc: {} };
-    const cap = isWeapon ? D.MAX_WEAPON_TIER : D.MAX_GEAR_TIER;
+    const cap = isWeapon ? weaponCap(D, name) : D.MAX_GEAR_TIER;
     const tier = Math.min(cap, Math.max(0, inst.tier | 0));
     const shapes = (D.GEAR_TIER_SHAPES || [])[tier] || [[]];
     const shape = shapes[Math.min(shapes.length - 1, Math.max(0, inst.shape | 0))] || [];
@@ -146,8 +159,8 @@
     });
 
     const artA = allocFromInstance(D, st.ai, false);
-    const wmA  = allocFromInstance(D, wti[0], true);
-    const woA  = allocFromInstance(D, wti[1], true);
+    const wmA  = allocFromInstance(D, wti[0], true, st.wm);
+    const woA  = allocFromInstance(D, wti[1], true, st.wo);
 
     return {
       level: Math.max(1, Math.min(D.Max_Lvl || 50, st.lvl | 0 || 1)),
@@ -278,7 +291,7 @@
     // Weapon instances — no traits.
     for (let i = 0; i < WEAPON_SLOTS; i++) {
       const w = i === 0 ? build.weapon : build.offhand;
-      const sh = allocToShape(D, w && w.alloc, w ? w.tier : 0, true);
+      const sh = allocToShape(D, w && w.alloc, w ? w.tier : 0, true, w && w.name);
       bw.write(sh.tier, GEAR_TIER_BITS);
       bw.write(Math.min(3, Math.max(0, sh.shape)), GEAR_SHAPE_BITS);
       for (let j = 0; j < (D.MAX_SHAPE_LEN || 4); j++) {
