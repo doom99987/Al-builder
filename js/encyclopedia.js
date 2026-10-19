@@ -209,6 +209,26 @@
     ['Dragonflame Shield',    'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Yar\'Thul">Yar\'Thul, The Blazing Dragon</button>.\n\nGrants a 30% Damage Reduction.\n\nReflects incoming melee damage by 200%.'],
     ['Slimy Buckler',         'Weapon',          'Obtained from: <button class="enc-desc-link" data-enc-nav="Slime King">Slime King</button>.\n\nGrants a 15% Damage Reduction.\n\nApplies 2 Weakened and 1 Blindness upon blocking a Melee attack. Does not stack with Slimy Shield passive (Lentum passive).'],
     ['Targe',                 'Weapon',          'Obtained from: Can be purchased in the <button class="enc-desc-link" data-enc-nav="Old Ruins">Old Ruins</button>.\n\nGrants a 20% Damage Reduction.'],
+    ['Thoreo',                'Weapon',          ''],
+    ['Ghostgrave Shield',     'Weapon',          ''],
+
+    /* ── HALLOWEEN WEAPONS ───────────────────────────────────────────── */
+    ['Candy Corn Sword',      'Weapon',          ''],
+    ['Pop Greatsword',        'Weapon',          ''],
+    ['Smarties Spear',        'Weapon',          ''],
+    ['Lollistaff',            'Weapon',          ''],
+    ['Jolly Dagger',          'Weapon',          ''],
+    ['Choco Axe',             'Weapon',          ''],
+    ['Rock Candy Hammer',     'Weapon',          ''],
+    ['Caramel Fists',         'Weapon',          ''],
+    ['Ghostgrave Sword',      'Weapon',          ''],
+    ['Ghostgrave Greatsword', 'Weapon',          ''],
+    ['Ghostgrave Spear',      'Weapon',          ''],
+    ['Ghostgrave Staff',      'Weapon',          ''],
+    ['Ghostgrave Dagger',     'Weapon',          ''],
+    ['Ghostgrave Scythe',     'Weapon',          ''],
+    ['Ghostgrave War Scythe', 'Weapon',          ''],
+    ['Ghostgrave Gauntlets',  'Weapon',          ''],
 
     /* ── ARTIFACTS ────────────────────────────────────────────────────── */
     ['Celestial Emblem',      'Artifact',        ''],
@@ -697,8 +717,10 @@
     { label: 'Darkblood',   prefix: 'Darkblood ',     desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Metrom\'s Vessel">Metrom\'s Vessel</button>.\n\nStarts with 2 empty Shard Slots.' },
     { label: 'Sandstone',   prefix: 'Sandstone ',     desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 3 empty Shard Slots.' },
     { label: 'Primordial',  prefix: 'Primordial ',    desc: 'Obtained from: <button class="enc-desc-link" data-enc-nav="Handaconda">Handaconda</button>.\n\nStarts with 4 empty Shard Slots.' },
+    { label: 'Candy',       names: new Set(['Candy Corn Sword', 'Pop Greatsword', 'Smarties Spear', 'Lollistaff', 'Jolly Dagger', 'Choco Axe', 'Rock Candy Hammer', 'Caramel Fists', 'Thoreo']) },
+    { label: 'Ghostgrave',  prefix: 'Ghostgrave ' },
     { label: 'Unique',      names: new Set(['Vastic Glaive', 'Star-Seeing Hammer']) },
-    { label: 'Shields',     names: new Set(['Ferrus Towershield', 'Ivory Shield', 'Icerind Shield', 'Sandstone Shield', 'Primordial Shield', 'Dragonflame Shield', 'Slimy Buckler', 'Targe']) },
+    { label: 'Shields',     names: new Set(['Ferrus Towershield', 'Ivory Shield', 'Icerind Shield', 'Sandstone Shield', 'Primordial Shield', 'Dragonflame Shield', 'Slimy Buckler', 'Targe', 'Thoreo', 'Ghostgrave Shield']) },
   ];
 
   /* Trainer categories — order defines display order */

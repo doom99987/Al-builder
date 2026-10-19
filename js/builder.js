@@ -2999,6 +2999,26 @@ const mainWeaponSeries = {
     "Vastic Glaive":      { type: "Spear" },
     "Star-Seeing Hammer": { type: "Hammer" },
   },
+  "Candy": {
+    "Candy Corn Sword":      { type: "Sword" },
+    "Pop Greatsword":        { type: "Greatsword" },
+    "Smarties Spear":        { type: "Spear" },
+    "Lollistaff":            { type: "Staff" },
+    "Jolly Dagger":          { type: "Dagger" },
+    "Choco Axe":             { type: "Axe" },
+    "Rock Candy Hammer":     { type: "Hammer" },
+    "Caramel Fists":         { type: "Gauntlets" },
+  },
+  "Ghostgrave": {
+    "Ghostgrave Sword":      { type: "Sword" },
+    "Ghostgrave Greatsword": { type: "Greatsword" },
+    "Ghostgrave Spear":      { type: "Spear" },
+    "Ghostgrave Staff":      { type: "Staff" },
+    "Ghostgrave Dagger":     { type: "Dagger" },
+    "Ghostgrave Scythe":     { type: "Axe" },
+    "Ghostgrave War Scythe": { type: "Hammer" },
+    "Ghostgrave Gauntlets":  { type: "Gauntlets" },
+  },
 };
 
 const offhandSeries = {
@@ -3011,6 +3031,8 @@ const offhandSeries = {
     "Sandstone Shield":   { type: "Shield" },
     "Primordial Shield":  { type: "Shield" },
     "Ivory Shield":       { type: "Shield" },
+    "Thoreo":             { type: "Shield" },
+    "Ghostgrave Shield":  { type: "Shield" },
   },
 };
 
@@ -3030,6 +3052,8 @@ const darkbloodPassive    = mkPassive("Darkblood",  "Allows the use of weapon lo
 const sandstoneWepPassive = mkPassive("Sandstone",  "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants your attacks a 20% chance to apply 2 Sundered.");
 const primordialWepPassive = mkPassive("Primordial", "Allows the use of weapon locked skills in respect to their weapon type.\n\nGrants a 20% damage buff.\n\nHas a chance to apply the Soulless status effect on hit. (currently does nothing)");
 const icerindWepPassive    = mkPassive("Icerind",    "Allows the use of Sword locked skills.\n\nGrants a 20% damage buff if the enemy has the Cold status effect.\n\nGrants your attacks a ?% chance to apply Cold.");
+const candyWepPassive      = mkPassive("Candy",      "Increases your HP regen by 1.5x.\n\nGain a damage boost equal to your current HP regen % x2. (capped at 25%)");
+const ghostgraveWepPassive = mkPassive("Ghostgrave", "Deal increased damage based off of how much your HP % has changed in the last 2 turns.\n\nGrants your attacks a 20% chance to apply 3 stacks of Blind.\n\nDeal 10% more damage to enemies with the Blind status effect.");
 const ivoryWepPassive      = mkPassive("Ivory",      "Allows the use of weapon locked skills in respect to their weapon type.\n\nIncreases your luck stat by X amount.\n\nCritical attacks have a ~15% chance to grant you 1 energy and heal you by 5% of your max hp. (can only happen twice in one turn)");
 
 function w(passive) { return { learns: passive ? [passive] : [] }; }
@@ -3127,6 +3151,27 @@ const weaponMoves = {
   // Unique
   "Vastic Glaive":      { learns: [mkPassive("Vastic Glaive", "Allows the use of Spear locked skills.\n\nOn hit, you have a 12.5% chance to proc a random effect based on your highest stat. (16.6% if Vastayan)\n\nSTR — Places a bomb on the enemy that explodes. Can kill, cannot crit.\nARC — Places a bomb on the enemy that explodes. Cannot kill, cannot crit.\nEND — Heals you for 5% of your max HP.\nLCK — Grants an 80% increased crit chance for your next attack.\nSPD — Grants damage, defense, and speed buffs for 2 turns. (BUGGED)")] },
   "Star-Seeing Hammer": { learns: [mkPassive("Star-Seeing Hammer", "Allows the use of Hammer locked skills.\n\nDoes nothing.")] },
+  // Candy
+  "Candy Corn Sword":      w(candyWepPassive),
+  "Pop Greatsword":        w(candyWepPassive),
+  "Smarties Spear":        w(candyWepPassive),
+  "Lollistaff":            w(candyWepPassive),
+  "Jolly Dagger":          w(candyWepPassive),
+  "Choco Axe":             w(candyWepPassive),
+  "Rock Candy Hammer":     w(candyWepPassive),
+  "Caramel Fists":         w(candyWepPassive),
+  // Ghostgrave
+  "Ghostgrave Sword":      w(ghostgraveWepPassive),
+  "Ghostgrave Greatsword": w(ghostgraveWepPassive),
+  "Ghostgrave Spear":      w(ghostgraveWepPassive),
+  "Ghostgrave Staff":      w(ghostgraveWepPassive),
+  "Ghostgrave Dagger":     w(ghostgraveWepPassive),
+  "Ghostgrave Scythe":     w(ghostgraveWepPassive),
+  "Ghostgrave War Scythe": w(ghostgraveWepPassive),
+  "Ghostgrave Gauntlets":  w(ghostgraveWepPassive),
+  // Halloween shields: the set passive (Damage Reduction not known yet)
+  "Thoreo":                w(candyWepPassive),
+  "Ghostgrave Shield":     w(ghostgraveWepPassive),
 };
 
 // --- Gear passives ---
@@ -4186,6 +4231,7 @@ let unendingFlowStacks = 1;    // 1-10: Blade Dancer Unending Flow consecutive h
 let rendingBarrageStacks = 1;  // 1-10: Impaler Rending Barrage Prof combined bleed stacks (2.5% per stack)
 let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack)
 let goldRushGold = 0; // 0-50000: gold amount for Veneri Gold Rush (0.2% per 500 gold, cap 20%)
+let candyRegenPct = 0; // 0-12.5: your HP regen % for the Candy weapon passive (2x regen %, cap 25%)
 // `pct` is what the buff adds to a hit's Multi sum (Withered Grove §12: every
 // "+X% damage" is added, not multiplied). Metrom's Grasp is +40% for damage
 // over time only, so it is listed but never added to a direct hit.
@@ -5527,6 +5573,16 @@ function collectDmgBonusPassives() {
     }
   }
 
+  // Candy weapon passive — manually added (its bonus is 2x your HP regen %, cap 25%; the
+  // text has no flat figure parseDmgBonus can read). One row for a Candy weapon and Thoreo.
+  if ([weaponMain, weaponOff].some(n => n && (weaponMoves[n]?.learns || []).includes(candyWepPassive))) {
+    const cdKey = "passive:Candy";
+    if (!seen.has(cdKey)) {
+      seen.add(cdKey);
+      rawEntries.push({ key: cdKey, name: "Candy", bonus: Math.min(25, 2 * candyRegenPct), kind: "passive", desc: "Increases your HP regen by 1.5x. Gain a damage boost equal to your current HP regen % x2, capped at 25%." });
+    }
+  }
+
   // Spirit Awakening — manually added (bypasses Damage Reduction exclusion in parseDmgBonus)
   if (raceName === "Vastayan (9%)") {
     const saKey = "buff:Spirit Awakening";
@@ -5839,6 +5895,7 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
   // Per-hit proc: +35% on ssbProcChance% of hits, so its expected value per hit.
   if (p.name === "Spiked Steel Ball")     return 0.35 * ssbProcChance;
   if (p.name === "Gold Rush")             return Math.min(20, (goldRushGold / 500) * 0.2);
+  if (p.name === "Candy")                 return Math.min(25, 2 * candyRegenPct);
   if (p.name === "Flaming Overdrive")     return flamingOverdriveStacks;
   if (p.name === "Spirit Awakening")      return 15; // 15% to all stats → ~15% dmg; the 50% summon buff is a separate switch
   if (p.name === "Sands Of Time")         return 20 * hourglassStacks;
@@ -6026,6 +6083,11 @@ function changeDemonicPresenceStacks(delta) {
 
 function setGoldRushGold(val) {
   goldRushGold = Math.min(50000, Math.max(0, Math.round(+val / 500) * 500));
+  renderDmgBonusSection(); recalcOpenDetails();
+}
+
+function setCandyRegenPct(val) {
+  candyRegenPct = Math.min(12.5, Math.max(0, Math.round(+val * 2) / 2));
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
@@ -6816,6 +6878,7 @@ function renderDmgBonusSection() {
     const isLooter            = p.name === "Looter";
     const isKarmaStacks       = p.name === "Karma Stacks";
     const isGoldRush          = p.name === "Gold Rush";
+    const isCandy             = p.name === "Candy";
     // What the row adds to a hit's Multi sum, read from the same dmgRowPct the
     // damage paths use, so the panel and the workings cannot disagree. Every
     // one of these is a percentage added to the sum (§12), so it prints as
@@ -7099,6 +7162,14 @@ function renderDmgBonusSection() {
       html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
         <span class="dc-rage-slider-label">Gold: <b>${goldRushGold.toLocaleString()}</b> → <span style="color:${_grCapped ? '#e0c97a' : '#ccc'}">${_grBonus.toFixed(2)}% dmg${_grCapped ? ' (cap)' : ''}</span></span>
         <input type="range" class="dc-rage-slider" min="0" max="50000" step="500" value="${goldRushGold}" oninput="setGoldRushGold(this.value)">
+      </div>`;
+    }
+    if (isCandy) {
+      const _cdBonus = Math.min(25, 2 * candyRegenPct);
+      const _cdCapped = _cdBonus >= 25;
+      html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
+        <span class="dc-rage-slider-label">HP regen: <b>${candyRegenPct}%</b> → <span style="color:${_cdCapped ? '#e0c97a' : '#ccc'}">${_cdBonus}% dmg${_cdCapped ? ' (cap)' : ''}</span></span>
+        <input type="range" class="dc-rage-slider" min="0" max="12.5" step="0.5" value="${candyRegenPct}" oninput="setCandyRegenPct(this.value)">
       </div>`;
     }
     if (isOppression) {

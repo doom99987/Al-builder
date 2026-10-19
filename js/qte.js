@@ -6546,3 +6546,609 @@ if (flashMiss  > 0) flashMiss  -= dt;
   draw();
 })();
 // <<< NEW-QTE hammer-new block (keep this line)
+// >>> NEW-QTE duraelis block (keep this line)
+// === DURAELIS QTE (soul lights: WASD moves every soul, into the spotlights) ===
+// The game's Duraelis boss QTE. The board goes grey and misty: soul flames sit
+// on a 4 x 4 grid (the game's is 4 x 3; the owner asked for 4 x 4) and every
+// W/A/S/D press (or arrow; the on-screen arrow keys or a swipe on touch
+// screens) moves EVERY soul one cell, a soul leaving an edge coming back
+// on the other side. Spotlights land on cells. A round always runs until its
+// grey bar empties - then the lights flare: souls on a spotlight are saved,
+// the rest turn grey and die. All saved: +1 (cleared). Each flame lost costs a
+// life of the three (none below 0; 0 ends the run at once), and the saved souls
+// carry on into the next round, 600 ms later, which
+// tops the souls up to the table's count. Score = rounds cleared in the run.
+// After round 6 (the game's QTE length) a result line reads the fight from
+// the lives lost; the run goes on for the board.
+// The rules (tables, draws, the grid, the moves) live in js/qte-rules.js
+// (QteRules.trainers['duraelis']) so the server's check replays the run with
+// the same code. The run's log: 'N' each spawned soul (cell, draw), 'R' each
+// round (cleared, lives, souls, timer, the souls' cells, the shift and its
+// draw), 'K' each press (key, the round's game time, the souls after it), 'F'
+// each flare (game time, the lit souls), 'E' the last life lost, 'P'/'U'
+// pause (panel, page or browser tab hidden) / Resume.
+(function () {
+  const canvas = document.getElementById('duraelis-qte-canvas');
+  if (!canvas) return;
+  // js/qte-rules.js must load first. Stop HERE rather than throw: a throw at
+  // load would also kill every trainer after this one in qte.js.
+  const R = window.QteRules && window.QteRules.trainers && window.QteRules.trainers['duraelis'];
+  if (!R || !window.QteRules.Run) { try { console.error('[duraelis] js/qte-rules.js with the duraelis rules must load before js/qte.js'); } catch (e) {} return; }
+  const ctx       = canvas.getContext('2d');
+  const statusEl  = document.getElementById('duraelis-qte-status');
+  const streakEl  = document.getElementById('duraelis-qte-streak');
+  const hsEl      = document.getElementById('duraelis-qte-highscore');
+  const resultEl  = document.getElementById('duraelis-qte-result');
+  const startBtn  = document.getElementById('duraelis-qte-start-btn');
+  const resumeBtn = document.getElementById('duraelis-qte-resume-btn');
+  const dpad      = document.getElementById('duraelis-dpad');
+  const DPAD_IDS  = { W: 'duraelis-dpad-up', A: 'duraelis-dpad-left', S: 'duraelis-dpad-down', D: 'duraelis-dpad-right' };
+
+  const HS_KEY      = 'alb:duraelis-hs';
+  const HS_KEY_COMP = 'alb:duraelis-hs-comp';
+  let highscore     = parseInt(localStorage.getItem(HS_KEY) || '0', 10);
+  let highscoreComp = parseInt(localStorage.getItem(HS_KEY_COMP) || '0', 10);
+
+  let running     = false;   // a run is live and not paused (frames move its clock)
+  let gameStarted = false;   // Start pressed, not yet back at the Start button
+  let paused      = false;
+  let phase       = 'idle';  // idle | intro | round | gap (after a flare) | over (no lives left)
+  let run         = null;    // QteRules.Run of the current Start
+  let runComp     = false;   // mode at Start: the tables and the log's type must agree all run
+  let clears      = 0;       // rounds cleared this run (the score)
+  let lives       = R.LIVES;
+  let roundsPlayed = 0;
+  let soulMask    = 0;       // the live souls' cells (bit c = cell c, c = col + 4 * row)
+  let spotMask    = 0;       // this round's spotlights
+  let roundT      = 0;       // this round's timer, game ms
+  let roundGT     = 0;       // this round's game time, ms (sum of clamped dt, frozen while paused)
+  let roundDue    = false;   // the intro / between-rounds timer fired while paused: the round starts on Resume
+  let animFrame   = null;
+  let lastTime    = 0;
+  let restStatus  = { text: '', color: '#888' };   // what Resume puts back
+
+  // Drawing only - nothing here reaches the logic or the log.
+  let visT = 0, lastVis = null;          // animation clock, s
+  let vis = [];                          // drawn souls: { c, a: 0..1 appearing, fly: from the centre }
+  let offX = 0, offY = 0;                // the step tween: souls are drawn at cell + off (cells)
+  let flareK = 0, flareSpots = 0;        // the flare's glow, 1 -> 0, on the last round's spotlights
+  let dying = [];                        // { c, k: 1 -> 0 } souls turning grey after a flare
+
+  // The look: a dark grey misty board, a faint grid, white spotlight pools under
+  // slanted beams, purple-blue flames with a white core. The suite's player reads
+  // the board, the spotlight pools, the soul cores and the timer by these colours.
+  const COL = {
+    bg:        '#141417',
+    board:     'rgba(255,255,255,0.025)',
+    grid:      'rgba(255,255,255,0.07)',
+    edge:      'rgba(255,255,255,0.12)',
+    pool:      'rgba(255,255,255,0.62)',
+    core:      '#fbf8ff',
+    coreIdle:  '#f2eeff',
+    coreDead:  '#b0b0b8',
+    track:     'rgba(255,255,255,0.08)',
+    timer:     '#b4b4be',
+    timerLow:  '#ee8855',
+  };
+  // Touch screens get the on-screen arrow keys: the test the other trainers'
+  // TAP buttons use (IS_MOBILE: touch events or a coarse main pointer), or a
+  // narrow screen with any touch pointer at all.
+  const TOUCH_UI = IS_MOBILE || (function () {
+    try {
+      const narrow = (window.innerWidth || 0) > 0 && window.innerWidth <= 1024;
+      const coarse = !!(window.matchMedia && window.matchMedia('(any-pointer: coarse)').matches);
+      const points = !!(window.navigator && window.navigator.maxTouchPoints > 0);
+      return narrow && (coarse || points);
+    } catch (e) { return false; }
+  })();
+  const INTRO_TEXT_KEYS  = 'Guide every soul flame into a spotlight with WASD before the lights flare.';
+  const INTRO_TEXT_TOUCH = 'Guide every soul flame into a spotlight with the arrows before the lights flare.';
+  function hint() { return TOUCH_UI ? INTRO_TEXT_TOUCH : INTRO_TEXT_KEYS; }
+
+  function updateHighscore(v) {
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.report(v); return; }
+    if (gameStarted ? runComp : window._qteCompMode) {
+      if (v > highscoreComp) { highscoreComp = v; try { localStorage.setItem(HS_KEY_COMP, highscoreComp); } catch (e) {} if (run) run.submit(v); }
+      if (hsEl) hsEl.textContent = highscoreComp > 0 ? `Best: ${highscoreComp}` : '';
+    } else {
+      if (v > highscore) { highscore = v; try { localStorage.setItem(HS_KEY, highscore); } catch (e) {} if (run) run.submit(v); }
+      if (hsEl) hsEl.textContent = highscore > 0 ? `Best: ${highscore}` : '';
+    }
+  }
+  updateHighscore(0);
+  window.addEventListener('alb-scores-reset', () => { highscore = 0; highscoreComp = 0; localStorage.removeItem(HS_KEY); localStorage.removeItem(HS_KEY_COMP); updateHighscore(0); });
+  window.addEventListener('alb-mode-changed', () => { updateHighscore(0); if (!gameStarted) drawFrame(); });
+
+  function setStatus(t, c) {
+    if (statusEl) { statusEl.textContent = t; statusEl.style.color = c || '#888'; }
+    if (t !== 'Paused') restStatus = { text: t, color: c || '#888' };
+  }
+  function setResult(t, c) {
+    if (!resultEl) return;
+    resultEl.textContent = t;
+    resultEl.style.color = c || '#cfcfe0';
+    resultEl.style.display = t ? '' : 'none';
+  }
+
+  function pageActive() {
+    const pg = document.getElementById('page-qte');
+    return !!(pg && pg.classList.contains('active')) || !!(window._qteMatch && window._qteMatch.active);
+  }
+
+  function resizeCanvas() {
+    const wrap = canvas.parentElement;
+    if (!wrap) return;
+    // the board's own box (.duraelis-qte-stage, no padding); hidden panel: 0
+    const avail = wrap.clientWidth > 64 ? wrap.clientWidth : 800;
+    canvas.width  = Math.max(240, Math.min(avail, 900));
+    // a square board plus the lives over it and the timer under it; at most
+    // 560 px tall on a desktop, so the timer stays on a 900 px screen
+    const tall = TOUCH_UI || canvas.width < 480;
+    canvas.height = tall ? Math.min(Math.round(canvas.width * 1.1), 600) : Math.min(Math.round(canvas.width * 0.62), 560);
+  }
+
+  // ---- the game ----
+  // A round: top the souls up to the table's count on free cells, then the
+  // shift that places the spotlights.
+  function startRound() {
+    roundDue = false;
+    const n = R.souls(clears, runComp);
+    const first = roundsPlayed === 0;
+    while (R.popcount(soulMask) < n) {
+      const u = R.drawU(Math.random());
+      const c = R.spawnCell(soulMask, u);
+      if (c < 0) break;
+      soulMask |= 1 << c;
+      vis.push({ c: c, a: 0, fly: first });
+      if (run) run.ev('N', c, u);
+    }
+    const u = R.drawU(Math.random());
+    const sh = R.shiftOf(u);
+    spotMask = R.translate(soulMask, sh[0], sh[1]);
+    roundT   = R.timerMs(clears, runComp);
+    roundGT  = 0;
+    phase    = 'round';
+    if (run) run.ev('R', clears, lives, n, roundT, soulMask, sh[0], sh[1], u);
+    setStatus(hint(), '#aaaaff');
+  }
+
+  // One press: every soul one cell, at once. The tween is drawing only.
+  function step(k) {
+    if (!running || paused || phase !== 'round') return;
+    const d = R.KEYS[k];
+    if (!d) return;
+    soulMask = R.move(soulMask, k);
+    for (const v of vis) v.c = R.cellAt(R.col(v.c) + d[0], R.row(v.c) + d[1]);
+    offX -= d[0]; offY -= d[1];
+    if (run) run.ev('K', k, roundGT, soulMask);
+  }
+
+  // The bar is empty: the lights flare.
+  function flare() {
+    const lit = soulMask & spotMask;
+    if (run) run.ev('F', roundGT, lit);
+    roundsPlayed++;
+    flareK = 1; flareSpots = spotMask;
+    phase = 'gap';
+    if (lit === soulMask) {
+      clears++;
+      if (streakEl) streakEl.textContent = `Cleared: ${clears}`;
+      updateHighscore(clears);
+      setStatus('✓ Every soul reached the light!', '#88ee88');
+      if (typeof window._playQteSfx === 'function') window._playQteSfx('staff');
+    } else {
+      const lost = R.popcount(soulMask & ~lit);
+      lives = Math.max(0, lives - lost);   // a life for every flame left in the dark (owner, 2026-10-18)
+      for (const v of vis) if (!((lit >> v.c) & 1)) dying.push({ c: v.c, k: 1 });
+      vis = vis.filter(v => (lit >> v.c) & 1);
+      soulMask = lit;
+      setStatus(`✗ ${lost} soul${lost === 1 ? '' : 's'} lost to the dark. ` + (lives > 0 ? `${lives} ${lives === 1 ? 'life' : 'lives'} left.` : ''), lives > 0 ? '#ee9955' : '#ee5555');
+    }
+    spotMask = 0;
+    if (roundsPlayed === R.FIGHT_ROUNDS) fightResult();
+    if (lives <= 0) { endRun(); return; }
+    // Only this run's next round: a timer left over from a run that was
+    // restarted inside these 600 ms must not start a round in the new one.
+    // Paused when it fires: the round starts on Resume.
+    const myRun = run;
+    setTimeout(() => {
+      if (run !== myRun || phase !== 'gap') return;
+      if (running) startRound();
+      else if (paused) roundDue = true;
+    }, R.GAP_MS);
+  }
+
+  // The game's QTE is 6 rounds; its outcome is read from the lives lost in them
+  // (a life a lost flame, so at most all three).
+  function fightResult() {
+    const lost = R.LIVES - lives;
+    if (lost <= 0) setResult('Flawless: 0 DMG taken, Duraelis stunned for 3 turns', '#ffd36b');
+    else if (lost < R.LIVES) setResult(`${lost} ${lost === 1 ? 'life' : 'lives'} lost: you take reduced damage`, '#cfcfe0');
+    else setResult('All lives lost: full damage', '#ee5555');
+  }
+
+  function endRun() {
+    if (run) run.ev('E', 'lives');
+    running  = false;
+    paused   = false;
+    roundDue = false;
+    phase    = 'over';
+    updateHighscore(clears);
+    if (run) run.close();
+    if (roundsPlayed < R.FIGHT_ROUNDS) setResult('All lives lost: full damage', '#ee5555');
+    setStatus(`All lives lost. Cleared ${clears}.`, '#ee5555');
+    showButtons();
+    if (window._qteMatch && window._qteMatch.active) { window._qteMatch.fail(); return; }
+    // Only this run: a Start inside these ms must not be stopped by the old run's reset.
+    const myRun = run;
+    setTimeout(() => { if (run === myRun && phase === 'over') resetToStart(true); }, R.END_RESET);
+  }
+
+  function showButtons() {
+    if (startBtn)  startBtn.style.display  = gameStarted ? 'none' : '';
+    if (resumeBtn) resumeBtn.style.display = gameStarted && paused ? '' : 'none';
+    if (dpad)      dpad.style.display      = TOUCH_UI ? '' : 'none';     // the whole time the panel is open
+  }
+  // A Start / Resume click leaves the focus on the button
+  function blurButton() { try { const a = document.activeElement; if (a && a.tagName === 'BUTTON' && a.blur) a.blur(); } catch (e) {} }
+
+  // keep: the run just ended - its status and result line stay until the next Start
+  function resetToStart(keep) {
+    cancelAnimationFrame(animFrame); animFrame = null;
+    running = false; gameStarted = false; paused = false; roundDue = false;
+    phase = 'idle';
+    vis = []; dying = []; flareK = 0; offX = 0; offY = 0;
+    soulMask = 0; spotMask = 0;
+    if (!keep) {
+      setStatus('', '#888');
+      if (streakEl) streakEl.textContent = '';
+    }
+    showButtons();
+    drawFrame();
+  }
+
+  function startGame() {
+    // One loop per run: a Start while a loop is live (matchmaking clicks Start
+    // itself) would add every frame's dt to the game clock twice.
+    cancelAnimationFrame(animFrame); animFrame = null;
+    if (run) run.close();
+    runComp = !!window._qteCompMode;
+    run = QteRules.Run.start('duraelis' + (runComp ? '-comp' : ''));
+    clears = 0; lives = R.LIVES; roundsPlayed = 0;
+    soulMask = 0; spotMask = 0; roundT = 0; roundGT = 0; roundDue = false;
+    vis = []; dying = []; flareK = 0; offX = 0; offY = 0;
+    running = true; gameStarted = true; paused = false;
+    phase = 'intro';
+    resizeCanvas();
+    setResult('', '');
+    if (streakEl) streakEl.textContent = 'Cleared: 0';
+    showButtons(); blurButton();
+    setStatus(hint(), '#aaaaff');          // the game's instruction, over the intro
+    const myRun = run;
+    setTimeout(() => {
+      if (run !== myRun || phase !== 'intro') return;
+      if (running) startRound();
+      else if (paused) roundDue = true;
+    }, R.INTRO_MS);
+    lastTime = performance.now(); lastVis = null;
+    drawFrame();
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  function gameLoop(now) {
+    animFrame = null;
+    if (phase === 'over') {                // the last flare fading out
+      animate(now); drawFrame();
+      if (gameStarted && (flareK > 0 || dying.length)) animFrame = requestAnimationFrame(gameLoop);
+      return;
+    }
+    if (!running) return;
+    // Left the QTE page mid-run (no hide hook runs for that): pause, as for a
+    // hidden panel; the Resume button is waiting on return.
+    if (!pageActive()) { pauseRun(); return; }
+    // Never negative: a frame stamped before the performance.now() taken at
+    // Start / Resume (one left pending behind a long task) moves nothing.
+    const dt = Math.min(Math.max(0, now - lastTime) / 1000, R.DT_MAX);
+    if (now > lastTime) lastTime = now;
+    animate(now);
+    if (phase === 'round') {
+      roundGT += dt * 1000;
+      if (roundGT >= roundT) flare();
+    }
+    drawFrame();
+    if (running || phase === 'over') animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // Panel hidden, QTE page left or browser tab hidden: the game clock stops (no
+  // frames run), the board is hidden, and Resume carries on.
+  function pauseRun() {
+    if (!gameStarted || !running || paused) return;
+    cancelAnimationFrame(animFrame); animFrame = null;
+    running = false;
+    paused  = true;
+    if (run) run.ev('P');
+    showButtons();
+    setStatus('Paused', '#888');
+    drawFrame();
+  }
+
+  function resumeGame() {
+    if (!paused) return;
+    paused   = false;
+    running  = true;
+    lastTime = performance.now(); lastVis = null;
+    if (run) run.ev('U');
+    showButtons(); blurButton();
+    if (statusEl) { statusEl.textContent = restStatus.text; statusEl.style.color = restStatus.color; }
+    if (roundDue && (phase === 'intro' || phase === 'gap')) startRound();
+    roundDue = false;
+    animFrame = requestAnimationFrame(gameLoop);
+  }
+
+  // ---- drawing ----
+  function geo() {
+    const W = canvas.width, H = canvas.height, top = 30, bottom = 40;
+    const cell = Math.max(16, Math.floor(Math.min((W - 24) / R.COLS, (H - top - bottom) / R.ROWS)));
+    const gw = cell * R.COLS, gh = cell * R.ROWS;
+    const gx = Math.round((W - gw) / 2), gy = top + Math.max(0, Math.round((H - top - bottom - gh) / 2));
+    return { W: W, H: H, cell: cell, gx: gx, gy: gy, gw: gw, gh: gh };
+  }
+
+  // The visual clock: the step tween, spawns, the flare and the dying souls.
+  function animate(now) {
+    const vdt = lastVis == null ? 0 : Math.min(Math.max(0, now - lastVis), 100) / 1000;
+    lastVis = now;
+    visT += vdt;
+    const k = 1 - Math.exp(-vdt * 40);     // a step drawn in ~STEP_MS
+    offX -= offX * k; offY -= offY * k;
+    if (Math.abs(offX) < 0.02) offX = 0;
+    if (Math.abs(offY) < 0.02) offY = 0;
+    for (const v of vis) if (v.a < 1) v.a = Math.min(1, v.a + vdt / (v.fly ? 0.25 : 0.2));
+    if (flareK > 0) flareK = Math.max(0, flareK - vdt / 0.5);
+    for (const d of dying) d.k = Math.max(0, d.k - vdt / 0.6);
+    if (dying.length) dying = dying.filter(d => d.k > 0);
+  }
+
+  const FOG = [[0.18, 0.30, 0.13, 0.7], [0.78, 0.22, 0.09, 1.3], [0.45, 0.82, 0.11, 2.1], [0.92, 0.75, 0.07, 3.0]];
+  function fog(W, H) {
+    const rad = Math.max(W, H) * 0.45;
+    for (const f of FOG) {
+      const fx = W * (f[0] + 0.06 * Math.sin(visT * f[2] + f[3]));
+      const fy = H * (f[1] + 0.05 * Math.cos(visT * f[2] * 0.8 + f[3]));
+      const g = ctx.createRadialGradient(fx, fy, 0, fx, fy, rad);
+      g.addColorStop(0, 'rgba(150,150,160,0.10)');
+      g.addColorStop(1, 'rgba(150,150,160,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  // A soul flame centred on its white core at (x, y); s ~ a quarter cell.
+  function flame(x, y, s, o) {
+    ctx.save();
+    ctx.globalAlpha = o.alpha == null ? 1 : Math.max(0, Math.min(1, o.alpha));
+    const gr = o.lit ? 1.9 : 1.4;
+    const glow = ctx.createRadialGradient(x, y, 0, x, y, s * gr);
+    glow.addColorStop(0, o.grey ? 'rgba(170,170,180,0.35)' : o.lit ? 'rgba(200,180,255,0.8)' : 'rgba(130,100,255,0.45)');
+    glow.addColorStop(1, 'rgba(110,90,230,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(x, y, s * gr, 0, Math.PI * 2); ctx.fill();
+    const fl = Math.sin(visT * 9 + x * 0.05) * 0.08 * s;
+    const tipY = y - s * (1.05 + 0.06 * Math.sin(visT * 13 + y * 0.07));
+    const body = ctx.createLinearGradient(0, tipY, 0, y + s * 0.5);
+    body.addColorStop(0,    o.grey ? '#8a8a92' : o.lit ? '#ddd2ff' : '#9a7cff');
+    body.addColorStop(0.55, o.grey ? '#6a6a72' : o.lit ? '#a08cff' : '#6a55f0');
+    body.addColorStop(1,    o.grey ? '#55555c' : o.lit ? '#7896ff' : '#3f5fe0');
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(x + fl, tipY);
+    ctx.bezierCurveTo(x + s * 0.55 + fl * 0.5, y - s * 0.45, x + s * 0.58, y + s * 0.22, x, y + s * 0.5);
+    ctx.bezierCurveTo(x - s * 0.58, y + s * 0.22, x - s * 0.55 + fl * 0.5, y - s * 0.45, x + fl, tipY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = o.core;
+    ctx.beginPath(); ctx.arc(x, y, s * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // A spotlight: a faint beam slanting down from above, and its pool.
+  function spotlight(x, y, cell, g) {
+    const topX = x + cell * 0.45;
+    const b = ctx.createLinearGradient(0, 0, 0, y);
+    b.addColorStop(0, 'rgba(255,255,255,0)');
+    b.addColorStop(0.7, 'rgba(255,255,255,0.08)');
+    b.addColorStop(1, 'rgba(255,255,255,0)');           // fades into its pool
+    ctx.fillStyle = b;
+    ctx.beginPath();
+    ctx.moveTo(topX - cell * 0.1, 0); ctx.lineTo(topX + cell * 0.1, 0);
+    ctx.lineTo(x + cell * 0.36, y); ctx.lineTo(x - cell * 0.36, y);
+    ctx.closePath();
+    ctx.fill();
+    const p = ctx.createRadialGradient(x, y, 0, x, y, cell * 0.5);
+    p.addColorStop(0, COL.pool);
+    p.addColorStop(0.5, 'rgba(225,225,235,0.22)');
+    p.addColorStop(1, 'rgba(225,225,235,0)');
+    ctx.fillStyle = p;
+    ctx.beginPath(); ctx.arc(x, y, cell * 0.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function cellX(g, c) { return g.gx + (R.col(c) + 0.5) * g.cell; }
+  function cellY(g, c) { return g.gy + (R.row(c) + 0.5) * g.cell; }
+
+  function drawFrame() {
+    const g = geo(), W = g.W, H = g.H, cell = g.cell;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = COL.bg;
+    ctx.fillRect(0, 0, W, H);
+    fog(W, H);
+
+    // Board and grid
+    ctx.fillStyle = COL.board;
+    ctx.fillRect(g.gx, g.gy, g.gw, g.gh);
+    ctx.strokeStyle = COL.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < R.COLS; i++) { ctx.moveTo(g.gx + i * cell + 0.5, g.gy); ctx.lineTo(g.gx + i * cell + 0.5, g.gy + g.gh); }
+    for (let j = 1; j < R.ROWS; j++) { ctx.moveTo(g.gx, g.gy + j * cell + 0.5); ctx.lineTo(g.gx + g.gw, g.gy + j * cell + 0.5); }
+    ctx.stroke();
+    ctx.strokeStyle = COL.edge;
+    ctx.strokeRect(g.gx + 0.5, g.gy + 0.5, g.gw - 1, g.gh - 1);
+
+    const s = cell * 0.25;
+    if (!paused) {
+      // Spotlights (the round's), then the flare's glow on the last ones
+      if (phase === 'round') for (const c of R.cellsOf(spotMask)) spotlight(cellX(g, c), cellY(g, c), cell);
+      if (flareK > 0) {
+        for (const c of R.cellsOf(flareSpots)) {
+          const x = cellX(g, c), y = cellY(g, c);
+          const f = ctx.createRadialGradient(x, y, 0, x, y, cell * 0.62);
+          f.addColorStop(0, 'rgba(255,250,235,' + (0.85 * flareK).toFixed(3) + ')');
+          f.addColorStop(1, 'rgba(255,250,235,0)');
+          ctx.fillStyle = f;
+          ctx.beginPath(); ctx.arc(x, y, cell * 0.62, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      // Souls, clipped to the board: off one edge, in from the other
+      ctx.save();
+      ctx.beginPath(); ctx.rect(g.gx, g.gy, g.gw, g.gh); ctx.clip();
+      if (phase === 'idle' || phase === 'intro') {
+        const pulse = 1 + 0.06 * Math.sin(visT * 4);
+        flame(g.gx + g.gw / 2, g.gy + g.gh / 2, s * pulse, { core: COL.coreIdle });
+      }
+      const settled = offX === 0 && offY === 0;
+      for (const v of vis) {
+        const lit = phase === 'round' ? settled && ((spotMask >> v.c) & 1) === 1 : phase !== 'intro';
+        const bx = R.col(v.c) + 0.5 + offX, by = R.row(v.c) + 0.5 + offY;
+        if (v.fly && v.a < 1) {             // the first souls fly out of the centre flame
+          const e = 1 - Math.pow(1 - v.a, 3);
+          const x = g.gx + g.gw / 2 + (g.gx + bx * cell - g.gx - g.gw / 2) * e;
+          const y = g.gy + g.gh / 2 + (g.gy + by * cell - g.gy - g.gh / 2) * e;
+          flame(x, y, s, { core: COL.core, lit: false });
+          continue;
+        }
+        for (let ix = -1; ix <= 1; ix++) for (let iy = -1; iy <= 1; iy++) {
+          const cx = bx + ix * R.COLS, cy = by + iy * R.ROWS;
+          if (cx <= -0.5 || cx >= R.COLS + 0.5 || cy <= -0.5 || cy >= R.ROWS + 0.5) continue;
+          flame(g.gx + cx * cell, g.gy + cy * cell, s * (v.fly ? 1 : 0.6 + 0.4 * v.a), { core: COL.core, lit: lit, alpha: v.fly ? 1 : v.a });
+        }
+      }
+      for (const d of dying) flame(cellX(g, d.c), cellY(g, d.c) - (1 - d.k) * cell * 0.2, s, { core: COL.coreDead, grey: true, alpha: d.k });
+      ctx.restore();
+
+      if (flareK > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.28 * flareK * flareK).toFixed(3) + ')';
+        ctx.fillRect(0, 0, W, H);
+      }
+    }
+
+    // Lives: three flames over the board's left corner, the lost ones grey
+    for (let i = 0; i < R.LIVES; i++) {
+      const alive = !gameStarted || i < lives;
+      flame(g.gx + 12 + i * 26, 18, 9, alive ? { core: COL.coreIdle } : { core: COL.coreDead, grey: true, alpha: 0.4 });
+    }
+
+    // The round's timer: a grey bar under the board, draining (orange in its last third)
+    const tw = Math.round(g.gw * 0.91), tx = g.gx + Math.round((g.gw - tw) / 2), ty = g.gy + g.gh + 14;
+    ctx.fillStyle = COL.track;
+    ctx.fillRect(tx, ty, tw, 6);
+    if (phase === 'round' && roundT > 0) {
+      const left = Math.max(0, roundT - roundGT) / roundT;
+      ctx.fillStyle = left <= 1 / 3 ? COL.timerLow : COL.timer;
+      ctx.fillRect(tx, ty, tw * left, 6);
+    }
+  }
+
+  // ---- input ----
+  // e.key, as fist and thorian read it: js/core.js's ping simulator delays
+  // exactly these (w/a/s/d by key, the arrows by code) and keeps e.repeat.
+  const KEY_OF = Object.assign(Object.create(null), { w: 'W', W: 'W', ArrowUp: 'W', a: 'A', A: 'A', ArrowLeft: 'A', s: 'S', S: 'S', ArrowDown: 'S', d: 'D', D: 'D', ArrowRight: 'D' });
+  document.addEventListener('keydown', e => {
+    const k = KEY_OF[e.key];
+    if (!k || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (!document.getElementById('page-qte')?.classList.contains('active') && !(window._qteMatch && window._qteMatch.active)) return;
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable) return;
+    const panel = document.getElementById('qte-panel-duraelis');
+    if (!panel || panel.style.display === 'none') return;
+    if (gameStarted) e.preventDefault();     // the arrows must not scroll the page mid-run
+    if (e.repeat) return;                    // a held key is one step
+    step(k);
+  });
+  if (TOUCH_UI) {
+    // The on-screen arrow keys: one step per tap. pointerdown takes the tap at
+    // once (no 300 ms click delay); the touchstart that follows it only
+    // cancels, so no click or mouse event comes after and a quick double tap
+    // cannot zoom or scroll (css/mobile.css also sets touch-action: none).
+    // Browsers without pointer events step on touchstart instead. Each tap
+    // flashes its key (.pressed) for 120 ms.
+    const usePointer = typeof window.PointerEvent === 'function';
+    const cancel = e => { if (e && e.cancelable !== false && e.preventDefault) e.preventDefault(); };
+    for (const k of ['W', 'A', 'S', 'D']) {
+      const b = document.getElementById(DPAD_IDS[k]);
+      if (!b) continue;
+      let flashT = null;
+      b.addEventListener(usePointer ? 'pointerdown' : 'touchstart', e => {
+        if (e && e.pointerType === 'mouse' && e.button) return;     // a mouse: the main button only
+        cancel(e);
+        if (b.classList) {
+          b.classList.add('pressed');
+          clearTimeout(flashT);
+          flashT = setTimeout(() => b.classList.remove('pressed'), 120);
+        }
+        step(k);
+      }, { passive: false });
+      if (usePointer) b.addEventListener('touchstart', cancel, { passive: false });
+      b.addEventListener('contextmenu', cancel);
+    }
+    // ... and a swipe on the board
+    let swipe = null;
+    canvas.addEventListener('touchstart', e => {
+      if (gameStarted) e.preventDefault();
+      const p = e.touches && e.touches[0];
+      swipe = p ? { x: p.clientX, y: p.clientY } : null;
+    }, { passive: false });
+    canvas.addEventListener('touchend', e => {
+      const p = e.changedTouches && e.changedTouches[0];
+      const sw = swipe; swipe = null;
+      if (!sw || !p) return;
+      const dx = p.clientX - sw.x, dy = p.clientY - sw.y;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+      if (gameStarted) e.preventDefault();
+      step(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'D' : 'A') : (dy > 0 ? 'S' : 'W'));
+    }, { passive: false });
+    canvas.addEventListener('touchcancel', () => { swipe = null; });
+  }
+
+  if (startBtn)  startBtn.addEventListener('click', startGame);
+  if (resumeBtn) resumeBtn.addEventListener('click', resumeGame);
+
+  // A hidden browser tab gets no frames: pause, so the run waits for Resume.
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pauseRun(); });
+
+  window.addEventListener('resize', () => {
+    const panel = document.getElementById('qte-panel-duraelis');
+    if (!panel || panel.style.display === 'none') return;
+    resizeCanvas();
+    drawFrame();
+  });
+
+  window._onDuraelisQteHide = function () {
+    if (paused) return;
+    if (gameStarted && running) { pauseRun(); return; }
+    resetToStart(false);
+  };
+
+  window._onDuraelisQteShow = function () {
+    // Cells are grid positions: a new size changes nothing in the game.
+    resizeCanvas();
+    if (paused) setStatus('Paused', '#888');
+    showButtons();
+    drawFrame();                           // a live run (the tab clicked again) plays on
+  };
+
+  resizeCanvas();
+  showButtons();
+  drawFrame();
+})();
+// <<< NEW-QTE duraelis block (keep this line)

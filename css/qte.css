@@ -1242,3 +1242,93 @@
   max-width: 320px;
 }
 /* <<< hammer-new styles (keep this line) */
+/* >>> duraelis styles (keep this line) */
+/* --- Duraelis QTE: the boss's soul lights (a 4 x 4 board, WASD) --- */
+.duraelis-qte-wrap {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px;
+  overflow: hidden;
+}
+
+.duraelis-qte-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 24px;
+  align-items: center;
+  min-height: 28px;
+}
+
+.duraelis-qte-status {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #aaaaff;
+  min-width: 260px;
+  text-align: center;
+}
+
+.duraelis-qte-streak {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 14px;
+  color: #ffcc66;
+  min-width: 80px;
+}
+
+.duraelis-qte-highscore {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 13px;
+  color: #666;
+  min-width: 70px;
+}
+
+/* the board's own box: Start / Resume sit on its centre, not on the arrow keys */
+.duraelis-qte-stage {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+}
+
+.duraelis-qte-canvas {
+  border-radius: 8px;
+  width: 100%;
+  max-width: 900px;
+  height: auto;
+  display: block;
+  touch-action: none;          /* a swipe on the board must not scroll the page */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* the fight result after round 6 (js/qte.js sets its text and colour) */
+.duraelis-qte-result {
+  font-family: 'Rajdhani', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #cfcfe0;
+  text-align: center;
+}
+
+#duraelis-qte-start-btn,
+#duraelis-qte-resume-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* the on-screen arrow keys (shown by js/qte.js on touch screens) are styled
+   in css/mobile.css with the other trainers' pads */
+
+@media (max-width: 768px) {
+  .duraelis-qte-wrap { padding: 10px 8px; overflow-y: auto; }
+  .duraelis-qte-header { gap: 12px; }
+  .duraelis-qte-status { min-width: 0; font-size: 15px; }
+}
+/* <<< duraelis styles (keep this line) */

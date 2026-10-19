@@ -347,12 +347,21 @@
       'Ivory Sword', 'Ivory Dagger', 'Ivory Spear',
       'Ivory Axe', 'Ivory Hammer', 'Ivory Greatsword',
     ]},
+    { group: 'Weapons — Candy', items: [
+      'Candy Corn Sword', 'Pop Greatsword', 'Smarties Spear', 'Lollistaff',
+      'Jolly Dagger', 'Choco Axe', 'Rock Candy Hammer', 'Caramel Fists',
+    ]},
+    { group: 'Weapons — Ghostgrave', items: [
+      'Ghostgrave Sword', 'Ghostgrave Greatsword', 'Ghostgrave Spear', 'Ghostgrave Staff',
+      'Ghostgrave Dagger', 'Ghostgrave Scythe', 'Ghostgrave War Scythe', 'Ghostgrave Gauntlets',
+    ]},
     { group: 'Weapons — Unique', items: [
       'Vastic Glaive', 'Star-Seeing Hammer',
     ]},
     { group: 'Shields', items: [
       'Targe', 'Ferrus Towershield', 'Dragonflame Shield', 'Slimy Buckler',
       'Icerind Shield', 'Sandstone Shield', 'Primordial Shield', 'Ivory Shield',
+      'Thoreo', 'Ghostgrave Shield',
     ]},
     { group: 'Gear — Boss Drops', items: [
       'Gelat Band', 'Tear Blood Crystal', "Ptera's Heart", 'DeathBeak Dagger',

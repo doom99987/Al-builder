@@ -891,6 +891,34 @@
 .all-lb-plat-tab[data-platform="M"].active { border-color: #2a7a4a; color: #55cc88; background: #0d1e14; }
 .all-lb-plat-tab[data-platform="C"].active { border-color: #2a5a8a; color: #55aadd; background: #0d1420; }
 
+/* --- Old / New QTE tabs (all-leaderboards page), after a divider in the
+   Casual / Competitive row; sized like those tabs (qte.css) --- */
+.all-lb-mode-tabs { flex-wrap: wrap; align-items: stretch; }
+.all-lb-tab-sep {
+  width: 1.5px;
+  margin: 4px 4px;
+  background: #2a2a5a;
+  border-radius: 1px;
+}
+.all-lb-group-tab {
+  padding: 6px 20px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: #111120;
+  border: 1.5px solid #2a2a5a;
+  border-radius: 8px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.all-lb-group-tab.active { background: #1c1430; border-color: #8a5acc; color: #c9a8ff; }
+@media (max-width: 480px) {
+  .all-lb-mode-tabs .all-lb-mode-tab, .all-lb-mode-tabs .all-lb-group-tab { padding: 6px 12px; }
+}
+
 /* --- Platform filter tabs (per-QTE leaderboard modal) --- */
 .lb-plat-tabs {
   display: flex;

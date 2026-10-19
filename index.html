@@ -38,7 +38,7 @@
       base.css        : core layout, stat widgets, soul/mastery tree base, move cards
       nav.css         : site nav bar + home page
       builder.css     : fonts, mastery nodes, share modal, dmg calc, summary tab
-      qte.css         : all 16 QTE trainer styles + ping bar + competitive/casual mode
+      qte.css         : all 17 QTE trainer styles + ping bar + competitive/casual mode
       mobile.css      : responsive overrides (max-width: 768px) + mobile d-pads / arrows
       auth.css        : auth modal, leaderboard tables, profile avatar/dropdown
       saved-builds.css: saved builds panel + Discord button
@@ -46,9 +46,9 @@
   <link rel="stylesheet" href="css/base.css?v=12">
   <link rel="stylesheet" href="css/nav.css?v=18">
   <link rel="stylesheet" href="css/builder.css?v=31">
-  <link rel="stylesheet" href="css/qte.css?v=15">
-  <link rel="stylesheet" href="css/mobile.css?v=17">
-  <link rel="stylesheet" href="css/auth.css?v=24">
+  <link rel="stylesheet" href="css/qte.css?v=16">
+  <link rel="stylesheet" href="css/mobile.css?v=18">
+  <link rel="stylesheet" href="css/auth.css?v=25">
   <link rel="stylesheet" href="css/overlay.css?v=1">
   <link rel="stylesheet" href="css/saved-builds.css?v=14">
   <link rel="stylesheet" href="css/trades.css?v=19">
@@ -405,6 +405,7 @@
       <button class="tab" data-qte="spear-new">Spear</button>
       <button class="tab" data-qte="axe-new">Axe</button>
       <button class="tab" data-qte="hammer-new">Hammer</button>
+      <button class="tab" data-qte="duraelis">Duraelis</button>
     </div>
   </div>
   <div class="qte-ping-bar">
@@ -655,6 +656,34 @@
       </div>
     </div>
     <!-- <<< hammer-new panel (keep this line) -->
+    <!-- >>> duraelis panel (keep this line) -->
+    <!-- Duraelis QTE (the boss's soul lights: WASD moves every soul into the spotlights) -->
+    <div class="qte-panel" id="qte-panel-duraelis" style="display:none">
+      <div class="duraelis-qte-wrap">
+        <div class="duraelis-qte-header">
+          <span class="duraelis-qte-status" id="duraelis-qte-status"></span>
+          <span class="duraelis-qte-streak" id="duraelis-qte-streak"></span>
+          <span class="duraelis-qte-highscore" id="duraelis-qte-highscore"></span>
+          <button class="lb-open-btn" onclick="window._openLeaderboard('duraelis')">&#127942; Leaderboard</button>
+        </div>
+        <div class="duraelis-qte-stage">
+          <canvas id="duraelis-qte-canvas" class="duraelis-qte-canvas"></canvas>
+          <button class="fist-qte-start-btn" id="duraelis-qte-start-btn">Start</button>
+          <button class="fist-qte-start-btn" id="duraelis-qte-resume-btn" style="display:none">Resume</button>
+        </div>
+        <!-- the arrow keys (touch screens; js/qte.js shows them) -->
+        <div class="duraelis-dpad" id="duraelis-dpad" style="display:none" role="group" aria-label="Arrow keys">
+          <div class="duraelis-dpad-row"><button type="button" class="duraelis-dpad-btn" id="duraelis-dpad-up" aria-label="Up"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l8 9h-5V20.5H9V12.5H4z"/></svg></button></div>
+          <div class="duraelis-dpad-row">
+            <button type="button" class="duraelis-dpad-btn" id="duraelis-dpad-left" aria-label="Left"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12l9-8v5h8v6h-8v5z"/></svg></button>
+            <button type="button" class="duraelis-dpad-btn" id="duraelis-dpad-down" aria-label="Down"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5l8-9h-5V3.5H9v8H4z"/></svg></button>
+            <button type="button" class="duraelis-dpad-btn" id="duraelis-dpad-right" aria-label="Right"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12l-9-8v5h-8v6h8v5z"/></svg></button>
+          </div>
+        </div>
+        <div class="duraelis-qte-result" id="duraelis-qte-result" style="display:none"></div>
+      </div>
+    </div>
+    <!-- <<< duraelis panel (keep this line) -->
   </div>
   <img class="qte-logo-watermark" src="images/Logo.png" alt="">
 </div>
@@ -782,6 +811,9 @@
     <div class="all-lb-mode-tabs">
       <button class="all-lb-mode-tab active" data-mode="casual" onclick="window._switchLbMode(this)">Casual</button>
       <button class="all-lb-mode-tab comp-tab" data-mode="comp" onclick="window._switchLbMode(this)">Competitive</button>
+      <span class="all-lb-tab-sep" aria-hidden="true"></span>
+      <button class="all-lb-group-tab" data-group="old" onclick="window._switchLbGroup(this)">Old</button>
+      <button class="all-lb-group-tab active" data-group="new" onclick="window._switchLbGroup(this)">New</button>
     </div>
     <div class="all-lb-plat-tabs">
       <button class="all-lb-plat-tab active" data-platform="all" onclick="window._switchAllLbPlatform(this)">All</button>
@@ -1642,7 +1674,7 @@
 </div>
 
 <script src="js/supabase.min.js"></script>
-<script src="js/sb.js?v=118"></script>
+<script src="js/sb.js?v=119"></script>
 <script src="js/reports.js?v=6"></script>
 <!--
   Load order is critical — each file depends on globals from earlier files:
@@ -1651,30 +1683,30 @@
     data-race-moves.js : raceMoves data  (read by move-renderer)
     move-renderer.js   : move card HTML generators + renderMoves()
     builder.js         : full builder UI (stats, pickers, dmgcalc, soul/mastery trees, build I/O)
-    qte.js             : all 16 QTE trainer IIFEs
+    qte.js             : all 17 QTE trainer IIFEs
     saved-builds.js    : saved builds (localStorage + account sync to player_builds)
 -->
 <script src="js/core.js?v=17"></script>
 <script src="js/data-class-moves.js?v=26"></script>
 <script src="js/data-race-moves.js?v=21"></script>
 <script src="js/move-renderer.js?v=13"></script>
-<script src="js/builder.js?v=112"></script>
+<script src="js/builder.js?v=113"></script>
 <script src="js/qte-guard.js?v=3"></script>
-<script src="js/qte-rules.js?v=2"></script>
-<script src="js/qte.js?v=27"></script>
+<script src="js/qte-rules.js?v=3"></script>
+<script src="js/qte.js?v=28"></script>
 <script src="js/saved-builds.js?v=16"></script>
-<script src="js/trades.js?v=54"></script>
+<script src="js/trades.js?v=55"></script>
 <!-- Trades and LF Party are disabled (2026-09-23)
 <script src="js/party.js?v=32"></script> -->
 <script src="js/builds.js?v=7"></script>
-<script src="js/encyclopedia.js?v=20"></script>
-<script src="js/bank.js?v=8"></script>
+<script src="js/encyclopedia.js?v=21"></script>
+<script src="js/bank.js?v=9"></script>
 <script src="js/overlay.js?v=4"></script>
 <!-- Donations are disabled (2026-09-22)
 <script src="js/donation.js?v=6"></script> -->
 <!-- Matchmaking is disabled (2026-09-11)
 <script src="js/matchmaking.js?v=13"></script> -->
-<script src="js/build-ai.js?v=57"></script>
+<script src="js/build-ai.js?v=58"></script>
 <!-- Donations are disabled (2026-09-22)
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
@@ -2201,7 +2233,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-10-18.1';
+  const SITE_VERSION    = '2026-10-18.3';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
@@ -2300,6 +2332,8 @@
     if (name !== 'axe-new' && typeof window._onAxeNewQteHide === 'function') window._onAxeNewQteHide();
     if (name === 'hammer-new' && typeof window._onHammerNewQteShow === 'function') window._onHammerNewQteShow();
     if (name !== 'hammer-new' && typeof window._onHammerNewQteHide === 'function') window._onHammerNewQteHide();
+    if (name === 'duraelis' && typeof window._onDuraelisQteShow === 'function') window._onDuraelisQteShow();
+    if (name !== 'duraelis' && typeof window._onDuraelisQteHide === 'function') window._onDuraelisQteHide();
   }
   document.querySelectorAll('#qte-tabbar .tab').forEach(btn => {
     btn.addEventListener('click', () => switchQteTab(btn.dataset.qte));

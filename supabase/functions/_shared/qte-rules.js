@@ -6705,3 +6705,437 @@
   Q.register('hammer-new', R);
 })(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
 // <<< end of qte-rules part: hammer-new (keep this line)
+// ==== qte-rules part: duraelis ====
+// ── duraelis ─────
+// Duraelis trainer ('duraelis', 'duraelis-comp'; js/qte.js "DURAELIS QTE"):
+// the game's Duraelis boss QTE. The screen goes grey and misty and soul
+// flames sit on a 4 x 4 grid (the owner's clip shows 4 x 3; the owner asked
+// for 4 x 4 on 2026-10-18). W/A/S/D (or the arrows) move EVERY soul one cell
+// at once - lockstep - and a soul that leaves an edge comes back on the other
+// side. Spotlights land on cells. When the round's timer runs out "the lights
+// flare": souls on a spotlight are saved, the rest die. Every soul saved: one
+// point (a clear). Every soul lost costs a life (owner, 2026-10-18: two unlit
+// flames = two lives), never below 0, and the saved souls carry on. Three
+// lives; the run ends the moment they reach 0, so a round that loses three
+// flames ends it at once. Score = rounds cleared in the run.
+//
+// The souls move together on a torus, so their pattern never changes: a round
+// can only be solved when the spotlights are the souls' pattern shifted. They
+// are - by a uniformly random NONZERO shift (dx 0..3, dy 0..3, one of 15) -
+// so every round can be solved in at most 4 presses (2 sideways + 2 up/down).
+//
+// Cells: c = col + 4 * row (col 0..3 left to right, row 0..3 top to bottom).
+// A set of cells is a 16-bit MASK (bit c set = a soul / a spotlight on c).
+// Souls never share a cell.
+//
+// The log (t = ms since the run's Start; numbers rounded to 4 dp by run.ev):
+//   ['N', t, c, u]                  a soul spawned on cell c = the free cells
+//                                   (ascending)[floor(u * how many)]; u is
+//                                   drawn at 4 dp, exactly the number used
+//   ['R', t, s, lives, n, T, m, dx, dy, u]
+//                                   a round starts: s rounds cleared so far,
+//                                   lives left, n souls (the table's count), T
+//                                   its timer (game ms, the table's), m the
+//                                   souls' mask after the spawns, the shift
+//                                   (dx, dy) = SHIFTS[floor(u * 15)]; the
+//                                   spotlights are m shifted by (dx, dy)
+//   ['K', t, k, g, m]               a press: k 'W'|'A'|'S'|'D', the round's game
+//                                   time g (ms) at it, the souls' mask after it
+//   ['F', t, g, lit]                the lights flare: game time g (>= T), lit =
+//                                   the mask of the souls on a spotlight
+//   ['E', t, 'lives']               the last life lost (right after its F)
+//   ['P', t] / ['U', t]             paused (panel, page or browser tab hidden)
+//                                   / Resume clicked
+//
+// Game time g is the sum of the frame dts, each clamped to [0, 50 ms], frozen
+// while paused, from the round's R. A round always runs its whole timer (it is
+// not ended when solved), so every round ends with an F.
+(function (Q) {
+  'use strict';
+  var S = Q.stats;
+
+  // ── constants the trainer reads (js/qte.js) ─────────────────────────────────
+  // Measured from the owner's clip (1936x1056): a grid of ~159 px cells (4 x 3
+  // in the clip, 4 x 4 by the owner's request), every soul one cell per W/A/S/D
+  // press (a ~0.1 s step), wrapping at the edges; the round runs until its grey
+  // bar empties, then the lights flare; ~0.6 s to the next round. The timers
+  // and soul counts are the owner's spec.
+  var C = {
+    COLS: 4, ROWS: 4, CELLS: 16,
+    LIVES: 3,
+    INTRO_MS: 1200,     // Start to the first round (the instruction text)
+    GAP_MS: 600,        // a flare to the next round
+    END_RESET: 1500,    // ms from the last flare to the Start button coming back
+    DT_MAX: 0.05,       // s, frame dt clamp
+    STEP_MS: 100,       // the drawn step between two cells (the logic moves at once)
+    FIGHT_ROUNDS: 6,    // the game's QTE is 6 rounds: the fight result is read there
+  };
+  // The 15 nonzero shifts, in the order u picks them: SHIFTS[floor(u * 15)].
+  var SHIFTS = [];
+  for (var sy = 0; sy < C.ROWS; sy++) for (var sx = 0; sx < C.COLS; sx++) if (sx || sy) SHIFTS.push([sx, sy]);
+  // What a key does to every soul: [dcol, drow]
+  var KEYS = { W: [0, -1], A: [-1, 0], S: [0, 1], D: [1, 0] };
+
+  // Curves by s (rounds cleared this run) and mode.
+  function timerMs(s, comp) { return comp ? Math.max(3400 - 200 * s, 1600) : Math.max(4000 - 200 * s, 2000); }
+  // Souls in a round: one more at each threshold s reaches ("irregular").
+  var TH = { casual: [1, 3, 6, 10, 15, 21], comp: [2, 4, 7, 11, 16] };
+  function souls(s, comp) {
+    var th = comp ? TH.comp : TH.casual, n = comp ? 2 : 1;
+    for (var i = 0; i < th.length; i++) if (th[i] <= s) n++;
+    return Math.min(n, comp ? 7 : 6);
+  }
+
+  // Browser side only: r = Math.random(). Rounded to 4 dp before it is used,
+  // so the logged u is exactly the number the game used.
+  function drawU(r) { var u = Math.floor(r * 10000) / 10000; return u < 0 ? 0 : u > 0.9999 ? 0.9999 : u; }
+  function shiftOf(u) { return SHIFTS[Math.floor(u * SHIFTS.length)]; }
+
+  function popcount(m) { var n = 0; while (m) { n += m & 1; m >>>= 1; } return n; }
+  function cellsOf(m) { var a = []; for (var c = 0; c < C.CELLS; c++) if ((m >> c) & 1) a.push(c); return a; }
+  function freeCells(m) { var a = []; for (var c = 0; c < C.CELLS; c++) if (!((m >> c) & 1)) a.push(c); return a; }
+  function spawnCell(m, u) { var f = freeCells(m); return f.length ? f[Math.floor(u * f.length)] : -1; }
+  function col(c) { return c % C.COLS; }
+  function row(c) { return Math.floor(c / C.COLS); }
+  function cellAt(x, y) { return ((x % C.COLS) + C.COLS) % C.COLS + C.COLS * (((y % C.ROWS) + C.ROWS) % C.ROWS); }
+  // Every cell of m moved by (dx, dy), wrapping (the torus).
+  function translate(m, dx, dy) {
+    var out = 0;
+    for (var c = 0; c < C.CELLS; c++) if ((m >> c) & 1) out |= 1 << cellAt(col(c) + dx, row(c) + dy);
+    return out;
+  }
+  function move(m, k) { var d = KEYS[k]; return translate(m, d[0], d[1]); }
+  // Presses an offset (ox, oy) needs at the least, using the wrap.
+  function stepCost(ox, oy) {
+    ox = ((ox % C.COLS) + C.COLS) % C.COLS; oy = ((oy % C.ROWS) + C.ROWS) % C.ROWS;
+    return Math.min(ox, C.COLS - ox) + Math.min(oy, C.ROWS - oy);
+  }
+  // The fewest presses that put every soul of m on spots (a symmetric pattern
+  // can have more than one solving offset); -1 if no offset does.
+  function minPresses(m, spots) {
+    var best = -1;
+    for (var oy = 0; oy < C.ROWS; oy++) for (var ox = 0; ox < C.COLS; ox++) {
+      if (translate(m, ox, oy) !== spots) continue;
+      var k = stepCost(ox, oy);
+      if (best < 0 || k < best) best = k;
+    }
+    return best;
+  }
+  // How many of the shifts are one press away (the cherry-picker's favourites).
+  var ONE_PRESS = 0;
+  for (var si = 0; si < SHIFTS.length; si++) if (stepCost(SHIFTS[si][0], SHIFTS[si][1]) === 1) ONE_PRESS++;
+  // A shortest key sequence from m onto spots (sideways first), or null.
+  // Bots and tests use it; check() does not.
+  function solveKeys(m, spots) {
+    var best = null;
+    for (var oy = 0; oy < C.ROWS; oy++) for (var ox = 0; ox < C.COLS; ox++) {
+      if (translate(m, ox, oy) !== spots) continue;
+      if (!best || stepCost(ox, oy) < stepCost(best[0], best[1])) best = [ox, oy];
+    }
+    if (!best) return null;
+    var keys = [], ox2 = best[0], oy2 = best[1], i;
+    if (ox2 <= C.COLS / 2) for (i = 0; i < ox2; i++) keys.push('D'); else for (i = 0; i < C.COLS - ox2; i++) keys.push('A');
+    if (oy2 <= C.ROWS / 2) for (i = 0; i < oy2; i++) keys.push('S'); else for (i = 0; i < C.ROWS - oy2; i++) keys.push('W');
+    return keys;
+  }
+
+  // ── tolerances (never reasons to reject a real client) ─────────────────────
+  var T = {
+    G_EPS: 0.001,       // ms: 4 dp rounding of g
+    GT_AHEAD: 200,      // ms: game time ahead of the unpaused wall clock, since the
+                        // round's R and since its previous press. dt >= 0 and
+                        // clamped to 50, so only the first frame of a round (at
+                        // most 50 ms from before its R) + coarse clocks (privacy
+                        // modes floor performance.now to 16.7 or 100 ms) +
+                        // rounding can put it ahead
+    DELAY_EPS: 120,     // ms: a round no sooner than INTRO_MS / GAP_MS - this
+  };
+  // ── review thresholds (far outside what hands produce) ─────────────────────
+  // Calibrated on tools/qte/tests/duraelis.test.js; the numbers are in
+  // tools/qte/notes/duraelis.md.
+  var RV = {
+    // a round's first press, from its R (pauses taken out): a person has to see
+    // the spotlights and work out the shift first. The median over >= 10 rounds;
+    // loose, because the round's start can be timed (600 ms after the flare)
+    // and a person reacting to the board appearing alone needs ~180 ms
+    RT_N: 10,  RT_MED: 150,
+    // ... and how much those times vary: a script waiting a fixed time
+    RTV_N: 15, RT_MAD: 15,
+    // press to press inside a round: a script's key timer. Both its MAD and its
+    // SD: a clock on a 16.67 ms grid (privacy modes) puts most honest intervals
+    // on one or two grid values, which collapses the MAD but not the SD
+    IV_N: 20,  IV_MAD: 4, IV_SD: 8,
+    // every round solved in the fewest presses, together with quick first
+    // presses: a solver. Over >= 20 rounds solved with presses
+    OPT_N: 20, OPT_SHARE: 1, OPT_RT: 250,
+    // the draws: u of the shifts (and, fewer of them, of the spawns) not uniform.
+    // A run spawns 6-7 souls plus the lost ones; 7 is the fewest draws at which
+    // seven equal ones fall under the alpha
+    KS_N: 20,  SPAWN_N: 7, KS_ALPHA: 1e-6,
+    // cherry-picked shifts: too many one-press shifts (4 of the 15), or one
+    // shift far too often. Stricter than the KS: a cherry-picker is far below it
+    LUCK_N: 12, LUCK_ALPHA: 1e-8,
+    // the flare's game time / the round's unpaused wall time, its upper quartile
+    // over >= 8 rounds: a slow-motion client (rAF timestamps slowed) is slow in
+    // every round, a machine that stalls now and then is not. A 15 fps machine
+    // honestly runs at 75% (67 ms frames, dt clamped to 50)
+    SLOW_N: 8, SLOW_Q: 0.75, SLOW_RATIO: 0.65, SLOW_MIN_WALL: 300,
+    COARSE_Q: 100, COARSE_SHARE: 0.9, // clocks floored to 100 ms (Tor / resist-
+                        // fingerprinting): the game clock honestly runs at ~50%,
+                        // and every interval is 0 or 100 ms (the spread checks
+                        // are off there)
+    // paused inside most rounds: the board is hidden while paused, but the
+    // round's clock stops, so pausing buys thinking time
+    PAUSE_N: 10, PAUSE_SHARE: 0.8,
+  };
+
+  function isNum(v) { return typeof v === 'number' && isFinite(v); }
+  function isInt(v) { return typeof v === 'number' && Math.floor(v) === v; }
+  function isU(v) { return isNum(v) && v >= 0 && v < 1; }
+
+  function check(log, env) {
+    var r = Q.result();
+    var ev = log.ev;
+    var comp = !!env.comp;
+    var le = log.env || {};
+    var mob = le.mob === true;
+    var claimed = env.claimed | 0;
+    r.stat('claimed', claimed);
+    r.stat('mob', mob);
+    if (isNum(le.ping)) r.stat('ping', le.ping);
+    if (env.platform) r.stat('platform', env.platform);
+    if (env.platform && (env.platform === 'M') !== mob) r.stat('platformMismatch', true);
+    if (log.a !== 0) r.stat('attempt', log.a);
+
+    var phase = 'intro';         // intro | round | gap | over | ended
+    var paused = false, tP = 0, pausedTotal = 0;
+    var s = 0, lives = C.LIVES;
+    var carried = 0, spawned = 0, nSpawn = 0;   // souls into the next round
+    var mask = 0, spots = 0, tmr = 0, minP = 0;
+    var tR = 0, pausedAtR = 0, tF = 0;
+    var prevT = 0, prevG = 0, pausedAtPrev = 0; // the round's R, then its last press
+    var lastKA = 0, roundKeys = 0, roundPaused = false;
+    var rounds = 0, fails = 0, soulsLost = 0, presses = 0, pauses = 0, pausedRounds = 0;
+    var rts = [], ivs = [], ratios = [], uShift = [], uSpawn = [];
+    var shiftN = [], easy = 0;
+    for (var z = 0; z < SHIFTS.length; z++) shiftN.push(0);
+    var solvedKeys = 0, optimal = 0;
+    var coarse = 0, times = 0;
+    var why = null, at = -1;
+
+    // The clock checks every judged event goes through.
+    function clock(g, t) {
+      if (g < prevG - T.G_EPS) return 'game time went back (' + g + ' ms after ' + prevG + ')';
+      var wall = t - tR - (pausedTotal - pausedAtR);
+      if (g > wall + T.GT_AHEAD) return 'game time ahead of the clock (' + Math.round(g) + ' ms in ' + wall + ' ms)';
+      var step = t - prevT - (pausedTotal - pausedAtPrev);
+      if (g - prevG > step + T.GT_AHEAD) return 'game time ahead of the clock between presses (' + Math.round(g - prevG) + ' ms in ' + step + ' ms)';
+      return null;
+    }
+
+    for (var i = 0; i < ev.length && !why; i++) {
+      var e = ev[i], c = e[0], t = e[1];
+      at = i;
+      if (t > 0) { times++; if (t % RV.COARSE_Q === 0) coarse++; }
+      if (phase === 'ended') { why = 'event after the run ended'; break; }
+      if (phase === 'over' && c !== 'E') { why = 'play after the last life was lost'; break; }
+
+      if (c === 'N') {
+        if (phase !== 'intro' && phase !== 'gap') { why = 'a soul spawned during a round'; break; }
+        if (paused) { why = 'a soul spawned while paused'; break; }
+        if (e.length !== 4 || !isInt(e[2]) || e[2] < 0 || e[2] >= C.CELLS || !isU(e[3])) { why = 'malformed spawn'; break; }
+        var have = carried | spawned;
+        if ((have >> e[2]) & 1) { why = 'a soul spawned on an occupied cell'; break; }
+        if (popcount(have) >= souls(s, comp)) { why = 'more souls spawned than the round has'; break; }
+        if (spawnCell(have, e[3]) !== e[2]) { why = 'a spawn not on the cell its draw picks'; break; }
+        spawned |= 1 << e[2]; nSpawn++;
+        uSpawn.push(e[3]);
+      } else if (c === 'R') {
+        if (phase !== 'intro' && phase !== 'gap') { why = 'a round started before the last one flared'; break; }
+        if (paused) { why = 'a round started while paused'; break; }
+        if (e.length !== 10) { why = 'malformed round'; break; }
+        var rs = e[2], rl = e[3], rn = e[4], rT = e[5], rm = e[6], dx = e[7], dy = e[8], ru = e[9];
+        if (rs !== s) { why = 'round logged with ' + rs + ' cleared after ' + s; break; }
+        if (rl !== lives) { why = 'round logged with ' + rl + ' lives, ' + lives + ' left'; break; }
+        if (rn !== souls(s, comp)) { why = 'wrong soul count for ' + s + ' cleared'; break; }
+        if (rT !== timerMs(s, comp)) { why = 'wrong round timer for ' + s + ' cleared'; break; }
+        if (!isInt(rm) || rm < 0 || rm >= (1 << C.CELLS)) { why = 'malformed soul mask'; break; }
+        if (rm !== (carried | spawned)) { why = (rm & carried) !== carried ? 'a saved soul did not carry over' : 'souls that were never spawned'; break; }
+        if (popcount(rm) !== rn) { why = 'the round has ' + popcount(rm) + ' souls, not ' + rn; break; }
+        if (!isInt(dx) || !isInt(dy) || dx < 0 || dx >= C.COLS || dy < 0 || dy >= C.ROWS) { why = 'shift out of range'; break; }
+        if (dx === 0 && dy === 0) { why = 'a zero shift'; break; }
+        if (!isU(ru)) { why = 'malformed shift draw'; break; }
+        var sh = shiftOf(ru);
+        if (sh[0] !== dx || sh[1] !== dy) { why = 'a shift its draw does not pick'; break; }
+        if (phase === 'intro' && t < C.INTRO_MS - T.DELAY_EPS) { why = 'the first round came ' + t + ' ms after Start'; break; }
+        if (phase === 'gap' && t - tF < C.GAP_MS - T.DELAY_EPS) { why = 'a round came ' + (t - tF) + ' ms after the last flare'; break; }
+        mask = rm; spots = translate(rm, dx, dy); tmr = rT;
+        minP = minPresses(rm, spots);
+        uShift.push(ru);
+        shiftN[Math.floor(ru * SHIFTS.length)]++;
+        if (stepCost(dx, dy) === 1) easy++;
+        phase = 'round'; rounds++; roundKeys = 0; roundPaused = false;
+        tR = t; pausedAtR = pausedTotal;
+        prevT = t; prevG = 0; pausedAtPrev = pausedTotal;
+        spawned = 0; nSpawn = 0;
+      } else if (c === 'K') {
+        if (phase !== 'round') { why = phase === 'gap' || phase === 'over' ? 'a press after the flare' : 'a press outside a round'; break; }
+        if (paused) { why = 'a press while paused'; break; }
+        var k = e[2], gk = e[3], mk = e[4];
+        if (e.length !== 5 || typeof k !== 'string' || !Object.prototype.hasOwnProperty.call(KEYS, k) || !isNum(gk) || !isInt(mk)) { why = 'malformed press'; break; }
+        why = clock(gk, t);
+        if (why) break;
+        // every drawn frame had the timer running (the frame that ran it out flared)
+        if (!(gk < tmr + T.G_EPS)) { why = 'a press after the round timer ran out'; break; }
+        if (mk !== move(mask, k)) { why = 'souls not where the press puts them'; break; }
+        mask = mk; presses++;
+        var kA = t - pausedTotal;
+        if (roundKeys === 0) rts.push(t - tR - (pausedTotal - pausedAtR));
+        else ivs.push(kA - lastKA);
+        lastKA = kA; roundKeys++;
+        prevT = t; prevG = gk; pausedAtPrev = pausedTotal;
+      } else if (c === 'F') {
+        if (phase !== 'round') { why = 'a flare outside a round'; break; }
+        if (paused) { why = 'a flare while paused'; break; }
+        var gf = e[2], lit = e[3];
+        if (e.length !== 4 || !isNum(gf) || !isInt(lit)) { why = 'malformed flare'; break; }
+        why = clock(gf, t);
+        if (why) break;
+        if (gf < tmr - T.G_EPS) { why = 'the lights flared at ' + gf + ' ms of a ' + tmr + ' ms timer'; break; }
+        if (!(gf < tmr + C.DT_MAX * 1000 + T.G_EPS)) { why = 'the lights flared ' + Math.round(gf - tmr) + ' ms after the timer ran out'; break; }
+        if (lit !== (mask & spots)) { why = (lit & ~mask) ? 'a lit soul that is not there' : 'souls on the spotlights not lit, or lit ones off them'; break; }
+        var wallR = t - tR - (pausedTotal - pausedAtR);
+        if (wallR >= RV.SLOW_MIN_WALL) ratios.push(gf / wallR);
+        if (roundPaused) pausedRounds++;
+        if (lit === mask) {
+          s++;
+          carried = mask;
+          if (roundKeys > 0 && minP > 0) { solvedKeys++; if (roundKeys === minP) optimal++; }
+        } else {
+          // a life for every flame left in the dark, never below 0
+          var dark = popcount(mask & ~lit);
+          lives = Math.max(0, lives - dark);
+          fails++; soulsLost += dark;
+          carried = lit;
+        }
+        spawned = 0; nSpawn = 0;
+        tF = t;
+        phase = lives > 0 ? 'gap' : 'over';
+      } else if (c === 'E') {
+        if (phase !== 'over' || e.length !== 3 || e[2] !== 'lives') { why = 'an end with lives left'; break; }
+        phase = 'ended';
+      } else if (c === 'P') {
+        if (paused) { why = 'paused twice'; break; }
+        if (phase !== 'intro' && phase !== 'round' && phase !== 'gap') { why = 'paused outside a run'; break; }
+        if (e.length !== 2) { why = 'malformed pause'; break; }
+        paused = true; tP = t; pauses++;
+        if (phase === 'round') roundPaused = true;
+      } else if (c === 'U') {
+        if (!paused) { why = 'resumed without a pause'; break; }
+        if (e.length !== 2) { why = 'malformed resume'; break; }
+        pausedTotal += t - tP; paused = false;
+      } else {
+        why = 'unknown event ' + c;
+      }
+    }
+
+    if (why) { r.invalid('event ' + at + ': ' + why); r.score = 0; return r; }
+    if (claimed > 0 && rounds === 0) { r.invalid('a score with no rounds behind it'); return r; }
+    // A submit carries the log as it stood at the new high, so it proves the
+    // claim; only a log cut off at MAX_EVENTS may claim more than it shows.
+    var full = ev.length >= Q.LIMITS.MAX_EVENTS;
+    if (claimed > s && !full) { r.invalid('claim ' + claimed + ' above the ' + s + ' rounds the log proves'); return r; }
+
+    r.score = s;
+    if (full) r.stat('logFull', true);
+    r.stat('rounds', rounds);
+    r.stat('clears', s);
+    r.stat('fails', fails);
+    r.stat('soulsLost', soulsLost);
+    r.stat('lives', lives);
+    r.stat('presses', presses);
+    r.stat('pauses', pauses);
+    r.stat('pausedRounds', pausedRounds);
+    var isCoarse = times >= 20 && coarse / times >= RV.COARSE_SHARE;
+    if (isCoarse) r.stat('coarseClock', true);
+
+    // ── is this a person ──
+    var rtMed = rts.length ? S.median(rts) : null;
+    if (rts.length) {
+      r.stat('rtN', rts.length);
+      r.stat('rtMedMs', rtMed);
+      var rtMad = S.mad(rts);
+      r.stat('rtMadMs', rtMad);
+      if (rts.length >= RV.RT_N && rtMed < RV.RT_MED) {
+        r.review('first presses too fast (median ' + Math.round(rtMed) + ' ms from the spotlights over ' + rts.length + ' rounds)');
+      }
+      if (rts.length >= RV.RTV_N && rtMad < RV.RT_MAD && !isCoarse) {
+        r.review('first presses too even (spread ' + rtMad.toFixed(1) + ' ms over ' + rts.length + ' rounds)');
+      }
+    }
+    if (ivs.length) {
+      var ivMad = S.mad(ivs), ivSd = S.sd(ivs);
+      r.stat('ivN', ivs.length);
+      r.stat('ivMadMs', ivMad);
+      r.stat('ivSdMs', ivSd);
+      if (ivs.length >= RV.IV_N && ivMad < RV.IV_MAD && ivSd < RV.IV_SD && !isCoarse) {
+        r.review('press timing too even (spread ' + ivMad.toFixed(2) + ' ms, SD ' + ivSd.toFixed(1) + ' ms over ' + ivs.length + ' presses)');
+      }
+    }
+    if (solvedKeys) {
+      r.stat('optN', solvedKeys);
+      r.stat('optShare', optimal / solvedKeys);
+      if (solvedKeys >= RV.OPT_N && optimal / solvedKeys >= RV.OPT_SHARE && rtMed !== null && rtMed < RV.OPT_RT) {
+        r.review('every one of ' + solvedKeys + ' rounds solved in the fewest presses, first press after ' + Math.round(rtMed) + ' ms');
+      }
+    }
+    if (uShift.length >= RV.KS_N) {
+      var ks1 = S.ksUniform(uShift);
+      r.stat('shiftP', ks1.p);
+      var l1 = Q.tooLucky(ks1.p, RV.KS_ALPHA, uShift.length + ' shift draws');
+      if (l1) r.review(l1);
+    }
+    if (uSpawn.length >= RV.SPAWN_N) {
+      var ks2 = S.ksUniform(uSpawn);
+      r.stat('spawnP', ks2.p);
+      var l2 = Q.tooLucky(ks2.p, RV.KS_ALPHA, uSpawn.length + ' spawn draws');
+      if (l2) r.review(l2);
+    }
+    if (uShift.length >= RV.LUCK_N) {
+      var pEasy = S.binomUpper(uShift.length, easy, ONE_PRESS / SHIFTS.length);
+      r.stat('easyShare', easy / uShift.length);
+      r.stat('easyP', pEasy);
+      var l3 = Q.tooLucky(pEasy, RV.LUCK_ALPHA, easy + ' of ' + uShift.length + ' shifts one press away');
+      if (l3) r.review(l3);
+      var most = 0;
+      for (var j = 0; j < shiftN.length; j++) if (shiftN[j] > most) most = shiftN[j];
+      var pSame = Math.min(1, SHIFTS.length * S.binomUpper(uShift.length, most, 1 / SHIFTS.length));
+      r.stat('sameP', pSame);
+      var l4 = Q.tooLucky(pSame, RV.LUCK_ALPHA, 'one shift ' + most + ' times in ' + uShift.length);
+      if (l4) r.review(l4);
+    }
+    if (ratios.length) {
+      var rq = S.quantile(ratios, RV.SLOW_Q);
+      r.stat('clockRatio', rq);
+      if (ratios.length >= RV.SLOW_N && rq < RV.SLOW_RATIO && !isCoarse) {
+        r.review('game clock ran at ' + Math.round(rq * 100) + '% of the wall clock over ' + ratios.length + ' rounds');
+      }
+    }
+    if (pausedRounds >= RV.PAUSE_N && pausedRounds / rounds >= RV.PAUSE_SHARE) {
+      r.review('paused inside ' + pausedRounds + ' of ' + rounds + ' rounds');
+    }
+    return r;
+  }
+
+  Q.register('duraelis', {
+    COLS: C.COLS, ROWS: C.ROWS, CELLS: C.CELLS, LIVES: C.LIVES, INTRO_MS: C.INTRO_MS, GAP_MS: C.GAP_MS,
+    END_RESET: C.END_RESET, DT_MAX: C.DT_MAX, STEP_MS: C.STEP_MS, FIGHT_ROUNDS: C.FIGHT_ROUNDS,
+    SHIFTS: SHIFTS, ONE_PRESS: ONE_PRESS, KEYS: KEYS, TH: TH,
+    timerMs: timerMs, souls: souls, drawU: drawU, shiftOf: shiftOf,
+    popcount: popcount, cellsOf: cellsOf, freeCells: freeCells, spawnCell: spawnCell, col: col, row: row, cellAt: cellAt,
+    translate: translate, move: move, stepCost: stepCost, minPresses: minPresses, solveKeys: solveKeys,
+    T: T, RV: RV,
+    check: check,
+  });
+})(typeof globalThis !== 'undefined' ? globalThis.QteRules : this.QteRules);
+// <<< end of qte-rules part: duraelis (keep this line)

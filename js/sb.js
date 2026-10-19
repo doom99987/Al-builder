@@ -1902,8 +1902,8 @@
   }
 
   // ---- all leaderboards view ----
-  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new', 'sword-new', 'spear-new', 'axe-new', 'hammer-new'];
-  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)', 'yarthul-new': "Yar'Thul (New)", 'sword-new': 'Sword (New)', 'spear-new': 'Spear (New)', 'axe-new': 'Axe (New)', 'hammer-new': 'Hammer (New)' };
+  const QTE_TYPES = ['dagger', 'spear', 'sword', 'fist', 'staff', 'axe', 'hammer', 'dodge', 'thorian', 'thorian-new', 'dagger-new', 'yarthul-new', 'sword-new', 'spear-new', 'axe-new', 'hammer-new', 'duraelis'];
+  const QTE_LABELS = { 'thorian-new': 'Thorian (New)', 'dagger-new': 'Dagger (New)', 'yarthul-new': "Yar'Thul (New)", 'sword-new': 'Sword (New)', 'spear-new': 'Spear (New)', 'axe-new': 'Axe (New)', 'hammer-new': 'Hammer (New)', 'duraelis': 'Duraelis' };
   let _allLbPlatform = 'all'; // active platform filter on the all-leaderboards page
 
   // switchPage calls this on every visit to the Leaderboards tab, and it is the
@@ -1913,6 +1913,17 @@
   // making tab-flipping free. The Refresh button bypasses it.
   const ALL_LB_TTL_MS = 60000;
   let _allLbLast = { key: '', at: 0 };
+
+  // Old / New QTE switch on the leaderboards page. A trainer's group is read
+  // from the QTE page's own tab bars (#qte-group-old / #qte-group-new), in
+  // their order, so a new trainer joins its group with no list to keep here.
+  let _allLbGroup = 'new';
+  try { const g = localStorage.getItem('alb:lb-group'); if (g === 'old' || g === 'new') _allLbGroup = g; } catch (e) {}
+  function lbGroupTypes(group) {
+    const ids = [...document.querySelectorAll('#qte-group-' + group + ' [data-qte]')].map(b => b.dataset.qte);
+    const types = ids.filter(t => QTE_TYPES.includes(t));
+    return types.length ? types : QTE_TYPES.slice();
+  }
 
   async function loadAllLeaderboards(mode, platform, force) {
     const grid = document.getElementById('all-lb-grid');
@@ -1926,11 +1937,13 @@
     // Resolve platform from arg or module state
     if (platform !== undefined) _allLbPlatform = platform;
     const plat = _allLbPlatform;
+    const group = _allLbGroup;
+    document.querySelectorAll('.all-lb-group-tab').forEach(t => t.classList.toggle('active', t.dataset.group === group));
 
     // Serve the rendered grid again if nothing about the request changed and it
     // is still fresh. grid.children guards the case where a previous attempt
     // failed and left only the error paragraph behind.
-    const _lbKey = mode + '|' + plat;
+    const _lbKey = mode + '|' + plat + '|' + group;
     if (!force && _allLbLast.key === _lbKey && grid.children.length
         && Date.now() - _allLbLast.at < ALL_LB_TTL_MS) return;
 
@@ -1939,7 +1952,8 @@
     grid.innerHTML = '<div class="sb-loading">Loading&hellip;</div>';
     try {
     await loadBannedCache();
-    const allTypes = QTE_TYPES.map(t => t + suffix);
+    const types = lbGroupTypes(group);
+    const allTypes = types.map(t => t + suffix);
 
     // Step 1: fetch all leaderboard rows + all records in parallel (no JOINs)
     // No global LIMIT — month + type filter already bounds the result set,
@@ -1993,7 +2007,7 @@
     }
 
     const myName = currentProfile?.username || null;
-    grid.innerHTML = QTE_TYPES.map((type) => {
+    grid.innerHTML = types.map((type) => {
       const rec = recordMap[type + suffix];
       const monthRows = grouped[type + suffix] || [];
       const recordRowHtml = rec ? `
@@ -2595,7 +2609,7 @@
     adminSetStatus(`Scores cleared for ${_adminCurrentUser.username}.`, true);
   }
 
-  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-new','yarthul-new','sword-new','spear-new','axe-new','hammer-new','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','dagger-new-comp','yarthul-new-comp','sword-new-comp','spear-new-comp','axe-new-comp','hammer-new-comp'];
+  const _ALL_QTE_TYPES = ['dagger','spear','sword','fist','staff','axe','hammer','dodge','thorian','thorian-new','dagger-new','yarthul-new','sword-new','spear-new','axe-new','hammer-new','duraelis','dagger-comp','spear-comp','sword-comp','fist-comp','staff-comp','axe-comp','hammer-comp','dodge-comp','thorian-comp','thorian-new-comp','dagger-new-comp','yarthul-new-comp','sword-new-comp','spear-new-comp','axe-new-comp','hammer-new-comp','duraelis-comp'];
 
   function adminClearOneScore() {
     if (!isAdmin() || !_adminCurrentUser) return;
@@ -2860,6 +2874,13 @@
     document.querySelectorAll('.all-lb-mode-tab').forEach(t => t.classList.remove('active'));
     btn.classList.add('active');
     loadAllLeaderboards(btn.dataset.mode);
+  };
+
+  // Switch Old/New QTEs on the all-lb page (keeps the mode and platform)
+  window._switchLbGroup = function (btn) {
+    _allLbGroup = btn.dataset.group === 'old' ? 'old' : 'new';
+    try { localStorage.setItem('alb:lb-group', _allLbGroup); } catch (e) {}
+    loadAllLeaderboards();
   };
 
   // Switch M/C/All platform filter on the all-lb page

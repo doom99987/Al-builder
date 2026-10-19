@@ -61,6 +61,7 @@
     { id: 'spear-new',   label: 'Spear',   group: 'new', hook: 'SpearNew'   },
     { id: 'axe-new',     label: 'Axe',     group: 'new', hook: 'AxeNew'     },
     { id: 'hammer-new',  label: 'Hammer',  group: 'new', hook: 'HammerNew'  },
+    { id: 'duraelis',    label: 'Duraelis', group: 'new', hook: 'Duraelis'  },
   ];
   const qteById = id => QTES.find(q => q.id === id);
   const qteLabel = id => { const q = qteById(id); return q ? (q.label + (q.group === 'new' ? ' (New)' : '')) : id; };

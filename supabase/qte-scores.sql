@@ -67,6 +67,7 @@ select set_config('alb.qte_legacy_closed',
 --   spear-new        1.00   1.00   1.33 / 1.33     6-14 targets per round
 --   axe-new          1.85   1.70   2.50 / 2.30     round timer 2.6s->1.8s / 2.35s->1.6s
 --   hammer-new       2.15   2.20   2.89 / 2.94     reach the zone + 2.3s in it
+--   duraelis         1.95   1.65   2.60 / 2.20     whole round timer 4.0s->2.0s / 3.4s->1.6s + 0.6s
 --
 -- dagger-new: its bars spawn at a random angle, so a lucky first spawn can be
 -- cleared in ~0.10s (casual) / ~0.07s (comp). Pricing for that would gut the
@@ -113,6 +114,8 @@ as $function$
     when 'axe-new-comp'     then 1.70
     when 'hammer-new'       then 2.15
     when 'hammer-new-comp'  then 2.20
+    when 'duraelis'         then 1.95
+    when 'duraelis-comp'    then 1.65
     else 0.16
   end;
 $function$;

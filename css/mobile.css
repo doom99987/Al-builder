@@ -666,3 +666,56 @@
   -webkit-tap-highlight-color: transparent;
 }
 .yarthul-arrow-btn:active { background: #7a3a18; color: #fff; }
+
+/* ----- Duraelis QTE arrow keys: a keyboard's arrow cluster (up over left /
+   down / right), under the board; js/qte.js shows them on touch screens from
+   the moment the panel opens. touch-action: none - rapid taps must not
+   scroll or zoom the page. .pressed is the flash of a tap. ----- */
+.duraelis-dpad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 4px;
+  flex-shrink: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.duraelis-dpad-row { display: flex; gap: 8px; }
+.duraelis-dpad-btn {
+  box-sizing: border-box;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(#2a2640, #1c1a2a);
+  color: #d6c8ff;
+  border: 2px solid #6a5cc0;
+  border-bottom-width: 5px;
+  border-radius: 12px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.06s, color 0.06s, transform 0.06s;
+}
+.duraelis-dpad-btn svg { width: 34px; height: 34px; fill: currentColor; pointer-events: none; }
+.duraelis-dpad-btn:active,
+.duraelis-dpad-btn.pressed {
+  background: #5a46b0;
+  color: #ffffff;
+  border-color: #a896ff;
+  border-bottom-width: 2px;
+  transform: translateY(3px);
+}
+@media (min-width: 420px) {
+  .duraelis-dpad-btn { width: 72px; height: 72px; }
+  .duraelis-dpad-btn svg { width: 38px; height: 38px; }
+}
