@@ -3860,7 +3860,7 @@ const lostScrollItems = {
 const lostScrollMoves = {
   "Metrom's Grasp": {
     learns: [
-      { level: 1, type: "Active", name: "Metrom's Grasp", quote: "", cost: 5, cooldown: 18, moveType: "Magic", category: "Buff", duration: 5, effect: "Decreases opponents' defense by 40%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns." }
+      { level: 1, type: "Active", name: "Metrom's Grasp", quote: "", cost: 5, cooldown: 18, moveType: "Magic", category: "Buff", duration: 5, effect: "Decreases opponents' defense by 50%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns." }
     ]
   },
   "Absolute Radiance": {
@@ -4297,7 +4297,7 @@ let boreasStacks = 1; // 1-5: Boreas Frost Stacks (7% dmg + 4% DR per stack, max
 let vydeerCritStacks = 0; // 0-10: Vydeer Crit Buildup turns (1.5% crit per turn, max 15%)
 let vydeerSenseConsumed = 1; // 1-10: Sense consumed by Vydeer's Soul Reversal (+10% dmg per Sense, party-wide until your next turn)
 let castAmplifyStacks = 1; // 1-4 (or 1-5 if Corvolus): Cast Amplify stacks (+20% each, added together)
-const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, overheat: false };
+const statusEffectsActive = { vulnerable: false, hexed: false, sundered: false, fractured: false, poisoned: false, overheat: false };
 const teamBuffsActive = { mg: false, rallying: false, lesserEmp: false, castAmplify: false, blizzard: false, arcaneRitual: false, surprisePkg: false };
 const summonBuffsActive = { spiritAwakening: false };
 const statBuffsActive = { empPierceSpd: false, flourishSpd: false, focusStepSpd: false, fireSutraStr: false, swiftFighterSpd: false, lightspeedSpd: false, overloadStr: false };
@@ -4314,10 +4314,11 @@ let demonicPresenceStacks = 1; // 1-5: Demonic Presence stacks (5% dmg per stack
 let goldRushGold = 0; // 0-50000: gold amount for Veneri Gold Rush (0.2% per 500 gold, cap 20%)
 let candyRegenPct = 0; // 0-12.5: your HP regen % for the Candy weapon passive (2x regen %, cap 25%)
 // `pct` is what the buff adds to a hit's Multi sum (Withered Grove §12: every
-// "+X% damage" is added, not multiplied). Metrom's Grasp is +40% for damage
-// over time only, so it is listed but never added to a direct hit.
+// "+X% damage" is added, not multiplied). Metrom's Grasp's +40% is for damage
+// over time only, so it is never added to a direct hit; its -50% Defense on the
+// enemy doubles direct hits instead (x2, in getStatusMultiplier).
 const TEAM_BUFFS = [
-  { key: 'mg',          label: "MG",            pct: 40, dotOnly: true, desc: "Metrom's Grasp: +40% damage for DoT effects. Damage over time only - not added to a direct hit." },
+  { key: 'mg',          label: "MG",            pct: 40, dotOnly: true, desc: "Metrom's Grasp: the enemy's Defense -50%, so direct hits deal x2 (a debuff on the target, so it multiplies), and +40% damage for DoT effects." },
   { key: 'rallying',    label: "Rallying Shout", pct: 10, desc: "Rallying Shout: all allies get a 10% damage buff, 10% DR and +20% crit chance for 3 turns." },
   { key: 'lesserEmp',  label: "Lesser Empower", pct: 15, desc: "+15% damage buff for 2 turns." },
   { key: 'castAmplify',label: "Cast Amplify",   pct: 20, desc: "+20% damage buff to magic/holy/fire/nature/ice/dark moves for 3 turns. Stacks add: +20% each." },
@@ -5957,8 +5958,9 @@ const DMG_AFFINITY_GATES = {
   "Element Mastery":   ["Magic", "Fire", "Nature", "Holy", "Dark", "Ice"],
 };
 
-// Metrom's Grasp's lost-scroll row. "+40% damage for DoT effects": it is shown
-// in the panel but never added to a direct hit.
+// Metrom's Grasp's lost-scroll row. Its "+40% damage for DoT effects" is never
+// added to a direct hit; while it is on, the enemy's -50% Defense doubles direct
+// hits (getStatusMultiplier).
 const MG_SCROLL_KEY = "scroll-mg:Metrom's Grasp";
 
 // What one DMG BONUS row adds to the Multi sum, in percent, at its current
@@ -6751,6 +6753,15 @@ function getStatusMultiplier(moveType, opts) {
   if (!skipBasic && statusEffectsActive.fractured && (moveType === "Physical" || moveType === "Magic")) {
     mult *= 1.35; labels.push("Frac ×1.35");
   }
+  // Poisoned: the target takes 5% more damage (owner, 2026-10-19). A debuff
+  // on the enemy, so x1.05, not a +5% term of the sum.
+  if (!skipBasic && statusEffectsActive.poisoned) { mult *= 1.05; labels.push("Poisoned ×1.05"); }
+  // Metrom's Grasp: the enemies' Defense -50%, so a direct hit deals x2
+  // (owner, 2026-10-19). From your own lost scroll (its row on) or an ally's
+  // (the MG team buff). It is on every opponent, so the Frosted AOE takes it too.
+  if (teamBuffsActive.mg || dmgBonusPassives.some(p => p.key === MG_SCROLL_KEY && dmgBonusActive[p.key])) {
+    mult *= 2; labels.push("MG Def −50% ×2");
+  }
   // Tyranny: Condemned makes the target "take more damage from everyone".
   if (corruptionPicker?.value === "Tyranny" && corruptionBuffsActive.condemned) {
     const c = 1 + condemnedPct / 100; mult *= c; labels.push(`Condemned ×${c.toFixed(2)}`);
@@ -6999,7 +7010,7 @@ function renderDmgBonusSection() {
                          : isVydeerCritBuildup ? `+${(vydeerCritStacks * 1.5).toFixed(1)}% Crit`
                          : isWitchBroom       ? `+33% Crit`
                          : isHauntedCloth     ? `+${+Math.min(25, hauntedClothBlind / 2).toFixed(1)}% Crit`
-                         : isMetrom           ? `+40%${_note('DoT only')}`
+                         : isMetrom           ? `×2 hits · +40%${_note('DoT')}`
                          : isBloodlust        ? `${_pctStr(_rowPct)}${bloodlustRage ? ' <span style="color:#e08060;font-size:11px">[Rage]</span>' : ''}`
                          : isEnhancedBloodlust ? `${_pctStr(_rowPct)} · +${15 * enhancedBloodlustStacks}% SPD`
                          : isRunicShield      ? `${_pctStr(_rowPct)}${_note('[Holy]')}`
@@ -7014,7 +7025,7 @@ function renderDmgBonusSection() {
       <span class="dc-bonus-pct">${displayBonusStr}</span>
     </div>`;
     if (isMetrom) {
-      html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">Damage over time only: it does not raise a direct hit, so no damage working adds it.</div>`;
+      html += `<div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;">The enemy's Defense -50% doubles direct hits (×2, with the target's statuses). The +40% is for damage over time only.</div>`;
     }
     if (isStellianCore) {
       const _scHpOk = playerHpPct >= 95;
@@ -7364,6 +7375,7 @@ function renderDmgBonusSection() {
     { key: "hexed",      label: "Hexed",        tag: "×2.00",            desc: "Incoming attack(s) deal double damage, removing one stack per hit." },
     { key: "sundered",   label: "Sundered",     tag: "ignores resist",   desc: "Afflicted unit's incoming attacks ignore resistances." },
     { key: "fractured",  label: "Fractured",    tag: "×1.35 Phys/Magic", desc: "Afflicted unit takes 35%+ Physical/Magic damage." },
+    { key: "poisoned",   label: "Poisoned",     tag: "×1.05",            desc: "Afflicted unit takes 5% more damage (a debuff on the target, so it multiplies). Poison loses 5% of its stacks a turn (was 20%)." },
     ...(hasYarthul ? [{ key: "overheat", label: "Overheat", tag: `+${8 * overheatStacks}% dmg, +${overheatStacks * 7.5}% spd`, desc: "Increases damage by 8% and speed by 7.5% per stack. Capped at 10 stacks. A status on you: its damage is added to the damage bonus sum, 8% a stack." }] : []),
   ];
   html += `<h3 class="dc-bonus-title" style="margin-top:12px">Status Effects</h3><div class="dc-bonus-list">`;
@@ -7644,7 +7656,7 @@ function renderDmgBonusSection() {
   const _mgPassiveActive = !!dmgBonusActive[MG_SCROLL_KEY];
   // If MG passive is active, ensure team buff MG stays off (and vice versa)
   if (_mgPassiveActive && teamBuffsActive.mg) { teamBuffsActive.mg = false; }
-  const _teamPctStr = b => b.dotOnly ? `+${b.pct}% <span style="color:#888;font-size:11px">DoT only</span>`
+  const _teamPctStr = b => b.dotOnly ? `×2 hits · +${b.pct}% <span style="color:#888;font-size:11px">DoT</span>`
     : b.key === 'castAmplify' ? `+${b.pct * castAmplifyStacks}%`
     : b.key === 'blizzard' ? `+${b.pct}% <span style="color:#888;font-size:11px">Ice</span>`
     : `+${b.pct}%`;

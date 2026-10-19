@@ -441,7 +441,7 @@
     ['Battleworn',        'Scroll', 'Drop only from <button class="enc-desc-link" data-enc-tab="Boss">Bosses</button>.\n\nUnlike other scrolls, this scroll does not give any skills and simply gives 7 mastery points.'],
 
     /* ── LOST SCROLLS ────────────────────────────────────────────────── */
-    ["Metrom's Grasp",    'Lost Scroll', 'Class restriction: None.\n\nCost: 5 NRG · Cooldown: 18\nType: Magic · Buff · Duration: 5\n\nDecreases opponents\' defense by 40%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns.'],
+    ["Metrom's Grasp",    'Lost Scroll', 'Class restriction: None.\n\nCost: 5 NRG · Cooldown: 18\nType: Magic · Buff · Duration: 5\n\nDecreases opponents\' defense by 50%, makes them harder to block/dodge. Grants 40% more damage for DoT effects over 5 turns.'],
     ['Absolute Radiance', 'Lost Scroll', 'Class restriction: None.\n\nCost: 4 NRG · Cooldown: 18\nType: Fire · Buff · Duration: 5\n\nGrowing dmg/DR buff each turn — reaches up to 22.5% more damage by turn 5 (~7.5%/10%/12.5%/15%/22.5%).'],
     ['Wild Impulse',      'Lost Scroll', 'Class restriction: None.\n\nCost: 1 NRG · Cooldown: 10\nType: Magic · Buff\n\nYour next hit becomes a pseudo-AoE, dealing 20% damage to all nearby enemies. Applies 2 Vulnerable and Weakened to all targets hit.'],
     ['Permafrost Curse',  'Lost Scroll', 'Class restriction: Wizard only.\n\nCost: 4 NRG · Cooldown: 10\nType: Ice · Attack · Damage: 14 (STR/80 + ARC/80)\n\nApplies 2 Cold and 1 Stun. Acts as a pseudo-AoE, hitting adjacent enemies as well.'],
