@@ -4399,7 +4399,7 @@ function getVulnerableMult() {
   return dmgBonusPassives.some(p => p.name === "Crusher") ? 1.25 : 1.20;
 }
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
-let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); on proc the hit deals +35% dmg
+let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); shown for reference - the row is the proc (+35% dmg)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -5822,9 +5822,9 @@ function collectDmgBonusPassives() {
     const ssbKey = "passive:Spiked Steel Ball";
     if (!seen.has(ssbKey)) {
       seen.add(ssbKey);
-      // Per-hit proc: each hit independently has ssbProcChance% to deal +35%. Expected per-hit
-      // bonus = 35·p %, a term of each hit's Multi sum (dmgRowPct), so multi-hit moves are handled per hit.
-      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 35 * ssbProcChance / 100, kind: "passive", desc: "On proc (dev claims ~30–40% chance, set below), your attack applies 1 Vulnerable + 1 Weakened and deals an additional 35% damage. Each hit of a multi-hit move rolls independently — the expected value (+35% × chance, added to the damage bonus sum) is applied per hit.", isSsb: true });
+      // The row is the proc (owner, 2026-10-19): on, the hit deals +35%, a term of
+      // its Multi sum (dmgRowPct). Not the expected value per hit (+35% x chance).
+      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 35, kind: "passive", desc: "On proc (dev claims ~30–40% chance), your attack applies 1 Vulnerable + 1 Weakened and deals an additional 35% damage. Turn it on for a hit that procs: +35%, added to the damage bonus sum. Each hit of a multi-hit move rolls on its own.", isSsb: true });
     }
   }
 
@@ -5993,8 +5993,8 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
   if (p.name === "Demonic Presence")      return 5 * demonicPresenceStacks;
   if (p.name === "Ramizcan Idol")         return 15 * ramiIdolStacks;
   if (p.name === "Vainglorious Locket")   return Math.max(0, 10 - 5 * (vaingLocketTurn - 1));
-  // Per-hit proc: +35% on ssbProcChance% of hits, so its expected value per hit.
-  if (p.name === "Spiked Steel Ball")     return 0.35 * ssbProcChance;
+  // The proc itself: +35% on the hit that procs (owner, 2026-10-19).
+  if (p.name === "Spiked Steel Ball")     return 35;
   if (p.name === "Gold Rush")             return Math.min(20, (goldRushGold / 500) * 0.2);
   if (p.name === "Candy")                 return Math.min(25, 2 * candyRegenPct);
   if (p.name === "Flaming Overdrive")     return flamingOverdriveStacks;
@@ -7015,7 +7015,7 @@ function renderDmgBonusSection() {
                          : isEnhancedBloodlust ? `${_pctStr(_rowPct)} · +${15 * enhancedBloodlustStacks}% SPD`
                          : isRunicShield      ? `${_pctStr(_rowPct)}${_note('[Holy]')}`
                          : isCrusher          ? `${_pctStr(_rowPct)}${7 * crusherStacks > CRUSHER_CAP_PCT ? _note('(cap)') : ''}`
-                         : isSsb              ? `${_pctStr(_rowPct)}${_note(`(${ssbProcChance}% proc)`)}`
+                         : isSsb              ? `${_pctStr(_rowPct)}${_note('on proc')}`
                          : _pctStr(_rowPct);
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -7043,7 +7043,6 @@ function renderDmgBonusSection() {
     }
     if (isSsb) {
       const _p = ssbProcChance / 100;
-      const _expPct = 35 * _p;
       // Per-hit proc stats for a sample 2- and 3-hit move (P(≥1 proc) = 1-(1-p)^n)
       const _atLeast = n => (1 - Math.pow(1 - _p, n)) * 100;
       html += `<div class="dc-energy-section" style="margin:4px 0 6px 0">
@@ -7055,8 +7054,8 @@ function renderDmgBonusSection() {
         </div>
       </div>
       <div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;line-height:1.5">
-        On proc the hit deals a fixed <span style="color:#e0c97a">+35% damage</span> (only the chance above is adjustable).<br>
-        Each hit rolls independently → expected <span style="color:#e0c97a">+${fmtDmgPct(_expPct)}%</span> per hit, added to the damage bonus sum (applied to every hit of a move).<br>
+        On: the hit procs and deals <span style="color:#e0c97a">+35% damage</span>, added to the damage bonus sum. The chance above is for reference only.<br>
+        Each hit rolls on its own.<br>
         Chance of ≥1 proc: 2-hit <span style="color:#e0c97a">${_atLeast(2).toFixed(0)}%</span> · 3-hit <span style="color:#e0c97a">${_atLeast(3).toFixed(0)}%</span> · expected procs on N hits = N × ${(_p).toFixed(2)}.
       </div>`;
     }
