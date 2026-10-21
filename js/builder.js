@@ -2230,8 +2230,8 @@ const corruptionForms = {
     subtitle: "Two stances — Dark Wing and White Wing. You always start in Dark Wing.",
     variants: ["Base", "Flower and Decay", "Bone and Blood", "Fire and Ice", "Sun and Moon", "Sword"],
     mechanics: [
-      { name: "Dark / Light Force", text: "Two separate resources; neither carries over if you leave the form. Gaining Corrupt Power also grants Force 1:1 into your current stance. Attacking grants Force to whichever your stance builds — a flat amount per hit, plus a bonus on a crit, once per turn, scaling with crit tier." },
-      { name: "Dark Wing",  text: "Inflicting Bleeding, Burning or Poisoned also creates a Shadow copy of that status on yourself for White Wing to spend. Failing to apply a status grants Corrupt Power. As a bonus action, spend 25/50/75/100% of your Light Force for Crit Rate 1:1 on your next attack, expiring after 3 turns." },
+      { name: "Dark / Light Force", text: "Two separate resources; neither carries over if you leave the form. Gaining Corrupt Power also grants Force 1:1 into your current stance. Attacking grants Force to whichever your stance builds. From the owner's tests (2026-10-21): a hit grants Light Force equal to 5% of the damage it deals, plus 8 on a crit (about 2 on a non-crit, unconfirmed), and Corrupt Power equal to half the Light Force gained." },
+      { name: "Dark Wing",  text: "Inflicting Bleeding, Burning or Poisoned also creates a Shadow copy of that status on yourself for White Wing to spend. Failing to apply a status grants Corrupt Power. Light Force gives Crit Chance on your next attack: about 30–40% of the Light Force (owner's tests, 2026-10-21 - it is no longer converted 1:1, and probably not 50%)." },
       { name: "White Wing", text: "Daybreak rerolls any status about to hit you, with odds scaling off Light Force, and deflecting one grants Light Force. Successfully applying a status grants Corrupt Power. As a bonus action, spend 50 Dark Force to trigger a Conversion." },
       { name: "Conversion — Burning",  text: "Detonate + Shadowflamed. Instantly procs all Burning and Ghostflamed on the target (Burning 0.5% + 0.2% of max HP per stack, capped at 20 stacks; Ghostflamed a flat 3.5% of max HP), then applies Shadowflamed for 3 turns: +30% damage to both on that target." },
       { name: "Conversion — Bleeding", text: "Creates a healing pool worth 0.5% of the target's max health per stack, capped at 5%, split across the party weighted by missing health." },
@@ -3332,7 +3332,7 @@ const gearMoves = {
     { slot: "Sand Golem", level: 1, type: "Active", name: "Sand Eruption", quote: "", cost: 3, cooldown: 7, moveType: "Physical", damage: 22, effect: "Applies 4 Crippled, 2 Weakened, and 1 Vulnerable. This move has a pseudo AoE effect if it successfully hits its target.", image: "https://trello.com/1/cards/67c45e0e2acb83d103823cde/attachments/697ed64638fd4da4aabe69d1/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260201092624.png" },
   ]},
   "Spiked Steel Ball": { learns: [
-    mkPassive("Spiked Steel Ball", "Your attacks have a 30–40% (?) chance to apply 1 Vulnerable and 1 Weakened.\n\nDespite the developer's claims, this also deals an additional 35% damage when it procs."),
+    mkPassive("Spiked Steel Ball", "Your attacks have a 30–40% (?) chance to apply 1 Vulnerable and 1 Weakened.\n\nDespite the developer's claims, when it procs it also deals a separate hit for 35% of the attack's damage, added onto the final value."),
   ]},
   "Stone Brand": { learns: [
     { slot: "", level: 1, type: "Active", name: "Stone Skin", quote: "", cost: 2, cooldown: 999, moveType: "Physical", category: "Buff", effect: "Your summons gain the move \"Stone Skin\". When used, grants a permanent 60% defence reduction against most attacks. Its 999-turn cooldown means it can be used once per fight.", image: "https://trello.com/1/cards/67c456b08594a7ec9963c03c/attachments/697ecad5a010aa0619d29d75/download/%D0%91%D0%B5%D0%B7%2B%D0%BD%D0%B0%D0%B7%D0%B2%D0%B0%D0%BD%D0%B8%D1%8F31_20260131203749.png" },
@@ -4338,13 +4338,16 @@ const AMPLIFY_TYPES = ["Magic", "Holy", "Fire", "Nature", "Ice", "Dark"];
 //
 // Only the form selected in the Corruption picker is offered. Where the game
 // states a number it is used as written; where it does not — Condemned, and how
-// much Light Force a hit grants — the control is a slider you set yourself
+// much Crit Chance Light Force gives (30-40% of it, owner's tests) — the control is a
+// slider you set yourself
 // rather than a figure presented as fact.
 const corruptionBuffsActive = { notch: false, condemned: false, lightForce: false };
 let notchSpent     = 5;   // 1..cap  Notch consumed by this hit
 let notchCap       = 5;   // 1..12   your max energy, which is also the Notch cap
 let condemnedPct   = 10;  // 0..50   UNSTATED by the game — placeholder, set it yourself
-let lightForceCrit = 0;   // 0..100  flat Crit Rate bought 1:1 with Light Force
+let lightForceAmt   = 0;   // 0..400  your Light Force
+let lightForceRatio = 35;  // 30..40  Crit Chance per Light Force, in % (owner's tests: 30-40%, not 1:1)
+function lightForceCritPct() { return lightForceAmt * lightForceRatio / 100; }
 
 let overheatStacks = 1; // 1-10: Overheat stacks (+8% dmg each)
 const enchantCondActive = { cursed: false, cursedSundered: false, inferno: false, midasProc: false, reaperProc: false, frostedColdEnemy: false };
@@ -4399,7 +4402,7 @@ function getVulnerableMult() {
   return dmgBonusPassives.some(p => p.name === "Crusher") ? 1.25 : 1.20;
 }
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
-let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); shown for reference - the row is the proc (+35% dmg)
+let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); shown for reference - the row is the proc (a separate hit, x1.35)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
@@ -4852,6 +4855,19 @@ function buildLifestealHealLines(finalDmg, m, critMult = null, trueFlat = 0) {
     out += _lsLine('⚔️', 'The Big Sword', 0.075, finalDmg);
   if (sc === "Saint (Or)" && masteryState["cm1"])
     out += _lsLine('✨', 'All For One', 0.20, finalDmg, 1.40);
+  // Heresy: what the hit grants (owner's tests, 2026-10-21). Light Force = 5% of
+  // the damage dealt + 8 on a crit (about 2 on a non-crit, unconfirmed); Corrupt
+  // Power = half the Light Force. Here because every damage path ends with this.
+  if (typeof corruptionPicker !== "undefined" && corruptionPicker?.value === "Heresy") {
+    const dealt = finalDmg + trueFlat;
+    const lf = dealt * 0.05 + 2;
+    let h = `🕊️ Heresy: <b>+${lf.toFixed(1)} Light Force</b> <span class="dc-bonus-tag">[5% of ${dealt.toFixed(1)} + 2]</span> · <b>+${(lf / 2).toFixed(1)} Corrupt Power</b>`;
+    if (critMult !== null) {
+      const lfc = (finalDmg * critMult + trueFlat) * 0.05 + 8;
+      h += `  <span class="dc-bonus-tag">|</span>  crit: <b>+${lfc.toFixed(1)} Light Force</b> · <b>+${(lfc / 2).toFixed(1)} Corrupt Power</b>`;
+    }
+    out += `<br><span class="dc-lifesteal-line">${h}</span>`;
+  }
   return out;
 }
 
@@ -5822,9 +5838,10 @@ function collectDmgBonusPassives() {
     const ssbKey = "passive:Spiked Steel Ball";
     if (!seen.has(ssbKey)) {
       seen.add(ssbKey);
-      // The row is the proc (owner, 2026-10-19): on, the hit deals +35%, a term of
-      // its Multi sum (dmgRowPct). Not the expected value per hit (+35% x chance).
-      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 35, kind: "passive", desc: "On proc (dev claims ~30–40% chance), your attack applies 1 Vulnerable + 1 Weakened and deals an additional 35% damage. Turn it on for a hit that procs: +35%, added to the damage bonus sum. Each hit of a multi-hit move rolls on its own.", isSsb: true });
+      // The row is the proc. It is its own hit for 35% of the attack's damage, added
+      // onto the final value (owner, 2026-10-21, from clips): x1.35 of the hit, in
+      // getStatusMultiplier, not a term of the Multi sum - so bonus 0 here.
+      rawEntries.push({ key: ssbKey, name: "Spiked Steel Ball", bonus: 0, kind: "passive", desc: "On proc (dev claims ~30–40% chance), your attack applies 1 Vulnerable + 1 Weakened, and a separate hit deals 35% of the attack's damage on top of it (×1.35 of the hit, after every other multiplier). Turn it on for a hit that procs. Each hit of a multi-hit move rolls on its own.", isSsb: true });
     }
   }
 
@@ -5993,8 +6010,8 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
   if (p.name === "Demonic Presence")      return 5 * demonicPresenceStacks;
   if (p.name === "Ramizcan Idol")         return 15 * ramiIdolStacks;
   if (p.name === "Vainglorious Locket")   return Math.max(0, 10 - 5 * (vaingLocketTurn - 1));
-  // The proc itself: +35% on the hit that procs (owner, 2026-10-19).
-  if (p.name === "Spiked Steel Ball")     return 35;
+  // Not in the Multi sum: its proc is a separate hit, x1.35 (getStatusMultiplier).
+  if (p.name === "Spiked Steel Ball")     return 0;
   if (p.name === "Gold Rush")             return Math.min(20, (goldRushGold / 500) * 0.2);
   if (p.name === "Candy")                 return Math.min(25, 2 * candyRegenPct);
   if (p.name === "Flaming Overdrive")     return flamingOverdriveStacks;
@@ -6103,12 +6120,13 @@ function getCorruptionDmgPct() {
   return (corruptionPicker?.value === "Blasphemy" && corruptionBuffsActive.notch) ? notchDmgPct() : 0;
 }
 
-// Heresy converts Light Force to Crit Rate 1:1 on your next attack, so it moves
+// Heresy: Light Force gives Crit Chance on your next attack, about 30-40% of the
+// Light Force (owner's tests, 2026-10-21; it used to convert 1:1), so it moves
 // crit chance rather than damage — including across an overcrit tier, which is
 // the whole reason a crit build cares about the form.
 function getCorruptionCritBonus() {
   return (corruptionPicker?.value === "Heresy" && corruptionBuffsActive.lightForce)
-    ? Math.max(0, lightForceCrit) : 0;
+    ? Math.max(0, lightForceCritPct()) : 0;
 }
 
 function toggleCorruptionBuff(key) {
@@ -6128,8 +6146,12 @@ function setCondemnedPct(v) {
   condemnedPct = Math.min(50, Math.max(0, +v || 0));
   renderDmgBonusSection(); recalcOpenDetails();
 }
-function setLightForceCrit(v) {
-  lightForceCrit = Math.min(100, Math.max(0, +v || 0));
+function setLightForceAmt(v) {
+  lightForceAmt = Math.min(400, Math.max(0, Math.round(+v || 0)));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+function changeLightForceRatio(delta) {
+  lightForceRatio = Math.min(40, Math.max(30, lightForceRatio + delta));
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
 }
 
@@ -6778,6 +6800,13 @@ function getStatusMultiplier(moveType, opts) {
   }
   // Sinister Gaze: the enemy received your Blood Eruption Prof damage debuff.
   if (sinisterGazeBloodProf) { mult *= 1.20; labels.push("Gaze: Blood Eruption ×1.20"); }
+  // Spiked Steel Ball: its proc is a separate hit for 35% of the attack's damage,
+  // added onto the final value (owner, 2026-10-21) - x1.35 of the hit, outside
+  // the Multi sum. Not a status, but it scales the whole hit the same way. The
+  // attack only: the Frosted AOE (skipBasic) does not take it.
+  if (!skipBasic && dmgBonusPassives.some(p => p.name === "Spiked Steel Ball" && dmgBonusActive[p.key])) {
+    mult *= 1.35; labels.push("SSB proc ×1.35 (separate hit)");
+  }
   return { mult, label: labels.join(", ") };
 }
 
@@ -7015,7 +7044,7 @@ function renderDmgBonusSection() {
                          : isEnhancedBloodlust ? `${_pctStr(_rowPct)} · +${15 * enhancedBloodlustStacks}% SPD`
                          : isRunicShield      ? `${_pctStr(_rowPct)}${_note('[Holy]')}`
                          : isCrusher          ? `${_pctStr(_rowPct)}${7 * crusherStacks > CRUSHER_CAP_PCT ? _note('(cap)') : ''}`
-                         : isSsb              ? `${_pctStr(_rowPct)}${_note('on proc')}`
+                         : isSsb              ? `×1.35${_note('separate hit')}`
                          : _pctStr(_rowPct);
     const profTag = p.isProficiency ? ` <span style="color:#888;font-size:11px">(Prof.)</span>` : '';
     html += `<div class="dc-bonus-row${on ? " dc-bonus-on" : ""}" data-bidx="${fullIdx}"${isBloodyBers ? ' data-bloody-bers' : ''}>
@@ -7054,7 +7083,7 @@ function renderDmgBonusSection() {
         </div>
       </div>
       <div class="dc-rage-slider-row" style="font-size:11px;color:#aaa;padding:2px 0 4px 24px;line-height:1.5">
-        On: the hit procs and deals <span style="color:#e0c97a">+35% damage</span>, added to the damage bonus sum. The chance above is for reference only.<br>
+        On: the hit procs, and a separate hit deals <span style="color:#e0c97a">35% of the attack's damage</span> on top (×1.35 of the hit, after every other multiplier, crits included). The chance above is for reference only.<br>
         Each hit rolls on its own.<br>
         Chance of ≥1 proc: 2-hit <span style="color:#e0c97a">${_atLeast(2).toFixed(0)}%</span> · 3-hit <span style="color:#e0c97a">${_atLeast(3).toFixed(0)}%</span> · expected procs on N hits = N × ${(_p).toFixed(2)}.
       </div>`;
@@ -7749,18 +7778,27 @@ function renderDmgBonusSection() {
 
     if (_corrForm === "Heresy") {
       const _on = corruptionBuffsActive.lightForce;
-      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="lightForce" title="Dark Wing: spend 25/50/75/100% of your Light Force for Crit Rate 1:1 on your next attack.">
+      const _lfCrit = +lightForceCritPct().toFixed(1);
+      html += `<div class="dc-bonus-row${_on ? " dc-bonus-on" : ""}" data-corr-key="lightForce" title="Dark Wing: Light Force gives Crit Chance on your next attack, about 30–40% of the Light Force.">
         <div class="dc-bonus-check">${_on ? "✓" : ""}</div>
         <span class="dc-bonus-name">Light Force → Crit</span>
-        <span class="dc-bonus-pct">+${lightForceCrit}%</span>
+        <span class="dc-bonus-pct">+${_lfCrit}%</span>
       </div>`;
       if (_on) {
         html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
-          <span class="dc-rage-slider-label">Force spent: <b>+${lightForceCrit}%</b> crit rate</span>
-          <input type="range" class="dc-rage-slider" min="0" max="100" step="1" value="${lightForceCrit}" oninput="setLightForceCrit(this.value)">
+          <span class="dc-rage-slider-label">Light Force: <b>${lightForceAmt}</b> → <b>+${_lfCrit}%</b> crit rate</span>
+          <input type="range" class="dc-rage-slider" min="0" max="400" step="1" value="${lightForceAmt}" oninput="setLightForceAmt(this.value)">
+        </div>
+        <div class="dc-energy-section" style="margin:4px 0 6px 0">
+          <span class="dc-energy-label">Crit per Light Force <span style="color:#aaa;font-size:11px">(owner's tests: 30–40%)</span></span>
+          <div class="dc-energy-counter">
+            <button class="dc-energy-btn" onclick="changeLightForceRatio(-5)">−</button>
+            <span class="dc-energy-val">${lightForceRatio}%</span>
+            <button class="dc-energy-btn" onclick="changeLightForceRatio(5)">+</button>
+          </div>
         </div>
         <div class="dc-bonus-note" style="font-size:11px;color:#8b8b8b;margin:0 0 6px 2px">
-          Converts 1:1, so this is Force spent. How much Force a hit grants is not stated anywhere — set what you actually have. Crossing 100 crit chance is a whole overcrit tier.
+          Not 1:1 any more: about 30–40% of your Light Force (the exact share is not known). A hit grants Light Force equal to 5% of its damage, plus 8 on a crit (about 2 otherwise) — each move's workings show it. Crossing 100 crit chance is a whole overcrit tier.
         </div>`;
       }
     }
@@ -8601,7 +8639,7 @@ const masteryClassData = {
       r7:  { name: "Strength Node" }, r8:  { name: "Strength Node" },
       r9:  { name: "Strength Node" },
       rm1: { name: "Risk Taker",                  desc: "Increases the chance to auto dodge with shadow while below 40% max health." },
-      rm2: { name: "Stealth Strike Proficiency",  desc: "Be able to trigger the first 30 poison stacks of an enemy from using Stealth Strike, and remove the last 30 stacks of poison." },
+      rm2: { name: "Stealth Strike Proficiency",  desc: "Stealth Strike takes away half of the target's Poison for a buff (its size is not known yet). The Poison taken away is capped at 30 stacks." },
     }
   },
   "Monk (Or)": {
@@ -10201,7 +10239,7 @@ function loadBuildState(state) {
   Object.keys(statBuffsActive).forEach(k => { statBuffsActive[k] = false; });
   Object.keys(teamBuffsActive).forEach(k => { teamBuffsActive[k] = false; });
   Object.keys(corruptionBuffsActive).forEach(k => { corruptionBuffsActive[k] = false; });
-  notchSpent = 5; notchCap = 5; condemnedPct = 10; lightForceCrit = 0;
+  notchSpent = 5; notchCap = 5; condemnedPct = 10; lightForceAmt = 0; lightForceRatio = 35;
   luckyHornsSpend = false;
   bloomingEyeSpend = false;
   stealthStrikeInvisible = false;
