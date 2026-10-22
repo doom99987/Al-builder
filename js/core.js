@@ -231,5 +231,6 @@ var frozenDiademIceActive    = false; // true when Cold was just applied → +10
 var flamingOverdriveStacks   = 0;     // 0–15 : Burning stacks on enemy → +1% dmg each (Flaming Overdrive passive)
 var vasticLckProcActive      = false; // true when Vastic Glaive LCK proc is active → +80% crit chance
 var vasticProcCount          = 1;     // 1+: number of Vastic Glaive bomb procs (for multi-hit attacks)
+var vasticLckProcs           = 1;     // 1+: Vastic Glaive LCK procs stacked on the next attack, +80% crit chance each (owner: no cap of one)
 var tearBloodCrystalActive   = false; // true when Tear Blood Crystal bleed buff is active → +5% crit chance
 var weirdAccessoryActive     = false; // reserved for accessory with custom conditional behaviour

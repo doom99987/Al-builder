@@ -1311,7 +1311,8 @@ function updatePecents() {
       if (frozenDiademIceActive)  display = (parseFloat(display) + 10).toFixed(1);
     }
     if (stat === "crit-chance" && vasticLckProcActive) {
-      display = (parseFloat(display) + 80).toFixed(1);
+      // Each LCK proc adds 80; they stack (owner, 2026-10-21: not capped at one).
+      display = (parseFloat(display) + 80 * Math.max(1, vasticLckProcs || 1)).toFixed(1);
     }
     if (stat === "crit-chance" && _pctCache.artifactPicker?.value === "Stellian Core" && dmgBonusActive["passive:Stellian Core"] && playerHpPct >= 95) {
       display = (parseFloat(display) + 15).toFixed(1);
@@ -6382,6 +6383,11 @@ function changeVasticProcCount(delta) {
   renderDmgBonusSection(); recalcOpenDetails();
 }
 
+function changeVasticLckProcs(delta) {
+  vasticLckProcs = Math.min(99, Math.max(1, (vasticLckProcs || 1) + delta));
+  renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+
 function changeHourglassStacks(delta) {
   hourglassStacks = Math.min(5, Math.max(1, hourglassStacks + delta));
   renderDmgBonusSection(); recalcOpenDetails();
@@ -7553,6 +7559,7 @@ function renderDmgBonusSection() {
     const _lckMajor = _iLck === _vMax;
     // Reset LCK proc toggle if LCK is no longer the highest stat
     if (!_lckMajor && vasticLckProcActive) { vasticLckProcActive = false; }
+    if (!_lckMajor) vasticLckProcs = 1;
 
     if (_strMajor || _arcMajor || _lckMajor) {
       const _strBomb = 10 + Math.floor(_vStr / 40);
@@ -7587,12 +7594,21 @@ function renderDmgBonusSection() {
         </div>`;
       }
       if (_lckMajor) {
-        html += `<div class="dc-bonus-row${vasticLckProcActive ? " dc-bonus-on" : ""}" data-vastic-lck style="cursor:pointer" title="Grants 80% crit chance on your next attack">
+        const _lckN = Math.max(1, vasticLckProcs || 1);
+        html += `<div class="dc-bonus-row${vasticLckProcActive ? " dc-bonus-on" : ""}" data-vastic-lck style="cursor:pointer" title="Each LCK proc grants 80% crit chance on your next attack; procs stack">
           <div class="dc-bonus-check">${vasticLckProcActive ? "✓" : ""}</div>
-          <span class="dc-bonus-name" style="color:#ffd700">LCK Proc</span>
-          <span class="dc-bonus-pct" style="color:#ffd700">+80% Crit</span>
+          <span class="dc-bonus-name" style="color:#ffd700">LCK Proc${_lckN > 1 ? ` ×${_lckN}` : ""}</span>
+          <span class="dc-bonus-pct" style="color:#ffd700">+${80 * _lckN}% Crit</span>
         </div>
-        <div class="dc-vastic-formula">Adds 80% to crit chance for next attack</div>`;
+        <div class="dc-energy-section" style="margin:4px 0 6px 0">
+          <span class="dc-energy-label">LCK Procs <span style="color:#aaa;font-size:11px">(stack on the next attack)</span></span>
+          <div class="dc-energy-counter">
+            <button class="dc-energy-btn" onclick="changeVasticLckProcs(-1)">−</button>
+            <span class="dc-energy-val">${_lckN}</span>
+            <button class="dc-energy-btn" onclick="changeVasticLckProcs(1)">+</button>
+          </div>
+        </div>
+        <div class="dc-vastic-formula">Each proc adds 80% to crit chance for the next attack, and they stack: ${_lckN} × 80% = +${80 * _lckN}%</div>`;
       }
 
       html += `</div>`;
