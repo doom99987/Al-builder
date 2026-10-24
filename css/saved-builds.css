@@ -258,6 +258,49 @@
 /* ============================================================
    RACE RECOMMENDATIONS PANEL
    ============================================================ */
+/* ============================================================
+   COMPARE PANEL - the current build (A) against a share link or saved build (B)
+   ============================================================ */
+/* min-width 0: as flex items both would otherwise grow to their widest table
+   on a phone; the tables scroll inside .cmp-table-wrap instead. */
+#compare { min-width: 0; }
+.cmp-wrap { width: 100%; max-width: 960px; min-width: 0; padding: 24px 20px; box-sizing: border-box; }
+.cmp-header h2 { margin: 0 0 8px 0; font-size: 13px; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: #9d8fd0; }
+.cmp-note { font-size: 12px; color: #888; line-height: 1.5; margin-bottom: 14px; }
+.cmp-inputs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.cmp-link, .cmp-saved {
+  background: #0e0e12; border: 1px solid #26262e; color: #ddd; padding: 9px 12px;
+  font-family: 'Inter', Arial, sans-serif; font-size: 13px; border-radius: 6px; outline: none; box-sizing: border-box;
+}
+.cmp-link { flex: 1 1 280px; min-width: 0; }
+.cmp-saved { flex: 0 1 240px; min-width: 0; }
+.cmp-link:focus, .cmp-saved:focus { border-color: #7c66c8; box-shadow: 0 0 0 1px rgba(139, 116, 224, 0.3); }
+.cmp-run, .cmp-load-b {
+  background: #1e1a2e; color: #c9b8ff; border: 1px solid #4a3d7a; padding: 9px 18px; cursor: pointer;
+  font-family: inherit; font-size: 13px; border-radius: 6px; transition: background 0.15s, color 0.15s;
+}
+.cmp-run:hover, .cmp-load-b:hover { background: #2a2342; color: #e2d8ff; }
+.cmp-status { font-size: 12px; color: #9d8fd0; min-height: 16px; margin-bottom: 8px; }
+.cmp-status.cmp-bad { color: #e07a7a; }
+.cmp-actions { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+.cmp-title { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #9d8fd0; margin: 18px 0 8px; }
+.cmp-sub { font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: #666; margin-left: 6px; }
+.cmp-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid #252525; border-radius: 8px; margin-bottom: 10px; }
+.cmp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp-table th, .cmp-table td { padding: 6px 10px; text-align: left; border-bottom: 1px solid #1f1f24; white-space: nowrap; }
+.cmp-table th { color: #888; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; background: #121216; }
+.cmp-table td:first-child { color: #aaa; }
+.cmp-table tbody tr:last-child td { border-bottom: none; }
+.cmp-table tr.cmp-diff td { background: rgba(157, 143, 208, 0.07); }
+.cmp-table tr.cmp-diff td:first-child { color: #c9b8ff; }
+.cmp-up { color: #7ec87e; font-variant-numeric: tabular-nums; }
+.cmp-down { color: #e07a7a; font-variant-numeric: tabular-nums; }
+.cmp-eq, .cmp-none { color: #555; }
+@media (max-width: 600px) {
+  .cmp-wrap { padding: 16px 12px; }
+  .cmp-table th, .cmp-table td { padding: 5px 7px; font-size: 12px; }
+}
+
 .rr-wrap {
   width: 100%;
   max-width: 960px;

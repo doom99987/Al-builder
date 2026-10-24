@@ -4835,6 +4835,8 @@ function draugaCritHealLine(critDmg) {
 // damage dealt too, so it is added to the healed figure, uncritted.
 function buildLifestealHealLines(finalDmg, m, critMult = null, trueFlat = 0) {
   let out = '';
+  // The Compare tab reads the move's final figures from here.
+  if (typeof window !== "undefined") window._dcLastHit = { dmg: finalDmg + trueFlat, crit: critMult !== null ? finalDmg * critMult + trueFlat : null };
   const sc = superPicker.value;
   function _lsLine(icon, label, pct, mainDmg, incHealMult = 1) {
     const dmg = mainDmg + trueFlat;
@@ -9512,7 +9514,7 @@ function drawMasteryLines() {
 // Controls which builder panel is visible. Each tab button maps to a panel ID.
 // Panels are shown/hidden via inline display style to avoid CSS specificity conflicts.
 const tabs      = document.querySelectorAll("#page-builder .tabbar .tab");
-const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary", "saved-builds", "race-recs"];
+const panelIds  = ["stats", "mastery", "Moves", "sould-tree", "dmg-calc", "summary", "saved-builds", "compare", "race-recs"];
 
 function _switchBuilderTab(target) {
   if (!target) return;
@@ -9543,6 +9545,7 @@ function _switchBuilderTab(target) {
   if (target === "mastery") renderMastery();
   if (target === "dmg-calc") renderDmgCalc();
   if (target === "saved-builds") renderSavedBuilds();
+  if (target === "compare") renderComparePanel();
 }
 
 tabs.forEach(tab => {
@@ -10381,6 +10384,319 @@ if (shareBuildBtn) {
   // Persist changes
   editor.addEventListener('input', autoSave);
   picker.addEventListener('change', autoSave);
+})();
+
+
+// § COMPARE
+// The Compare tab: the current build (A) against a share link, build code or
+// saved build (B). The damage engine reads the page itself (pickers, toggles,
+// the crit% cell), so a second build cannot be priced on the side: each build is
+// loaded into the page, read, and A put back. loadBuildState resets every Dmg
+// Calc setting, so those are saved first and restored after - keep
+// _cmpCombatSave in step with loadBuildState's reset block. Both builds are read
+// at those reset (default) settings, which keeps the match fair. Autosave waits
+// 600 ms and saves whatever is loaded then, which is A again by that time.
+// Move damage is what buildLifestealHealLines records (every damage path ends
+// with it): the hit and the crit as the Dmg Calc shows them.
+
+function _cmpCombatSave() {
+  return {
+    v: { energyCount, playerHpPct, absRadTurn, bulkUpStacks, verdantArcherStacks, poisedSlayerStacks, swiftFighterStacks, runicShieldStacks, bloodlustStacks, bloodlustRage, enhancedBloodlustStacks, looterStacks, hourglassStacks, boreasStacks, vydeerCritStacks, vydeerSenseConsumed, unendingFlowStacks, rendingBarrageStacks, demonicPresenceStacks, ramiIdolStacks, vaingLocketTurn, sinisterGazeReflect, sinisterGazeBloodProf, overcoreActive, overheatStacks, crusherStacks, oppressionCount, shatteringDebuffCount, reversingDebuffCount, karmaStacks, crystalStarStacks, frozenDiademColdActive, frozenDiademIceActive, tearBloodCrystalActive, flamingOverdriveStacks, selectedBoss, bossCorrupted, notchSpent, notchCap, condemnedPct, lightForceAmt, lightForceRatio, luckyHornsSpend, bloomingEyeSpend, stealthStrikeInvisible, crystallineSpikeSpend, castAmplifyStacks, darkCoreCount, enchantReaperEnemyHp, ivoryNrgStacks, midasLckStacks, lifesongStacks, ghoststeelStacks, hauntedStacks, coagNailStacks, ssbProcChance, vasticLckProcActive, vasticProcCount, vasticLckProcs, goldRushGold, candyRegenPct, hauntedClothBlind },
+    o: { statusEffectsActive: Object.assign({}, statusEffectsActive),
+         healCursedActive: Object.assign({}, healCursedActive),
+         statBuffsActive: Object.assign({}, statBuffsActive),
+         teamBuffsActive: Object.assign({}, teamBuffsActive),
+         corruptionBuffsActive: Object.assign({}, corruptionBuffsActive),
+         summonBuffsActive: Object.assign({}, summonBuffsActive),
+         enchantCondActive: Object.assign({}, enchantCondActive),
+         dmgBonusActive: Object.assign({}, dmgBonusActive),
+         shardToggleActive: Object.assign({}, shardToggleActive) },
+  };
+}
+
+function _cmpRestoreObj(dst, src) {
+  Object.keys(dst).forEach(k => { if (!Object.prototype.hasOwnProperty.call(src, k)) dst[k] = false; });
+  Object.assign(dst, src);
+}
+
+function _cmpCombatRestore(s) {
+  energyCount = s.v.energyCount;
+  playerHpPct = s.v.playerHpPct;
+  absRadTurn = s.v.absRadTurn;
+  bulkUpStacks = s.v.bulkUpStacks;
+  verdantArcherStacks = s.v.verdantArcherStacks;
+  poisedSlayerStacks = s.v.poisedSlayerStacks;
+  swiftFighterStacks = s.v.swiftFighterStacks;
+  runicShieldStacks = s.v.runicShieldStacks;
+  bloodlustStacks = s.v.bloodlustStacks;
+  bloodlustRage = s.v.bloodlustRage;
+  enhancedBloodlustStacks = s.v.enhancedBloodlustStacks;
+  looterStacks = s.v.looterStacks;
+  hourglassStacks = s.v.hourglassStacks;
+  boreasStacks = s.v.boreasStacks;
+  vydeerCritStacks = s.v.vydeerCritStacks;
+  vydeerSenseConsumed = s.v.vydeerSenseConsumed;
+  unendingFlowStacks = s.v.unendingFlowStacks;
+  rendingBarrageStacks = s.v.rendingBarrageStacks;
+  demonicPresenceStacks = s.v.demonicPresenceStacks;
+  ramiIdolStacks = s.v.ramiIdolStacks;
+  vaingLocketTurn = s.v.vaingLocketTurn;
+  sinisterGazeReflect = s.v.sinisterGazeReflect;
+  sinisterGazeBloodProf = s.v.sinisterGazeBloodProf;
+  overcoreActive = s.v.overcoreActive;
+  overheatStacks = s.v.overheatStacks;
+  crusherStacks = s.v.crusherStacks;
+  oppressionCount = s.v.oppressionCount;
+  shatteringDebuffCount = s.v.shatteringDebuffCount;
+  reversingDebuffCount = s.v.reversingDebuffCount;
+  karmaStacks = s.v.karmaStacks;
+  crystalStarStacks = s.v.crystalStarStacks;
+  frozenDiademColdActive = s.v.frozenDiademColdActive;
+  frozenDiademIceActive = s.v.frozenDiademIceActive;
+  tearBloodCrystalActive = s.v.tearBloodCrystalActive;
+  flamingOverdriveStacks = s.v.flamingOverdriveStacks;
+  selectedBoss = s.v.selectedBoss;
+  bossCorrupted = s.v.bossCorrupted;
+  notchSpent = s.v.notchSpent;
+  notchCap = s.v.notchCap;
+  condemnedPct = s.v.condemnedPct;
+  lightForceAmt = s.v.lightForceAmt;
+  lightForceRatio = s.v.lightForceRatio;
+  luckyHornsSpend = s.v.luckyHornsSpend;
+  bloomingEyeSpend = s.v.bloomingEyeSpend;
+  stealthStrikeInvisible = s.v.stealthStrikeInvisible;
+  crystallineSpikeSpend = s.v.crystallineSpikeSpend;
+  castAmplifyStacks = s.v.castAmplifyStacks;
+  darkCoreCount = s.v.darkCoreCount;
+  enchantReaperEnemyHp = s.v.enchantReaperEnemyHp;
+  ivoryNrgStacks = s.v.ivoryNrgStacks;
+  midasLckStacks = s.v.midasLckStacks;
+  lifesongStacks = s.v.lifesongStacks;
+  ghoststeelStacks = s.v.ghoststeelStacks;
+  hauntedStacks = s.v.hauntedStacks;
+  coagNailStacks = s.v.coagNailStacks;
+  ssbProcChance = s.v.ssbProcChance;
+  vasticLckProcActive = s.v.vasticLckProcActive;
+  vasticProcCount = s.v.vasticProcCount;
+  vasticLckProcs = s.v.vasticLckProcs;
+  goldRushGold = s.v.goldRushGold;
+  candyRegenPct = s.v.candyRegenPct;
+  hauntedClothBlind = s.v.hauntedClothBlind;
+  _cmpRestoreObj(statusEffectsActive, s.o.statusEffectsActive);
+  _cmpRestoreObj(healCursedActive, s.o.healCursedActive);
+  _cmpRestoreObj(statBuffsActive, s.o.statBuffsActive);
+  _cmpRestoreObj(teamBuffsActive, s.o.teamBuffsActive);
+  _cmpRestoreObj(corruptionBuffsActive, s.o.corruptionBuffsActive);
+  _cmpRestoreObj(summonBuffsActive, s.o.summonBuffsActive);
+  _cmpRestoreObj(enchantCondActive, s.o.enchantCondActive);
+  _cmpRestoreObj(dmgBonusActive, s.o.dmgBonusActive);
+  _cmpRestoreObj(shardToggleActive, s.o.shardToggleActive);
+}
+
+function _cmpEsc(v) {
+  return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Stats, the derived percentages and every damage move of the build loaded now.
+function _cmpSnapshot() {
+  updatePecents();
+  const stats = {};
+  _pctCache.statRows.forEach(r => { stats[r.stat] = +(r.totalEl?.textContent || 0) || 0; });
+  const pct = {};
+  _pctCache.items.forEach(it => {
+    const lbl = it.el.querySelector('.percent-label')?.textContent || it.stat;
+    pct[it.stat] = { label: lbl, text: (it.valEl?.textContent || '').trim() };
+  });
+  renderDmgCalc();
+  const moves = [];
+  document.querySelectorAll('#dmg-calc-moves .dc-row-clickable[data-idx]').forEach(row => {
+    const idx = +row.dataset.idx;
+    const m = dmgCalcMoveList[idx];
+    if (!m) return;
+    window._dcLastHit = null;
+    try { toggleDmgDetail(row, idx, true); } catch (e) { window._dcLastHit = null; }
+    const h = window._dcLastHit;
+    moves.push({ name: m.name, hit: h ? h.dmg : null, crit: h ? h.crit : null });
+  });
+  return { stats, pct, moves, state: getBuildState() };
+}
+
+// A share link (?id=…, or an old #… link) or a bare build code.
+async function _cmpReadBuild(text) {
+  let id = text, hash = '';
+  try {
+    const u = new URL(text);
+    id = u.searchParams.get('id') || '';
+    hash = u.hash.length > 1 ? u.hash.slice(1) : '';
+  } catch (e) { /* not a URL: a bare code */ }
+  try {
+    if (id) {
+      const payload = await _loadById(id);
+      if (!payload || !payload.d) return null;
+      const st = _unpackState(payload.d, payload.n || 'Untitled');
+      return st ? { state: st, name: (payload.n && payload.n !== 'Untitled') ? payload.n : '' } : null;
+    }
+    if (hash) {
+      if (hash.includes('/')) {
+        const parts = hash.split('/');
+        const st = parts.length === 2 ? _unpackState(parts[1], decodeURIComponent(parts[0])) : null;
+        return st ? { state: st, name: decodeURIComponent(parts[0]) } : null;
+      }
+      const st = JSON.parse(atob(hash));
+      return (st && st.v === 1) ? { state: st, name: st.name || '' } : null;
+    }
+  } catch (e) { return null; }
+  return null;
+}
+
+function renderComparePanel() {
+  const sel = document.getElementById('cmp-saved');
+  if (!sel) return;
+  const keep = sel.value;
+  const builds = typeof _getSavedBuilds === 'function' ? _getSavedBuilds() : [];
+  sel.innerHTML = '<option value="">— or pick a saved build —</option>' +
+    builds.map((b, i) => '<option value="' + i + '">' + _cmpEsc(b.name || 'Untitled') + '</option>').join('');
+  if (keep !== '' && +keep < builds.length) sel.value = keep;
+}
+
+let _cmpLastB = null;   // the B of the last comparison, for "Load B into the builder"
+
+async function runCompare() {
+  const statusEl = document.getElementById('cmp-status');
+  const resEl    = document.getElementById('cmp-results');
+  const say = (t, bad) => { if (statusEl) { statusEl.textContent = t; statusEl.classList.toggle('cmp-bad', !!bad); } };
+  const link = (document.getElementById('cmp-link')?.value || '').trim();
+  const sel  = document.getElementById('cmp-saved')?.value || '';
+  let b = null;
+  if (link) {
+    say('Reading the build…');
+    b = await _cmpReadBuild(link);
+    if (!b) { say('Could not read that link or code. Paste the whole share link or build code.', true); return; }
+  } else if (sel !== '') {
+    const sb = (typeof _getSavedBuilds === 'function' ? _getSavedBuilds() : [])[+sel];
+    if (sb && sb.state && sb.state.v === 1) b = { state: sb.state, name: sb.name || '' };
+    if (!b) { say('That saved build could not be read.', true); return; }
+  } else { say('Paste a share link or build code, or pick a saved build, first.', true); return; }
+
+  const nameInput = document.getElementById('build-name-input');
+  const keepName  = nameInput ? nameInput.value : '';
+  const stateA    = getBuildState();
+  const combat    = _cmpCombatSave();
+  let snapA = null, snapB = null, failed = false;
+  try {
+    loadBuildState(JSON.parse(JSON.stringify(stateA))); snapA = _cmpSnapshot();
+    loadBuildState(JSON.parse(JSON.stringify(b.state))); snapB = _cmpSnapshot();
+  } catch (e) {
+    failed = true;
+    console.error('[compare]', e);
+  } finally {
+    loadBuildState(stateA);
+    if (nameInput) nameInput.value = keepName;
+    _cmpCombatRestore(combat);
+    updatePecents();
+    renderDmgBonusSection();
+    renderDmgCalc();
+  }
+  if (failed || !snapA || !snapB) { say('Something went wrong working that build out.', true); return; }
+  _cmpLastB = b;
+  say('');
+  if (resEl) resEl.innerHTML = _cmpRenderResults(snapA, snapB, keepName || 'Your build', b.name || 'Build B');
+}
+
+function _cmpNum(t) { const v = parseFloat(String(t).replace(/[^0-9.+-]/g, '')); return isNaN(v) ? null : v; }
+function _cmpDelta(a, b, digits) {
+  if (a == null || b == null) return '';
+  const d = b - a;
+  if (Math.abs(d) < Math.pow(10, -(digits || 0)) / 2) return '<span class="cmp-eq">=</span>';
+  return '<span class="' + (d > 0 ? 'cmp-up' : 'cmp-down') + '">' + (d > 0 ? '+' : '') + d.toFixed(digits || 0) + '</span>';
+}
+function _cmpPctDelta(a, b) {
+  if (a == null || b == null || !a) return '';
+  const p = (b - a) / a * 100;
+  if (Math.abs(p) < 0.05) return '<span class="cmp-eq">=</span>';
+  return '<span class="' + (p > 0 ? 'cmp-up' : 'cmp-down') + '">' + (p > 0 ? '+' : '') + p.toFixed(1) + '%</span>';
+}
+
+function _cmpRenderResults(A, B, nameA, nameB) {
+  const sa = A.state, sb = B.state;
+  const gear = (st, i) => (st.g || [])[i] || '';
+  const ident = [
+    ['Level', st => st.lvl], ['Race', st => st.race], ['Class', st => st.cls], ['Super class', st => st.sup],
+    ['Sub class', st => st.sub], ['Weapon', st => st.wm], ['Off-hand', st => st.wo], ['Armour', st => st.arm],
+    ['Gear 1', st => gear(st, 0)], ['Gear 2', st => gear(st, 1)], ['Gear 3', st => gear(st, 2)], ['Gear 4', st => gear(st, 3)],
+    ['Artifact', st => st.art], ['Enchant', st => st.ench], ['Mark', st => st.mark],
+    ['Covenant', st => st.cov ? st.cov + ' (rank ' + (st.covR || 1) + ')' : ''], ['Lost scroll', st => st.ls],
+    ['Scrolls', st => [st.sc1, st.sc2, st.sc3, st.sc4].filter(Boolean).join(', ')], ['Corruption', st => st.corr],
+  ];
+  const cell = v => (v === '' || v == null) ? '<span class="cmp-none">—</span>' : _cmpEsc(v);
+  let h = '<div class="cmp-actions"><button type="button" class="cmp-load-b" onclick="loadCompareB()">Load B into the builder</button></div>';
+
+  h += '<h3 class="cmp-title">Build</h3><div class="cmp-table-wrap"><table class="cmp-table"><thead><tr><th></th><th>A · ' + _cmpEsc(nameA) + '</th><th>B · ' + _cmpEsc(nameB) + '</th></tr></thead><tbody>';
+  ident.forEach(([label, get]) => {
+    const va = get(sa), vb = get(sb);
+    if ((va === '' || va == null) && (vb === '' || vb == null)) return;
+    h += '<tr' + (String(va || '') !== String(vb || '') ? ' class="cmp-diff"' : '') + '><td>' + label + '</td><td>' + cell(va) + '</td><td>' + cell(vb) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+
+  h += '<h3 class="cmp-title">Stats</h3><div class="cmp-table-wrap"><table class="cmp-table"><thead><tr><th></th><th>A</th><th>B</th><th>B − A</th></tr></thead><tbody>';
+  ['str', 'arc', 'end', 'spd', 'lck'].forEach(k => {
+    h += '<tr><td>' + k.toUpperCase() + '</td><td>' + A.stats[k] + '</td><td>' + B.stats[k] + '</td><td>' + _cmpDelta(A.stats[k], B.stats[k], 0) + '</td></tr>';
+  });
+  Object.keys(A.pct).forEach(k => {
+    const pa = A.pct[k], pb = B.pct[k] || { text: '' };
+    const na = _cmpNum(pa.text), nb = _cmpNum(pb.text);
+    const digits = /x$/.test(pa.text) ? 2 : 1;
+    h += '<tr><td>' + _cmpEsc(pa.label) + '</td><td>' + _cmpEsc(pa.text) + '</td><td>' + _cmpEsc(pb.text) + '</td><td>' + _cmpDelta(na, nb, digits) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+
+  const fmt = v => v == null ? '<span class="cmp-none">—</span>' : v.toFixed(1);
+  const byName = list => { const o = {}; list.forEach(m => { if (!(m.name in o)) o[m.name] = m; }); return o; };
+  const ma = byName(A.moves), mb = byName(B.moves);
+  const shared = A.moves.filter(m => mb[m.name] && ma[m.name] === m);
+  const onlyA  = A.moves.filter(m => !mb[m.name] && ma[m.name] === m);
+  const onlyB  = B.moves.filter(m => !ma[m.name] && mb[m.name] === m);
+  h += '<h3 class="cmp-title">Damage <span class="cmp-sub">default settings: no buffs, statuses or target</span></h3>';
+  if (shared.length) {
+    h += '<div class="cmp-table-wrap"><table class="cmp-table"><thead><tr><th>Move</th><th>A hit</th><th>B hit</th><th>Δ</th><th>A crit</th><th>B crit</th><th>Δ</th></tr></thead><tbody>';
+    shared.forEach(m => {
+      const b = mb[m.name];
+      h += '<tr><td>' + _cmpEsc(m.name) + '</td><td>' + fmt(m.hit) + '</td><td>' + fmt(b.hit) + '</td><td>' + _cmpPctDelta(m.hit, b.hit) +
+           '</td><td>' + fmt(m.crit) + '</td><td>' + fmt(b.crit) + '</td><td>' + _cmpPctDelta(m.crit, b.crit) + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  } else {
+    h += '<div class="cmp-note">The two builds share no damage moves.</div>';
+  }
+  const own = (list, who) => list.length
+    ? '<div class="cmp-table-wrap"><table class="cmp-table"><thead><tr><th>Only in ' + who + '</th><th>Hit</th><th>Crit</th></tr></thead><tbody>' +
+      list.map(m => '<tr><td>' + _cmpEsc(m.name) + '</td><td>' + fmt(m.hit) + '</td><td>' + fmt(m.crit) + '</td></tr>').join('') + '</tbody></table></div>'
+    : '';
+  h += own(onlyA, 'A') + own(onlyB, 'B');
+  return h;
+}
+
+function loadCompareB() {
+  if (!_cmpLastB) return;
+  if (!confirm('Replace your current build with B? Save it first if you want to keep it.')) return;
+  loadBuildState(JSON.parse(JSON.stringify(_cmpLastB.state)));
+  const nameInput = document.getElementById('build-name-input');
+  if (nameInput && _cmpLastB.name) nameInput.value = _cmpLastB.name;
+  autoSave();
+  _switchBuilderTab('stats');
+}
+
+(function () {
+  const run  = document.getElementById('cmp-run');
+  const link = document.getElementById('cmp-link');
+  const sel  = document.getElementById('cmp-saved');
+  if (run)  run.addEventListener('click', () => { runCompare(); });
+  if (link) {
+    link.addEventListener('keydown', e => { if (e.key === 'Enter') runCompare(); });
+    link.addEventListener('input', () => { if (sel && link.value.trim()) sel.value = ''; });
+  }
+  if (sel) sel.addEventListener('change', () => { if (link && sel.value !== '') link.value = ''; });
 })();
 
 // === AUTO-SAVE ===

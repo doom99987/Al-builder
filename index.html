@@ -50,7 +50,7 @@
   <link rel="stylesheet" href="css/mobile.css?v=18">
   <link rel="stylesheet" href="css/auth.css?v=25">
   <link rel="stylesheet" href="css/overlay.css?v=1">
-  <link rel="stylesheet" href="css/saved-builds.css?v=14">
+  <link rel="stylesheet" href="css/saved-builds.css?v=15">
   <link rel="stylesheet" href="css/trades.css?v=19">
   <link rel="stylesheet" href="css/vl.css?v=11">
   <!-- Trades and LF Party are disabled (2026-09-23)
@@ -843,6 +843,7 @@
       <button class="tab" data-tab="dmg-calc">Dmg Calc</button>
       <button class="tab" data-tab="summary">Summary</button>
       <button class="tab" data-tab="saved-builds">Saved Builds</button>
+      <button class="tab" data-tab="compare">Compare</button>
       <button class="tab" data-tab="race-recs">Race Recs</button>
     </div>
     <div class="tabbar-controls">
@@ -1316,6 +1317,24 @@
       </div>
     </div>
 
+    <!-- Compare: the current build (A) against a share link, build code or
+         saved build (B). Filled by the § COMPARE section of builder.js. -->
+    <div class="panel" id="compare">
+      <div class="cmp-wrap">
+        <div class="cmp-header">
+          <h2>Compare Builds</h2>
+          <div class="cmp-note">Your current build is <b>A</b>. Paste a share link or build code, or pick a saved build, as <b>B</b>. Both are worked out at default combat settings (no buffs, statuses or target), so the match is fair. Your own Dmg Calc settings are kept.</div>
+        </div>
+        <div class="cmp-inputs">
+          <input type="text" id="cmp-link" class="cmp-link" placeholder="Paste a share link or build code…" autocomplete="off" spellcheck="false">
+          <select id="cmp-saved" class="cmp-saved"><option value="">— or pick a saved build —</option></select>
+          <button type="button" id="cmp-run" class="cmp-run">Compare</button>
+        </div>
+        <div class="cmp-status" id="cmp-status"></div>
+        <div class="cmp-results" id="cmp-results"></div>
+      </div>
+    </div>
+
     <div class="panel" id="race-recs">
       <div class="rr-wrap">
         <div class="rr-header">
@@ -1690,7 +1709,7 @@
 <script src="js/data-class-moves.js?v=26"></script>
 <script src="js/data-race-moves.js?v=21"></script>
 <script src="js/move-renderer.js?v=13"></script>
-<script src="js/builder.js?v=119"></script>
+<script src="js/builder.js?v=120"></script>
 <script src="js/qte-guard.js?v=3"></script>
 <script src="js/qte-rules.js?v=3"></script>
 <script src="js/qte.js?v=28"></script>
@@ -1706,7 +1725,7 @@
 <script src="js/donation.js?v=6"></script> -->
 <!-- Matchmaking is disabled (2026-09-11)
 <script src="js/matchmaking.js?v=13"></script> -->
-<script src="js/build-ai.js?v=64"></script>
+<script src="js/build-ai.js?v=65"></script>
 <!-- Donations are disabled (2026-09-22)
 <script>
   // Load donation leaderboard on page ready — retry once if Supabase client isn't ready yet
@@ -2233,7 +2252,7 @@
   // Deliberately a BANNER and not an automatic reload. A tab may be sitting on
   // an unsaved build, and reloading it out from under someone would destroy
   // their work. Offer the reload; let them pick the moment.
-  const SITE_VERSION    = '2026-10-21.2';
+  const SITE_VERSION    = '2026-10-24.1';
   const VERSION_POLL_MS = 600000;   // 10 minutes
 
   (function watchSiteVersion() {
