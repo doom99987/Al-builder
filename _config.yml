@@ -6,7 +6,7 @@
 # database's own rules (supabase/lockdown*.sql) are the security boundary, and
 # they hold whoever can read them.
 #
-# Keep served: index.html, css/, js/, html/, images/, sfx/, ads.txt, CNAME,
+# Keep served: index.html, css/, js/, html/, images/, sfx/, ads.txt, robots.txt, CNAME,
 # version.json, and from tools/ai/ the nine engine files js/build-ai.js loads
 # (ENGINE_FILES) plus ai-data.json and verify.js, which run against the live
 # site. tools/ai/test.js checks that nothing below hides a file the site loads.
