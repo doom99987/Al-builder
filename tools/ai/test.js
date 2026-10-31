@@ -7815,7 +7815,7 @@ describe('additive damage (Withered Grove §12)', () => {
     eq(multiOf(site, probe()).mult, 0, 'the factor went below zero');
   });
 
-  it('Shadow Form + Shadow Master is +50, two terms, not x1.56', () => {
+  it('Shadow Form + Shadow Master multiply: x1.20 x 1.30 = x1.56, outside the sum', () => {
     const nodes = (((data.masteryClassData || {})['Assassin (Ch)'] || {}).nodes) || {};
     ok(nodes.lm1 && nodes.lm1.name === 'Shadow Master' && nodes.lm1.upgrades === 'Shadow Form',
        'fixture: Assassin lm1 is no longer Shadow Master upgrading Shadow Form');
@@ -7830,10 +7830,13 @@ describe('additive damage (Withered Grove §12)', () => {
     eq(row.bonus, 50, 'Shadow Form + Shadow Master');
     eq(merged.filter(p => p.name === 'Shadow Form' || p.name === 'Shadow Master').length, 1, 'the two became two rows');
     site('dmgBonusPassives = collectDmgBonusPassives(); dmgBonusActive[dmgBonusPassives.find(p => p.name === "Shadow Form").key] = true');
+    // Owner, 2026-10-31: these buffs are multiplicative. Each is its own factor,
+    // split out of the sum.
     const s = multiOf(site, probe());
-    eq(s.pct, 50, 'the sum');
-    eq(pctOf(s.terms, 'Shadow Form'), 20, 'Shadow Form is not its own +20 term');
-    eq(pctOf(s.terms, 'Shadow Master'), 30, 'Shadow Master is not its own +30 term');
+    eq(s.pct, 0, 'Shadow Form / Shadow Master are still in the sum');
+    eq(pctOf(s.xterms, 'Shadow Form'), 20, 'Shadow Form is not its own x1.20 factor');
+    eq(pctOf(s.xterms, 'Shadow Master'), 30, 'Shadow Master is not its own x1.30 factor');
+    near(s.mult, 1.2 * 1.3, 'Shadow Form x Shadow Master is not x1.56');
     // The class comes from a named list, never from the game text's wording.
     ok(!/multiplicative/i.test(patchSite.fn('collectDmgBonusPassives').replace(/\/\/[^\n]*/g, '')),
        'the merge still reads "multiplicative" from the text');
@@ -7858,19 +7861,21 @@ describe('additive damage (Withered Grove §12)', () => {
     eq(site('getOutsideDmgMult')(probe()).critRatio, 1, 'a move without a crit bonus got one');
   });
 
-  it('Stealth Strike from Invisible adds +100 to Stealth Strike only', () => {
+  it('Stealth Strike from Invisible doubles Stealth Strike only (x2, outside the sum)', () => {
+    // Owner, 2026-10-31: multiplicative, as is Shadow Form's x1.20.
     const site = additiveSite();
     const ss = probe({ name: 'Stealth Strike', scaling: 'STR/75' });
-    site('__rows(' + rows([['Shadow Form', 20]]) + ')');
-    eq(multiOf(site, ss).pct, 20, 'Stealth Strike before the switch');
+    site('__rows(' + rows([['Shadow Form', 20], ['Buff A', 10]]) + ')');
+    near(multiOf(site, ss).mult, 1.1 * 1.2, 'Stealth Strike before the switch');
     site('stealthStrikeInvisible = true');
     const s = multiOf(site, ss);
-    eq(s.pct, 120, 'Stealth Strike from Invisible is not +100 on top of Shadow Form');
-    eq(pctOf(s.terms, 'Stealth Strike'), 100, 'no labelled Stealth Strike term');
-    eq(multiOf(site, probe()).pct, 20, 'the switch reached another move');
-    // 10 x (1 + 1.2) = 22, not 10 x 2 x 1.2 = 24 or a doubled base.
-    ok(/10\(1 \+ STR\(0\)\/75\) = 10\.0 × 2\.20 \[\+120%: Stealth Strike \+100, Shadow Form \+20\] = 22\.0/.test(site('__work')(ss)),
-       'the Stealth Strike working is not 10 x 2.20 = 22.0: ' + site('__work')(ss));
+    eq(s.pct, 10, 'Stealth Strike from Invisible joined the sum');
+    eq(pctOf(s.xterms, 'Stealth Strike'), 100, 'no labelled Stealth Strike factor');
+    near(s.mult, 1.1 * 1.2 * 2, 'Stealth Strike is not x2 on top of Shadow Form and the sum');
+    near(multiOf(site, probe()).mult, 1.1 * 1.2, 'the switch reached another move');
+    // 10 x 1.1 x 1.2 x 2 = 26.4, not 10 x (1 + 0.1 + 0.2 + 1) = 23.
+    ok(/10\(1 \+ STR\(0\)\/75\) = 10\.0 × 2\.64 \[\+10%: Buff A \+10; × Shadow Form 1\.20, × Stealth Strike 2\.00\] = 26\.4/.test(site('__work')(ss)),
+       'the Stealth Strike working is not 10 x 2.64 = 26.4: ' + site('__work')(ss));
     // The switch is part of the build's DMG state: cleared on load, cleared when
     // the move leaves the list, and it repaints the open workings.
     const src = patchSite.src;

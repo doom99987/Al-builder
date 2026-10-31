@@ -380,6 +380,12 @@ const soulTreeBonuses = { "crit-dmg": 0, "crit-chance": 0, endFlat: 0 };
 // Flat percentage bonuses granted by specific equipped weapons.
 // Applied on top of the base stat percentage inside updatePecents().
 // Key format: { "stat-key": percentageValue }
+// Flat stats a weapon itself grants (owner, 2026-10-31), counted with gear's
+// base stats in gearStatContributions(). Not a tier roll: untiered weapons too.
+const weaponBaseStats = {
+  "Icerind Sai": { str: 1, arc: 1, spd: 2 },
+};
+
 const weaponBonuses = {
   "Jade Broadsword":  { "out-heal": 30, "inc-heal": 30 },
   "Jade Prayerstaff": { "out-heal": 30, "inc-heal": 30 },
@@ -1009,14 +1015,20 @@ function gearStatContributions() {
     });
   }
 
-  // Tiered weapons contribute through the same path. A weapon has no base stat
-  // block here — weaponBonuses is percentage-only and is applied separately in
-  // updatePecents() — so everything a weapon adds comes from its tier roll.
+  // Weapons contribute through the same path: their own flat stats
+  // (weaponBaseStats, e.g. Icerind Sai) and, when tiered, their tier roll.
+  // weaponBonuses is percentage-only and is applied separately in updatePecents().
   _weaponSlotIds.forEach((id, slot) => {
     const name = document.getElementById(id)?.value || "";
-    if (!name || !weaponHasTiers(name)) return;
-    const alloc = gearInstanceAlloc(weaponInstances[slot]);
+    if (!name) return;
+    const base   = weaponBaseStats[name] || {};
+    const tiered = weaponHasTiers(name);
+    if (!tiered && !Object.keys(base).length) return;
+    const alloc = tiered ? gearInstanceAlloc(weaponInstances[slot]) : {};
     const stats = {};
+    Object.entries(base).forEach(([k, v]) => {
+      if (v && GEAR_ALLOC_STATS.includes(k)) stats[k] = (stats[k] || 0) + v;
+    });
     let tierPts = 0;
     GEAR_ALLOC_STATS.forEach(s => {
       const v = alloc[s] || 0;
@@ -1024,9 +1036,10 @@ function gearStatContributions() {
     });
     out.push({
       name, slot: -2 - slot, weapon: true,
-      tier: weaponInstances[slot].tier,
+      tier: tiered ? weaponInstances[slot].tier : 0,
+      fixed: !tiered,
       stats,
-      baseFor: () => 0,
+      baseFor: k => (GEAR_ALLOC_STATS.includes(k) ? (base[k] || 0) : 0),
       tierFor: k => alloc[k] || 0,
       tierPts,
     });
@@ -5000,8 +5013,12 @@ function toggleDmgDetail(rowEl, idx, forceOpen = false) {
     const terms = getActiveDmgTerms(effType, dcEnergyAfter(m));
     const _notchAoe = notchPctFor(m);
     if (_notchAoe) terms.push({ label: "Blasphemy Notch", pct: _notchAoe });
-    const multi = { terms, pct: sumDmgTerms(terms) };
-    const mult  = dmgMultiFactor(multi.pct);
+    // Stealth Strike / Shadow Form / Shadow Master multiply (as in getDmgMulti).
+    const X = { "Stealth Strike": 1, "Shadow Form": 1, "Shadow Master": 1 };
+    const xterms = terms.filter(t => X[t.label]);
+    const sumTerms = terms.filter(t => !X[t.label]);
+    const multi = { terms: sumTerms, xterms, pct: sumDmgTerms(sumTerms) };
+    const mult  = dmgMultiFactor(multi.pct) * xterms.reduce((f, t) => f * dmgMultiFactor(t.pct), 1);
     const { mult: gMult, label: gLabel } = getStatusMultiplier(effType, { skipBasic: true });
     const base  = 10 + getFlatDmgBonus();
     let v = base;
@@ -5889,7 +5906,7 @@ function collectDmgBonusPassives() {
           if (MASTERY_ADDS_TO_BASE[e.masteryName]) {
             ex.parts = (ex.parts || [{ label: ex.name, pct: ex.bonus }]).concat({ label: e.masteryName, pct: e.bonus });
             // The game text may still call it multiplicative; say what is counted.
-            ex.descs.push({ kind: "mastery", text: `Counted here: ${e.masteryName}'s +${e.bonus}% is added to ${ex.name}'s +${ex.bonus}% (+${ex.bonus + e.bonus}%). Since Withered Grove every damage bonus is added into one sum.` });
+            ex.descs.push({ kind: "mastery", text: `Counted here: ${e.masteryName}'s +${e.bonus}% and ${ex.name}'s +${ex.bonus}% each multiply the hit (×${(1 + ex.bonus / 100).toFixed(2)} × ${(1 + e.bonus / 100).toFixed(2)} = ×${((1 + ex.bonus / 100) * (1 + e.bonus / 100)).toFixed(2)}), outside the damage bonus sum (owner, 2026-10-31).` });
             ex.bonus = ex.bonus + e.bonus;
           } else {
             ex.bonus = Math.max(ex.bonus, e.bonus);
@@ -6035,7 +6052,8 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
 // Every switch that is on and adds to a hit's Multi sum whatever the move:
 // the DMG BONUS rows, your own Overheat and the team buffs. Element gates read
 // `moveType`, the EFFECTIVE type. A row that MASTERY_ADDS_TO_BASE merged
-// (Shadow Form + Shadow Master) lists its parts. The Blasphemy Notch is NOT
+// (Shadow Form + Shadow Master) lists its parts; those two are multiplicative
+// and getDmgMulti splits them out of the sum. The Blasphemy Notch is NOT
 // here: N-Consume reaches your own attack, not a summon's, so it is per move
 // (notchPctFor).
 function getActiveDmgTerms(moveType = null, energyAfter = null) {
@@ -6577,7 +6595,8 @@ function buildBonusTag(multi) {
   const rest  = terms.slice(shown.length);
   const parts = shown.map(t => `${t.label} ${fmtSignedPct(t.pct)}`);
   if (rest.length) parts.push(`${rest.length} more ${fmtSignedPct(sumDmgTerms(rest))}`);
-  return `[${fmtSignedPct(multi.pct)}%${parts.length ? ": " + parts.join(", ") : ""}]`;
+  const xs = (multi.xterms || []).map(t => `× ${t.label} ${(1 + t.pct / 100).toFixed(2)}`);
+  return `[${fmtSignedPct(multi.pct)}%${parts.length ? ": " + parts.join(", ") : ""}${xs.length ? "; " + xs.join(", ") : ""}]`;
 }
 
 // § STAT MILESTONE DAMAGE
@@ -6664,7 +6683,7 @@ function getDmgMulti(m, effType, energyAfter, isCrit = false, opts = null) {
     add(milestoneDmgLabel(m, effType), getMilestoneDmgPct(m, effType));
     getMoveInnateTerms(m, opts).forEach(t => add(t.label, t.pct));
     // Stealth Strike: "Increases damage dealt by 100% if invisible while
-    // attacking" - +100 in this move's sum, never a doubled base.
+    // attacking" - x2 on this move, split out of the sum below.
     if (m.name === "Stealth Strike" && stealthStrikeInvisible) add("Stealth Strike", 100);
     if (isCrit && +m.critDmgBonus) add(`${m.name} on a crit`, +m.critDmgBonus);
   }
@@ -6672,8 +6691,16 @@ function getDmgMulti(m, effType, energyAfter, isCrit = false, opts = null) {
   add("Blizzard", getBlizzardPct(effType));
   const _ench = getEnchantPct();
   add(_ench.label, _ench.pct);
-  const pct = sumDmgTerms(terms);
-  return { pct, terms, mult: dmgMultiFactor(pct) };
+  // Multiplicative buffs (owner, 2026-10-31): Stealth Strike from Invisible,
+  // Shadow Form and Shadow Master each multiply the hit - x2, x1.20, x1.30 -
+  // rather than joining the sum. Written out here and in the Frosted AOE line
+  // (the tests load this function on its own, so no shared constant).
+  const X = { "Stealth Strike": 1, "Shadow Form": 1, "Shadow Master": 1 };
+  const xterms = terms.filter(t => X[t.label]);
+  const sumTerms = terms.filter(t => !X[t.label]);
+  const pct = sumDmgTerms(sumTerms);
+  const xmult = xterms.reduce((f, t) => f * dmgMultiFactor(t.pct), 1);
+  return { pct, terms: sumTerms, xterms, mult: dmgMultiFactor(pct) * xmult };
 }
 
 // The Multi factor of a sum: 1 + pct / 100, clamped at 0. The only place it is
@@ -6697,7 +6724,7 @@ function getOutsideDmgMult(m, opts = null) {
   const multi = getDmgMulti(m, effectiveMoveType, energyAfter, false, opts);
   const crit  = +m.critDmgBonus ? getDmgMulti(m, effectiveMoveType, energyAfter, true, opts) : multi;
   return {
-    effectiveMoveType, pct: multi.pct, terms: multi.terms, total: multi.mult,
+    effectiveMoveType, pct: multi.pct, terms: multi.terms, xterms: multi.xterms || [], total: multi.mult,
     critPct: crit.pct, critTotal: crit.mult,
     critRatio: multi.mult > 0 ? crit.mult / multi.mult : 1,
   };
@@ -6935,11 +6962,11 @@ function renderDmgBonusSection() {
     bloomingEyeSpend = false;
   }
 
-  // Stealth Strike from Invisible: +100 in that move's Multi sum only. Shown
-  // while the build has the move; the switch is cleared the moment it does not.
+  // Stealth Strike from Invisible: x2 on that move only, outside the sum (owner,
+  // 2026-10-31). Shown while the build has the move; cleared when it does not.
   if (dmgCalcMoveList.some(m => m.name === "Stealth Strike")) {
-    html += `<div class="dc-energy-section" data-stealth-strike title="Stealth Strike: &quot;Increases damage dealt by 100% if invisible while attacking.&quot; Adds +100% to Stealth Strike's damage bonus only - it is added to the sum, not a doubled base. Invisibility's own +20% (and Shadow Master's +30%) comes from the Shadow Form row, with its +20% crit chance.">
-      <span class="dc-energy-label">Stealth Strike from Invisible <span style="color:#aaa;font-size:11px">+100% (Stealth Strike)</span></span>
+    html += `<div class="dc-energy-section" data-stealth-strike title="Stealth Strike: &quot;Increases damage dealt by 100% if invisible while attacking.&quot; Doubles Stealth Strike's damage (×2), multiplied with the damage bonus sum rather than added to it. Invisibility's own +20% (and Shadow Master's +30%) comes from the Shadow Form row, with its +20% crit chance; those multiply too.">
+      <span class="dc-energy-label">Stealth Strike from Invisible <span style="color:#aaa;font-size:11px">×2 (Stealth Strike)</span></span>
       <div class="dc-bonus-check dc-toggle-btn${stealthStrikeInvisible ? " dc-bonus-on" : ""}" onclick="toggleStealthStrikeInvisible()" style="cursor:pointer;width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #555;border-radius:3px;">${stealthStrikeInvisible ? "✓" : ""}</div>
     </div>`;
   } else if (stealthStrikeInvisible) {
@@ -7031,6 +7058,10 @@ function renderDmgBonusSection() {
     const isKarmaStacks       = p.name === "Karma Stacks";
     const isGoldRush          = p.name === "Gold Rush";
     const isCandy             = p.name === "Candy";
+    // Shadow Form (and Shadow Master, merged into its row) multiply the hit.
+    const isShadowFormRow     = p.name === "Shadow Form";
+    const _sfFactor = isShadowFormRow
+      ? (p.parts || [{ pct: p.bonus }]).reduce((f, pt) => f * (1 + pt.pct / 100), 1) : 1;
     const isWitchBroom        = p.name === "Witch Broom";
     const isHauntedCloth      = p.name === "Haunted Cloth";
     // What the row adds to a hit's Multi sum, read from the same dmgRowPct the
@@ -7045,6 +7076,7 @@ function renderDmgBonusSection() {
                          : isCoagNail         ? `+${(coagNailStacks * 1.5).toFixed(1)} stats`
                          : isKarmaStacks      ? `${karmaStacks} stacks`
                          : isVydeerCritBuildup ? `+${(vydeerCritStacks * 1.5).toFixed(1)}% Crit`
+                         : isShadowFormRow    ? `×${_sfFactor.toFixed(2)}${_note('multiplies')}`
                          : isWitchBroom       ? `+33% Crit`
                          : isHauntedCloth     ? `+${+Math.min(25, hauntedClothBlind / 2).toFixed(1)}% Crit`
                          : isMetrom           ? `×2 hits · +40%${_note('DoT')}`
