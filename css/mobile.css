@@ -356,6 +356,20 @@
     width: 100% !important; max-width: 100% !important; min-width: 0 !important;
   }
 
+  /* Info tab move columns (race, classes, artifact, mark, weapon, scrolls...)
+     swipe sideways in their own strip. Without min-width: 0 the panel grew to
+     fit every column and .content clipped it, cutting off the columns and the
+     gear text above them. */
+  #Moves, .moves-container { min-width: 0; }
+  .moves-columns {
+    gap: 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 6px;
+  }
+  .moves-col { flex: 1 0 82%; scroll-snap-align: start; }
+
   /* Dmg calc horizontal scroll */
   #dmg-calc { overflow-x: auto; }
 
