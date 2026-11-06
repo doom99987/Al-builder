@@ -6787,8 +6787,10 @@ function renderSelfDestruct(slider) {
   if (critMult !== null) {
     html += `<br><span class="dc-crit-line">All crits: <b>${afterRes.toFixed(1)}</b> &times; ` +
             `${critMult.toFixed(2)}x = <b>${(afterRes * critMult).toFixed(1)}</b></span>`;
-    // Past 100 crit chance: the orange / red / purple tiers, as on every move.
-    html += buildOvercritLines(afterRes, critMult);
+    // Past 100 crit chance: the orange / red / purple tiers, as on every move,
+    // with Heresy's Light Force crit chance added the same way.
+    const cc = getCritChancePct();
+    html += buildOvercritLines(afterRes, critMult, cc !== null ? cc + getCorruptionCritBonus() : null);
   }
   const dmgEl = box.querySelector(".sd-dmg");
   if (dmgEl) dmgEl.innerHTML = html;
