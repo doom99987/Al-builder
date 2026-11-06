@@ -4418,6 +4418,7 @@ function getVulnerableMult() {
 let coagNailStacks = 1; // 1-10: Coagulated Finger Nail turns (+1.5 to all base stats per stack)
 let ssbProcChance = 35; // 30-40: Spiked Steel Ball per-hit proc chance (dev claims ~30-40%); shown for reference - the row is the proc (a separate hit, x1.35)
 let oppressionCount = 1; // 1-5: unique status effects on target for Oppression (+5% each)
+let curseConsumeCount = 1; // 1-10: statuses Curse Consumption (Cursed Brand) consumed, +5% each
 let shatteringDebuffCount = 1; // debuffs on target for Shattering
 let reversingDebuffCount  = 1; // debuffs on self for Reversing
 let karmaStacks = 0;          // 0+: Karma stacks on target for Arbiter (N) Pronouncement calc
@@ -6040,6 +6041,7 @@ function dmgRowPct(p, moveType = null, energyAfter = null) {
   if (p.name === "Crusher")               return getCrusherPct();
   if (p.name === "Lucky Horns")           return luckyHornsSpend ? 45 : 5;
   if (p.name === "Oppression")            return Math.min(25, 5 * oppressionCount);
+  if (p.name === "Curse Consumption")     return 5 * curseConsumeCount;
   if (p.bonusType === 'per-debuff-target')    return p.perDebuffVal * shatteringDebuffCount;
   if (p.bonusType === 'per-debuff-self')      return p.perDebuffVal * reversingDebuffCount;
   if (p.bonusType === 'conditional-hp-above') return shardToggleActive.striking  ? p.bonus : null;
@@ -6233,6 +6235,11 @@ function setGoldRushGold(val) {
 function setHauntedClothBlind(val) {
   hauntedClothBlind = Math.min(50, Math.max(0, Math.round(+val)));
   renderDmgBonusSection(); updatePecents(); recalcOpenDetails();
+}
+
+function setCurseConsumeCount(val) {
+  curseConsumeCount = Math.min(10, Math.max(1, Math.round(+val)));
+  renderDmgBonusSection(); recalcOpenDetails();
 }
 
 function setCandyRegenPct(val) {
@@ -6780,6 +6787,8 @@ function renderSelfDestruct(slider) {
   if (critMult !== null) {
     html += `<br><span class="dc-crit-line">All crits: <b>${afterRes.toFixed(1)}</b> &times; ` +
             `${critMult.toFixed(2)}x = <b>${(afterRes * critMult).toFixed(1)}</b></span>`;
+    // Past 100 crit chance: the orange / red / purple tiers, as on every move.
+    html += buildOvercritLines(afterRes, critMult);
   }
   const dmgEl = box.querySelector(".sd-dmg");
   if (dmgEl) dmgEl.innerHTML = html;
@@ -7058,6 +7067,7 @@ function renderDmgBonusSection() {
     const isKarmaStacks       = p.name === "Karma Stacks";
     const isGoldRush          = p.name === "Gold Rush";
     const isCandy             = p.name === "Candy";
+    const isCurseConsume      = p.name === "Curse Consumption";
     // Shadow Form (and Shadow Master, merged into its row) multiply the hit.
     const isShadowFormRow     = p.name === "Shadow Form";
     const _sfFactor = isShadowFormRow
@@ -7365,6 +7375,12 @@ function renderDmgBonusSection() {
       html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
         <span class="dc-rage-slider-label">HP regen: <b>${candyRegenPct}%</b> → <span style="color:${_cdCapped ? '#e0c97a' : '#ccc'}">${_cdBonus}% dmg${_cdCapped ? ' (cap)' : ''}</span></span>
         <input type="range" class="dc-rage-slider" min="0" max="12.5" step="0.5" value="${candyRegenPct}" oninput="setCandyRegenPct(this.value)">
+      </div>`;
+    }
+    if (isCurseConsume) {
+      html += `<div class="dc-rage-slider-row" style="margin:4px 0 2px 0">
+        <span class="dc-rage-slider-label">Statuses consumed: <b>${curseConsumeCount}</b> → <span style="color:#ccc">+${5 * curseConsumeCount}% dmg</span></span>
+        <input type="range" class="dc-rage-slider" min="1" max="10" step="1" value="${curseConsumeCount}" oninput="setCurseConsumeCount(this.value)">
       </div>`;
     }
     if (isOppression) {
@@ -10273,6 +10289,7 @@ function loadBuildState(state) {
   overheatStacks = 1;
   crusherStacks = 1;
   oppressionCount = 1;
+  curseConsumeCount = 1;
   shatteringDebuffCount = 1;
   reversingDebuffCount = 1;
   karmaStacks = 0;
@@ -10433,7 +10450,7 @@ if (shareBuildBtn) {
 
 function _cmpCombatSave() {
   return {
-    v: { energyCount, playerHpPct, absRadTurn, bulkUpStacks, verdantArcherStacks, poisedSlayerStacks, swiftFighterStacks, runicShieldStacks, bloodlustStacks, bloodlustRage, enhancedBloodlustStacks, looterStacks, hourglassStacks, boreasStacks, vydeerCritStacks, vydeerSenseConsumed, unendingFlowStacks, rendingBarrageStacks, demonicPresenceStacks, ramiIdolStacks, vaingLocketTurn, sinisterGazeReflect, sinisterGazeBloodProf, overcoreActive, overheatStacks, crusherStacks, oppressionCount, shatteringDebuffCount, reversingDebuffCount, karmaStacks, crystalStarStacks, frozenDiademColdActive, frozenDiademIceActive, tearBloodCrystalActive, flamingOverdriveStacks, selectedBoss, bossCorrupted, notchSpent, notchCap, condemnedPct, lightForceAmt, lightForceRatio, luckyHornsSpend, bloomingEyeSpend, stealthStrikeInvisible, crystallineSpikeSpend, castAmplifyStacks, darkCoreCount, enchantReaperEnemyHp, ivoryNrgStacks, midasLckStacks, lifesongStacks, ghoststeelStacks, hauntedStacks, coagNailStacks, ssbProcChance, vasticLckProcActive, vasticProcCount, vasticLckProcs, goldRushGold, candyRegenPct, hauntedClothBlind },
+    v: { energyCount, playerHpPct, absRadTurn, bulkUpStacks, verdantArcherStacks, poisedSlayerStacks, swiftFighterStacks, runicShieldStacks, bloodlustStacks, bloodlustRage, enhancedBloodlustStacks, looterStacks, hourglassStacks, boreasStacks, vydeerCritStacks, vydeerSenseConsumed, unendingFlowStacks, rendingBarrageStacks, demonicPresenceStacks, ramiIdolStacks, vaingLocketTurn, sinisterGazeReflect, sinisterGazeBloodProf, overcoreActive, overheatStacks, crusherStacks, oppressionCount, shatteringDebuffCount, reversingDebuffCount, karmaStacks, crystalStarStacks, frozenDiademColdActive, frozenDiademIceActive, tearBloodCrystalActive, flamingOverdriveStacks, selectedBoss, bossCorrupted, notchSpent, notchCap, condemnedPct, lightForceAmt, lightForceRatio, luckyHornsSpend, bloomingEyeSpend, stealthStrikeInvisible, crystallineSpikeSpend, castAmplifyStacks, darkCoreCount, enchantReaperEnemyHp, ivoryNrgStacks, midasLckStacks, lifesongStacks, ghoststeelStacks, hauntedStacks, coagNailStacks, ssbProcChance, vasticLckProcActive, vasticProcCount, vasticLckProcs, goldRushGold, candyRegenPct, hauntedClothBlind, curseConsumeCount },
     o: { statusEffectsActive: Object.assign({}, statusEffectsActive),
          healCursedActive: Object.assign({}, healCursedActive),
          statBuffsActive: Object.assign({}, statBuffsActive),
@@ -10514,6 +10531,7 @@ function _cmpCombatRestore(s) {
   goldRushGold = s.v.goldRushGold;
   candyRegenPct = s.v.candyRegenPct;
   hauntedClothBlind = s.v.hauntedClothBlind;
+  curseConsumeCount = s.v.curseConsumeCount;
   _cmpRestoreObj(statusEffectsActive, s.o.statusEffectsActive);
   _cmpRestoreObj(healCursedActive, s.o.healCursedActive);
   _cmpRestoreObj(statBuffsActive, s.o.statBuffsActive);
